@@ -17,8 +17,8 @@ export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
-  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, refetch: refetchMotoristas } = useMotoristas();
-  const { veiculos, createVeiculo, refetch: refetchVeiculos } = useVeiculos();
+  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, refetch: refetchMotoristas } = useMotoristas();
+  const { veiculos, createVeiculo, updateVeiculo, refetch: refetchVeiculos } = useVeiculos();
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
@@ -31,10 +31,20 @@ export default function Motoristas() {
     return result;
   };
 
+  const handleUpdateMotorista = async (id: string, data: any) => {
+    await updateMotorista(id, data);
+    refetchMotoristas();
+  };
+
   const handleSaveVeiculo = async (data: any) => {
     const result = await createVeiculo({ ...data, ativo: true });
     refetchVeiculos();
     return result;
+  };
+
+  const handleUpdateVeiculo = async (id: string, data: any) => {
+    await updateVeiculo(id, data);
+    refetchVeiculos();
   };
 
   // Agrupar veículos por motorista
@@ -195,7 +205,14 @@ export default function Motoristas() {
                                 {motorista.nome.charAt(0)}
                               </div>
                               <div>
-                                <CardTitle className="text-base">{motorista.nome}</CardTitle>
+                                <div className="flex items-center gap-2">
+                                  <CardTitle className="text-base">{motorista.nome}</CardTitle>
+                                  <MotoristaModal 
+                                    motorista={motorista}
+                                    onSave={handleSaveMotorista}
+                                    onUpdate={handleUpdateMotorista}
+                                  />
+                                </div>
                                 {motorista.telefone && (
                                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                                     <Phone className="w-3 h-3" />
@@ -204,7 +221,7 @@ export default function Motoristas() {
                                 )}
                               </div>
                             </div>
-                      <div className="flex flex-col items-end gap-1">
+                            <div className="flex flex-col items-end gap-1">
                               <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
                                 {motorista.ativo ? 'Ativo' : 'Inativo'}
                               </Badge>
@@ -263,6 +280,12 @@ export default function Motoristas() {
                                           {veiculo.capacidade} PAX
                                         </span>
                                       )}
+                                      <VeiculoModal 
+                                        motorista={motorista}
+                                        veiculo={veiculo}
+                                        onSave={handleSaveVeiculo}
+                                        onUpdate={handleUpdateVeiculo}
+                                      />
                                     </div>
                                   </div>
                                 ))}
