@@ -1,22 +1,34 @@
 import { Viagem, StatusViagem, AlertaViagem, MetricasMotorista, MetricasPorHora, KPIsDashboard } from '../types/viagem';
 
 /**
+ * Formata horário para string HH:MM
+ */
+export function formatarHora(hora: string | null): string {
+  if (!hora) return '--:--';
+  // Handle both "HH:MM:SS" and "HH:MM" formats
+  return hora.substring(0, 5);
+}
+
+/**
  * Calcula tempo entre dois horários em minutos
  */
-export function calcularTempoViagem(inicio: string, fim: string): number {
+export function calcularTempoViagem(inicio: string | null, fim: string | null): number {
+  if (!inicio || !fim) return 0;
+  
   const [h1, m1] = inicio.split(':').map(Number);
   const [h2, m2] = fim.split(':').map(Number);
   
   const minutos1 = h1 * 60 + m1;
   const minutos2 = h2 * 60 + m2;
   
-  return minutos2 - minutos1;
+  return Math.max(0, minutos2 - minutos1);
 }
 
 /**
  * Formata minutos para exibição
  */
 export function formatarMinutos(minutos: number): string {
+  if (!minutos || minutos <= 0) return '0 min';
   if (minutos < 60) {
     return `${Math.round(minutos)} min`;
   }
@@ -35,21 +47,31 @@ export function isToday(dateString: string): boolean {
 }
 
 /**
+ * Verifica se uma viagem tem dados válidos para cálculos
+ */
+function isViagemValida(viagem: Viagem): boolean {
+  return !!viagem.h_pickup && !!viagem.motorista && !!viagem.placa;
+}
+
+/**
  * Calcula métricas agregadas por motorista
  */
 export function calcularMetricasMotorista(
   motorista: string,
   todasViagens: Viagem[]
 ): MetricasMotorista {
-  const viagensMotorista = todasViagens.filter(v => v.motorista === motorista);
+  const viagensMotorista = todasViagens.filter(v => v.motorista === motorista && isViagemValida(v));
+  
   const tempos = viagensMotorista
-    .filter(v => v.h_chegada)
-    .map(v => calcularTempoViagem(v.h_pickup, v.h_chegada!));
+    .filter(v => v.h_pickup && v.h_chegada)
+    .map(v => calcularTempoViagem(v.h_pickup, v.h_chegada));
+
+  const totalPax = viagensMotorista.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
 
   return {
     motorista,
     totalViagens: viagensMotorista.length,
-    totalPax: viagensMotorista.reduce((sum, v) => sum + v.qtd_pax, 0),
+    totalPax,
     tempoMedio: tempos.length > 0
       ? tempos.reduce((a, b) => a + b, 0) / tempos.length
       : 0,
@@ -66,6 +88,19 @@ export function calcularStatusViagem(
   viagem: Viagem,
   tempoMedioMotorista: number
 ): AlertaViagem {
+  // Se não tem h_pickup válido, retorna status ok
+  if (!viagem.h_pickup) {
+    return {
+      viagemId: viagem.id,
+      status: 'ok',
+      tempoReal: 0,
+      tempoEsperado: tempoMedioMotorista || 30,
+      diferenca: 0,
+      mensagem: 'Aguardando pickup',
+      viagem
+    };
+  }
+
   if (!viagem.h_chegada) {
     // Viagem em andamento - calcular tempo decorrido
     const now = new Date();
@@ -74,7 +109,7 @@ export function calcularStatusViagem(
     pickupTime.setHours(h, m, 0, 0);
     
     const tempoDecorrido = (now.getTime() - pickupTime.getTime()) / 60000;
-    const diferenca = tempoDecorrido - tempoMedioMotorista;
+    const diferenca = tempoDecorrido - (tempoMedioMotorista || 30);
     
     let status: StatusViagem = 'ok';
     let mensagem = 'Em andamento';
@@ -91,7 +126,7 @@ export function calcularStatusViagem(
       viagemId: viagem.id,
       status,
       tempoReal: tempoDecorrido,
-      tempoEsperado: tempoMedioMotorista,
+      tempoEsperado: tempoMedioMotorista || 30,
       diferenca,
       mensagem,
       viagem
@@ -99,7 +134,7 @@ export function calcularStatusViagem(
   }
 
   const tempoReal = calcularTempoViagem(viagem.h_pickup, viagem.h_chegada);
-  const diferenca = tempoReal - tempoMedioMotorista;
+  const diferenca = tempoReal - (tempoMedioMotorista || 30);
 
   let status: StatusViagem;
   let mensagem: string;
@@ -119,7 +154,7 @@ export function calcularStatusViagem(
     viagemId: viagem.id,
     status,
     tempoReal,
-    tempoEsperado: tempoMedioMotorista,
+    tempoEsperado: tempoMedioMotorista || 30,
     diferenca,
     mensagem,
     viagem
@@ -131,19 +166,22 @@ export function calcularStatusViagem(
  */
 export function calcularMetricasPorHora(viagens: Viagem[]): MetricasPorHora[] {
   const metricas: MetricasPorHora[] = [];
+  const viagensValidas = viagens.filter(v => v.h_pickup);
 
   for (let hora = 6; hora <= 23; hora++) {
     const horaStr = `${hora.toString().padStart(2, '0')}:00`;
 
-    const viagensHora = viagens.filter(v => {
-      const hPickup = parseInt(v.h_pickup.split(':')[0]);
+    const viagensHora = viagensValidas.filter(v => {
+      const hPickup = parseInt(v.h_pickup!.split(':')[0]);
       return hPickup === hora;
     });
 
+    const placasUnicas = new Set(viagensHora.filter(v => v.placa).map(v => v.placa));
+
     metricas.push({
       hora: horaStr,
-      veiculosAtivos: new Set(viagensHora.map(v => v.placa)).size,
-      totalPax: viagensHora.reduce((sum, v) => sum + v.qtd_pax, 0),
+      veiculosAtivos: placasUnicas.size,
+      totalPax: viagensHora.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
       totalViagens: viagensHora.length,
       onibus: viagensHora.filter(v => v.tipo_veiculo === 'Ônibus').length,
       vans: viagensHora.filter(v => v.tipo_veiculo === 'Van').length
@@ -157,42 +195,59 @@ export function calcularMetricasPorHora(viagens: Viagem[]): MetricasPorHora[] {
  * Calcula todos os KPIs do dashboard
  */
 export function calcularKPIsDashboard(viagens: Viagem[]): KPIsDashboard {
-  const viagensComChegada = viagens.filter(v => v.h_chegada);
+  const viagensValidas = viagens.filter(isViagemValida);
+  
+  const viagensComChegada = viagensValidas.filter(v => v.h_pickup && v.h_chegada);
   const tempos = viagensComChegada.map(v =>
-    calcularTempoViagem(v.h_pickup, v.h_chegada!)
+    calcularTempoViagem(v.h_pickup, v.h_chegada)
   );
 
-  const viagensAtivas = viagens.filter(v => !v.encerrado);
+  const viagensAtivas = viagensValidas.filter(v => !v.encerrado);
 
   // Calcular métricas por motorista
-  const motoristas = [...new Set(viagens.map(v => v.motorista))];
+  const motoristas = [...new Set(viagensValidas.map(v => v.motorista))];
   const metricasMotoristas = motoristas.map(m =>
-    calcularMetricasMotorista(m, viagens)
+    calcularMetricasMotorista(m, viagensValidas)
   );
 
-  // Calcular alertas
+  // Calcular alertas apenas para viagens ativas com h_pickup
   const alertas: AlertaViagem[] = [];
-  viagensAtivas.forEach(viagem => {
+  viagensAtivas.filter(v => v.h_pickup).forEach(viagem => {
     const metricaMotorista = metricasMotoristas.find(
       m => m.motorista === viagem.motorista
     );
-    const tempoMedio = metricaMotorista?.tempoMedio || 30; // default 30 min
+    const tempoMedio = metricaMotorista?.tempoMedio || 30;
     alertas.push(calcularStatusViagem(viagem, tempoMedio));
   });
 
+  // Calcular total de passageiros (ida + retorno)
+  const totalPax = viagensValidas.reduce((sum, v) => 
+    sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0
+  );
+
+  // Calcular veículos ativos (apenas os que têm placa)
+  const placasAtivas = viagensAtivas.filter(v => v.placa).map(v => v.placa);
+  const veiculosAtivos = new Set(placasAtivas).size;
+
+  const placasOnibus = viagensAtivas
+    .filter(v => v.tipo_veiculo === 'Ônibus' && v.placa)
+    .map(v => v.placa);
+  const onibusAtivos = new Set(placasOnibus).size;
+
+  const placasVans = viagensAtivas
+    .filter(v => v.tipo_veiculo === 'Van' && v.placa)
+    .map(v => v.placa);
+  const vansAtivas = new Set(placasVans).size;
+
   return {
-    totalViagens: viagens.length,
-    totalPax: viagens.reduce((sum, v) => sum + v.qtd_pax + v.qtd_pax_retorno, 0),
+    totalViagens: viagensValidas.length,
+    totalPax,
     tempoMedioGeral: tempos.length > 0
       ? tempos.reduce((a, b) => a + b, 0) / tempos.length
       : 0,
-    veiculosAtivos: new Set(viagensAtivas.map(v => v.placa)).size,
-    onibusAtivos: new Set(
-      viagensAtivas.filter(v => v.tipo_veiculo === 'Ônibus').map(v => v.placa)
-    ).size,
-    vansAtivas: new Set(
-      viagensAtivas.filter(v => v.tipo_veiculo === 'Van').map(v => v.placa)
-    ).size,
+    veiculosAtivos,
+    onibusAtivos,
+    vansAtivas,
     alertasCriticos: alertas.filter(a => a.status === 'critico'),
     alertas: alertas.filter(a => a.status === 'alerta'),
     viagensOk: alertas.filter(a => a.status === 'ok').length,
