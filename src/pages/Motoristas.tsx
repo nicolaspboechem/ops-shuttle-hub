@@ -42,6 +42,16 @@ export default function Motoristas() {
     return veiculos.filter(v => v.motorista_id === motoristaId);
   };
 
+  // Contar viagens por motorista cadastrado (usando nome para match)
+  const contarViagensPorMotorista = (nomeMotorista: string) => {
+    return viagens.filter(v => v.motorista === nomeMotorista).length;
+  };
+
+  // Contar viagens por veículo (usando placa para match)
+  const contarViagensPorVeiculo = (placa: string) => {
+    return viagens.filter(v => v.placa === placa).length;
+  };
+
   if (loadingViagens || loadingCadastros) {
     return (
       <MainLayout>
@@ -194,9 +204,14 @@ export default function Motoristas() {
                                 )}
                               </div>
                             </div>
-                            <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
-                              {motorista.ativo ? 'Ativo' : 'Inativo'}
-                            </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                              <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
+                                {motorista.ativo ? 'Ativo' : 'Inativo'}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {contarViagensPorMotorista(motorista.nome)} viagens
+                              </Badge>
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -239,11 +254,16 @@ export default function Motoristas() {
                                         </span>
                                       </div>
                                     </div>
-                                    {veiculo.capacidade && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {veiculo.capacidade} PAX
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {contarViagensPorVeiculo(veiculo.placa)} viagens
+                                      </Badge>
+                                      {veiculo.capacidade && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {veiculo.capacidade} PAX
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
