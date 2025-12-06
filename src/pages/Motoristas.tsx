@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, CreditCard, LayoutGrid, List, Pencil } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, CreditCard, LayoutGrid, List, Pencil, MoreVertical, Trash2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
@@ -135,29 +136,43 @@ export default function Motoristas() {
                               {motorista.motorista.charAt(0)}
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <CardTitle className="text-base">{motorista.motorista}</CardTitle>
-                                {motoristaCadastrado && (
-                                  <MotoristaModal 
-                                    motorista={motoristaCadastrado}
-                                    onSave={handleSaveMotorista}
-                                    onUpdate={handleUpdateMotorista}
-                                    trigger={
-                                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                                        <Pencil className="w-3 h-3" />
-                                      </Button>
-                                    }
-                                  />
-                                )}
-                              </div>
+                              <CardTitle className="text-base">{motorista.motorista}</CardTitle>
                               <p className="text-xs text-muted-foreground">
                                 {motorista.viagensHoje} viagens hoje
                               </p>
                             </div>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            #{index + 1}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              #{index + 1}
+                            </Badge>
+                            {motoristaCadastrado && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-popover z-50">
+                                  <MotoristaModal 
+                                    motorista={motoristaCadastrado}
+                                    onSave={handleSaveMotorista}
+                                    onUpdate={handleUpdateMotorista}
+                                    trigger={
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Pencil className="w-4 h-4 mr-2" />
+                                        Editar Motorista
+                                      </DropdownMenuItem>
+                                    }
+                                  />
+                                  <DropdownMenuItem className="text-destructive">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir Motorista
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -212,17 +227,31 @@ export default function Motoristas() {
                                     <code className="text-xs">{veiculo.placa}</code>
                                     <span className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</span>
                                   </div>
-                                  <VeiculoModal 
-                                    motorista={motoristaCadastrado!}
-                                    veiculo={veiculo}
-                                    onSave={handleSaveVeiculo}
-                                    onUpdate={handleUpdateVeiculo}
-                                    trigger={
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="icon" className="h-5 w-5">
-                                        <Pencil className="w-2.5 h-2.5" />
+                                        <MoreVertical className="w-3 h-3" />
                                       </Button>
-                                    }
-                                  />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-popover z-50">
+                                      <VeiculoModal 
+                                        motorista={motoristaCadastrado!}
+                                        veiculo={veiculo}
+                                        onSave={handleSaveVeiculo}
+                                        onUpdate={handleUpdateVeiculo}
+                                        trigger={
+                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                            <Pencil className="w-4 h-4 mr-2" />
+                                            Editar Veículo
+                                          </DropdownMenuItem>
+                                        }
+                                      />
+                                      <DropdownMenuItem className="text-destructive">
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Excluir Veículo
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               ))}
                             </div>
@@ -277,33 +306,61 @@ export default function Motoristas() {
                               {veiculosDoMotorista.map((v) => (
                                 <div key={v.id} className="flex items-center gap-1">
                                   <code className="text-xs bg-muted px-1 py-0.5 rounded">{v.placa}</code>
-                                  <VeiculoModal 
-                                    motorista={motoristaCadastrado!}
-                                    veiculo={v}
-                                    onSave={handleSaveVeiculo}
-                                    onUpdate={handleUpdateVeiculo}
-                                    trigger={
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="icon" className="h-5 w-5">
-                                        <Pencil className="w-2.5 h-2.5" />
+                                        <MoreVertical className="w-3 h-3" />
                                       </Button>
-                                    }
-                                  />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-popover z-50">
+                                      <VeiculoModal 
+                                        motorista={motoristaCadastrado!}
+                                        veiculo={v}
+                                        onSave={handleSaveVeiculo}
+                                        onUpdate={handleUpdateVeiculo}
+                                        trigger={
+                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                            <Pencil className="w-4 h-4 mr-2" />
+                                            Editar
+                                          </DropdownMenuItem>
+                                        }
+                                      />
+                                      <DropdownMenuItem className="text-destructive">
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Excluir
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               ))}
                             </div>
                           </TableCell>
                           <TableCell>
                             {motoristaCadastrado && (
-                              <MotoristaModal 
-                                motorista={motoristaCadastrado}
-                                onSave={handleSaveMotorista}
-                                onUpdate={handleUpdateMotorista}
-                                trigger={
-                                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                                    <Pencil className="w-3 h-3" />
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="w-4 h-4" />
                                   </Button>
-                                }
-                              />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-popover z-50">
+                                  <MotoristaModal 
+                                    motorista={motoristaCadastrado}
+                                    onSave={handleSaveMotorista}
+                                    onUpdate={handleUpdateMotorista}
+                                    trigger={
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Pencil className="w-4 h-4 mr-2" />
+                                        Editar
+                                      </DropdownMenuItem>
+                                    }
+                                  />
+                                  <DropdownMenuItem className="text-destructive">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </TableCell>
                         </TableRow>
