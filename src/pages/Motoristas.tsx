@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, CreditCard, LayoutGrid, List, Pencil, MoreVertical, Trash2 } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,56 +15,94 @@ import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MotoristaModal, VeiculoModal } from '@/components/cadastros/CadastroModals';
+import { MotoristaComVeiculoModal } from '@/components/cadastros/CadastroModals';
+import { toast } from 'sonner';
 
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
-  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, refetch: refetchMotoristas } = useMotoristas();
-  const { veiculos, createVeiculo, updateVeiculo, refetch: refetchVeiculos } = useVeiculos();
+  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas();
+  const { veiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos();
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
   const sortedMetricas = [...metricasMotoristas].sort((a, b) => b.totalViagens - a.totalViagens);
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
 
-  const handleSaveMotorista = async (data: any) => {
-    const result = await createMotorista({ ...data, ativo: true });
+  // Função para salvar motorista + veículo juntos
+  const handleSaveMotoristaComVeiculo = async (
+    motoristaData: { nome: string; telefone: string | null; ativo: boolean },
+    veiculoData: { placa: string; tipo_veiculo: string }
+  ) => {
+    const motorista = await createMotorista({
+      ...motoristaData,
+      cnh: null,
+      observacao: null,
+    });
+    await createVeiculo({
+      ...veiculoData,
+      motorista_id: motorista.id,
+      ativo: true,
+      marca: null,
+      modelo: null,
+      ano: null,
+      capacidade: null,
+    });
     refetchMotoristas();
-    return result;
+    refetchVeiculos();
   };
 
-  const handleUpdateMotorista = async (id: string, data: any) => {
-    await updateMotorista(id, data);
+  // Função para atualizar motorista + veículo juntos
+  const handleUpdateMotoristaComVeiculo = async (
+    motoristaId: string,
+    motoristaData: any,
+    veiculoId: string | null,
+    veiculoData: any
+  ) => {
+    await updateMotorista(motoristaId, motoristaData);
+    
+    if (veiculoId && veiculoData) {
+      await updateVeiculo(veiculoId, veiculoData);
+    } else if (veiculoData && veiculoData.placa) {
+      // Criar veículo se não existe
+      await createVeiculo({
+        ...veiculoData,
+        motorista_id: motoristaId,
+        ativo: true,
+      });
+    }
+    
     refetchMotoristas();
-  };
-
-  const handleSaveVeiculo = async (data: any) => {
-    const result = await createVeiculo({ ...data, ativo: true });
-    refetchVeiculos();
-    return result;
-  };
-
-  const handleUpdateVeiculo = async (id: string, data: any) => {
-    await updateVeiculo(id, data);
     refetchVeiculos();
   };
 
-  // Agrupar veículos por motorista
-  const veiculosPorMotorista = (motoristaId: string) => {
-    return veiculos.filter(v => v.motorista_id === motoristaId);
+  // Função para deletar motorista (e veículos vinculados)
+  const handleDeleteMotorista = async (motoristaId: string) => {
+    try {
+      // Deletar veículos vinculados primeiro
+      const veiculosDoMotorista = veiculos.filter(v => v.motorista_id === motoristaId);
+      for (const veiculo of veiculosDoMotorista) {
+        await deleteVeiculo(veiculo.id);
+      }
+      await deleteMotorista(motoristaId);
+      toast.success('Motorista excluído com sucesso!');
+      refetchMotoristas();
+      refetchVeiculos();
+    } catch (error: any) {
+      toast.error(`Erro ao excluir: ${error.message}`);
+    }
   };
 
-  // Contar viagens por motorista cadastrado (usando nome para match)
+  // Obter veículo principal do motorista (1:1)
+  const getVeiculoDoMotorista = (motoristaId: string) => {
+    return veiculos.find(v => v.motorista_id === motoristaId);
+  };
+
+  // Contar viagens por motorista (usando nome para match)
   const contarViagensPorMotorista = (nomeMotorista: string) => {
     return viagens.filter(v => v.motorista === nomeMotorista).length;
-  };
-
-  // Contar viagens por veículo (usando placa para match)
-  const contarViagensPorVeiculo = (placa: string) => {
-    return viagens.filter(v => v.placa === placa).length;
   };
 
   if (loadingViagens || loadingCadastros) {
@@ -98,7 +136,7 @@ export default function Motoristas() {
             </TabsList>
           </div>
 
-          {/* Aba Performance - com toggle de visualização e edição */}
+          {/* Aba Performance */}
           <TabsContent value="performance">
             <div className="flex items-center justify-end mb-4">
               <div className="flex items-center border rounded-md">
@@ -125,7 +163,7 @@ export default function Motoristas() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sortedMetricas.map((motorista, index) => {
                   const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
-                  const veiculosDoMotorista = motoristaCadastrado ? veiculosPorMotorista(motoristaCadastrado.id) : [];
+                  const veiculo = motoristaCadastrado ? getVeiculoDoMotorista(motoristaCadastrado.id) : undefined;
                   
                   return (
                     <Card key={motorista.motorista} className="overflow-hidden">
@@ -155,10 +193,11 @@ export default function Motoristas() {
                               <DropdownMenuContent align="end" className="bg-popover z-50">
                                 {motoristaCadastrado ? (
                                   <>
-                                    <MotoristaModal 
+                                    <MotoristaComVeiculoModal 
                                       motorista={motoristaCadastrado}
-                                      onSave={handleSaveMotorista}
-                                      onUpdate={handleUpdateMotorista}
+                                      veiculo={veiculo}
+                                      onSave={handleSaveMotoristaComVeiculo}
+                                      onUpdate={handleUpdateMotoristaComVeiculo}
                                       trigger={
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                           <Pencil className="w-4 h-4 mr-2" />
@@ -166,16 +205,19 @@ export default function Motoristas() {
                                         </DropdownMenuItem>
                                       }
                                     />
-                                    <DropdownMenuItem className="text-destructive">
+                                    <DropdownMenuItem 
+                                      className="text-destructive"
+                                      onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
+                                    >
                                       <Trash2 className="w-4 h-4 mr-2" />
                                       Excluir Motorista
                                     </DropdownMenuItem>
                                   </>
                                 ) : (
-                                  <MotoristaModal 
+                                  <MotoristaComVeiculoModal 
                                     defaultName={motorista.motorista}
-                                    onSave={handleSaveMotorista}
-                                    onUpdate={handleUpdateMotorista}
+                                    onSave={handleSaveMotoristaComVeiculo}
+                                    onUpdate={handleUpdateMotoristaComVeiculo}
                                     trigger={
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                         <Plus className="w-4 h-4 mr-2" />
@@ -229,45 +271,15 @@ export default function Motoristas() {
                           </div>
                         </div>
 
-                        {/* Veículos vinculados */}
-                        {veiculosDoMotorista.length > 0 && (
-                          <div className="border-t pt-3 space-y-2">
-                            <span className="text-xs font-medium text-muted-foreground">Veículos</span>
-                            <div className="space-y-1">
-                              {veiculosDoMotorista.map((veiculo) => (
-                                <div key={veiculo.id} className="flex items-center justify-between p-1.5 bg-muted/50 rounded">
-                                  <div className="flex items-center gap-2">
-                                    <Truck className="w-3 h-3 text-muted-foreground" />
-                                    <code className="text-xs">{veiculo.placa}</code>
-                                    <span className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</span>
-                                  </div>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-5 w-5">
-                                        <MoreVertical className="w-3 h-3" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="bg-popover z-50">
-                                      <VeiculoModal 
-                                        motorista={motoristaCadastrado!}
-                                        veiculo={veiculo}
-                                        onSave={handleSaveVeiculo}
-                                        onUpdate={handleUpdateVeiculo}
-                                        trigger={
-                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <Pencil className="w-4 h-4 mr-2" />
-                                            Editar Veículo
-                                          </DropdownMenuItem>
-                                        }
-                                      />
-                                      <DropdownMenuItem className="text-destructive">
-                                        <Trash2 className="w-4 h-4 mr-2" />
-                                        Excluir Veículo
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              ))}
+                        {/* Veículo vinculado */}
+                        {veiculo && (
+                          <div className="border-t pt-3">
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                              <div className="flex items-center gap-2">
+                                <Truck className="w-4 h-4 text-muted-foreground" />
+                                <code className="text-xs">{veiculo.placa}</code>
+                                <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -283,19 +295,19 @@ export default function Motoristas() {
                     <TableRow>
                       <TableHead>#</TableHead>
                       <TableHead>Motorista</TableHead>
+                      <TableHead>Celular</TableHead>
+                      <TableHead>Tipo Veículo</TableHead>
+                      <TableHead>Placa</TableHead>
                       <TableHead>Total Viagens</TableHead>
-                      <TableHead>Viagens Hoje</TableHead>
                       <TableHead>Total PAX</TableHead>
                       <TableHead>Tempo Médio</TableHead>
-                      <TableHead>Min / Max</TableHead>
-                      <TableHead>Veículos</TableHead>
                       <TableHead className="w-[50px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {sortedMetricas.map((motorista, index) => {
                       const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
-                      const veiculosDoMotorista = motoristaCadastrado ? veiculosPorMotorista(motoristaCadastrado.id) : [];
+                      const veiculo = motoristaCadastrado ? getVeiculoDoMotorista(motoristaCadastrado.id) : undefined;
                       
                       return (
                         <TableRow key={motorista.motorista}>
@@ -310,45 +322,22 @@ export default function Motoristas() {
                               {motorista.motorista}
                             </div>
                           </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {motoristaCadastrado?.telefone || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {veiculo ? (
+                              <Badge variant="outline">{veiculo.tipo_veiculo}</Badge>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {veiculo ? (
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+                            ) : '-'}
+                          </TableCell>
                           <TableCell>{motorista.totalViagens}</TableCell>
-                          <TableCell>{motorista.viagensHoje}</TableCell>
                           <TableCell>{motorista.totalPax}</TableCell>
                           <TableCell>{formatarMinutos(motorista.tempoMedio)}</TableCell>
-                          <TableCell>{Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {veiculosDoMotorista.map((v) => (
-                                <div key={v.id} className="flex items-center gap-1">
-                                  <code className="text-xs bg-muted px-1 py-0.5 rounded">{v.placa}</code>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-5 w-5">
-                                        <MoreVertical className="w-3 h-3" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="bg-popover z-50">
-                                      <VeiculoModal 
-                                        motorista={motoristaCadastrado!}
-                                        veiculo={v}
-                                        onSave={handleSaveVeiculo}
-                                        onUpdate={handleUpdateVeiculo}
-                                        trigger={
-                                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <Pencil className="w-4 h-4 mr-2" />
-                                            Editar
-                                          </DropdownMenuItem>
-                                        }
-                                      />
-                                      <DropdownMenuItem className="text-destructive">
-                                        <Trash2 className="w-4 h-4 mr-2" />
-                                        Excluir
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              ))}
-                            </div>
-                          </TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -359,10 +348,11 @@ export default function Motoristas() {
                               <DropdownMenuContent align="end" className="bg-popover z-50">
                                 {motoristaCadastrado ? (
                                   <>
-                                    <MotoristaModal 
+                                    <MotoristaComVeiculoModal 
                                       motorista={motoristaCadastrado}
-                                      onSave={handleSaveMotorista}
-                                      onUpdate={handleUpdateMotorista}
+                                      veiculo={veiculo}
+                                      onSave={handleSaveMotoristaComVeiculo}
+                                      onUpdate={handleUpdateMotoristaComVeiculo}
                                       trigger={
                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                           <Pencil className="w-4 h-4 mr-2" />
@@ -370,16 +360,19 @@ export default function Motoristas() {
                                         </DropdownMenuItem>
                                       }
                                     />
-                                    <DropdownMenuItem className="text-destructive">
+                                    <DropdownMenuItem 
+                                      className="text-destructive"
+                                      onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
+                                    >
                                       <Trash2 className="w-4 h-4 mr-2" />
                                       Excluir
                                     </DropdownMenuItem>
                                   </>
                                 ) : (
-                                  <MotoristaModal 
+                                  <MotoristaComVeiculoModal 
                                     defaultName={motorista.motorista}
-                                    onSave={handleSaveMotorista}
-                                    onUpdate={handleUpdateMotorista}
+                                    onSave={handleSaveMotoristaComVeiculo}
+                                    onUpdate={handleUpdateMotoristaComVeiculo}
                                     trigger={
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                         <Plus className="w-4 h-4 mr-2" />
@@ -400,17 +393,20 @@ export default function Motoristas() {
             )}
           </TabsContent>
 
-          {/* Aba Cadastro - apenas para criar novos motoristas/veículos */}
+          {/* Aba Cadastro */}
           <TabsContent value="cadastro">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold">Motoristas Cadastrados</h3>
                   <p className="text-sm text-muted-foreground">
-                    Cadastre motoristas e vincule veículos a eles
+                    Cadastre motoristas com seus veículos vinculados
                   </p>
                 </div>
-                <MotoristaModal onSave={handleSaveMotorista} />
+                <MotoristaComVeiculoModal 
+                  onSave={handleSaveMotoristaComVeiculo}
+                  onUpdate={handleUpdateMotoristaComVeiculo}
+                />
               </div>
 
               {motoristasCadastrados.length === 0 ? (
@@ -418,10 +414,11 @@ export default function Motoristas() {
                   <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
                   <h3 className="font-medium mb-2">Nenhum motorista cadastrado</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Comece cadastrando motoristas para vincular veículos a eles.
+                    Cadastre motoristas com nome, celular, tipo de veículo e placa.
                   </p>
-                  <MotoristaModal 
-                    onSave={handleSaveMotorista}
+                  <MotoristaComVeiculoModal 
+                    onSave={handleSaveMotoristaComVeiculo}
+                    onUpdate={handleUpdateMotoristaComVeiculo}
                     trigger={
                       <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
                         <Plus className="w-4 h-4" />
@@ -431,9 +428,10 @@ export default function Motoristas() {
                   />
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {motoristasCadastrados.map((motorista) => {
-                    const veiculosDoMotorista = veiculosPorMotorista(motorista.id);
+                    const veiculo = getVeiculoDoMotorista(motorista.id);
+                    const viagensCount = contarViagensPorMotorista(motorista.nome);
                     
                     return (
                       <Card key={motorista.id} className="overflow-hidden">
@@ -453,62 +451,60 @@ export default function Motoristas() {
                                 )}
                               </div>
                             </div>
-                            <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
-                              {motorista.ativo ? 'Ativo' : 'Inativo'}
-                            </Badge>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-popover z-50">
+                                <MotoristaComVeiculoModal 
+                                  motorista={motorista}
+                                  veiculo={veiculo}
+                                  onSave={handleSaveMotoristaComVeiculo}
+                                  onUpdate={handleUpdateMotoristaComVeiculo}
+                                  trigger={
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      <Pencil className="w-4 h-4 mr-2" />
+                                      Editar
+                                    </DropdownMenuItem>
+                                  }
+                                />
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => handleDeleteMotorista(motorista.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                          {motorista.cnh && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <CreditCard className="w-4 h-4" />
-                              <span>CNH: {motorista.cnh}</span>
-                            </div>
-                          )}
-
-                          {/* Veículos vinculados */}
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">Veículos Vinculados</span>
-                              <VeiculoModal 
-                                motorista={motorista} 
-                                onSave={handleSaveVeiculo}
-                              />
-                            </div>
-                            
-                            {veiculosDoMotorista.length === 0 ? (
-                              <p className="text-xs text-muted-foreground py-2">
-                                Nenhum veículo vinculado
-                              </p>
-                            ) : (
-                              <div className="space-y-2">
-                                {veiculosDoMotorista.map((veiculo) => (
-                                  <div 
-                                    key={veiculo.id}
-                                    className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <Truck className="w-4 h-4 text-muted-foreground" />
-                                      <div>
-                                        <code className="text-xs bg-background px-1.5 py-0.5 rounded">
-                                          {veiculo.placa}
-                                        </code>
-                                        <span className="text-xs text-muted-foreground ml-2">
-                                          {veiculo.tipo_veiculo}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {veiculo.capacidade && (
-                                        <span className="text-xs text-muted-foreground">
-                                          {veiculo.capacidade} PAX
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
+                        <CardContent className="space-y-3">
+                          {/* Veículo vinculado */}
+                          {veiculo ? (
+                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Truck className="w-4 h-4 text-muted-foreground" />
+                                <code className="text-xs bg-background px-1.5 py-0.5 rounded">
+                                  {veiculo.placa}
+                                </code>
+                                <Badge variant="outline" className="text-xs">
+                                  {veiculo.tipo_veiculo}
+                                </Badge>
                               </div>
-                            )}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground p-2 bg-muted/50 rounded-lg">
+                              Sem veículo vinculado
+                            </p>
+                          )}
+                          
+                          {/* Contagem de viagens */}
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Viagens no evento</span>
+                            <Badge variant="secondary">{viagensCount}</Badge>
                           </div>
                         </CardContent>
                       </Card>
