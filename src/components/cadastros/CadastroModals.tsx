@@ -45,12 +45,13 @@ type VeiculoFormData = z.infer<typeof veiculoSchema>;
 
 interface MotoristaModalProps {
   motorista?: Motorista;
+  defaultName?: string;
   onSave: (data: MotoristaFormData) => Promise<Motorista>;
   onUpdate?: (id: string, data: Partial<MotoristaFormData>) => Promise<void>;
   trigger?: React.ReactNode;
 }
 
-export function MotoristaModal({ motorista, onSave, onUpdate, trigger }: MotoristaModalProps) {
+export function MotoristaModal({ motorista, defaultName, onSave, onUpdate, trigger }: MotoristaModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const isEditing = !!motorista;
@@ -58,7 +59,7 @@ export function MotoristaModal({ motorista, onSave, onUpdate, trigger }: Motoris
   const form = useForm<MotoristaFormData>({
     resolver: zodResolver(motoristaSchema),
     defaultValues: {
-      nome: '',
+      nome: defaultName || '',
       telefone: '',
       cnh: '',
       observacao: '',
@@ -75,13 +76,13 @@ export function MotoristaModal({ motorista, onSave, onUpdate, trigger }: Motoris
       });
     } else if (open && !motorista) {
       form.reset({
-        nome: '',
+        nome: defaultName || '',
         telefone: '',
         cnh: '',
         observacao: '',
       });
     }
-  }, [open, motorista, form]);
+  }, [open, motorista, defaultName, form]);
 
   const handleSubmit = async (data: MotoristaFormData) => {
     setLoading(true);
