@@ -1,9 +1,8 @@
 import { useParams } from 'react-router-dom';
-import { Database, Bell, Clock } from 'lucide-react';
+import { Database, Bell, Clock, CheckCircle } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useEventos } from '@/hooks/useEventos';
 
@@ -32,19 +31,16 @@ export default function Configuracoes() {
                   <CardDescription>Status da conexão com Supabase</CardDescription>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-status-alert-bg text-status-alert border-status-alert/20">
-                Demo Mode
+              <Badge variant="outline" className="bg-status-ok/10 text-status-ok border-status-ok/20">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Conectado
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              O sistema está rodando com dados de demonstração. Para conectar ao banco de dados 
-              real, configure as credenciais do Supabase.
+            <p className="text-sm text-muted-foreground">
+              O sistema está conectado ao banco de dados Supabase e recebendo dados em tempo real.
             </p>
-            <Button variant="outline">
-              Configurar Supabase
-            </Button>
           </CardContent>
         </Card>
 
@@ -63,7 +59,7 @@ export default function Configuracoes() {
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="text-sm">30 segundos</Badge>
               <span className="text-sm text-muted-foreground">
-                Os dados são atualizados automaticamente a cada 30 segundos
+                Os dados são atualizados automaticamente a cada 30 segundos + Realtime
               </span>
             </div>
           </CardContent>
@@ -76,27 +72,27 @@ export default function Configuracoes() {
               <Bell className="w-5 h-5 text-primary" />
               <div>
                 <CardTitle className="text-base">Configurações de Alertas</CardTitle>
-                <CardDescription>Defina os limiares para alertas</CardDescription>
+                <CardDescription>Limiares para alertas baseados na média do motorista</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-status-alert-bg/50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-status-alert/10 rounded-lg">
               <div>
                 <p className="text-sm font-medium">Alerta</p>
                 <p className="text-xs text-muted-foreground">
-                  Viagem ultrapassa a média em mais de 15 minutos
+                  Viagem ultrapassa a média do motorista em mais de 15 minutos
                 </p>
               </div>
               <Badge className="bg-status-alert text-status-alert-foreground">
                 +15 min
               </Badge>
             </div>
-            <div className="flex items-center justify-between p-3 bg-status-critical-bg/50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-status-critical/10 rounded-lg">
               <div>
                 <p className="text-sm font-medium">Crítico</p>
                 <p className="text-xs text-muted-foreground">
-                  Viagem ultrapassa a média em mais de 25 minutos
+                  Viagem ultrapassa a média do motorista em mais de 25 minutos
                 </p>
               </div>
               <Badge className="bg-status-critical text-status-critical-foreground">
