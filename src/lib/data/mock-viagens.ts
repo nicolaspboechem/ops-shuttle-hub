@@ -42,9 +42,10 @@ function addMinutos(horario: string, minutos: number): string {
   return `${novaHora.toString().padStart(2, '0')}:${novosMin.toString().padStart(2, '0')}`;
 }
 
-export function gerarViagensDemo(): Viagem[] {
+export function gerarViagensDemo(eventoId?: string): Viagem[] {
   const viagens: Viagem[] = [];
   const hoje = new Date().toISOString();
+  const eventId = eventoId || 'evento-1';
   
   // Viagens finalizadas (manhã)
   for (let i = 0; i < 15; i++) {
@@ -56,7 +57,8 @@ export function gerarViagensDemo(): Viagem[] {
     const hRetorno = addMinutos(hChegada, 30 + Math.floor(Math.random() * 60));
     
     viagens.push({
-      id: `viagem-${i + 1}`,
+      id: `viagem-${eventId}-${i + 1}`,
+      evento_id: eventId,
       tipo_operacao: 'Transfer Corporativo',
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],
@@ -84,7 +86,8 @@ export function gerarViagensDemo(): Viagem[] {
     const hChegada = addMinutos(hPickup, tempoViagem);
     
     viagens.push({
-      id: `viagem-${i + 1}`,
+      id: `viagem-${eventId}-${i + 1}`,
+      evento_id: eventId,
       tipo_operacao: 'Transfer Aeroporto',
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],
@@ -111,7 +114,8 @@ export function gerarViagensDemo(): Viagem[] {
     const hPickup = gerarHorario(Math.max(6, horaAtual - 1));
     
     viagens.push({
-      id: `viagem-${i + 1}`,
+      id: `viagem-${eventId}-${i + 1}`,
+      evento_id: eventId,
       tipo_operacao: 'Shuttle Executivo',
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],

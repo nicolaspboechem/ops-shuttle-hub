@@ -1,16 +1,23 @@
-import { Settings, Database, Bell, Clock } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Database, Bell, Clock } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useEventos } from '@/hooks/useEventos';
 
 export default function Configuracoes() {
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const { getEventoById } = useEventos();
+  
+  const evento = eventoId ? getEventoById(eventoId) : null;
+
   return (
     <MainLayout>
       <Header 
         title="Configurações"
-        subtitle="Configurações do sistema"
+        subtitle={evento ? evento.nome_planilha : 'Configurações do sistema'}
       />
       
       <div className="p-8 max-w-3xl space-y-6">

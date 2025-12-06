@@ -7,18 +7,18 @@ import {
   calcularMetricasMotorista 
 } from '@/lib/utils/calculadores';
 
-export function useViagens() {
+export function useViagens(eventoId?: string) {
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchViagens = useCallback(() => {
     // Simulating API call with mock data
-    // In production, this would fetch from Supabase
-    setViagens(gerarViagensDemo());
+    // In production, this would fetch from Supabase filtered by evento_id
+    setViagens(gerarViagensDemo(eventoId));
     setLastUpdate(new Date());
     setLoading(false);
-  }, []);
+  }, [eventoId]);
 
   useEffect(() => {
     fetchViagens();
