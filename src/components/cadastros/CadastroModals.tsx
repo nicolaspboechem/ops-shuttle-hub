@@ -38,7 +38,7 @@ interface MotoristaComVeiculoModalProps {
   veiculo?: Veiculo;
   defaultName?: string;
   onSave: (motoristaData: { nome: string; telefone: string | null; ativo: boolean }, veiculoData: { placa: string; tipo_veiculo: string; motorista_id?: string }) => Promise<void>;
-  onUpdate?: (motoristaId: string, motoristaData: Partial<Motorista>, veiculoId: string | null, veiculoData: Partial<Veiculo> | null) => Promise<void>;
+  onUpdate?: (motoristaId: string, motoristaData: Partial<Motorista>, veiculoId: string | null, veiculoData: Partial<Veiculo> | null, oldNome: string, oldPlaca: string | null) => Promise<void>;
   trigger?: React.ReactNode;
 }
 
@@ -97,7 +97,9 @@ export function MotoristaComVeiculoModal({
       };
 
       if (isEditing && onUpdate && motorista) {
-        await onUpdate(motorista.id, motoristaData, veiculo?.id || null, veiculoData);
+        const oldNome = motorista.nome;
+        const oldPlaca = veiculo?.placa || null;
+        await onUpdate(motorista.id, motoristaData, veiculo?.id || null, veiculoData, oldNome, oldPlaca);
         toast.success('Motorista atualizado com sucesso!');
       } else {
         await onSave(motoristaData, veiculoData);

@@ -54,17 +54,21 @@ export default function Motoristas() {
     refetchVeiculos();
   };
 
-  // Função para atualizar motorista + veículo juntos
+  // Função para atualizar motorista + veículo juntos (com sincronização bidirecional)
   const handleUpdateMotoristaComVeiculo = async (
     motoristaId: string,
     motoristaData: any,
     veiculoId: string | null,
-    veiculoData: any
+    veiculoData: any,
+    oldNome: string,
+    oldPlaca: string | null
   ) => {
-    await updateMotorista(motoristaId, motoristaData);
+    // Passa o nome antigo para sincronizar viagens
+    await updateMotorista(motoristaId, motoristaData, oldNome);
     
     if (veiculoId && veiculoData) {
-      await updateVeiculo(veiculoId, veiculoData);
+      // Passa a placa antiga para sincronizar viagens
+      await updateVeiculo(veiculoId, veiculoData, oldPlaca || undefined);
     } else if (veiculoData && veiculoData.placa) {
       // Criar veículo se não existe
       await createVeiculo({
@@ -76,6 +80,7 @@ export default function Motoristas() {
     
     refetchMotoristas();
     refetchVeiculos();
+    refetch(); // Atualiza viagens para refletir as mudanças
   };
 
   // Função para deletar motorista (e veículos vinculados)
