@@ -64,13 +64,26 @@ export function useMotoristas() {
     return data;
   };
 
-  const updateMotorista = async (id: string, updates: Partial<Motorista>) => {
+  const updateMotorista = async (id: string, updates: Partial<Motorista>, oldNome?: string) => {
     const { error } = await supabase
       .from('motoristas')
       .update(updates)
       .eq('id', id);
 
     if (error) throw error;
+
+    // Sincronização bidirecional: atualizar viagens com o nome antigo
+    if (oldNome && updates.nome && oldNome !== updates.nome) {
+      const { error: viagensError } = await supabase
+        .from('viagens')
+        .update({ motorista: updates.nome })
+        .eq('motorista', oldNome);
+
+      if (viagensError) {
+        console.error('Erro ao sincronizar viagens com novo nome do motorista:', viagensError);
+      }
+    }
+
     setMotoristas(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
   };
 
@@ -137,7 +150,7 @@ export function useVeiculos() {
     return data;
   };
 
-  const updateVeiculo = async (id: string, updates: Partial<Veiculo>) => {
+  const updateVeiculo = async (id: string, updates: Partial<Veiculo>, oldPlaca?: string) => {
     const { motorista, ...updateData } = updates;
     const { error } = await supabase
       .from('veiculos')
@@ -145,6 +158,30 @@ export function useVeiculos() {
       .eq('id', id);
 
     if (error) throw error;
+
+    // Sincronização bidirecional: atualizar viagens com a placa/tipo antigo
+    if (oldPlaca) {
+      const syncUpdates: { placa?: string; tipo_veiculo?: string } = {};
+      
+      if (updates.placa && oldPlaca !== updates.placa) {
+        syncUpdates.placa = updates.placa;
+      }
+      if (updates.tipo_veiculo) {
+        syncUpdates.tipo_veiculo = updates.tipo_veiculo;
+      }
+
+      if (Object.keys(syncUpdates).length > 0) {
+        const { error: viagensError } = await supabase
+          .from('viagens')
+          .update(syncUpdates)
+          .eq('placa', oldPlaca);
+
+        if (viagensError) {
+          console.error('Erro ao sincronizar viagens com novos dados do veículo:', viagensError);
+        }
+      }
+    }
+
     await fetchVeiculos();
   };
 
