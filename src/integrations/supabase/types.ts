@@ -21,6 +21,7 @@ export type Database = {
           id: string
           nome_planilha: string
           status: string | null
+          tipo_operacao: string | null
           total_viagens: number | null
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           nome_planilha: string
           status?: string | null
+          tipo_operacao?: string | null
           total_viagens?: number | null
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           nome_planilha?: string
           status?: string | null
+          tipo_operacao?: string | null
           total_viagens?: number | null
         }
         Relationships: []
