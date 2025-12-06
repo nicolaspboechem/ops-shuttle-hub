@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, CreditCard } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, CreditCard, LayoutGrid, List, Pencil } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
@@ -15,6 +18,7 @@ import { MotoristaModal, VeiculoModal } from '@/components/cadastros/CadastroMod
 
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, refetch: refetchMotoristas } = useMotoristas();
@@ -171,7 +175,27 @@ export default function Motoristas() {
                     Cadastre motoristas e vincule veículos a eles
                   </p>
                 </div>
-                <MotoristaModal onSave={handleSaveMotorista} />
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center border rounded-md">
+                    <Button
+                      variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('card')}
+                      className="rounded-r-none"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="rounded-l-none"
+                    >
+                      <List className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <MotoristaModal onSave={handleSaveMotorista} />
+                </div>
               </div>
 
               {motoristasCadastrados.length === 0 ? (
@@ -191,7 +215,8 @@ export default function Motoristas() {
                     }
                   />
                 </Card>
-              ) : (
+              ) : viewMode === 'card' ? (
+                /* Visualização em Cards */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {motoristasCadastrados.map((motorista) => {
                     const veiculosDoMotorista = veiculosPorMotorista(motorista.id);
@@ -211,6 +236,11 @@ export default function Motoristas() {
                                     motorista={motorista}
                                     onSave={handleSaveMotorista}
                                     onUpdate={handleUpdateMotorista}
+                                    trigger={
+                                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                                        <Pencil className="w-3 h-3" />
+                                      </Button>
+                                    }
                                   />
                                 </div>
                                 {motorista.telefone && (
@@ -285,6 +315,11 @@ export default function Motoristas() {
                                         veiculo={veiculo}
                                         onSave={handleSaveVeiculo}
                                         onUpdate={handleUpdateVeiculo}
+                                        trigger={
+                                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                                            <Pencil className="w-3 h-3" />
+                                          </Button>
+                                        }
                                       />
                                     </div>
                                   </div>
@@ -297,6 +332,104 @@ export default function Motoristas() {
                     );
                   })}
                 </div>
+              ) : (
+                /* Visualização em Lista */
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Motorista</TableHead>
+                        <TableHead>Telefone</TableHead>
+                        <TableHead>CNH</TableHead>
+                        <TableHead>Viagens</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Veículos</TableHead>
+                        <TableHead className="w-[50px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {motoristasCadastrados.map((motorista) => {
+                        const veiculosDoMotorista = veiculosPorMotorista(motorista.id);
+                        
+                        return (
+                          <TableRow key={motorista.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                                  {motorista.nome.charAt(0)}
+                                </div>
+                                {motorista.nome}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {motorista.telefone || '-'}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {motorista.cnh || '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {contarViagensPorMotorista(motorista.nome)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
+                                {motorista.ativo ? 'Ativo' : 'Inativo'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {veiculosDoMotorista.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground">-</span>
+                                ) : (
+                                  veiculosDoMotorista.map((veiculo) => (
+                                    <div key={veiculo.id} className="flex items-center gap-1">
+                                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                        {veiculo.placa}
+                                      </code>
+                                      <VeiculoModal 
+                                        motorista={motorista}
+                                        veiculo={veiculo}
+                                        onSave={handleSaveVeiculo}
+                                        onUpdate={handleUpdateVeiculo}
+                                        trigger={
+                                          <Button variant="ghost" size="icon" className="h-5 w-5">
+                                            <Pencil className="w-2.5 h-2.5" />
+                                          </Button>
+                                        }
+                                      />
+                                    </div>
+                                  ))
+                                )}
+                                <VeiculoModal 
+                                  motorista={motorista} 
+                                  onSave={handleSaveVeiculo}
+                                  trigger={
+                                    <Button variant="ghost" size="icon" className="h-5 w-5">
+                                      <Plus className="w-3 h-3" />
+                                    </Button>
+                                  }
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <MotoristaModal 
+                                motorista={motorista}
+                                onSave={handleSaveMotorista}
+                                onUpdate={handleUpdateMotorista}
+                                trigger={
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                }
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
               )}
             </div>
           </TabsContent>
