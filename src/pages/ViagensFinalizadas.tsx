@@ -49,8 +49,8 @@ export default function ViagensFinalizadas() {
         const busca = filtros.busca.toLowerCase();
         return (
           v.motorista.toLowerCase().includes(busca) ||
-          v.placa.toLowerCase().includes(busca) ||
-          v.veiculo.toLowerCase().includes(busca)
+          (v.placa?.toLowerCase().includes(busca) ?? false) ||
+          (v.tipo_veiculo?.toLowerCase().includes(busca) ?? false)
         );
       }
       

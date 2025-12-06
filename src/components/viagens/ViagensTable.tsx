@@ -69,10 +69,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Bus className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{viagem.veiculo}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {viagem.tipo_veiculo}
-                      </Badge>
+                      <span className="text-sm">{viagem.tipo_veiculo}</span>
                     </div>
                   </TableCell>
                   <TableCell>

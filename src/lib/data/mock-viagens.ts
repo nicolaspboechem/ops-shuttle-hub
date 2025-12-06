@@ -10,12 +10,12 @@ const motoristas = [
 ];
 
 const veiculos = [
-  { nome: 'Ônibus Executivo 01', tipo: 'Ônibus' as const, placa: 'ABC-1234' },
-  { nome: 'Ônibus Executivo 02', tipo: 'Ônibus' as const, placa: 'DEF-5678' },
-  { nome: 'Van Sprinter 01', tipo: 'Van' as const, placa: 'GHI-9012' },
-  { nome: 'Van Sprinter 02', tipo: 'Van' as const, placa: 'JKL-3456' },
-  { nome: 'Ônibus Convencional 01', tipo: 'Ônibus' as const, placa: 'MNO-7890' },
-  { nome: 'Van Master 01', tipo: 'Van' as const, placa: 'PQR-1234' },
+  { tipo: 'Ônibus' as const, placa: 'ABC-1234' },
+  { tipo: 'Ônibus' as const, placa: 'DEF-5678' },
+  { tipo: 'Van' as const, placa: 'GHI-9012' },
+  { tipo: 'Van' as const, placa: 'JKL-3456' },
+  { tipo: 'Ônibus' as const, placa: 'MNO-7890' },
+  { tipo: 'Van' as const, placa: 'PQR-1234' },
 ];
 
 const pontosEmbarque = [
@@ -63,7 +63,6 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],
       motorista: motoristas[Math.floor(Math.random() * motoristas.length)],
-      veiculo: veiculo.nome,
       tipo_veiculo: veiculo.tipo,
       placa: veiculo.placa,
       h_pickup: hPickup,
@@ -72,6 +71,7 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       qtd_pax: 5 + Math.floor(Math.random() * 40),
       qtd_pax_retorno: 3 + Math.floor(Math.random() * 35),
       encerrado: true,
+      observacao: null,
       data_criacao: hoje,
       data_atualizacao: hoje
     });
@@ -92,7 +92,6 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],
       motorista: motoristas[Math.floor(Math.random() * motoristas.length)],
-      veiculo: veiculo.nome,
       tipo_veiculo: veiculo.tipo,
       placa: veiculo.placa,
       h_pickup: hPickup,
@@ -101,6 +100,7 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       qtd_pax: 8 + Math.floor(Math.random() * 30),
       qtd_pax_retorno: 0,
       encerrado: false,
+      observacao: null,
       data_criacao: hoje,
       data_atualizacao: hoje
     });
@@ -120,7 +120,6 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       coordenador: 'Coordenação Central',
       ponto_embarque: pontosEmbarque[Math.floor(Math.random() * pontosEmbarque.length)],
       motorista: motoristas[Math.floor(Math.random() * motoristas.length)],
-      veiculo: veiculo.nome,
       tipo_veiculo: veiculo.tipo,
       placa: veiculo.placa,
       h_pickup: hPickup,
@@ -129,6 +128,7 @@ export function gerarViagensDemo(eventoId?: string): Viagem[] {
       qtd_pax: 10 + Math.floor(Math.random() * 25),
       qtd_pax_retorno: 0,
       encerrado: false,
+      observacao: null,
       data_criacao: hoje,
       data_atualizacao: hoje
     });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Viagem } from '@/lib/types/viagem';
-import { gerarViagensDemo } from '@/lib/data/mock-viagens';
 import { 
   calcularKPIsDashboard, 
   calcularMetricasPorHora, 
@@ -12,10 +12,27 @@ export function useViagens(eventoId?: string) {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const fetchViagens = useCallback(() => {
-    // Simulating API call with mock data
-    // In production, this would fetch from Supabase filtered by evento_id
-    setViagens(gerarViagensDemo(eventoId));
+  const fetchViagens = useCallback(async () => {
+    setLoading(true);
+
+    let query = supabase
+      .from('viagens')
+      .select('*')
+      .order('h_pickup', { ascending: true });
+
+    if (eventoId) {
+      query = query.eq('evento_id', eventoId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erro ao buscar viagens:', error);
+      setLoading(false);
+      return;
+    }
+
+    setViagens(data || []);
     setLastUpdate(new Date());
     setLoading(false);
   }, [eventoId]);
@@ -23,15 +40,43 @@ export function useViagens(eventoId?: string) {
   useEffect(() => {
     fetchViagens();
 
-    // Polling every 30 seconds
+    // Realtime subscription
+    const channel = supabase
+      .channel('viagens-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'viagens' },
+        () => fetchViagens()
+      )
+      .subscribe();
+
+    // Polling fallback every 30 seconds
     const interval = setInterval(fetchViagens, 30000);
 
     return () => {
+      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, [fetchViagens]);
 
-  const updateViagem = useCallback((updated: Viagem) => {
+  const updateViagem = useCallback(async (updated: Viagem) => {
+    const { error } = await supabase
+      .from('viagens')
+      .update({
+        h_chegada: updated.h_chegada,
+        h_retorno: updated.h_retorno,
+        qtd_pax_retorno: updated.qtd_pax_retorno,
+        encerrado: updated.encerrado,
+        observacao: updated.observacao
+      })
+      .eq('id', updated.id);
+
+    if (error) {
+      console.error('Erro ao atualizar viagem:', error);
+      throw error;
+    }
+
+    // Atualizar estado local otimisticamente
     setViagens(prev => 
       prev.map(v => v.id === updated.id ? updated : v)
     );

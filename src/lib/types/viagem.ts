@@ -7,26 +7,26 @@ export interface Evento {
   nome_planilha: string;
   data_criacao: string;
   data_ultima_sync: string;
-  total_viagens: number;
-  status: StatusEvento;
+  total_viagens: number | null;
+  status: string | null;
 }
 
 export interface Viagem {
   id: string;
-  evento_id: string;
-  tipo_operacao: string | null;
+  evento_id: string | null;
+  tipo_operacao: string;
   coordenador: string | null;
   ponto_embarque: string | null;
   motorista: string;
-  veiculo: string;
-  tipo_veiculo: TipoVeiculo;
-  placa: string;
-  h_pickup: string;
+  tipo_veiculo: string | null;
+  placa: string | null;
+  h_pickup: string | null;
   h_chegada: string | null;
   h_retorno: string | null;
-  qtd_pax: number;
-  qtd_pax_retorno: number;
-  encerrado: boolean;
+  qtd_pax: number | null;
+  qtd_pax_retorno: number | null;
+  encerrado: boolean | null;
+  observacao: string | null;
   data_criacao: string;
   data_atualizacao: string;
 }
