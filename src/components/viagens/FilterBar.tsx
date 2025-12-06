@@ -1,4 +1,4 @@
-import { Search, Filter, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,34 +8,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 
-interface Filtros {
+export interface Filtros {
   tipoVeiculo: string;
   status: string;
   motorista: string;
   busca: string;
+  tipoOperacao?: string;
 }
 
 interface FilterBarProps {
   filtros: Filtros;
   onChange: (filtros: Filtros) => void;
   motoristas: string[];
+  showTipoOperacao?: boolean;
 }
 
-export function FilterBar({ filtros, onChange, motoristas }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false }: FilterBarProps) {
   const hasActiveFilters = 
     filtros.tipoVeiculo !== 'todos' || 
     filtros.status !== 'todos' || 
     filtros.motorista !== 'todos' ||
-    filtros.busca !== '';
+    filtros.busca !== '' ||
+    (showTipoOperacao && filtros.tipoOperacao !== 'todos');
 
   const clearFilters = () => {
     onChange({
       tipoVeiculo: 'todos',
       status: 'todos',
       motorista: 'todos',
-      busca: ''
+      busca: '',
+      tipoOperacao: 'todos'
     });
   };
 
