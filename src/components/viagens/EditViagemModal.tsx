@@ -82,7 +82,7 @@ export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemM
               <span className="text-xs text-muted-foreground">Veículo</span>
               <p className="text-sm font-medium flex items-center gap-1">
                 <Bus className="w-3.5 h-3.5" />
-                {viagem.veiculo}
+                {viagem.tipo_veiculo}
               </p>
             </div>
             <div className="space-y-1">

@@ -11,9 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Viagem } from '@/lib/types/viagem';
 
 interface VeiculoStats {
-  placa: string;
-  veiculo: string;
-  tipo: string;
+  placa: string | null;
+  tipoVeiculo: string | null;
   totalViagens: number;
   totalPax: number;
   tempoMedio: number;
@@ -38,8 +37,8 @@ export default function Veiculos() {
     const primeiraViagem = viagensVeiculo[0];
     
     const tempos = viagensVeiculo
-      .filter(v => v.h_chegada)
-      .map(v => calcularTempoViagem(v.h_pickup, v.h_chegada!));
+      .filter(v => v.h_chegada && v.h_pickup)
+      .map(v => calcularTempoViagem(v.h_pickup!, v.h_chegada!));
     
     const tempoMedio = tempos.length > 0 
       ? tempos.reduce((a, b) => a + b, 0) / tempos.length 
@@ -47,10 +46,9 @@ export default function Veiculos() {
 
     veiculosStats.push({
       placa,
-      veiculo: primeiraViagem.veiculo,
-      tipo: primeiraViagem.tipo_veiculo,
+      tipoVeiculo: primeiraViagem.tipo_veiculo,
       totalViagens: viagensVeiculo.length,
-      totalPax: viagensVeiculo.reduce((sum, v) => sum + v.qtd_pax + v.qtd_pax_retorno, 0),
+      totalPax: viagensVeiculo.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0),
       tempoMedio,
       ultimaViagem: viagensVeiculo[viagensVeiculo.length - 1],
       ativo: viagensAtivas.some(v => v.placa === placa)
@@ -93,12 +91,12 @@ export default function Veiculos() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
-                      veiculo.tipo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
+                      veiculo.tipoVeiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
                     }`}>
                       <Bus className="w-5 h-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{veiculo.veiculo}</CardTitle>
+                      <CardTitle className="text-base">{veiculo.tipoVeiculo}</CardTitle>
                       <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                         {veiculo.placa}
                       </code>
@@ -106,7 +104,7 @@ export default function Veiculos() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant="outline" className="text-xs">
-                      {veiculo.tipo}
+                      {veiculo.tipoVeiculo}
                     </Badge>
                     {veiculo.ativo && (
                       <Badge className="bg-status-ok text-status-ok-foreground text-xs animate-pulse-soft">
