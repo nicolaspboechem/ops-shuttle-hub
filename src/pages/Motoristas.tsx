@@ -97,75 +97,225 @@ export default function Motoristas() {
             </TabsList>
           </div>
 
-          {/* Aba Performance - mantém visual existente */}
+          {/* Aba Performance - com toggle de visualização e edição */}
           <TabsContent value="performance">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedMetricas.map((motorista, index) => (
-                <Card key={motorista.motorista} className="overflow-hidden">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
-                          {motorista.motorista.charAt(0)}
-                        </div>
-                        <div>
-                          <CardTitle className="text-base">{motorista.motorista}</CardTitle>
-                          <p className="text-xs text-muted-foreground">
-                            {motorista.viagensHoje} viagens hoje
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        #{index + 1}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Total Viagens</span>
-                        <span className="font-medium">{motorista.totalViagens}</span>
-                      </div>
-                      <Progress 
-                        value={(motorista.totalViagens / maxViagens) * 100} 
-                        className="h-2"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="w-3.5 h-3.5" />
-                          <span className="text-xs">Total PAX</span>
-                        </div>
-                        <p className="text-lg font-semibold">{motorista.totalPax}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span className="text-xs">Tempo Médio</span>
-                        </div>
-                        <p className="text-lg font-semibold">
-                          {formatarMinutos(motorista.tempoMedio)}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <TrendingUp className="w-3.5 h-3.5" />
-                          <span className="text-xs">Min / Max</span>
-                        </div>
-                        <p className="text-sm font-medium">
-                          {Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="flex items-center justify-end mb-4">
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('card')}
+                  className="rounded-r-none"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('list')}
+                  className="rounded-l-none"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
+
+            {viewMode === 'card' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sortedMetricas.map((motorista, index) => {
+                  const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
+                  const veiculosDoMotorista = motoristaCadastrado ? veiculosPorMotorista(motoristaCadastrado.id) : [];
+                  
+                  return (
+                    <Card key={motorista.motorista} className="overflow-hidden">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
+                              {motorista.motorista.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-base">{motorista.motorista}</CardTitle>
+                                {motoristaCadastrado && (
+                                  <MotoristaModal 
+                                    motorista={motoristaCadastrado}
+                                    onSave={handleSaveMotorista}
+                                    onUpdate={handleUpdateMotorista}
+                                    trigger={
+                                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                                        <Pencil className="w-3 h-3" />
+                                      </Button>
+                                    }
+                                  />
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {motorista.viagensHoje} viagens hoje
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            #{index + 1}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Viagens</span>
+                            <span className="font-medium">{motorista.totalViagens}</span>
+                          </div>
+                          <Progress 
+                            value={(motorista.totalViagens / maxViagens) * 100} 
+                            className="h-2"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Users className="w-3.5 h-3.5" />
+                              <span className="text-xs">Total PAX</span>
+                            </div>
+                            <p className="text-lg font-semibold">{motorista.totalPax}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span className="text-xs">Tempo Médio</span>
+                            </div>
+                            <p className="text-lg font-semibold">
+                              {formatarMinutos(motorista.tempoMedio)}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              <span className="text-xs">Min / Max</span>
+                            </div>
+                            <p className="text-sm font-medium">
+                              {Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Veículos vinculados */}
+                        {veiculosDoMotorista.length > 0 && (
+                          <div className="border-t pt-3 space-y-2">
+                            <span className="text-xs font-medium text-muted-foreground">Veículos</span>
+                            <div className="space-y-1">
+                              {veiculosDoMotorista.map((veiculo) => (
+                                <div key={veiculo.id} className="flex items-center justify-between p-1.5 bg-muted/50 rounded">
+                                  <div className="flex items-center gap-2">
+                                    <Truck className="w-3 h-3 text-muted-foreground" />
+                                    <code className="text-xs">{veiculo.placa}</code>
+                                    <span className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</span>
+                                  </div>
+                                  <VeiculoModal 
+                                    motorista={motoristaCadastrado!}
+                                    veiculo={veiculo}
+                                    onSave={handleSaveVeiculo}
+                                    onUpdate={handleUpdateVeiculo}
+                                    trigger={
+                                      <Button variant="ghost" size="icon" className="h-5 w-5">
+                                        <Pencil className="w-2.5 h-2.5" />
+                                      </Button>
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Motorista</TableHead>
+                      <TableHead>Total Viagens</TableHead>
+                      <TableHead>Viagens Hoje</TableHead>
+                      <TableHead>Total PAX</TableHead>
+                      <TableHead>Tempo Médio</TableHead>
+                      <TableHead>Min / Max</TableHead>
+                      <TableHead>Veículos</TableHead>
+                      <TableHead className="w-[50px]">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedMetricas.map((motorista, index) => {
+                      const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
+                      const veiculosDoMotorista = motoristaCadastrado ? veiculosPorMotorista(motoristaCadastrado.id) : [];
+                      
+                      return (
+                        <TableRow key={motorista.motorista}>
+                          <TableCell>
+                            <Badge variant="outline">#{index + 1}</Badge>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                                {motorista.motorista.charAt(0)}
+                              </div>
+                              {motorista.motorista}
+                            </div>
+                          </TableCell>
+                          <TableCell>{motorista.totalViagens}</TableCell>
+                          <TableCell>{motorista.viagensHoje}</TableCell>
+                          <TableCell>{motorista.totalPax}</TableCell>
+                          <TableCell>{formatarMinutos(motorista.tempoMedio)}</TableCell>
+                          <TableCell>{Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {veiculosDoMotorista.map((v) => (
+                                <div key={v.id} className="flex items-center gap-1">
+                                  <code className="text-xs bg-muted px-1 py-0.5 rounded">{v.placa}</code>
+                                  <VeiculoModal 
+                                    motorista={motoristaCadastrado!}
+                                    veiculo={v}
+                                    onSave={handleSaveVeiculo}
+                                    onUpdate={handleUpdateVeiculo}
+                                    trigger={
+                                      <Button variant="ghost" size="icon" className="h-5 w-5">
+                                        <Pencil className="w-2.5 h-2.5" />
+                                      </Button>
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {motoristaCadastrado && (
+                              <MotoristaModal 
+                                motorista={motoristaCadastrado}
+                                onSave={handleSaveMotorista}
+                                onUpdate={handleUpdateMotorista}
+                                trigger={
+                                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                }
+                              />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Card>
+            )}
           </TabsContent>
 
-          {/* Aba Cadastro - para gerenciar motoristas e veículos */}
+          {/* Aba Cadastro - apenas para criar novos motoristas/veículos */}
           <TabsContent value="cadastro">
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -175,27 +325,7 @@ export default function Motoristas() {
                     Cadastre motoristas e vincule veículos a eles
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center border rounded-md">
-                    <Button
-                      variant={viewMode === 'card' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('card')}
-                      className="rounded-r-none"
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => setViewMode('list')}
-                      className="rounded-l-none"
-                    >
-                      <List className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <MotoristaModal onSave={handleSaveMotorista} />
-                </div>
+                <MotoristaModal onSave={handleSaveMotorista} />
               </div>
 
               {motoristasCadastrados.length === 0 ? (
@@ -215,8 +345,7 @@ export default function Motoristas() {
                     }
                   />
                 </Card>
-              ) : viewMode === 'card' ? (
-                /* Visualização em Cards */
+              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {motoristasCadastrados.map((motorista) => {
                     const veiculosDoMotorista = veiculosPorMotorista(motorista.id);
@@ -230,19 +359,7 @@ export default function Motoristas() {
                                 {motorista.nome.charAt(0)}
                               </div>
                               <div>
-                                <div className="flex items-center gap-2">
-                                  <CardTitle className="text-base">{motorista.nome}</CardTitle>
-                                  <MotoristaModal 
-                                    motorista={motorista}
-                                    onSave={handleSaveMotorista}
-                                    onUpdate={handleUpdateMotorista}
-                                    trigger={
-                                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                                        <Pencil className="w-3 h-3" />
-                                      </Button>
-                                    }
-                                  />
-                                </div>
+                                <CardTitle className="text-base">{motorista.nome}</CardTitle>
                                 {motorista.telefone && (
                                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                                     <Phone className="w-3 h-3" />
@@ -251,14 +368,9 @@ export default function Motoristas() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
-                                {motorista.ativo ? 'Ativo' : 'Inativo'}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {contarViagensPorMotorista(motorista.nome)} viagens
-                              </Badge>
-                            </div>
+                            <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
+                              {motorista.ativo ? 'Ativo' : 'Inativo'}
+                            </Badge>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -302,25 +414,11 @@ export default function Motoristas() {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        {contarViagensPorVeiculo(veiculo.placa)} viagens
-                                      </Badge>
                                       {veiculo.capacidade && (
                                         <span className="text-xs text-muted-foreground">
                                           {veiculo.capacidade} PAX
                                         </span>
                                       )}
-                                      <VeiculoModal 
-                                        motorista={motorista}
-                                        veiculo={veiculo}
-                                        onSave={handleSaveVeiculo}
-                                        onUpdate={handleUpdateVeiculo}
-                                        trigger={
-                                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                                            <Pencil className="w-3 h-3" />
-                                          </Button>
-                                        }
-                                      />
                                     </div>
                                   </div>
                                 ))}
@@ -332,104 +430,6 @@ export default function Motoristas() {
                     );
                   })}
                 </div>
-              ) : (
-                /* Visualização em Lista */
-                <Card>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Motorista</TableHead>
-                        <TableHead>Telefone</TableHead>
-                        <TableHead>CNH</TableHead>
-                        <TableHead>Viagens</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Veículos</TableHead>
-                        <TableHead className="w-[50px]">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {motoristasCadastrados.map((motorista) => {
-                        const veiculosDoMotorista = veiculosPorMotorista(motorista.id);
-                        
-                        return (
-                          <TableRow key={motorista.id}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
-                                  {motorista.nome.charAt(0)}
-                                </div>
-                                {motorista.nome}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {motorista.telefone || '-'}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {motorista.cnh || '-'}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {contarViagensPorMotorista(motorista.nome)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={motorista.ativo ? 'default' : 'secondary'}>
-                                {motorista.ativo ? 'Ativo' : 'Inativo'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {veiculosDoMotorista.length === 0 ? (
-                                  <span className="text-xs text-muted-foreground">-</span>
-                                ) : (
-                                  veiculosDoMotorista.map((veiculo) => (
-                                    <div key={veiculo.id} className="flex items-center gap-1">
-                                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                                        {veiculo.placa}
-                                      </code>
-                                      <VeiculoModal 
-                                        motorista={motorista}
-                                        veiculo={veiculo}
-                                        onSave={handleSaveVeiculo}
-                                        onUpdate={handleUpdateVeiculo}
-                                        trigger={
-                                          <Button variant="ghost" size="icon" className="h-5 w-5">
-                                            <Pencil className="w-2.5 h-2.5" />
-                                          </Button>
-                                        }
-                                      />
-                                    </div>
-                                  ))
-                                )}
-                                <VeiculoModal 
-                                  motorista={motorista} 
-                                  onSave={handleSaveVeiculo}
-                                  trigger={
-                                    <Button variant="ghost" size="icon" className="h-5 w-5">
-                                      <Plus className="w-3 h-3" />
-                                    </Button>
-                                  }
-                                />
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <MotoristaModal 
-                                motorista={motorista}
-                                onSave={handleSaveMotorista}
-                                onUpdate={handleUpdateMotorista}
-                                trigger={
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                }
-                              />
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </Card>
               )}
             </div>
           </TabsContent>
