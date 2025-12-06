@@ -1,19 +1,24 @@
-import { Users, Clock, Bus, TrendingUp } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Users, Clock, TrendingUp } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Motoristas() {
-  const { viagens, loading, lastUpdate, refetch } = useViagens();
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas } = useCalculos(viagens);
+  const { getEventoById } = useEventos();
 
+  const evento = eventoId ? getEventoById(eventoId) : null;
   const sortedMotoristas = [...motoristas].sort((a, b) => b.totalViagens - a.totalViagens);
-  const maxViagens = Math.max(...motoristas.map(m => m.totalViagens));
+  const maxViagens = Math.max(...motoristas.map(m => m.totalViagens), 1);
 
   if (loading) {
     return (
@@ -32,7 +37,7 @@ export default function Motoristas() {
     <MainLayout>
       <Header 
         title="Motoristas"
-        subtitle={`${motoristas.length} motoristas ativos`}
+        subtitle={evento ? `${evento.nome_planilha} • ${motoristas.length} motoristas` : `${motoristas.length} motoristas ativos`}
         lastUpdate={lastUpdate}
         onRefresh={refetch}
       />

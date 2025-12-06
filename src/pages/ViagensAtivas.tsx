@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { ViagensTable } from '@/components/viagens/ViagensTable';
 import { FilterBar } from '@/components/viagens/FilterBar';
 import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useEventos } from '@/hooks/useEventos';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface Filtros {
@@ -15,8 +17,12 @@ interface Filtros {
 }
 
 export default function ViagensAtivas() {
-  const { viagens, loading, lastUpdate, refetch, updateViagem } = useViagens();
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const { viagens, loading, lastUpdate, refetch, updateViagem } = useViagens(eventoId);
   const { kpis, viagensAtivas } = useCalculos(viagens);
+  const { getEventoById } = useEventos();
+  
+  const evento = eventoId ? getEventoById(eventoId) : null;
   
   const [filtros, setFiltros] = useState<Filtros>({
     tipoVeiculo: 'todos',
@@ -77,7 +83,7 @@ export default function ViagensAtivas() {
     <MainLayout>
       <Header 
         title="Viagens Ativas"
-        subtitle={`${viagensAtivas.length} viagens em andamento`}
+        subtitle={evento ? `${evento.nome_planilha} • ${viagensAtivas.length} viagens em andamento` : `${viagensAtivas.length} viagens em andamento`}
         lastUpdate={lastUpdate}
         alertCount={alertCount}
         onRefresh={refetch}

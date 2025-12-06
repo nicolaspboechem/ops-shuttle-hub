@@ -1,3 +1,4 @@
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Bus, 
@@ -5,24 +6,39 @@ import {
   Users, 
   Truck,
   Settings,
-  LogOut
+  LogOut,
+  ArrowLeft
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
-
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Viagens Ativas', href: '/viagens-ativas', icon: Bus },
-  { name: 'Finalizadas', href: '/viagens-finalizadas', icon: CheckCircle },
-  { name: 'Motoristas', href: '/motoristas', icon: Users },
-  { name: 'Veículos', href: '/veiculos', icon: Truck },
-];
-
-const bottomNav = [
-  { name: 'Configurações', href: '/configuracoes', icon: Settings },
-];
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useEventos } from '@/hooks/useEventos';
 
 export function AppSidebar() {
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const { logout } = useAuth();
+  const { getEventoById } = useEventos();
+  const navigate = useNavigate();
+
+  const evento = eventoId ? getEventoById(eventoId) : null;
+
+  const navigation = [
+    { name: 'Dashboard', href: `/evento/${eventoId}`, icon: LayoutDashboard },
+    { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus },
+    { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
+    { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
+    { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
+  ];
+
+  const bottomNav = [
+    { name: 'Configurações', href: `/evento/${eventoId}/configuracoes`, icon: Settings },
+  ];
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <aside className="flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0">
       {/* Logo */}
@@ -36,12 +52,32 @@ export function AppSidebar() {
         </div>
       </div>
 
+      {/* Event Info & Back Button */}
+      <div className="px-3 py-3 border-b border-sidebar-border">
+        <button
+          onClick={() => navigate('/eventos')}
+          className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Voltar para Eventos</span>
+        </button>
+        {evento && (
+          <div className="mt-2 px-3 py-2 rounded-lg bg-sidebar-accent/50">
+            <p className="text-xs text-sidebar-foreground/60 mb-1">Evento atual:</p>
+            <p className="text-sm font-medium text-sidebar-accent-foreground truncate">
+              {evento.nome_planilha}
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
+            end={item.href === `/evento/${eventoId}`}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
               "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -71,7 +107,10 @@ export function AppSidebar() {
           </NavLink>
         ))}
         
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors">
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors"
+        >
           <LogOut className="w-5 h-5" />
           Sair
         </button>

@@ -1,9 +1,11 @@
+import { useParams } from 'react-router-dom';
 import { Bus, Users, Clock, MapPin } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Viagem } from '@/lib/types/viagem';
@@ -20,8 +22,12 @@ interface VeiculoStats {
 }
 
 export default function Veiculos() {
-  const { viagens, loading, lastUpdate, refetch } = useViagens();
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
+  const { getEventoById } = useEventos();
+
+  const evento = eventoId ? getEventoById(eventoId) : null;
 
   // Calculate vehicle stats
   const veiculosStats: VeiculoStats[] = [];
@@ -74,7 +80,7 @@ export default function Veiculos() {
     <MainLayout>
       <Header 
         title="Veículos"
-        subtitle={`${veiculosStats.length} veículos cadastrados`}
+        subtitle={evento ? `${evento.nome_planilha} • ${veiculosStats.length} veículos` : `${veiculosStats.length} veículos cadastrados`}
         lastUpdate={lastUpdate}
         onRefresh={refetch}
       />

@@ -1,8 +1,19 @@
 export type TipoVeiculo = 'Ônibus' | 'Van';
 export type StatusViagem = 'ok' | 'alerta' | 'critico';
+export type StatusEvento = 'ativo' | 'finalizado' | 'processando';
+
+export interface Evento {
+  id: string;
+  nome_planilha: string;
+  data_criacao: string;
+  data_ultima_sync: string;
+  total_viagens: number;
+  status: StatusEvento;
+}
 
 export interface Viagem {
   id: string;
+  evento_id: string;
   tipo_operacao: string | null;
   coordenador: string | null;
   ponto_embarque: string | null;
