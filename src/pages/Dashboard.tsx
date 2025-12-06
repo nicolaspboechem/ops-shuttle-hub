@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -6,6 +7,7 @@ import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
+import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos } from '@/lib/utils/calculadores';
@@ -14,10 +16,28 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function Dashboard() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
-  const { kpis, metricasPorHora, viagensAtivas } = useCalculos(viagens);
   const { getEventoById } = useEventos();
+  
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
 
   const evento = eventoId ? getEventoById(eventoId) : null;
+
+  // Filtrar viagens pelo tipo de operação
+  const viagensFiltradas = useMemo(() => {
+    if (tipoOperacao === 'todos') return viagens;
+    return viagens.filter(v => v.tipo_operacao === tipoOperacao);
+  }, [viagens, tipoOperacao]);
+
+  // Recalcular métricas com as viagens filtradas
+  const { kpis, metricasPorHora, viagensAtivas } = useCalculos(viagensFiltradas);
+
+  // Contadores gerais (sem filtro)
+  const contadores = useMemo(() => ({
+    todos: viagens.length,
+    transfer: viagens.filter(v => v.tipo_operacao === 'transfer').length,
+    shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle').length,
+  }), [viagens]);
+
   const alertCount = kpis ? kpis.alertasCriticos.length + kpis.alertas.length : 0;
 
   if (loading) {
@@ -51,6 +71,13 @@ export default function Dashboard() {
       />
       
       <div className="p-8 space-y-6">
+        {/* Tabs de Operação */}
+        <OperationTabs 
+          value={tipoOperacao}
+          onChange={setTipoOperacao}
+          contadores={contadores}
+        />
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard

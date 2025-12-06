@@ -3,18 +3,12 @@ import { useParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { ViagensTable } from '@/components/viagens/ViagensTable';
-import { FilterBar } from '@/components/viagens/FilterBar';
+import { FilterBar, Filtros } from '@/components/viagens/FilterBar';
+import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Filtros {
-  tipoVeiculo: string;
-  status: string;
-  motorista: string;
-  busca: string;
-}
 
 export default function ViagensFinalizadas() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -24,6 +18,7 @@ export default function ViagensFinalizadas() {
   
   const evento = eventoId ? getEventoById(eventoId) : null;
   
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [filtros, setFiltros] = useState<Filtros>({
     tipoVeiculo: 'todos',
     status: 'todos',
@@ -31,12 +26,27 @@ export default function ViagensFinalizadas() {
     busca: ''
   });
 
+  // Contadores por tipo de operação
+  const contadores = useMemo(() => ({
+    todos: viagensFinalizadas.length,
+    transfer: viagensFinalizadas.filter(v => v.tipo_operacao === 'transfer').length,
+    shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle').length,
+  }), [viagensFinalizadas]);
+
   const motoristas = useMemo(() => {
-    return [...new Set(viagens.map(v => v.motorista))].sort();
-  }, [viagens]);
+    const viagensFiltradas = tipoOperacao === 'todos' 
+      ? viagens 
+      : viagens.filter(v => v.tipo_operacao === tipoOperacao);
+    return [...new Set(viagensFiltradas.map(v => v.motorista))].sort();
+  }, [viagens, tipoOperacao]);
 
   const viagensFiltradas = useMemo(() => {
     return viagensFinalizadas.filter(v => {
+      // Filtro por tipo de operação
+      if (tipoOperacao !== 'todos' && v.tipo_operacao !== tipoOperacao) {
+        return false;
+      }
+
       if (filtros.tipoVeiculo !== 'todos' && v.tipo_veiculo !== filtros.tipoVeiculo) {
         return false;
       }
@@ -56,7 +66,7 @@ export default function ViagensFinalizadas() {
       
       return true;
     });
-  }, [viagensFinalizadas, filtros]);
+  }, [viagensFinalizadas, filtros, tipoOperacao]);
 
   if (loading) {
     return (
@@ -80,7 +90,13 @@ export default function ViagensFinalizadas() {
       />
       
       <div className="p-8 space-y-4">
-        <div className="flex items-center justify-between">
+        {/* Tabs de Operação */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <OperationTabs 
+            value={tipoOperacao}
+            onChange={setTipoOperacao}
+            contadores={contadores}
+          />
           <Badge variant="outline" className="text-sm">
             {viagensFiltradas.length} resultados
           </Badge>

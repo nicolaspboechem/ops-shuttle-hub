@@ -1,15 +1,40 @@
 import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { Calendar, RefreshCw, Bus, Car, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Evento } from '@/lib/types/viagem';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EventoCardProps {
   evento: Evento;
 }
 
+interface ContagemViagens {
+  transfer: number;
+  shuttle: number;
+  total: number;
+}
+
 export function EventoCard({ evento }: EventoCardProps) {
   const navigate = useNavigate();
+  const [contagem, setContagem] = useState<ContagemViagens>({ transfer: 0, shuttle: 0, total: 0 });
+
+  useEffect(() => {
+    async function fetchContagem() {
+      const { data, error } = await supabase
+        .from('viagens')
+        .select('tipo_operacao')
+        .eq('evento_id', evento.id);
+
+      if (!error && data) {
+        const transfer = data.filter(v => v.tipo_operacao === 'transfer').length;
+        const shuttle = data.filter(v => v.tipo_operacao === 'shuttle').length;
+        setContagem({ transfer, shuttle, total: data.length });
+      }
+    }
+    fetchContagem();
+  }, [evento.id]);
 
   const statusConfig = {
     ativo: { label: 'Ativo', className: 'bg-status-ok text-status-ok-foreground' },
@@ -17,22 +42,7 @@ export function EventoCard({ evento }: EventoCardProps) {
     processando: { label: 'Processando', className: 'bg-status-alert text-status-alert-foreground' }
   };
 
-  const tipoConfig = {
-    transfer: { 
-      label: 'Transfer', 
-      icon: Car, 
-      className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' 
-    },
-    shuttle: { 
-      label: 'Shuttle', 
-      icon: Bus, 
-      className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' 
-    }
-  };
-
   const status = statusConfig[evento.status as keyof typeof statusConfig] || statusConfig.ativo;
-  const tipo = tipoConfig[(evento.tipo_operacao as keyof typeof tipoConfig) || 'transfer'];
-  const TipoIcon = tipo.icon;
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('pt-BR', {
@@ -44,6 +54,8 @@ export function EventoCard({ evento }: EventoCardProps) {
     });
   };
 
+  const hasBothTypes = contagem.transfer > 0 && contagem.shuttle > 0;
+
   return (
     <Card 
       className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
@@ -52,14 +64,32 @@ export function EventoCard({ evento }: EventoCardProps) {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`p-1.5 rounded-md ${tipo.className}`}>
-                <TipoIcon className="w-4 h-4" />
-              </div>
-              <Badge variant="outline" className={tipo.className}>
-                {tipo.label}
-              </Badge>
+            {/* Badges de tipo de operação */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {(contagem.transfer > 0 || contagem.total === 0) && (
+                <div className="flex items-center gap-1.5">
+                  <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    <Car className="w-4 h-4" />
+                  </div>
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                    Transfer
+                    {contagem.transfer > 0 && <span className="ml-1 opacity-75">({contagem.transfer})</span>}
+                  </Badge>
+                </div>
+              )}
+              {contagem.shuttle > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <Bus className="w-4 h-4" />
+                  </div>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                    Shuttle
+                    <span className="ml-1 opacity-75">({contagem.shuttle})</span>
+                  </Badge>
+                </div>
+              )}
             </div>
+            
             <h3 className="font-semibold text-lg text-foreground truncate">
               {evento.nome_planilha}
             </h3>
@@ -81,9 +111,10 @@ export function EventoCard({ evento }: EventoCardProps) {
             <span>Última sync: {formatDate(evento.data_ultima_sync)}</span>
           </div>
 
+          {/* Contador total de viagens */}
           <div className="flex items-center gap-2 text-muted-foreground">
-            <TipoIcon className="w-4 h-4 flex-shrink-0" />
-            <span>{evento.total_viagens || 0} viagens</span>
+            <Bus className="w-4 h-4 flex-shrink-0" />
+            <span>{contagem.total} viagens</span>
           </div>
         </div>
       </CardContent>
