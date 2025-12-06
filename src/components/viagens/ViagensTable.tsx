@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bus, Users, Clock, MapPin, Edit2 } from 'lucide-react';
+import { Bus, Users, Edit2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -9,10 +9,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Viagem, AlertaViagem } from '@/lib/types/viagem';
 import { StatusBadge, TripStatusBadge } from './StatusBadge';
-import { calcularTempoViagem, formatarMinutos } from '@/lib/utils/calculadores';
+import { calcularTempoViagem, formatarMinutos, formatarHora } from '@/lib/utils/calculadores';
 import { EditViagemModal } from './EditViagemModal';
 
 interface ViagensTableProps {
@@ -74,20 +73,20 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   </TableCell>
                   <TableCell>
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                      {viagem.placa}
+                      {viagem.placa || '-'}
                     </code>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {viagem.h_pickup}
+                    {formatarHora(viagem.h_pickup)}
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {viagem.h_chegada || '-'}
+                    {formatarHora(viagem.h_chegada)}
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {viagem.h_retorno || '-'}
+                    {formatarHora(viagem.h_retorno)}
                   </TableCell>
                   <TableCell className="text-center">
-                    {tempoViagem !== null ? (
+                    {tempoViagem !== null && tempoViagem > 0 ? (
                       <span className="text-sm font-medium">
                         {formatarMinutos(tempoViagem)}
                       </span>
@@ -98,7 +97,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-sm font-medium">{viagem.qtd_pax}</span>
+                      <span className="text-sm font-medium">{viagem.qtd_pax || 0}</span>
                     </div>
                   </TableCell>
                   <TableCell>
