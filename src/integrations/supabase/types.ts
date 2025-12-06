@@ -44,6 +44,89 @@ export type Database = {
         }
         Relationships: []
       }
+      motoristas: {
+        Row: {
+          ativo: boolean | null
+          cnh: string | null
+          data_atualizacao: string
+          data_criacao: string
+          id: string
+          nome: string
+          observacao: string | null
+          telefone: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cnh?: string | null
+          data_atualizacao?: string
+          data_criacao?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          telefone?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cnh?: string | null
+          data_atualizacao?: string
+          data_criacao?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          telefone?: string | null
+        }
+        Relationships: []
+      }
+      veiculos: {
+        Row: {
+          ano: number | null
+          ativo: boolean | null
+          capacidade: number | null
+          data_atualizacao: string
+          data_criacao: string
+          id: string
+          marca: string | null
+          modelo: string | null
+          motorista_id: string | null
+          placa: string
+          tipo_veiculo: string
+        }
+        Insert: {
+          ano?: number | null
+          ativo?: boolean | null
+          capacidade?: number | null
+          data_atualizacao?: string
+          data_criacao?: string
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          motorista_id?: string | null
+          placa: string
+          tipo_veiculo?: string
+        }
+        Update: {
+          ano?: number | null
+          ativo?: boolean | null
+          capacidade?: number | null
+          data_atualizacao?: string
+          data_criacao?: string
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          motorista_id?: string | null
+          placa?: string
+          tipo_veiculo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veiculos_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       viagens: {
         Row: {
           coordenador: string | null
