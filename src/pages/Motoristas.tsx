@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -22,6 +24,10 @@ import { toast } from 'sonner';
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
+  const [filterCadastrado, setFilterCadastrado] = useState<string>('all');
+  
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas();
@@ -29,7 +35,6 @@ export default function Motoristas() {
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
-  const sortedMetricas = [...metricasMotoristas].sort((a, b) => b.totalViagens - a.totalViagens);
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
 
   // Função para salvar motorista + veículo juntos
@@ -64,14 +69,11 @@ export default function Motoristas() {
     oldNome: string,
     oldPlaca: string | null
   ) => {
-    // Passa o nome antigo para sincronizar viagens
     await updateMotorista(motoristaId, motoristaData, oldNome);
     
     if (veiculoId && veiculoData) {
-      // Passa a placa antiga para sincronizar viagens
       await updateVeiculo(veiculoId, veiculoData, oldPlaca || undefined);
     } else if (veiculoData && veiculoData.placa) {
-      // Criar veículo se não existe
       await createVeiculo({
         ...veiculoData,
         motorista_id: motoristaId,
@@ -81,13 +83,12 @@ export default function Motoristas() {
     
     refetchMotoristas();
     refetchVeiculos();
-    refetch(); // Atualiza viagens para refletir as mudanças
+    refetch();
   };
 
   // Função para deletar motorista (e veículos vinculados)
   const handleDeleteMotorista = async (motoristaId: string) => {
     try {
-      // Deletar veículos vinculados primeiro
       const veiculosDoMotorista = veiculos.filter(v => v.motorista_id === motoristaId);
       for (const veiculo of veiculosDoMotorista) {
         await deleteVeiculo(veiculo.id);
@@ -111,6 +112,68 @@ export default function Motoristas() {
     return viagens.filter(v => v.motorista === nomeMotorista).length;
   };
 
+  // Filtrar e ordenar motoristas (Performance tab)
+  const filteredMetricas = useMemo(() => {
+    let filtered = [...metricasMotoristas];
+
+    // Filtro de busca
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(m => m.motorista.toLowerCase().includes(term));
+    }
+
+    // Filtro por tipo de veículo
+    if (filterTipoVeiculo !== 'all') {
+      filtered = filtered.filter(m => {
+        const motoristaCadastrado = motoristasCadastrados.find(mc => mc.nome === m.motorista);
+        if (!motoristaCadastrado) return false;
+        const veiculo = getVeiculoDoMotorista(motoristaCadastrado.id);
+        return veiculo?.tipo_veiculo === filterTipoVeiculo;
+      });
+    }
+
+    // Filtro por status de cadastro
+    if (filterCadastrado !== 'all') {
+      const isCadastrado = filterCadastrado === 'cadastrado';
+      filtered = filtered.filter(m => {
+        const existe = motoristasCadastrados.some(mc => mc.nome === m.motorista);
+        return isCadastrado ? existe : !existe;
+      });
+    }
+
+    return filtered.sort((a, b) => b.totalViagens - a.totalViagens);
+  }, [metricasMotoristas, searchTerm, filterTipoVeiculo, filterCadastrado, motoristasCadastrados, veiculos]);
+
+  // Filtrar motoristas cadastrados (Cadastro tab)
+  const filteredCadastrados = useMemo(() => {
+    let filtered = [...motoristasCadastrados];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.nome.toLowerCase().includes(term) ||
+        m.telefone?.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterTipoVeiculo !== 'all') {
+      filtered = filtered.filter(m => {
+        const veiculo = getVeiculoDoMotorista(m.id);
+        return veiculo?.tipo_veiculo === filterTipoVeiculo;
+      });
+    }
+
+    return filtered;
+  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, veiculos]);
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterTipoVeiculo('all');
+    setFilterCadastrado('all');
+  };
+
+  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterCadastrado !== 'all';
+
   if (loadingViagens || loadingCadastros) {
     return (
       <MainLayout>
@@ -123,6 +186,50 @@ export default function Motoristas() {
       </MainLayout>
     );
   }
+
+  const SearchAndFilters = ({ showCadastradoFilter = true }: { showCadastradoFilter?: boolean }) => (
+    <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar motorista..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+      <div className="flex gap-2">
+        <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
+          <SelectTrigger className="w-[140px]">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Veículo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="Van">Van</SelectItem>
+            <SelectItem value="Ônibus">Ônibus</SelectItem>
+          </SelectContent>
+        </Select>
+        {showCadastradoFilter && (
+          <Select value={filterCadastrado} onValueChange={setFilterCadastrado}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="cadastrado">Cadastrados</SelectItem>
+              <SelectItem value="nao_cadastrado">Não cadastrados</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {hasActiveFilters && (
+          <Button variant="ghost" size="icon" onClick={clearFilters}>
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <MainLayout>
@@ -144,8 +251,9 @@ export default function Motoristas() {
 
           {/* Aba Performance */}
           <TabsContent value="performance">
-            <div className="flex items-center justify-end mb-4">
-              <div className="flex items-center border rounded-md">
+            <div className="flex items-center justify-between mb-4">
+              <SearchAndFilters showCadastradoFilter={true} />
+              <div className="flex items-center border rounded-md ml-3">
                 <Button
                   variant={viewMode === 'card' ? 'secondary' : 'ghost'}
                   size="sm"
@@ -165,9 +273,17 @@ export default function Motoristas() {
               </div>
             </div>
 
-            {viewMode === 'card' ? (
+            {filteredMetricas.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+                <h3 className="font-medium mb-2">Nenhum motorista encontrado</h3>
+                <p className="text-sm text-muted-foreground">
+                  {hasActiveFilters ? 'Tente ajustar os filtros de busca.' : 'Ainda não há motoristas com viagens registradas.'}
+                </p>
+              </Card>
+            ) : viewMode === 'card' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedMetricas.map((motorista, index) => {
+                {filteredMetricas.map((motorista, index) => {
                   const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
                   const veiculo = motoristaCadastrado ? getVeiculoDoMotorista(motoristaCadastrado.id) : undefined;
                   
@@ -336,7 +452,7 @@ export default function Motoristas() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedMetricas.map((motorista, index) => {
+                    {filteredMetricas.map((motorista, index) => {
                       const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === motorista.motorista);
                       const veiculo = motoristaCadastrado ? getVeiculoDoMotorista(motoristaCadastrado.id) : undefined;
                       
@@ -465,27 +581,55 @@ export default function Motoristas() {
                 />
               </div>
 
-              {motoristasCadastrados.length === 0 ? (
+              <div className="flex items-center justify-between">
+                <SearchAndFilters showCadastradoFilter={false} />
+                <div className="flex items-center border rounded-md ml-3">
+                  <Button
+                    variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('card')}
+                    className="rounded-r-none"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                    className="rounded-l-none"
+                  >
+                    <List className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {filteredCadastrados.length === 0 ? (
                 <Card className="p-8 text-center">
                   <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                  <h3 className="font-medium mb-2">Nenhum motorista cadastrado</h3>
+                  <h3 className="font-medium mb-2">
+                    {hasActiveFilters ? 'Nenhum motorista encontrado' : 'Nenhum motorista cadastrado'}
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Cadastre motoristas com nome, celular, tipo de veículo e placa.
+                    {hasActiveFilters 
+                      ? 'Tente ajustar os filtros de busca.' 
+                      : 'Cadastre motoristas com nome, celular, tipo de veículo e placa.'}
                   </p>
-                  <MotoristaComVeiculoModal 
-                    onSave={handleSaveMotoristaComVeiculo}
-                    onUpdate={handleUpdateMotoristaComVeiculo}
-                    trigger={
-                      <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
-                        <Plus className="w-4 h-4" />
-                        Cadastrar Motorista
-                      </span>
-                    }
-                  />
+                  {!hasActiveFilters && (
+                    <MotoristaComVeiculoModal 
+                      onSave={handleSaveMotoristaComVeiculo}
+                      onUpdate={handleUpdateMotoristaComVeiculo}
+                      trigger={
+                        <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
+                          <Plus className="w-4 h-4" />
+                          Cadastrar Motorista
+                        </span>
+                      }
+                    />
+                  )}
                 </Card>
-              ) : (
+              ) : viewMode === 'card' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {motoristasCadastrados.map((motorista) => {
+                  {filteredCadastrados.map((motorista) => {
                     const veiculo = getVeiculoDoMotorista(motorista.id);
                     const viagensCount = contarViagensPorMotorista(motorista.nome);
                     
@@ -592,6 +736,111 @@ export default function Motoristas() {
                     );
                   })}
                 </div>
+              ) : (
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Motorista</TableHead>
+                        <TableHead>Celular</TableHead>
+                        <TableHead>Tipo Veículo</TableHead>
+                        <TableHead>Placa</TableHead>
+                        <TableHead>Viagens</TableHead>
+                        <TableHead className="w-[50px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCadastrados.map((motorista) => {
+                        const veiculo = getVeiculoDoMotorista(motorista.id);
+                        const viagensCount = contarViagensPorMotorista(motorista.nome);
+                        
+                        return (
+                          <TableRow key={motorista.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                                  {motorista.nome.charAt(0)}
+                                </div>
+                                {motorista.nome}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {motorista.telefone || '-'}
+                            </TableCell>
+                            <TableCell>
+                              {veiculo ? (
+                                <Badge variant="outline">{veiculo.tipo_veiculo}</Badge>
+                              ) : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {veiculo ? (
+                                <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+                              ) : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{viagensCount}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-popover z-50">
+                                  <MotoristaComVeiculoModal 
+                                    motorista={motorista}
+                                    veiculo={veiculo}
+                                    onSave={handleSaveMotoristaComVeiculo}
+                                    onUpdate={handleUpdateMotoristaComVeiculo}
+                                    trigger={
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                        <Pencil className="w-4 h-4 mr-2" />
+                                        Editar
+                                      </DropdownMenuItem>
+                                    }
+                                  />
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem 
+                                        className="text-destructive"
+                                        onSelect={(e) => e.preventDefault()}
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Excluir
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="flex items-center gap-2">
+                                          <AlertTriangle className="w-5 h-5 text-destructive" />
+                                          Confirmar Exclusão
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Tem certeza que deseja excluir <strong>{motorista.nome}</strong>? 
+                                          Esta ação não pode ser desfeita e também removerá o veículo vinculado.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          onClick={() => handleDeleteMotorista(motorista.id)}
+                                        >
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
               )}
             </div>
           </TabsContent>
