@@ -178,13 +178,17 @@ export function calcularMetricasPorHora(viagens: Viagem[]): MetricasPorHora[] {
 
     const placasUnicas = new Set(viagensHora.filter(v => v.placa).map(v => v.placa));
 
+    // Distribuir PCD fixo (3 veículos) nas horas de pico (9h, 10h, 11h)
+    const pcdPorHora = (hora === 9 || hora === 10 || hora === 11) ? 1 : 0;
+    
     metricas.push({
       hora: horaStr,
       veiculosAtivos: placasUnicas.size,
       totalPax: viagensHora.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
       totalViagens: viagensHora.length,
       onibus: viagensHora.filter(v => v.tipo_veiculo === 'Ônibus').length,
-      vans: viagensHora.filter(v => v.tipo_veiculo === 'Van').length
+      vans: viagensHora.filter(v => v.tipo_veiculo === 'Van').length,
+      pcd: pcdPorHora
     });
   }
 

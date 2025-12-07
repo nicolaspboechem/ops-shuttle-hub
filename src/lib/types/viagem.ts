@@ -60,6 +60,7 @@ export interface MetricasPorHora {
   totalViagens: number;
   onibus: number;
   vans: number;
+  pcd?: number;
 }
 
 export interface KPIsDashboard {

@@ -52,6 +52,12 @@ export function VehiclesChart({ data }: VehiclesChartProps) {
                 fill="hsl(var(--chart-2))" 
                 radius={[4, 4, 0, 0]}
               />
+              <Bar 
+                dataKey="pcd" 
+                name="PCD" 
+                fill="hsl(var(--chart-3))" 
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

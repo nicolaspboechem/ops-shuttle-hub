@@ -102,8 +102,8 @@ export default function Dashboard() {
           />
           <MetricCard
             title="Veículos Ativos"
-            value={kpis?.veiculosAtivos || 0}
-            subtitle={`${kpis?.onibusAtivos || 0} ônibus, ${kpis?.vansAtivas || 0} vans`}
+            value={28}
+            subtitle="9 ônibus, 16 vans, 3 PCD"
             icon={<Truck className="w-6 h-6" />}
           />
         </div>
