@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2 } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
@@ -210,13 +211,38 @@ export default function Motoristas() {
                                         </DropdownMenuItem>
                                       }
                                     />
-                                    <DropdownMenuItem 
-                                      className="text-destructive"
-                                      onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Excluir Motorista
-                                    </DropdownMenuItem>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem 
+                                          className="text-destructive"
+                                          onSelect={(e) => e.preventDefault()}
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Excluir Motorista
+                                        </DropdownMenuItem>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="flex items-center gap-2">
+                                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                                            Confirmar Exclusão
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Tem certeza que deseja excluir <strong>{motorista.motorista}</strong>? 
+                                            Esta ação não pode ser desfeita e também removerá o veículo vinculado.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
+                                          >
+                                            Excluir
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </>
                                 ) : (
                                   <MotoristaComVeiculoModal 
@@ -365,13 +391,38 @@ export default function Motoristas() {
                                         </DropdownMenuItem>
                                       }
                                     />
-                                    <DropdownMenuItem 
-                                      className="text-destructive"
-                                      onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Excluir
-                                    </DropdownMenuItem>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem 
+                                          className="text-destructive"
+                                          onSelect={(e) => e.preventDefault()}
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Excluir
+                                        </DropdownMenuItem>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="flex items-center gap-2">
+                                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                                            Confirmar Exclusão
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Tem certeza que deseja excluir <strong>{motorista.motorista}</strong>? 
+                                            Esta ação não pode ser desfeita e também removerá o veículo vinculado.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
+                                          >
+                                            Excluir
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </>
                                 ) : (
                                   <MotoristaComVeiculoModal 
@@ -475,13 +526,38 @@ export default function Motoristas() {
                                     </DropdownMenuItem>
                                   }
                                 />
-                                <DropdownMenuItem 
-                                  className="text-destructive"
-                                  onClick={() => handleDeleteMotorista(motorista.id)}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Excluir
-                                </DropdownMenuItem>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem 
+                                      className="text-destructive"
+                                      onSelect={(e) => e.preventDefault()}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle className="flex items-center gap-2">
+                                        <AlertTriangle className="w-5 h-5 text-destructive" />
+                                        Confirmar Exclusão
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Tem certeza que deseja excluir <strong>{motorista.nome}</strong>? 
+                                        Esta ação não pode ser desfeita e também removerá o veículo vinculado.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        onClick={() => handleDeleteMotorista(motorista.id)}
+                                      >
+                                        Excluir
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
