@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
@@ -19,6 +19,7 @@ import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MotoristaComVeiculoModal } from '@/components/cadastros/CadastroModals';
+import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
 import { toast } from 'sonner';
 
 export default function Motoristas() {
@@ -313,6 +314,17 @@ export default function Motoristas() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover z-50">
+                                <MotoristaViagensModal
+                                  motorista={motorista.motorista}
+                                  viagens={viagens}
+                                  trigger={
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      Ver Viagens
+                                    </DropdownMenuItem>
+                                  }
+                                />
+                                <DropdownMenuSeparator />
                                 {motoristaCadastrado ? (
                                   <>
                                     <MotoristaComVeiculoModal 
@@ -493,6 +505,17 @@ export default function Motoristas() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-popover z-50">
+                                <MotoristaViagensModal
+                                  motorista={motorista.motorista}
+                                  viagens={viagens}
+                                  trigger={
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      Ver Viagens
+                                    </DropdownMenuItem>
+                                  }
+                                />
+                                <DropdownMenuSeparator />
                                 {motoristaCadastrado ? (
                                   <>
                                     <MotoristaComVeiculoModal 
