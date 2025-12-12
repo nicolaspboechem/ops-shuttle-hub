@@ -132,10 +132,7 @@ export function useVeiculos(eventoId?: string) {
     setLoading(true);
     let query = supabase
       .from('veiculos')
-      .select(`
-        *,
-        motorista:motoristas(*)
-      `)
+      .select('*')
       .order('placa', { ascending: true });
 
     // Filtrar por evento se fornecido
@@ -166,10 +163,7 @@ export function useVeiculos(eventoId?: string) {
         ...veiculo,
         evento_id: veiculo.evento_id || eventoId || null
       })
-      .select(`
-        *,
-        motorista:motoristas(*)
-      `)
+      .select('*')
       .single();
 
     if (error) throw error;
