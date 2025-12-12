@@ -8,6 +8,7 @@ export interface Motorista {
   cnh: string | null;
   observacao: string | null;
   ativo: boolean;
+  evento_id: string | null;
   data_criacao: string;
   data_atualizacao: string;
 }
@@ -22,21 +23,29 @@ export interface Veiculo {
   ano: number | null;
   capacidade: number | null;
   ativo: boolean;
+  evento_id: string | null;
   data_criacao: string;
   data_atualizacao: string;
   motorista?: Motorista;
 }
 
-export function useMotoristas() {
+export function useMotoristas(eventoId?: string) {
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMotoristas = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('motoristas')
       .select('*')
       .order('nome', { ascending: true });
+
+    // Filtrar por evento se fornecido
+    if (eventoId) {
+      query = query.eq('evento_id', eventoId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Erro ao buscar motoristas:', error);
@@ -46,16 +55,19 @@ export function useMotoristas() {
 
     setMotoristas(data || []);
     setLoading(false);
-  }, []);
+  }, [eventoId]);
 
   useEffect(() => {
     fetchMotoristas();
   }, [fetchMotoristas]);
 
-  const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao'>) => {
+  const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao' | 'evento_id'> & { evento_id?: string }) => {
     const { data, error } = await supabase
       .from('motoristas')
-      .insert(motorista)
+      .insert({
+        ...motorista,
+        evento_id: motorista.evento_id || eventoId || null
+      })
       .select()
       .single();
 
@@ -107,19 +119,26 @@ export function useMotoristas() {
   };
 }
 
-export function useVeiculos() {
+export function useVeiculos(eventoId?: string) {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchVeiculos = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('veiculos')
       .select(`
         *,
         motorista:motoristas(*)
       `)
       .order('placa', { ascending: true });
+
+    // Filtrar por evento se fornecido
+    if (eventoId) {
+      query = query.eq('evento_id', eventoId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Erro ao buscar veículos:', error);
@@ -129,16 +148,19 @@ export function useVeiculos() {
 
     setVeiculos(data || []);
     setLoading(false);
-  }, []);
+  }, [eventoId]);
 
   useEffect(() => {
     fetchVeiculos();
   }, [fetchVeiculos]);
 
-  const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista'>) => {
+  const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista' | 'evento_id'> & { evento_id?: string }) => {
     const { data, error } = await supabase
       .from('veiculos')
-      .insert(veiculo)
+      .insert({
+        ...veiculo,
+        evento_id: veiculo.evento_id || eventoId || null
+      })
       .select(`
         *,
         motorista:motoristas(*)

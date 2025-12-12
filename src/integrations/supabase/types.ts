@@ -50,6 +50,7 @@ export type Database = {
           cnh: string | null
           data_atualizacao: string
           data_criacao: string
+          evento_id: string | null
           id: string
           nome: string
           observacao: string | null
@@ -60,6 +61,7 @@ export type Database = {
           cnh?: string | null
           data_atualizacao?: string
           data_criacao?: string
+          evento_id?: string | null
           id?: string
           nome: string
           observacao?: string | null
@@ -70,12 +72,21 @@ export type Database = {
           cnh?: string | null
           data_atualizacao?: string
           data_criacao?: string
+          evento_id?: string | null
           id?: string
           nome?: string
           observacao?: string | null
           telefone?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "motoristas_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       veiculos: {
         Row: {
@@ -84,6 +95,7 @@ export type Database = {
           capacidade: number | null
           data_atualizacao: string
           data_criacao: string
+          evento_id: string | null
           id: string
           marca: string | null
           modelo: string | null
@@ -97,6 +109,7 @@ export type Database = {
           capacidade?: number | null
           data_atualizacao?: string
           data_criacao?: string
+          evento_id?: string | null
           id?: string
           marca?: string | null
           modelo?: string | null
@@ -110,6 +123,7 @@ export type Database = {
           capacidade?: number | null
           data_atualizacao?: string
           data_criacao?: string
+          evento_id?: string | null
           id?: string
           marca?: string | null
           modelo?: string | null
@@ -118,6 +132,13 @@ export type Database = {
           tipo_veiculo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "veiculos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "veiculos_motorista_id_fkey"
             columns: ["motorista_id"]

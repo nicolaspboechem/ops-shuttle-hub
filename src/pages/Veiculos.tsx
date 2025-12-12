@@ -37,7 +37,7 @@ export default function Veiculos() {
   
   const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
-  const { veiculos: veiculosCadastrados } = useVeiculos();
+  const { veiculos: veiculosCadastrados } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;

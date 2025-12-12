@@ -31,8 +31,8 @@ export default function Motoristas() {
   
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
-  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas();
-  const { veiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos();
+  const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
+  const { veiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
@@ -330,6 +330,7 @@ export default function Motoristas() {
                                     <MotoristaComVeiculoModal 
                                       motorista={motoristaCadastrado}
                                       veiculo={veiculo}
+                                      eventoId={eventoId}
                                       onSave={handleSaveMotoristaComVeiculo}
                                       onUpdate={handleUpdateMotoristaComVeiculo}
                                       trigger={
@@ -375,6 +376,7 @@ export default function Motoristas() {
                                 ) : (
                                   <MotoristaComVeiculoModal 
                                     defaultName={motorista.motorista}
+                                    eventoId={eventoId}
                                     onSave={handleSaveMotoristaComVeiculo}
                                     onUpdate={handleUpdateMotoristaComVeiculo}
                                     trigger={
@@ -521,6 +523,7 @@ export default function Motoristas() {
                                     <MotoristaComVeiculoModal 
                                       motorista={motoristaCadastrado}
                                       veiculo={veiculo}
+                                      eventoId={eventoId}
                                       onSave={handleSaveMotoristaComVeiculo}
                                       onUpdate={handleUpdateMotoristaComVeiculo}
                                       trigger={
@@ -566,6 +569,7 @@ export default function Motoristas() {
                                 ) : (
                                   <MotoristaComVeiculoModal 
                                     defaultName={motorista.motorista}
+                                    eventoId={eventoId}
                                     onSave={handleSaveMotoristaComVeiculo}
                                     onUpdate={handleUpdateMotoristaComVeiculo}
                                     trigger={
@@ -599,6 +603,7 @@ export default function Motoristas() {
                   </p>
                 </div>
                 <MotoristaComVeiculoModal 
+                  eventoId={eventoId}
                   onSave={handleSaveMotoristaComVeiculo}
                   onUpdate={handleUpdateMotoristaComVeiculo}
                 />
@@ -639,6 +644,7 @@ export default function Motoristas() {
                   </p>
                   {!hasActiveFilters && (
                     <MotoristaComVeiculoModal 
+                      eventoId={eventoId}
                       onSave={handleSaveMotoristaComVeiculo}
                       onUpdate={handleUpdateMotoristaComVeiculo}
                       trigger={
@@ -684,6 +690,7 @@ export default function Motoristas() {
                                 <MotoristaComVeiculoModal 
                                   motorista={motorista}
                                   veiculo={veiculo}
+                                  eventoId={eventoId}
                                   onSave={handleSaveMotoristaComVeiculo}
                                   onUpdate={handleUpdateMotoristaComVeiculo}
                                   trigger={
@@ -814,6 +821,7 @@ export default function Motoristas() {
                                   <MotoristaComVeiculoModal 
                                     motorista={motorista}
                                     veiculo={veiculo}
+                                    eventoId={eventoId}
                                     onSave={handleSaveMotoristaComVeiculo}
                                     onUpdate={handleUpdateMotoristaComVeiculo}
                                     trigger={
