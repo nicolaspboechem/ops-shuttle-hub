@@ -18,7 +18,7 @@ import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MotoristaComVeiculoModal } from '@/components/cadastros/CadastroModals';
+import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
 import { toast } from 'sonner';
 
@@ -32,82 +32,62 @@ export default function Motoristas() {
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
-  const { veiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
+  const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
 
-  // Função para salvar motorista + veículo juntos (legacy)
-  const handleSaveMotoristaComVeiculo = async (
-    motoristaData: { nome: string; telefone: string | null; ativo: boolean },
-    veiculoData: { placa: string; tipo_veiculo: string }
-  ) => {
-    const motorista = await createMotorista({
-      ...motoristaData,
+  // Função para salvar motorista com seleção de veículo
+  const handleSaveMotorista = async (data: { 
+    nome: string; 
+    telefone: string | null; 
+    veiculo_id: string | null; 
+    ativo: boolean; 
+    evento_id?: string 
+  }) => {
+    await createMotorista({
+      nome: data.nome,
+      telefone: data.telefone,
+      veiculo_id: data.veiculo_id,
+      ativo: data.ativo,
       cnh: null,
       observacao: null,
-      veiculo_id: null,
-    });
-    await createVeiculo({
-      ...veiculoData,
-      motorista_id: motorista.id,
-      ativo: true,
-      marca: null,
-      modelo: null,
-      ano: null,
-      capacidade: null,
-      fornecedor: null,
     });
     refetchMotoristas();
     refetchVeiculos();
   };
 
-  // Função para atualizar motorista + veículo juntos (com sincronização bidirecional)
-  const handleUpdateMotoristaComVeiculo = async (
+  // Função para atualizar motorista
+  const handleUpdateMotorista = async (
     motoristaId: string,
     motoristaData: any,
-    veiculoId: string | null,
-    veiculoData: any,
-    oldNome: string,
-    oldPlaca: string | null
+    oldNome: string
   ) => {
     await updateMotorista(motoristaId, motoristaData, oldNome);
-    
-    if (veiculoId && veiculoData) {
-      await updateVeiculo(veiculoId, veiculoData, oldPlaca || undefined);
-    } else if (veiculoData && veiculoData.placa) {
-      await createVeiculo({
-        ...veiculoData,
-        motorista_id: motoristaId,
-        ativo: true,
-      });
-    }
-    
     refetchMotoristas();
     refetchVeiculos();
     refetch();
   };
 
-  // Função para deletar motorista (e veículos vinculados)
+  // Função para deletar motorista
   const handleDeleteMotorista = async (motoristaId: string) => {
     try {
-      const veiculosDoMotorista = veiculos.filter(v => v.motorista_id === motoristaId);
-      for (const veiculo of veiculosDoMotorista) {
-        await deleteVeiculo(veiculo.id);
-      }
       await deleteMotorista(motoristaId);
       toast.success('Motorista excluído com sucesso!');
       refetchMotoristas();
-      refetchVeiculos();
     } catch (error: any) {
       toast.error(`Erro ao excluir: ${error.message}`);
     }
   };
 
-  // Obter veículo principal do motorista (1:1)
+  // Obter veículo do motorista pelo veiculo_id
   const getVeiculoDoMotorista = (motoristaId: string) => {
-    return veiculos.find(v => v.motorista_id === motoristaId);
+    const motorista = motoristasCadastrados.find(m => m.id === motoristaId);
+    if (motorista?.veiculo_id) {
+      return veiculos.find(v => v.id === motorista.veiculo_id);
+    }
+    return undefined;
   };
 
   // Contar viagens por motorista (usando nome para match)
@@ -119,13 +99,11 @@ export default function Motoristas() {
   const filteredMetricas = useMemo(() => {
     let filtered = [...metricasMotoristas];
 
-    // Filtro de busca
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(m => m.motorista.toLowerCase().includes(term));
     }
 
-    // Filtro por tipo de veículo
     if (filterTipoVeiculo !== 'all') {
       filtered = filtered.filter(m => {
         const motoristaCadastrado = motoristasCadastrados.find(mc => mc.nome === m.motorista);
@@ -135,7 +113,6 @@ export default function Motoristas() {
       });
     }
 
-    // Filtro por status de cadastro
     if (filterCadastrado !== 'all') {
       const isCadastrado = filterCadastrado === 'cadastrado';
       filtered = filtered.filter(m => {
@@ -234,6 +211,100 @@ export default function Motoristas() {
     </div>
   );
 
+  const MotoristaDropdownActions = ({ 
+    motoristaNome, 
+    motoristaCadastrado, 
+    veiculo 
+  }: { 
+    motoristaNome: string;
+    motoristaCadastrado?: typeof motoristasCadastrados[0];
+    veiculo?: typeof veiculos[0];
+  }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="bg-popover z-50">
+        <MotoristaViagensModal
+          motorista={motoristaNome}
+          viagens={viagens}
+          trigger={
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <Eye className="w-4 h-4 mr-2" />
+              Ver Viagens
+            </DropdownMenuItem>
+          }
+        />
+        <DropdownMenuSeparator />
+        {motoristaCadastrado ? (
+          <>
+            <MotoristaModal 
+              motorista={motoristaCadastrado}
+              veiculosDisponiveis={veiculos}
+              eventoId={eventoId}
+              onSave={handleSaveMotorista}
+              onUpdate={handleUpdateMotorista}
+              trigger={
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Editar Motorista
+                </DropdownMenuItem>
+              }
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem 
+                  className="text-destructive"
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir Motorista
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    Confirmar Exclusão
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja excluir <strong>{motoristaNome}</strong>? 
+                    Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        ) : (
+          <MotoristaModal 
+            defaultName={motoristaNome}
+            veiculosDisponiveis={veiculos}
+            eventoId={eventoId}
+            onSave={handleSaveMotorista}
+            onUpdate={handleUpdateMotorista}
+            trigger={
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Cadastrar Motorista
+              </DropdownMenuItem>
+            }
+          />
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <MainLayout>
       <Header 
@@ -309,88 +380,11 @@ export default function Motoristas() {
                             <Badge variant="outline" className="text-xs">
                               #{index + 1}
                             </Badge>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover z-50">
-                                <MotoristaViagensModal
-                                  motorista={motorista.motorista}
-                                  viagens={viagens}
-                                  trigger={
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                      <Eye className="w-4 h-4 mr-2" />
-                                      Ver Viagens
-                                    </DropdownMenuItem>
-                                  }
-                                />
-                                <DropdownMenuSeparator />
-                                {motoristaCadastrado ? (
-                                  <>
-                                    <MotoristaComVeiculoModal 
-                                      motorista={motoristaCadastrado}
-                                      veiculo={veiculo}
-                                      eventoId={eventoId}
-                                      onSave={handleSaveMotoristaComVeiculo}
-                                      onUpdate={handleUpdateMotoristaComVeiculo}
-                                      trigger={
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                          <Pencil className="w-4 h-4 mr-2" />
-                                          Editar Motorista
-                                        </DropdownMenuItem>
-                                      }
-                                    />
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem 
-                                          className="text-destructive"
-                                          onSelect={(e) => e.preventDefault()}
-                                        >
-                                          <Trash2 className="w-4 h-4 mr-2" />
-                                          Excluir Motorista
-                                        </DropdownMenuItem>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle className="flex items-center gap-2">
-                                            <AlertTriangle className="w-5 h-5 text-destructive" />
-                                            Confirmar Exclusão
-                                          </AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Tem certeza que deseja excluir <strong>{motorista.motorista}</strong>? 
-                                            Esta ação não pode ser desfeita e também removerá o veículo vinculado.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                          <AlertDialogAction 
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
-                                          >
-                                            Excluir
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </>
-                                ) : (
-                                  <MotoristaComVeiculoModal 
-                                    defaultName={motorista.motorista}
-                                    eventoId={eventoId}
-                                    onSave={handleSaveMotoristaComVeiculo}
-                                    onUpdate={handleUpdateMotoristaComVeiculo}
-                                    trigger={
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        Cadastrar Motorista
-                                      </DropdownMenuItem>
-                                    }
-                                  />
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <MotoristaDropdownActions 
+                              motoristaNome={motorista.motorista}
+                              motoristaCadastrado={motoristaCadastrado}
+                              veiculo={veiculo}
+                            />
                           </div>
                         </div>
                       </CardHeader>
@@ -434,7 +428,6 @@ export default function Motoristas() {
                           </div>
                         </div>
 
-                        {/* Veículo vinculado */}
                         {veiculo && (
                           <div className="border-t pt-3">
                             <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
@@ -502,88 +495,11 @@ export default function Motoristas() {
                           <TableCell>{motorista.totalPax}</TableCell>
                           <TableCell>{formatarMinutos(motorista.tempoMedio)}</TableCell>
                           <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover z-50">
-                                <MotoristaViagensModal
-                                  motorista={motorista.motorista}
-                                  viagens={viagens}
-                                  trigger={
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                      <Eye className="w-4 h-4 mr-2" />
-                                      Ver Viagens
-                                    </DropdownMenuItem>
-                                  }
-                                />
-                                <DropdownMenuSeparator />
-                                {motoristaCadastrado ? (
-                                  <>
-                                    <MotoristaComVeiculoModal 
-                                      motorista={motoristaCadastrado}
-                                      veiculo={veiculo}
-                                      eventoId={eventoId}
-                                      onSave={handleSaveMotoristaComVeiculo}
-                                      onUpdate={handleUpdateMotoristaComVeiculo}
-                                      trigger={
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                          <Pencil className="w-4 h-4 mr-2" />
-                                          Editar
-                                        </DropdownMenuItem>
-                                      }
-                                    />
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem 
-                                          className="text-destructive"
-                                          onSelect={(e) => e.preventDefault()}
-                                        >
-                                          <Trash2 className="w-4 h-4 mr-2" />
-                                          Excluir
-                                        </DropdownMenuItem>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle className="flex items-center gap-2">
-                                            <AlertTriangle className="w-5 h-5 text-destructive" />
-                                            Confirmar Exclusão
-                                          </AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Tem certeza que deseja excluir <strong>{motorista.motorista}</strong>? 
-                                            Esta ação não pode ser desfeita e também removerá o veículo vinculado.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                          <AlertDialogAction 
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                            onClick={() => handleDeleteMotorista(motoristaCadastrado.id)}
-                                          >
-                                            Excluir
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </>
-                                ) : (
-                                  <MotoristaComVeiculoModal 
-                                    defaultName={motorista.motorista}
-                                    eventoId={eventoId}
-                                    onSave={handleSaveMotoristaComVeiculo}
-                                    onUpdate={handleUpdateMotoristaComVeiculo}
-                                    trigger={
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        Cadastrar
-                                      </DropdownMenuItem>
-                                    }
-                                  />
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <MotoristaDropdownActions 
+                              motoristaNome={motorista.motorista}
+                              motoristaCadastrado={motoristaCadastrado}
+                              veiculo={veiculo}
+                            />
                           </TableCell>
                         </TableRow>
                       );
@@ -601,13 +517,14 @@ export default function Motoristas() {
                 <div>
                   <h3 className="text-lg font-semibold">Motoristas Cadastrados</h3>
                   <p className="text-sm text-muted-foreground">
-                    Cadastre motoristas com seus veículos vinculados
+                    Cadastre motoristas e vincule aos veículos cadastrados
                   </p>
                 </div>
-                <MotoristaComVeiculoModal 
+                <MotoristaModal 
+                  veiculosDisponiveis={veiculos}
                   eventoId={eventoId}
-                  onSave={handleSaveMotoristaComVeiculo}
-                  onUpdate={handleUpdateMotoristaComVeiculo}
+                  onSave={handleSaveMotorista}
+                  onUpdate={handleUpdateMotorista}
                 />
               </div>
 
@@ -642,13 +559,14 @@ export default function Motoristas() {
                   <p className="text-sm text-muted-foreground mb-4">
                     {hasActiveFilters 
                       ? 'Tente ajustar os filtros de busca.' 
-                      : 'Cadastre motoristas com nome, celular, tipo de veículo e placa.'}
+                      : 'Cadastre motoristas e vincule aos veículos.'}
                   </p>
                   {!hasActiveFilters && (
-                    <MotoristaComVeiculoModal 
+                    <MotoristaModal 
+                      veiculosDisponiveis={veiculos}
                       eventoId={eventoId}
-                      onSave={handleSaveMotoristaComVeiculo}
-                      onUpdate={handleUpdateMotoristaComVeiculo}
+                      onSave={handleSaveMotorista}
+                      onUpdate={handleUpdateMotorista}
                       trigger={
                         <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
                           <Plus className="w-4 h-4" />
@@ -682,86 +600,34 @@ export default function Motoristas() {
                                 )}
                               </div>
                             </div>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-popover z-50">
-                                <MotoristaComVeiculoModal 
-                                  motorista={motorista}
-                                  veiculo={veiculo}
-                                  eventoId={eventoId}
-                                  onSave={handleSaveMotoristaComVeiculo}
-                                  onUpdate={handleUpdateMotoristaComVeiculo}
-                                  trigger={
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                      <Pencil className="w-4 h-4 mr-2" />
-                                      Editar
-                                    </DropdownMenuItem>
-                                  }
-                                />
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem 
-                                      className="text-destructive"
-                                      onSelect={(e) => e.preventDefault()}
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Excluir
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle className="flex items-center gap-2">
-                                        <AlertTriangle className="w-5 h-5 text-destructive" />
-                                        Confirmar Exclusão
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Tem certeza que deseja excluir <strong>{motorista.nome}</strong>? 
-                                        Esta ação não pode ser desfeita e também removerá o veículo vinculado.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        onClick={() => handleDeleteMotorista(motorista.id)}
-                                      >
-                                        Excluir
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <MotoristaDropdownActions 
+                              motoristaNome={motorista.nome}
+                              motoristaCadastrado={motorista}
+                              veiculo={veiculo}
+                            />
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          {/* Veículo vinculado */}
-                          {veiculo ? (
-                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-4 h-4 text-muted-foreground" />
-                                <code className="text-xs bg-background px-1.5 py-0.5 rounded">
-                                  {veiculo.placa}
-                                </code>
-                                <Badge variant="outline" className="text-xs">
-                                  {veiculo.tipo_veiculo}
-                                </Badge>
-                              </div>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-muted-foreground">Viagens realizadas</span>
+                              <Badge variant="secondary">{viagensCount}</Badge>
                             </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground p-2 bg-muted/50 rounded-lg">
-                              Sem veículo vinculado
-                            </p>
-                          )}
-                          
-                          {/* Contagem de viagens */}
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Viagens no evento</span>
-                            <Badge variant="secondary">{viagensCount}</Badge>
+                            
+                            {veiculo ? (
+                              <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-4 h-4 text-muted-foreground" />
+                                  <code className="text-xs">{veiculo.placa}</code>
+                                  <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 p-2 bg-muted/30 rounded text-muted-foreground text-sm">
+                                <Truck className="w-4 h-4" />
+                                Sem veículo vinculado
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -774,9 +640,10 @@ export default function Motoristas() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Motorista</TableHead>
-                        <TableHead>Celular</TableHead>
+                        <TableHead>WhatsApp</TableHead>
                         <TableHead>Tipo Veículo</TableHead>
                         <TableHead>Placa</TableHead>
+                        <TableHead>Fornecedor</TableHead>
                         <TableHead>Viagens</TableHead>
                         <TableHead className="w-[50px]">Ações</TableHead>
                       </TableRow>
@@ -809,64 +676,18 @@ export default function Motoristas() {
                                 <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
                               ) : '-'}
                             </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {veiculo?.fornecedor || '-'}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="secondary">{viagensCount}</Badge>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-popover z-50">
-                                  <MotoristaComVeiculoModal 
-                                    motorista={motorista}
-                                    veiculo={veiculo}
-                                    eventoId={eventoId}
-                                    onSave={handleSaveMotoristaComVeiculo}
-                                    onUpdate={handleUpdateMotoristaComVeiculo}
-                                    trigger={
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        <Pencil className="w-4 h-4 mr-2" />
-                                        Editar
-                                      </DropdownMenuItem>
-                                    }
-                                  />
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <DropdownMenuItem 
-                                        className="text-destructive"
-                                        onSelect={(e) => e.preventDefault()}
-                                      >
-                                        <Trash2 className="w-4 h-4 mr-2" />
-                                        Excluir
-                                      </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle className="flex items-center gap-2">
-                                          <AlertTriangle className="w-5 h-5 text-destructive" />
-                                          Confirmar Exclusão
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Tem certeza que deseja excluir <strong>{motorista.nome}</strong>? 
-                                          Esta ação não pode ser desfeita e também removerá o veículo vinculado.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction 
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          onClick={() => handleDeleteMotorista(motorista.id)}
-                                        >
-                                          Excluir
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <MotoristaDropdownActions 
+                                motoristaNome={motorista.nome}
+                                motoristaCadastrado={motorista}
+                                veiculo={veiculo}
+                              />
                             </TableCell>
                           </TableRow>
                         );
