@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -388,58 +388,87 @@ export default function Motoristas() {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Total Viagens</span>
-                            <span className="font-medium">{motorista.totalViagens}</span>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Total Viagens</span>
+                              <span className="font-medium">{motorista.totalViagens}</span>
+                            </div>
+                            <Progress 
+                              value={(motorista.totalViagens / maxViagens) * 100} 
+                              className="h-2"
+                            />
                           </div>
-                          <Progress 
-                            value={(motorista.totalViagens / maxViagens) * 100} 
-                            className="h-2"
-                          />
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-3 pt-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Users className="w-3.5 h-3.5" />
-                              <span className="text-xs">Total PAX</span>
-                            </div>
-                            <p className="text-lg font-semibold">{motorista.totalPax}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span className="text-xs">Tempo Médio</span>
-                            </div>
-                            <p className="text-lg font-semibold">
-                              {formatarMinutos(motorista.tempoMedio)}
-                            </p>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <TrendingUp className="w-3.5 h-3.5" />
-                              <span className="text-xs">Min / Max</span>
-                            </div>
-                            <p className="text-sm font-medium">
-                              {Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min
-                            </p>
-                          </div>
-                        </div>
-
-                        {veiculo && (
-                          <div className="border-t pt-3">
-                            <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                              <div className="flex items-center gap-2">
-                                <Truck className="w-4 h-4 text-muted-foreground" />
-                                <code className="text-xs">{veiculo.placa}</code>
-                                <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Users className="w-3.5 h-3.5" />
+                                <span className="text-xs">Total PAX</span>
                               </div>
+                              <p className="text-lg font-semibold">{motorista.totalPax}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="text-xs">Tempo Médio</span>
+                              </div>
+                              <p className="text-lg font-semibold">
+                                {formatarMinutos(motorista.tempoMedio)}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <TrendingUp className="w-3.5 h-3.5" />
+                                <span className="text-xs">Min / Max</span>
+                              </div>
+                              <p className="text-sm font-medium">
+                                {Math.round(motorista.tempoMin)} / {Math.round(motorista.tempoMax)} min
+                              </p>
                             </div>
                           </div>
-                        )}
-                      </CardContent>
+
+                          {/* Vehicle and WhatsApp section */}
+                          <div className="border-t pt-3 space-y-2">
+                            {veiculo && (
+                              <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-4 h-4 text-muted-foreground" />
+                                  <code className="text-xs">{veiculo.placa}</code>
+                                  <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {motoristaCadastrado?.telefone && (
+                              <div className="flex items-center justify-between p-2 bg-green-500/10 rounded">
+                                <div className="flex items-center gap-2">
+                                  <Phone className="w-4 h-4 text-green-600" />
+                                  <span className="text-xs font-medium">{motoristaCadastrado.telefone}</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-500/20"
+                                  onClick={() => {
+                                    const phone = motoristaCadastrado.telefone?.replace(/\D/g, '');
+                                    const url = `https://wa.me/55${phone}`;
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  <MessageCircle className="w-4 h-4 mr-1" />
+                                  WhatsApp
+                                </Button>
+                              </div>
+                            )}
+
+                            {!motoristaCadastrado?.telefone && !veiculo && (
+                              <p className="text-xs text-muted-foreground text-center py-2">
+                                Cadastre este motorista para adicionar telefone e veículo
+                              </p>
+                            )}
+                          </div>
+                        </div>
                     </Card>
                   );
                 })}
@@ -626,6 +655,28 @@ export default function Motoristas() {
                               <div className="flex items-center gap-2 p-2 bg-muted/30 rounded text-muted-foreground text-sm">
                                 <Truck className="w-4 h-4" />
                                 Sem veículo vinculado
+                              </div>
+                            )}
+
+                            {motorista.telefone && (
+                              <div className="flex items-center justify-between p-2 bg-green-500/10 rounded">
+                                <div className="flex items-center gap-2">
+                                  <Phone className="w-4 h-4 text-green-600" />
+                                  <span className="text-xs font-medium">{motorista.telefone}</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-500/20"
+                                  onClick={() => {
+                                    const phone = motorista.telefone?.replace(/\D/g, '');
+                                    const url = `https://wa.me/55${phone}`;
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  <MessageCircle className="w-4 h-4 mr-1" />
+                                  WhatsApp
+                                </Button>
                               </div>
                             )}
                           </div>
