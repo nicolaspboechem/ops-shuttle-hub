@@ -9,6 +9,7 @@ import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
 import { MetricCard } from '@/components/dashboard/MetricCard';
+import { ExportButton } from '@/components/eventos/ExportButton';
 import { useCalculos } from '@/hooks/useViagens';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Viagem } from '@/lib/types/viagem';
@@ -16,10 +17,11 @@ import { Viagem } from '@/lib/types/viagem';
 interface EventoTabsProps {
   viagensTransfer: Viagem[];
   viagensShuttle: Viagem[];
+  eventoNome?: string;
   onUpdate?: () => void;
 }
 
-export function EventoTabs({ viagensTransfer, viagensShuttle, onUpdate }: EventoTabsProps) {
+export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpdate }: EventoTabsProps) {
   const [activeTab, setActiveTab] = useState<'geral' | 'transfer' | 'shuttle'>('geral');
 
   // Combinar todas as viagens para cálculos gerais
@@ -28,7 +30,8 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, onUpdate }: Evento
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'geral' | 'transfer' | 'shuttle')}>
-      <TabsList className="grid w-full max-w-lg grid-cols-3 mb-6 h-12">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <TabsList className="grid w-full max-w-lg grid-cols-3 h-12">
         <TabsTrigger 
           value="geral" 
           className="gap-2 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -59,8 +62,13 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, onUpdate }: Evento
             {viagensShuttle.length}
           </span>
         </TabsTrigger>
-      </TabsList>
-
+        </TabsList>
+        <ExportButton 
+          viagensTransfer={viagensTransfer} 
+          viagensShuttle={viagensShuttle} 
+          eventoNome={eventoNome}
+        />
+      </div>
       {/* Aba Geral - Dashboard completo */}
       <TabsContent value="geral" className="space-y-6">
         {/* KPI Cards */}
