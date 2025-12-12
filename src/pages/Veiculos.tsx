@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck } from 'lucide-react';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,6 +75,87 @@ export default function Veiculos() {
       refetchVeiculos();
     } catch (error: any) {
       toast.error(`Erro ao excluir: ${error.message}`);
+    }
+  };
+
+  // Importar veículos e motoristas das viagens
+  const handleImportFromViagens = async () => {
+    if (!eventoId) return;
+    
+    try {
+      // Buscar veículos e motoristas únicos das viagens
+      const { data: viagensData, error: viagensError } = await supabase
+        .from('viagens')
+        .select('tipo_veiculo, placa, motorista')
+        .eq('evento_id', eventoId)
+        .not('placa', 'is', null);
+
+      if (viagensError) throw viagensError;
+
+      // Agrupar por placa (veículo único)
+      const veiculosUnicos = new Map<string, { tipo_veiculo: string; placa: string; motorista: string }>();
+      viagensData?.forEach(v => {
+        if (v.placa && !veiculosUnicos.has(v.placa)) {
+          veiculosUnicos.set(v.placa, {
+            tipo_veiculo: v.tipo_veiculo || 'Van',
+            placa: v.placa,
+            motorista: v.motorista
+          });
+        }
+      });
+
+      let veiculosCriados = 0;
+      let motoristasCriados = 0;
+
+      // Criar veículos e motoristas
+      for (const [placa, dados] of veiculosUnicos) {
+        // Verificar se veículo já existe
+        const veiculoExistente = veiculos.find(v => v.placa === placa);
+        
+        if (!veiculoExistente) {
+          // Criar veículo
+          const { data: novoVeiculo, error: veiculoError } = await supabase
+            .from('veiculos')
+            .insert({
+              placa: dados.placa,
+              tipo_veiculo: dados.tipo_veiculo,
+              evento_id: eventoId,
+              fornecedor: null,
+              ativo: true
+            })
+            .select()
+            .single();
+
+          if (veiculoError) {
+            console.error('Erro ao criar veículo:', veiculoError);
+            continue;
+          }
+
+          veiculosCriados++;
+
+          // Criar motorista vinculado
+          if (dados.motorista) {
+            const { error: motoristaError } = await supabase
+              .from('motoristas')
+              .insert({
+                nome: dados.motorista,
+                evento_id: eventoId,
+                veiculo_id: novoVeiculo.id,
+                ativo: true
+              });
+
+            if (!motoristaError) {
+              motoristasCriados++;
+            }
+          }
+        }
+      }
+
+      toast.success(`Importados: ${veiculosCriados} veículos e ${motoristasCriados} motoristas`);
+      refetchVeiculos();
+      refetch();
+    } catch (error: any) {
+      toast.error(`Erro na importação: ${error.message}`);
     }
   };
 
@@ -214,10 +296,16 @@ export default function Veiculos() {
               Cadastre os veículos antes de vincular aos motoristas
             </p>
           </div>
-          <VeiculoModal 
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-          />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleImportFromViagens}>
+              <Download className="w-4 h-4 mr-2" />
+              Importar das Viagens
+            </Button>
+            <VeiculoModal 
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+            />
+          </div>
         </div>
 
         {/* Barra de busca e filtros */}
