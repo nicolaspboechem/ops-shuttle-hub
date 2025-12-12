@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Eventos from "./pages/Eventos";
+import EventoDetalhes from "./pages/EventoDetalhes";
 import Dashboard from "./pages/Dashboard";
 import ViagensAtivas from "./pages/ViagensAtivas";
 import ViagensFinalizadas from "./pages/ViagensFinalizadas";
@@ -34,6 +35,11 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/evento/:eventoId" element={
+              <ProtectedRoute>
+                <EventoDetalhes />
+              </ProtectedRoute>
+            } />
+            <Route path="/evento/:eventoId/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
