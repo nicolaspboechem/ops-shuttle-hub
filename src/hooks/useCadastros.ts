@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export interface Motorista {
-  id: string;
-  nome: string;
-  telefone: string | null;
-  cnh: string | null;
-  observacao: string | null;
-  ativo: boolean;
-  evento_id: string | null;
-  data_criacao: string;
-  data_atualizacao: string;
-}
+// Motorista interface moved below Veiculo to avoid circular reference
 
 export interface Veiculo {
   id: string;
@@ -22,11 +12,26 @@ export interface Veiculo {
   modelo: string | null;
   ano: number | null;
   capacidade: number | null;
+  fornecedor: string | null;
   ativo: boolean;
   evento_id: string | null;
   data_criacao: string;
   data_atualizacao: string;
   motorista?: Motorista;
+}
+
+export interface Motorista {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  cnh: string | null;
+  observacao: string | null;
+  ativo: boolean;
+  evento_id: string | null;
+  veiculo_id: string | null;
+  data_criacao: string;
+  data_atualizacao: string;
+  veiculo?: Veiculo;
 }
 
 export function useMotoristas(eventoId?: string) {

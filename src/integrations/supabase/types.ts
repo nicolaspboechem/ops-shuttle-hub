@@ -55,6 +55,7 @@ export type Database = {
           nome: string
           observacao: string | null
           telefone: string | null
+          veiculo_id: string | null
         }
         Insert: {
           ativo?: boolean | null
@@ -66,6 +67,7 @@ export type Database = {
           nome: string
           observacao?: string | null
           telefone?: string | null
+          veiculo_id?: string | null
         }
         Update: {
           ativo?: boolean | null
@@ -77,6 +79,7 @@ export type Database = {
           nome?: string
           observacao?: string | null
           telefone?: string | null
+          veiculo_id?: string | null
         }
         Relationships: [
           {
@@ -84,6 +87,13 @@ export type Database = {
             columns: ["evento_id"]
             isOneToOne: false
             referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "motoristas_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
             referencedColumns: ["id"]
           },
         ]
@@ -96,6 +106,7 @@ export type Database = {
           data_atualizacao: string
           data_criacao: string
           evento_id: string | null
+          fornecedor: string | null
           id: string
           marca: string | null
           modelo: string | null
@@ -110,6 +121,7 @@ export type Database = {
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
+          fornecedor?: string | null
           id?: string
           marca?: string | null
           modelo?: string | null
@@ -124,6 +136,7 @@ export type Database = {
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
+          fornecedor?: string | null
           id?: string
           marca?: string | null
           modelo?: string | null
