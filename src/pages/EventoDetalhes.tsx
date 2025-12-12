@@ -106,6 +106,7 @@ export default function EventoDetalhes() {
         <EventoTabs 
           viagensTransfer={viagensTransfer}
           viagensShuttle={viagensShuttle}
+          eventoNome={evento.nome_planilha}
           onUpdate={refetch}
         />
       </div>
