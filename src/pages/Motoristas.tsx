@@ -388,7 +388,7 @@ export default function Motoristas() {
                           </div>
                         </div>
                       </CardHeader>
-                        <div className="space-y-4">
+                      <CardContent className="space-y-4">
                           <div className="space-y-2">
                             <div className="flex justify-between text-sm">
                               <span className="text-muted-foreground">Total Viagens</span>
@@ -468,7 +468,7 @@ export default function Motoristas() {
                               </p>
                             )}
                           </div>
-                        </div>
+                        </CardContent>
                     </Card>
                   );
                 })}
