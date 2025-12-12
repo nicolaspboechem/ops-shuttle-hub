@@ -38,7 +38,7 @@ export default function Motoristas() {
   const evento = eventoId ? getEventoById(eventoId) : null;
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
 
-  // Função para salvar motorista + veículo juntos
+  // Função para salvar motorista + veículo juntos (legacy)
   const handleSaveMotoristaComVeiculo = async (
     motoristaData: { nome: string; telefone: string | null; ativo: boolean },
     veiculoData: { placa: string; tipo_veiculo: string }
@@ -47,6 +47,7 @@ export default function Motoristas() {
       ...motoristaData,
       cnh: null,
       observacao: null,
+      veiculo_id: null,
     });
     await createVeiculo({
       ...veiculoData,
@@ -56,6 +57,7 @@ export default function Motoristas() {
       modelo: null,
       ano: null,
       capacidade: null,
+      fornecedor: null,
     });
     refetchMotoristas();
     refetchVeiculos();

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, AlertCircle, Search, Filter, X, LayoutGrid, List } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,13 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
-import { useVeiculos } from '@/hooks/useCadastros';
+import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VeiculoModal } from '@/components/cadastros/CadastroModals';
 import { Viagem } from '@/lib/types/viagem';
+import { toast } from 'sonner';
 
 interface VeiculoStats {
   placa: string | null;
@@ -29,18 +32,50 @@ interface VeiculoStats {
 
 export default function Veiculos() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   
-  const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
+  const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
-  const { veiculos: veiculosCadastrados } = useVeiculos(eventoId);
+  const { veiculos, loading: loadingVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
+  const { motoristas } = useMotoristas(eventoId);
   const { getEventoById } = useEventos();
 
   const evento = eventoId ? getEventoById(eventoId) : null;
+
+  // Handler para salvar veículo
+  const handleSaveVeiculo = async (data: { placa: string; tipo_veiculo: string; fornecedor: string | null; evento_id?: string }) => {
+    await createVeiculo({
+      ...data,
+      motorista_id: null,
+      ativo: true,
+      marca: null,
+      modelo: null,
+      ano: null,
+      capacidade: null,
+    });
+    refetchVeiculos();
+  };
+
+  // Handler para atualizar veículo
+  const handleUpdateVeiculo = async (id: string, data: any, oldPlaca: string) => {
+    await updateVeiculo(id, data, oldPlaca);
+    refetchVeiculos();
+    refetch();
+  };
+
+  // Handler para deletar veículo
+  const handleDeleteVeiculo = async (id: string) => {
+    try {
+      await deleteVeiculo(id);
+      toast.success('Veículo excluído com sucesso!');
+      refetchVeiculos();
+    } catch (error: any) {
+      toast.error(`Erro ao excluir: ${error.message}`);
+    }
+  };
 
   // Calculate vehicle stats from trips
   const veiculosStats: VeiculoStats[] = useMemo(() => {
@@ -76,14 +111,40 @@ export default function Veiculos() {
   // Verificar se um veículo está cadastrado
   const isVeiculoCadastrado = (placa: string | null) => {
     if (!placa) return false;
-    return veiculosCadastrados.some(v => v.placa === placa);
+    return veiculos.some(v => v.placa === placa);
   };
 
-  // Filtrar e ordenar veículos
-  const filteredVeiculos = useMemo(() => {
+  // Obter motorista vinculado ao veículo
+  const getMotoristaVinculado = (placa: string | null) => {
+    if (!placa) return null;
+    const veiculo = veiculos.find(v => v.placa === placa);
+    if (!veiculo) return null;
+    return motoristas.find(m => m.veiculo_id === veiculo.id);
+  };
+
+  // Filtrar e ordenar veículos cadastrados
+  const filteredVeiculosCadastrados = useMemo(() => {
+    let filtered = [...veiculos];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(v => 
+        v.placa?.toLowerCase().includes(term) ||
+        v.fornecedor?.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterTipoVeiculo !== 'all') {
+      filtered = filtered.filter(v => v.tipo_veiculo === filterTipoVeiculo);
+    }
+
+    return filtered.sort((a, b) => a.placa.localeCompare(b.placa));
+  }, [veiculos, searchTerm, filterTipoVeiculo]);
+
+  // Filtrar e ordenar veículos com base nos stats (para aba de performance)
+  const filteredVeiculosStats = useMemo(() => {
     let filtered = [...veiculosStats];
 
-    // Filtro de busca (por placa ou motorista da última viagem)
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v => 
@@ -92,12 +153,10 @@ export default function Veiculos() {
       );
     }
 
-    // Filtro por tipo de veículo
     if (filterTipoVeiculo !== 'all') {
       filtered = filtered.filter(v => v.tipoVeiculo === filterTipoVeiculo);
     }
 
-    // Filtro por status
     if (filterStatus !== 'all') {
       if (filterStatus === 'ativo') {
         filtered = filtered.filter(v => v.ativo);
@@ -112,7 +171,7 @@ export default function Veiculos() {
       if (a.ativo !== b.ativo) return a.ativo ? -1 : 1;
       return b.totalViagens - a.totalViagens;
     });
-  }, [veiculosStats, searchTerm, filterTipoVeiculo, filterStatus, veiculosCadastrados]);
+  }, [veiculosStats, searchTerm, filterTipoVeiculo, filterStatus, veiculos]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -121,6 +180,8 @@ export default function Veiculos() {
   };
 
   const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterStatus !== 'all';
+
+  const loading = loadingViagens || loadingVeiculos;
 
   if (loading) {
     return (
@@ -139,36 +200,32 @@ export default function Veiculos() {
     <MainLayout>
       <Header 
         title="Veículos"
-        subtitle={evento ? `${evento.nome_planilha} • ${veiculosStats.length} veículos` : `${veiculosStats.length} veículos cadastrados`}
+        subtitle={evento ? `${evento.nome_planilha} • ${veiculos.length} cadastrados` : `${veiculos.length} veículos cadastrados`}
         lastUpdate={lastUpdate}
-        onRefresh={refetch}
+        onRefresh={() => { refetch(); refetchVeiculos(); }}
       />
       
       <div className="p-8 space-y-6">
-        {/* Alerta informativo */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Cadastro de Veículos</AlertTitle>
-          <AlertDescription className="flex items-center justify-between">
-            <span>
-              O cadastro de veículos é feito na aba de <strong>Motoristas</strong>, vinculando cada veículo a um motorista responsável.
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate(eventoId ? `/evento/${eventoId}/motoristas` : '/motoristas')}
-            >
-              Ir para Motoristas
-            </Button>
-          </AlertDescription>
-        </Alert>
+        {/* Header com botão de adicionar */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Cadastro de Veículos</h2>
+            <p className="text-sm text-muted-foreground">
+              Cadastre os veículos antes de vincular aos motoristas
+            </p>
+          </div>
+          <VeiculoModal 
+            eventoId={eventoId}
+            onSave={handleSaveVeiculo}
+          />
+        </div>
 
         {/* Barra de busca e filtros */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por placa ou motorista..."
+              placeholder="Buscar por placa ou fornecedor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -184,17 +241,6 @@ export default function Veiculos() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="Van">Van</SelectItem>
                 <SelectItem value="Ônibus">Ônibus</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="ativo">Ativos agora</SelectItem>
-                <SelectItem value="cadastrado">Cadastrados</SelectItem>
-                <SelectItem value="nao_cadastrado">Não cadastrados</SelectItem>
               </SelectContent>
             </Select>
             {hasActiveFilters && (
@@ -223,104 +269,154 @@ export default function Veiculos() {
           </div>
         </div>
 
-        {/* Lista de veículos */}
-        {filteredVeiculos.length === 0 ? (
+        {/* Lista de veículos cadastrados */}
+        {filteredVeiculosCadastrados.length === 0 ? (
           <Card className="p-8 text-center">
-            <Bus className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-medium mb-2">Nenhum veículo encontrado</h3>
-            <p className="text-sm text-muted-foreground">
-              {hasActiveFilters ? 'Tente ajustar os filtros de busca.' : 'Ainda não há veículos com viagens registradas.'}
+            <Truck className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="font-medium mb-2">Nenhum veículo cadastrado</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {hasActiveFilters ? 'Tente ajustar os filtros de busca.' : 'Clique em "Novo Veículo" para começar.'}
             </p>
+            {!hasActiveFilters && (
+              <VeiculoModal 
+                eventoId={eventoId}
+                onSave={handleSaveVeiculo}
+                trigger={
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Cadastrar Primeiro Veículo
+                  </Button>
+                }
+              />
+            )}
           </Card>
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredVeiculos.map((veiculo) => {
-              const cadastrado = isVeiculoCadastrado(veiculo.placa);
-              const veiculoCadastro = veiculosCadastrados.find(v => v.placa === veiculo.placa);
+            {filteredVeiculosCadastrados.map((veiculo) => {
+              const stats = veiculosStats.find(s => s.placa === veiculo.placa);
+              const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
               
               return (
-                <Card key={veiculo.placa} className="overflow-hidden">
+                <Card key={veiculo.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
-                          veiculo.tipoVeiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
+                          veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
                         }`}>
                           <Bus className="w-5 h-5" />
                         </div>
                         <div>
-                          <CardTitle className="text-base">{veiculo.tipoVeiculo}</CardTitle>
+                          <CardTitle className="text-base">{veiculo.tipo_veiculo}</CardTitle>
                           <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                             {veiculo.placa}
                           </code>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant="outline" className="text-xs">
-                          {veiculo.tipoVeiculo}
-                        </Badge>
-                        {veiculo.ativo && (
-                          <Badge className="bg-status-ok text-status-ok-foreground text-xs animate-pulse-soft">
-                            Ativo
-                          </Badge>
-                        )}
-                        {cadastrado && (
-                          <Badge variant="secondary" className="text-xs">
-                            Cadastrado
-                          </Badge>
-                        )}
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <VeiculoModal
+                            veiculo={veiculo}
+                            eventoId={eventoId}
+                            onSave={handleSaveVeiculo}
+                            onUpdate={handleUpdateVeiculo}
+                            trigger={
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                            }
+                          />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir veículo?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. O veículo {veiculo.placa} será removido permanentemente.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteVeiculo(veiculo.id)}>
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Motorista vinculado */}
-                    {veiculoCadastro?.motorista && (
+                    {/* Fornecedor */}
+                    {veiculo.fornecedor && (
                       <div className="p-2 bg-muted/50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Motorista vinculado</p>
-                        <p className="text-sm font-medium">{veiculoCadastro.motorista.nome}</p>
+                        <p className="text-xs text-muted-foreground">Fornecedor</p>
+                        <p className="text-sm font-medium">{veiculo.fornecedor}</p>
+                      </div>
+                    )}
+
+                    {/* Motorista vinculado */}
+                    {motoristaVinculado && (
+                      <div className="p-2 bg-primary/5 rounded-lg">
+                        <p className="text-xs text-muted-foreground">Motorista Vinculado</p>
+                        <p className="text-sm font-medium">{motoristaVinculado.nome}</p>
                       </div>
                     )}
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Bus className="w-3.5 h-3.5" />
-                          <span className="text-xs">Viagens</span>
+                    {stats && (
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Bus className="w-3.5 h-3.5" />
+                            <span className="text-xs">Viagens</span>
+                          </div>
+                          <p className="text-lg font-semibold">{stats.totalViagens}</p>
                         </div>
-                        <p className="text-lg font-semibold">{veiculo.totalViagens}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="w-3.5 h-3.5" />
-                          <span className="text-xs">PAX</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="w-3.5 h-3.5" />
+                            <span className="text-xs">PAX</span>
+                          </div>
+                          <p className="text-lg font-semibold">{stats.totalPax}</p>
                         </div>
-                        <p className="text-lg font-semibold">{veiculo.totalPax}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span className="text-xs">Média</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="text-xs">Média</span>
+                          </div>
+                          <p className="text-lg font-semibold">
+                            {formatarMinutos(stats.tempoMedio)}
+                          </p>
                         </div>
-                        <p className="text-lg font-semibold">
-                          {formatarMinutos(veiculo.tempoMedio)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Last Trip Info */}
-                    {veiculo.ultimaViagem && (
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground mb-1">Última viagem</p>
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                          <span className="truncate">{veiculo.ultimaViagem.ponto_embarque || 'Sem ponto'}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {veiculo.ultimaViagem.motorista} • {veiculo.ultimaViagem.h_pickup}
-                        </p>
                       </div>
                     )}
+
+                    {/* Status */}
+                    <div className="flex gap-2">
+                      {stats?.ativo && (
+                        <Badge className="bg-status-ok text-status-ok-foreground text-xs">
+                          Em Operação
+                        </Badge>
+                      )}
+                      {!motoristaVinculado && (
+                        <Badge variant="outline" className="text-xs">
+                          Sem motorista
+                        </Badge>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -333,29 +429,29 @@ export default function Veiculos() {
                 <TableRow>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Placa</TableHead>
-                  <TableHead>Motorista Vinculado</TableHead>
+                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Motorista</TableHead>
                   <TableHead>Viagens</TableHead>
-                  <TableHead>Total PAX</TableHead>
-                  <TableHead>Tempo Médio</TableHead>
-                  <TableHead>Última Viagem</TableHead>
+                  <TableHead>PAX</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredVeiculos.map((veiculo) => {
-                  const cadastrado = isVeiculoCadastrado(veiculo.placa);
-                  const veiculoCadastro = veiculosCadastrados.find(v => v.placa === veiculo.placa);
+                {filteredVeiculosCadastrados.map((veiculo) => {
+                  const stats = veiculosStats.find(s => s.placa === veiculo.placa);
+                  const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
                   
                   return (
-                    <TableRow key={veiculo.placa}>
+                    <TableRow key={veiculo.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                            veiculo.tipoVeiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
+                            veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-status-ok/10 text-status-ok'
                           }`}>
                             <Bus className="w-4 h-4" />
                           </div>
-                          <Badge variant="outline">{veiculo.tipoVeiculo}</Badge>
+                          <Badge variant="outline">{veiculo.tipo_veiculo}</Badge>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -364,43 +460,70 @@ export default function Veiculos() {
                         </code>
                       </TableCell>
                       <TableCell>
-                        {veiculoCadastro?.motorista ? (
-                          <span className="font-medium">{veiculoCadastro.motorista.nome}</span>
+                        {veiculo.fornecedor || <span className="text-muted-foreground">-</span>}
+                      </TableCell>
+                      <TableCell>
+                        {motoristaVinculado ? (
+                          <span className="font-medium">{motoristaVinculado.nome}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell>{veiculo.totalViagens}</TableCell>
-                      <TableCell>{veiculo.totalPax}</TableCell>
-                      <TableCell>{formatarMinutos(veiculo.tempoMedio)}</TableCell>
+                      <TableCell>{stats?.totalViagens || 0}</TableCell>
+                      <TableCell>{stats?.totalPax || 0}</TableCell>
                       <TableCell>
-                        {veiculo.ultimaViagem ? (
-                          <div>
-                            <p className="text-sm truncate max-w-[150px]">
-                              {veiculo.ultimaViagem.ponto_embarque || 'Sem ponto'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {veiculo.ultimaViagem.h_pickup}
-                            </p>
-                          </div>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          {veiculo.ativo && (
-                            <Badge className="bg-status-ok text-status-ok-foreground text-xs w-fit">
+                        <div className="flex gap-1">
+                          {stats?.ativo && (
+                            <Badge className="bg-status-ok text-status-ok-foreground text-xs">
                               Ativo
                             </Badge>
                           )}
-                          {cadastrado && (
-                            <Badge variant="secondary" className="text-xs w-fit">
-                              Cadastrado
-                            </Badge>
-                          )}
-                          {!veiculo.ativo && !cadastrado && (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <VeiculoModal
+                              veiculo={veiculo}
+                              eventoId={eventoId}
+                              onSave={handleSaveVeiculo}
+                              onUpdate={handleUpdateVeiculo}
+                              trigger={
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                              }
+                            />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Excluir veículo?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Esta ação não pode ser desfeita. O veículo {veiculo.placa} será removido permanentemente.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteVeiculo(veiculo.id)}>
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );
