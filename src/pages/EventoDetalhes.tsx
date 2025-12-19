@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { RefreshCw, Car, Bus, Clock } from 'lucide-react';
+import { RefreshCw, Car, Bus, Clock, CalendarDays } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useViagens } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
 import { EventoTabs } from '@/components/eventos/EventoTabs';
@@ -15,14 +16,34 @@ export default function EventoDetalhes() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { getEventoById, loading: loadingEventos } = useEventos();
+  const [selectedDate, setSelectedDate] = useState<string>('all');
   
   const evento = eventoId ? getEventoById(eventoId) : null;
 
+  // Extract unique dates from viagens
+  const uniqueDates = useMemo(() => {
+    const dates = new Set<string>();
+    viagens.forEach(v => {
+      const date = new Date(v.data_criacao).toISOString().split('T')[0];
+      dates.add(date);
+    });
+    return Array.from(dates).sort();
+  }, [viagens]);
+
+  // Filter viagens by selected date
+  const filteredViagens = useMemo(() => {
+    if (selectedDate === 'all') return viagens;
+    return viagens.filter(v => {
+      const viagemDate = new Date(v.data_criacao).toISOString().split('T')[0];
+      return viagemDate === selectedDate;
+    });
+  }, [viagens, selectedDate]);
+
   const viagensTransfer = useMemo(() => 
-    viagens.filter(v => v.tipo_operacao === 'transfer'), [viagens]);
+    filteredViagens.filter(v => v.tipo_operacao === 'transfer'), [filteredViagens]);
   
   const viagensShuttle = useMemo(() => 
-    viagens.filter(v => v.tipo_operacao === 'shuttle'), [viagens]);
+    filteredViagens.filter(v => v.tipo_operacao === 'shuttle'), [filteredViagens]);
 
   const statusConfig = {
     ativo: { label: 'Ativo', className: 'bg-status-ok/10 text-status-ok border-status-ok/20' },
@@ -30,9 +51,14 @@ export default function EventoDetalhes() {
     processando: { label: 'Processando', className: 'bg-status-warning/10 text-status-warning border-status-warning/20' },
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return format(date, "d 'de' MMMM 'às' HH:mm", { locale: ptBR });
+  };
+
+  const formatDateForSelect = (dateString: string) => {
+    const date = new Date(dateString + 'T12:00:00');
+    return format(date, 'dd/MM/yyyy', { locale: ptBR });
   };
 
   if (loadingViagens || loadingEventos) {
@@ -69,7 +95,7 @@ export default function EventoDetalhes() {
             <div className="flex items-center gap-3">
               <Badge className={status.className}>{status.label}</Badge>
               <span className="text-sm text-muted-foreground">
-                Última atualização: {formatDate(evento.data_ultima_sync)}
+                Última atualização: {formatDateTime(evento.data_ultima_sync)}
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm">
@@ -83,14 +109,31 @@ export default function EventoDetalhes() {
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{viagens.filter(v => !v.encerrado).length} em andamento</span>
+                <span>{filteredViagens.filter(v => !v.encerrado).length} em andamento</span>
               </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={refetch}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* Date Filter */}
+            <Select value={selectedDate} onValueChange={setSelectedDate}>
+              <SelectTrigger className="w-[180px]">
+                <CalendarDays className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filtrar por data" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as datas</SelectItem>
+                {uniqueDates.map(date => (
+                  <SelectItem key={date} value={date}>
+                    {formatDateForSelect(date)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={refetch}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {/* Abas Transfer/Shuttle */}
