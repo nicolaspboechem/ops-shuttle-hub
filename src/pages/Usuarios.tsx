@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -7,10 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { cn } from '@/lib/utils';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
 
@@ -35,6 +37,7 @@ export default function Usuarios() {
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -107,7 +110,6 @@ export default function Usuarios() {
     setCreating(true);
 
     try {
-      // Criar usuário via Supabase Auth Admin (usando service role via edge function)
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: newEmail,
@@ -181,6 +183,18 @@ export default function Usuarios() {
     }
   };
 
+  const toggleExpanded = (userId: string) => {
+    setExpandedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -221,90 +235,111 @@ export default function Usuarios() {
           </div>
         )}
 
-        <div className="grid gap-6">
-          {users.map((user) => (
-            <Card key={user.id}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      {user.role === 'admin' ? (
-                        <ShieldCheck className="w-5 h-5 text-primary" />
-                      ) : (
-                        <Shield className="w-5 h-5 text-muted-foreground" />
+        <div className="grid gap-4">
+          {users.map((user) => {
+            const isExpanded = expandedUsers.has(user.id);
+            const activePermissions = user.permissions.length;
+            
+            return (
+              <Card key={user.id}>
+                <Collapsible open={isExpanded} onOpenChange={() => toggleExpanded(user.id)}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          {user.role === 'admin' ? (
+                            <ShieldCheck className="w-5 h-5 text-primary" />
+                          ) : (
+                            <Shield className="w-5 h-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            {user.full_name || user.email}
+                            {user.role === 'admin' && (
+                              <Badge variant="default" className="text-xs">Admin</Badge>
+                            )}
+                            {user.user_id === currentUser?.id && (
+                              <Badge variant="outline" className="text-xs">Você</Badge>
+                            )}
+                          </CardTitle>
+                          <CardDescription>{user.email}</CardDescription>
+                        </div>
+                      </div>
+                      
+                      {user.role !== 'admin' && (
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="gap-2">
+                            <span className="text-sm text-muted-foreground">
+                              {activePermissions} permissões ativas
+                            </span>
+                            <ChevronDown className={cn(
+                              "h-4 w-4 transition-transform",
+                              isExpanded && "rotate-180"
+                            )} />
+                          </Button>
+                        </CollapsibleTrigger>
+                      )}
+
+                      {user.role === 'admin' && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <ShieldCheck className="w-4 h-4 text-primary" />
+                          <span>Acesso completo</span>
+                        </div>
                       )}
                     </div>
-                    <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {user.full_name || user.email}
-                        {user.role === 'admin' && (
-                          <Badge variant="default" className="text-xs">Admin</Badge>
-                        )}
-                        {user.user_id === currentUser?.id && (
-                          <Badge variant="outline" className="text-xs">Você</Badge>
-                        )}
-                      </CardTitle>
-                      <CardDescription>{user.email}</CardDescription>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              
-              {user.role !== 'admin' && (
-                <CardContent>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {(Object.keys(PERMISSION_LABELS) as AppPermission[]).map((permission) => {
-                      const hasPermission = user.permissions.includes(permission);
-                      const isUpdatingThis = updating === `${user.user_id}-${permission}`;
-                      
-                      return (
-                        <div
-                          key={permission}
-                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
-                        >
-                          <div className="flex-1 mr-4">
-                            <Label className="text-sm font-medium cursor-pointer">
-                              {PERMISSION_LABELS[permission].label}
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              {PERMISSION_LABELS[permission].description}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {isUpdatingThis ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : hasPermission ? (
-                              <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
-                                Ativo
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                Inativo
-                              </Badge>
-                            )}
-                            <Switch
-                              checked={hasPermission}
-                              onCheckedChange={() => togglePermission(user.user_id, permission, hasPermission)}
-                              disabled={!isAdmin || isUpdatingThis}
-                            />
-                          </div>
+                  </CardHeader>
+                  
+                  {user.role !== 'admin' && (
+                    <CollapsibleContent>
+                      <CardContent className="pt-0">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {(Object.keys(PERMISSION_LABELS) as AppPermission[]).map((permission) => {
+                            const hasPermission = user.permissions.includes(permission);
+                            const isUpdatingThis = updating === `${user.user_id}-${permission}`;
+                            
+                            return (
+                              <div
+                                key={permission}
+                                className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30"
+                              >
+                                <div className="flex-1 mr-4">
+                                  <Label className="text-sm font-medium">
+                                    {PERMISSION_LABELS[permission].label}
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    {PERMISSION_LABELS[permission].description}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {isUpdatingThis ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : hasPermission ? (
+                                    <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                                      Ativo
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Inativo
+                                    </Badge>
+                                  )}
+                                  <Switch
+                                    checked={hasPermission}
+                                    onCheckedChange={() => togglePermission(user.user_id, permission, hasPermission)}
+                                    disabled={!isAdmin || isUpdatingThis}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              )}
-
-              {user.role === 'admin' && (
-                <CardContent>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <ShieldCheck className="w-4 h-4 text-primary" />
-                    <span>Administradores têm acesso completo a todas as funcionalidades</span>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          ))}
+                      </CardContent>
+                    </CollapsibleContent>
+                  )}
+                </Collapsible>
+              </Card>
+            );
+          })}
 
           {users.length === 0 && (
             <div className="text-center py-12">
