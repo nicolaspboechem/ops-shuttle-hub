@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
-import Login from "./pages/Login";
+import Auth from "./pages/Auth";
 import Eventos from "./pages/Eventos";
 import EventoDetalhes from "./pages/EventoDetalhes";
 import Dashboard from "./pages/Dashboard";
@@ -15,6 +15,7 @@ import ViagensFinalizadas from "./pages/ViagensFinalizadas";
 import Motoristas from "./pages/Motoristas";
 import Veiculos from "./pages/Veiculos";
 import Configuracoes from "./pages/Configuracoes";
+import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,10 +29,15 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/auth" element={<Auth />} />
             <Route path="/eventos" element={
               <ProtectedRoute>
                 <Eventos />
+              </ProtectedRoute>
+            } />
+            <Route path="/usuarios" element={
+              <ProtectedRoute>
+                <Usuarios />
               </ProtectedRoute>
             } />
             <Route path="/evento/:eventoId" element={

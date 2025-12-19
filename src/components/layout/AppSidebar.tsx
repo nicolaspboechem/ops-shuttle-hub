@@ -16,7 +16,7 @@ import { useEventos } from '@/hooks/useEventos';
 
 export function AppSidebar() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
   const { getEventoById } = useEventos();
   const navigate = useNavigate();
 
@@ -34,9 +34,9 @@ export function AppSidebar() {
     { name: 'Configurações', href: `/evento/${eventoId}/configuracoes`, icon: Settings },
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth', { replace: true });
   };
 
   return (
