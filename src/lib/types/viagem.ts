@@ -2,6 +2,7 @@ export type TipoVeiculo = 'Ônibus' | 'Van';
 export type TipoOperacao = 'transfer' | 'shuttle';
 export type StatusViagem = 'ok' | 'alerta' | 'critico';
 export type StatusEvento = 'ativo' | 'finalizado' | 'processando';
+export type StatusViagemOperacao = 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado' | 'cancelado';
 
 export interface Evento {
   id: string;
@@ -41,6 +42,21 @@ export interface Viagem {
   observacao: string | null;
   data_criacao: string;
   data_atualizacao: string;
+  // Novos campos de controle
+  status?: StatusViagemOperacao;
+  iniciado_por?: string | null;
+  finalizado_por?: string | null;
+  h_inicio_real?: string | null;
+  h_fim_real?: string | null;
+}
+
+export interface ViagemLog {
+  id: string;
+  viagem_id: string;
+  user_id: string;
+  acao: 'inicio' | 'embarque' | 'chegada' | 'retorno' | 'encerramento' | 'cancelamento';
+  detalhes?: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface AlertaViagem {
