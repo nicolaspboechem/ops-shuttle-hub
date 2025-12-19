@@ -1,7 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { Database, Bell, Clock, CheckCircle } from 'lucide-react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Header } from '@/components/layout/Header';
+import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useEventos } from '@/hooks/useEventos';
@@ -9,18 +8,13 @@ import { useEventos } from '@/hooks/useEventos';
 export default function Configuracoes() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { getEventoById } = useEventos();
-  
   const evento = eventoId ? getEventoById(eventoId) : null;
 
   return (
-    <MainLayout>
-      <Header 
-        title="Configurações"
-        subtitle={evento ? evento.nome_planilha : 'Configurações do sistema'}
-      />
-      
+    <EventLayout>
       <div className="p-8 max-w-3xl space-y-6">
-        {/* Connection Status */}
+        <h1 className="text-2xl font-bold">Configurações</h1>
+        
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -44,7 +38,6 @@ export default function Configuracoes() {
           </CardContent>
         </Card>
 
-        {/* Refresh Interval */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -57,15 +50,12 @@ export default function Configuracoes() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="text-sm">30 segundos</Badge>
-              <span className="text-sm text-muted-foreground">
-                Os dados são atualizados automaticamente a cada 30 segundos + Realtime
-              </span>
+              <Badge variant="secondary">30 segundos</Badge>
+              <span className="text-sm text-muted-foreground">Atualização automática + Realtime</span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alert Settings */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -80,28 +70,20 @@ export default function Configuracoes() {
             <div className="flex items-center justify-between p-3 bg-status-alert/10 rounded-lg">
               <div>
                 <p className="text-sm font-medium">Alerta</p>
-                <p className="text-xs text-muted-foreground">
-                  Viagem ultrapassa a média do motorista em mais de 15 minutos
-                </p>
+                <p className="text-xs text-muted-foreground">Ultrapassa a média em mais de 15 minutos</p>
               </div>
-              <Badge className="bg-status-alert text-status-alert-foreground">
-                +15 min
-              </Badge>
+              <Badge className="bg-status-alert text-status-alert-foreground">+15 min</Badge>
             </div>
             <div className="flex items-center justify-between p-3 bg-status-critical/10 rounded-lg">
               <div>
                 <p className="text-sm font-medium">Crítico</p>
-                <p className="text-xs text-muted-foreground">
-                  Viagem ultrapassa a média do motorista em mais de 25 minutos
-                </p>
+                <p className="text-xs text-muted-foreground">Ultrapassa a média em mais de 25 minutos</p>
               </div>
-              <Badge className="bg-status-critical text-status-critical-foreground">
-                +25 min
-              </Badge>
+              <Badge className="bg-status-critical text-status-critical-foreground">+25 min</Badge>
             </div>
           </CardContent>
         </Card>
       </div>
-    </MainLayout>
+    </EventLayout>
   );
 }

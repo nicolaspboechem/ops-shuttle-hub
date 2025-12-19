@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { RefreshCw, Car, Bus, Clock } from 'lucide-react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Header } from '@/components/layout/Header';
+import { EventLayout } from '@/components/layout/EventLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +18,6 @@ export default function EventoDetalhes() {
   
   const evento = eventoId ? getEventoById(eventoId) : null;
 
-  // Separar viagens por tipo de operação
   const viagensTransfer = useMemo(() => 
     viagens.filter(v => v.tipo_operacao === 'transfer'), [viagens]);
   
@@ -39,42 +37,35 @@ export default function EventoDetalhes() {
 
   if (loadingViagens || loadingEventos) {
     return (
-      <MainLayout>
-        <Header title="Carregando..." />
+      <EventLayout>
         <div className="p-8 space-y-6">
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
-      </MainLayout>
+      </EventLayout>
     );
   }
 
   if (!evento) {
     return (
-      <MainLayout>
-        <Header title="Evento não encontrado" />
+      <EventLayout>
         <div className="p-8">
+          <h1 className="text-xl font-semibold mb-2">Evento não encontrado</h1>
           <p className="text-muted-foreground">O evento solicitado não foi encontrado.</p>
         </div>
-      </MainLayout>
+      </EventLayout>
     );
   }
 
   const status = statusConfig[evento.status as keyof typeof statusConfig] || statusConfig.ativo;
 
   return (
-    <MainLayout>
-      <Header 
-        title={evento.nome_planilha}
-        subtitle={`${viagens.length} viagens • ${viagensTransfer.length} transfer • ${viagensShuttle.length} shuttle`}
-        lastUpdate={lastUpdate}
-        onRefresh={refetch}
-      />
-      
+    <EventLayout>
       <div className="p-8 space-y-6">
         {/* Header do Evento */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-card rounded-lg border">
           <div className="space-y-1">
+            <h1 className="text-xl font-semibold">{evento.nome_planilha}</h1>
             <div className="flex items-center gap-3">
               <Badge className={status.className}>{status.label}</Badge>
               <span className="text-sm text-muted-foreground">
@@ -110,6 +101,6 @@ export default function EventoDetalhes() {
           onUpdate={refetch}
         />
       </div>
-    </MainLayout>
+    </EventLayout>
   );
 }

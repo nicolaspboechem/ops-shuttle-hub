@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle } from 'lucide-react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Header } from '@/components/layout/Header';
+import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -156,14 +155,13 @@ export default function Motoristas() {
 
   if (loadingViagens || loadingCadastros) {
     return (
-      <MainLayout>
-        <Header title="Motoristas" />
+      <EventLayout>
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="h-48" />
           ))}
         </div>
-      </MainLayout>
+      </EventLayout>
     );
   }
 
@@ -306,15 +304,9 @@ export default function Motoristas() {
   );
 
   return (
-    <MainLayout>
-      <Header 
-        title="Motoristas"
-        subtitle={evento ? `${evento.nome_planilha} • ${metricasMotoristas.length} motoristas` : `${metricasMotoristas.length} motoristas ativos`}
-        lastUpdate={lastUpdate}
-        onRefresh={refetch}
-      />
-      
+    <EventLayout>
       <div className="p-8">
+        <h1 className="text-2xl font-bold mb-6">Motoristas</h1>
         <Tabs defaultValue="performance" className="space-y-6">
           <div className="flex items-center justify-between">
             <TabsList>
@@ -751,6 +743,6 @@ export default function Motoristas() {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </EventLayout>
   );
 }
