@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -38,6 +39,7 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -47,9 +49,30 @@ export default function Usuarios() {
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Modal de editar usuário
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithPermissions | null>(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+
+  // Modal de deletar usuário
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<UserWithPermissions | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    
+    const query = searchQuery.toLowerCase();
+    return users.filter(user => 
+      user.email.toLowerCase().includes(query) ||
+      (user.full_name && user.full_name.toLowerCase().includes(query))
+    );
+  }, [users, searchQuery]);
 
   const fetchUsers = async () => {
     try {
@@ -135,6 +158,121 @@ export default function Usuarios() {
     }
   };
 
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!isAdmin || !editingUser) return;
+
+    setUpdating(editingUser.id);
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: editFullName,
+          email: editEmail,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+
+      setUsers(prev => prev.map(u => {
+        if (u.id !== editingUser.id) return u;
+        return { ...u, full_name: editFullName, email: editEmail };
+      }));
+
+      toast.success('Usuário atualizado com sucesso!');
+      setShowEditModal(false);
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Erro ao atualizar usuário');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!isAdmin || !deletingUser) return;
+
+    if (deletingUser.user_id === currentUser?.id) {
+      toast.error('Você não pode deletar sua própria conta');
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      // Delete user permissions
+      await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', deletingUser.user_id);
+
+      // Delete user role
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', deletingUser.user_id);
+
+      // Delete profile
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', deletingUser.id);
+
+      if (error) throw error;
+
+      setUsers(prev => prev.filter(u => u.id !== deletingUser.id));
+      toast.success('Usuário removido com sucesso!');
+      setShowDeleteModal(false);
+      setDeletingUser(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Erro ao remover usuário');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleAdminRole = async (user: UserWithPermissions) => {
+    if (!isAdmin) {
+      toast.error('Apenas administradores podem alterar roles');
+      return;
+    }
+
+    if (user.user_id === currentUser?.id) {
+      toast.error('Você não pode alterar seu próprio role');
+      return;
+    }
+
+    setUpdating(`admin-${user.user_id}`);
+
+    try {
+      const newRole = user.role === 'admin' ? 'user' : 'admin';
+      
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: newRole })
+        .eq('user_id', user.user_id);
+
+      if (error) throw error;
+
+      setUsers(prev => prev.map(u => {
+        if (u.user_id !== user.user_id) return u;
+        return { ...u, role: newRole };
+      }));
+
+      toast.success(newRole === 'admin' ? 'Usuário promovido a administrador!' : 'Acesso de administrador removido');
+    } catch (error) {
+      console.error('Error updating role:', error);
+      toast.error('Erro ao atualizar role');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const togglePermission = async (userId: string, permission: AppPermission, currentlyHas: boolean) => {
     if (!isAdmin) {
       toast.error('Apenas administradores podem alterar permissões');
@@ -195,6 +333,18 @@ export default function Usuarios() {
     });
   };
 
+  const openEditModal = (user: UserWithPermissions) => {
+    setEditingUser(user);
+    setEditFullName(user.full_name || '');
+    setEditEmail(user.email);
+    setShowEditModal(true);
+  };
+
+  const openDeleteModal = (user: UserWithPermissions) => {
+    setDeletingUser(user);
+    setShowDeleteModal(true);
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -227,6 +377,18 @@ export default function Usuarios() {
           )}
         </div>
 
+        {/* Barra de pesquisa */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar por nome ou email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
         {!isAdmin && (
           <div className="bg-muted/50 border border-border rounded-lg p-4 mb-6">
             <p className="text-sm text-muted-foreground">
@@ -236,9 +398,10 @@ export default function Usuarios() {
         )}
 
         <div className="grid gap-4">
-          {users.map((user) => {
+          {filteredUsers.map((user) => {
             const isExpanded = expandedUsers.has(user.id);
             const activePermissions = user.permissions.length;
+            const isCurrentUser = user.user_id === currentUser?.id;
             
             return (
               <Card key={user.id}>
@@ -259,7 +422,7 @@ export default function Usuarios() {
                             {user.role === 'admin' && (
                               <Badge variant="default" className="text-xs">Admin</Badge>
                             )}
-                            {user.user_id === currentUser?.id && (
+                            {isCurrentUser && (
                               <Badge variant="outline" className="text-xs">Você</Badge>
                             )}
                           </CardTitle>
@@ -267,26 +430,69 @@ export default function Usuarios() {
                         </div>
                       </div>
                       
-                      {user.role !== 'admin' && (
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {activePermissions} permissões ativas
-                            </span>
-                            <ChevronDown className={cn(
-                              "h-4 w-4 transition-transform",
-                              isExpanded && "rotate-180"
-                            )} />
-                          </Button>
-                        </CollapsibleTrigger>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {user.role !== 'admin' && (
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="gap-2">
+                              <span className="text-sm text-muted-foreground">
+                                {activePermissions} permissões ativas
+                              </span>
+                              <ChevronDown className={cn(
+                                "h-4 w-4 transition-transform",
+                                isExpanded && "rotate-180"
+                              )} />
+                            </Button>
+                          </CollapsibleTrigger>
+                        )}
 
-                      {user.role === 'admin' && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <ShieldCheck className="w-4 h-4 text-primary" />
-                          <span>Acesso completo</span>
-                        </div>
-                      )}
+                        {user.role === 'admin' && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mr-2">
+                            <ShieldCheck className="w-4 h-4 text-primary" />
+                            <span>Acesso completo</span>
+                          </div>
+                        )}
+
+                        {isAdmin && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditModal(user)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              
+                              {!isCurrentUser && (
+                                <>
+                                  <DropdownMenuItem 
+                                    onClick={() => toggleAdminRole(user)}
+                                    disabled={updating === `admin-${user.user_id}`}
+                                  >
+                                    <Crown className="w-4 h-4 mr-2" />
+                                    {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
+                                    {updating === `admin-${user.user_id}` && (
+                                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                                    )}
+                                  </DropdownMenuItem>
+                                  
+                                  <DropdownMenuSeparator />
+                                  
+                                  <DropdownMenuItem 
+                                    onClick={() => openDeleteModal(user)}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   
@@ -341,7 +547,17 @@ export default function Usuarios() {
             );
           })}
 
-          {users.length === 0 && (
+          {filteredUsers.length === 0 && searchQuery && (
+            <div className="text-center py-12">
+              <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
+              <p className="text-muted-foreground">
+                Tente buscar por outro nome ou email.
+              </p>
+            </div>
+          )}
+
+          {users.length === 0 && !searchQuery && (
             <div className="text-center py-12">
               <ShieldX className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
@@ -416,6 +632,74 @@ export default function Usuarios() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Editar Usuário */}
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+            </DialogHeader>
+            
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-fullname">Nome completo</Label>
+                <Input
+                  id="edit-fullname"
+                  type="text"
+                  placeholder="Nome do usuário"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={updating === editingUser?.id}>
+                  {updating === editingUser?.id && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Deletar Usuário */}
+        <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Excluir Usuário</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja excluir o usuário <strong>{deletingUser?.full_name || deletingUser?.email}</strong>? 
+                Esta ação não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowDeleteModal(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
+                {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                Excluir
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
