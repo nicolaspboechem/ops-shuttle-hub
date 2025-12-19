@@ -64,8 +64,8 @@ export default function EventoDetalhes() {
   if (loadingViagens || loadingEventos) {
     return (
       <EventLayout>
-        <div className="p-8 space-y-6">
-          <Skeleton className="h-32 w-full" />
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       </EventLayout>
@@ -75,7 +75,7 @@ export default function EventoDetalhes() {
   if (!evento) {
     return (
       <EventLayout>
-        <div className="p-8">
+        <div className="p-6">
           <h1 className="text-xl font-semibold mb-2">Evento não encontrado</h1>
           <p className="text-muted-foreground">O evento solicitado não foi encontrado.</p>
         </div>
@@ -87,52 +87,60 @@ export default function EventoDetalhes() {
 
   return (
     <EventLayout>
-      <div className="p-8 space-y-6">
-        {/* Header do Evento */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-card rounded-lg border">
-          <div className="space-y-1">
-            <h1 className="text-xl font-semibold">{evento.nome_planilha}</h1>
-            <div className="flex items-center gap-3">
-              <Badge className={status.className}>{status.label}</Badge>
-              <span className="text-sm text-muted-foreground">
-                Última atualização: {formatDateTime(evento.data_ultima_sync)}
-              </span>
+      <div className="p-6 space-y-6">
+        {/* Header do Evento - Mais compacto */}
+        <div className="bg-card rounded-xl border shadow-sm">
+          <div className="p-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold">{evento.nome_planilha}</h1>
+                  <Badge className={status.className}>{status.label}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Última atualização: {formatDateTime(evento.data_ultima_sync)}
+                </p>
+                <div className="flex items-center gap-5 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <Car className="w-4 h-4 text-amber-500" />
+                    <span className="font-medium">{viagensTransfer.length}</span>
+                    <span className="text-muted-foreground">transfers</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Bus className="w-4 h-4 text-emerald-500" />
+                    <span className="font-medium">{viagensShuttle.length}</span>
+                    <span className="text-muted-foreground">shuttles</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="font-medium">{filteredViagens.filter(v => !v.encerrado).length}</span>
+                    <span className="text-muted-foreground">em andamento</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {/* Date Filter */}
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger className="w-[180px] bg-background">
+                    <CalendarDays className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Filtrar por data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as datas</SelectItem>
+                    {uniqueDates.map(date => (
+                      <SelectItem key={date} value={date}>
+                        {formatDateForSelect(date)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={refetch}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Atualizar
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <Car className="w-4 h-4 text-amber-500" />
-                <span>{viagensTransfer.length} transfers</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Bus className="w-4 h-4 text-emerald-500" />
-                <span>{viagensShuttle.length} shuttles</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{filteredViagens.filter(v => !v.encerrado).length} em andamento</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Date Filter */}
-            <Select value={selectedDate} onValueChange={setSelectedDate}>
-              <SelectTrigger className="w-[180px]">
-                <CalendarDays className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filtrar por data" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as datas</SelectItem>
-                {uniqueDates.map(date => (
-                  <SelectItem key={date} value={date}>
-                    {formatDateForSelect(date)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={refetch}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar
-            </Button>
           </div>
         </div>
 
@@ -142,6 +150,7 @@ export default function EventoDetalhes() {
           viagensShuttle={viagensShuttle}
           eventoNome={evento.nome_planilha}
           onUpdate={refetch}
+          selectedDate={selectedDate}
         />
       </div>
     </EventLayout>
