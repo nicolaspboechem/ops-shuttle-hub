@@ -28,6 +28,7 @@ export function AppSidebar() {
     { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
     { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
     { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
+    { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
   ];
 
   const bottomNav = [
