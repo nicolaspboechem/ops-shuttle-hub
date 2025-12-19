@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Header } from '@/components/layout/Header';
+import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -267,27 +266,20 @@ export default function Veiculos() {
 
   if (loading) {
     return (
-      <MainLayout>
-        <Header title="Veículos" />
+      <EventLayout>
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="h-48" />
           ))}
         </div>
-      </MainLayout>
+      </EventLayout>
     );
   }
 
   return (
-    <MainLayout>
-      <Header 
-        title="Veículos"
-        subtitle={evento ? `${evento.nome_planilha} • ${veiculos.length} cadastrados` : `${veiculos.length} veículos cadastrados`}
-        lastUpdate={lastUpdate}
-        onRefresh={() => { refetch(); refetchVeiculos(); }}
-      />
-      
+    <EventLayout>
       <div className="p-8 space-y-6">
+        <h1 className="text-2xl font-bold">Veículos</h1>
         {/* Header com botão de adicionar */}
         <div className="flex items-center justify-between">
           <div>
@@ -621,6 +613,6 @@ export default function Veiculos() {
           </Card>
         )}
       </div>
-    </MainLayout>
+    </EventLayout>
   );
 }
