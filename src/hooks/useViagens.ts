@@ -32,7 +32,7 @@ export function useViagens(eventoId?: string) {
       return;
     }
 
-    setViagens(data || []);
+    setViagens((data as Viagem[]) || []);
     setLastUpdate(new Date());
     setLoading(false);
   }, [eventoId]);

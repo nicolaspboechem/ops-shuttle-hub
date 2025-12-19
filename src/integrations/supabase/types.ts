@@ -274,6 +274,41 @@ export type Database = {
           },
         ]
       }
+      viagem_logs: {
+        Row: {
+          acao: string
+          created_at: string | null
+          detalhes: Json | null
+          id: string
+          user_id: string
+          viagem_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          user_id: string
+          viagem_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          detalhes?: Json | null
+          id?: string
+          user_id?: string
+          viagem_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viagem_logs_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       viagens: {
         Row: {
           coordenador: string | null
@@ -281,16 +316,21 @@ export type Database = {
           data_criacao: string
           encerrado: boolean | null
           evento_id: string | null
+          finalizado_por: string | null
           h_chegada: string | null
+          h_fim_real: string | null
+          h_inicio_real: string | null
           h_pickup: string | null
           h_retorno: string | null
           id: string
+          iniciado_por: string | null
           motorista: string
           observacao: string | null
           placa: string | null
           ponto_embarque: string | null
           qtd_pax: number | null
           qtd_pax_retorno: number | null
+          status: string | null
           tipo_operacao: string
           tipo_veiculo: string | null
         }
@@ -300,16 +340,21 @@ export type Database = {
           data_criacao?: string
           encerrado?: boolean | null
           evento_id?: string | null
+          finalizado_por?: string | null
           h_chegada?: string | null
+          h_fim_real?: string | null
+          h_inicio_real?: string | null
           h_pickup?: string | null
           h_retorno?: string | null
           id?: string
+          iniciado_por?: string | null
           motorista: string
           observacao?: string | null
           placa?: string | null
           ponto_embarque?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null
+          status?: string | null
           tipo_operacao: string
           tipo_veiculo?: string | null
         }
@@ -319,16 +364,21 @@ export type Database = {
           data_criacao?: string
           encerrado?: boolean | null
           evento_id?: string | null
+          finalizado_por?: string | null
           h_chegada?: string | null
+          h_fim_real?: string | null
+          h_inicio_real?: string | null
           h_pickup?: string | null
           h_retorno?: string | null
           id?: string
+          iniciado_por?: string | null
           motorista?: string
           observacao?: string | null
           placa?: string | null
           ponto_embarque?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null
+          status?: string | null
           tipo_operacao?: string
           tipo_veiculo?: string | null
         }
