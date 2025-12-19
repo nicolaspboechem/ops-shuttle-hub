@@ -1,17 +1,18 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Bus, Car, ChevronRight, ChevronDown, Users } from 'lucide-react';
+import { Calendar, Bus, Car, ChevronRight, Users, Pencil } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Evento } from '@/lib/types/viagem';
 import { supabase } from '@/integrations/supabase/client';
+import { EditEventoModal } from './EditEventoModal';
+import { cn } from '@/lib/utils';
 
 interface EventoGroupCardProps {
   groupName: string;
   eventos: Evento[];
+  onUpdate?: () => void;
 }
 
 interface ViagemStats {
@@ -21,11 +22,10 @@ interface ViagemStats {
   totalPax: number;
 }
 
-export function EventoGroupCard({ groupName, eventos }: EventoGroupCardProps) {
+export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCardProps) {
   const navigate = useNavigate();
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>(eventos.map(e => e.id));
   const [stats, setStats] = useState<Record<string, ViagemStats>>({});
-  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     async function fetchStats() {
@@ -71,11 +71,13 @@ export function EventoGroupCard({ groupName, eventos }: EventoGroupCardProps) {
     );
   };
 
-  const selectAll = () => setSelectedEventIds(eventos.map(e => e.id));
-  const deselectAll = () => setSelectedEventIds([]);
-
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
+  const formatShortDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
   };
 
   const getDateRange = () => {
@@ -86,14 +88,15 @@ export function EventoGroupCard({ groupName, eventos }: EventoGroupCardProps) {
   };
 
   const handleEnterEvent = () => {
-    // If only one event selected, go directly to it
     if (selectedEventIds.length === 1) {
       navigate(`/evento/${selectedEventIds[0]}`);
     } else if (selectedEventIds.length > 0) {
-      // Go to first selected event (could implement multi-event view later)
       navigate(`/evento/${selectedEventIds[0]}`);
     }
   };
+
+  // For editing, use the first event in the group
+  const primaryEvento = eventos[0];
 
   return (
     <Card className="hover:border-primary/50 hover:shadow-md transition-all">
@@ -124,7 +127,18 @@ export function EventoGroupCard({ groupName, eventos }: EventoGroupCardProps) {
               )}
             </div>
             
-            <h3 className="font-semibold text-lg text-foreground">{groupName}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-lg text-foreground">{groupName}</h3>
+              <EditEventoModal
+                evento={primaryEvento}
+                onSuccess={onUpdate}
+                trigger={
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                }
+              />
+            </div>
             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
@@ -151,55 +165,58 @@ export function EventoGroupCard({ groupName, eventos }: EventoGroupCardProps) {
           </div>
         </div>
 
-        {/* Date Filter */}
-        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-full justify-between mb-2">
-              <span className="text-sm">Filtrar por data</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="space-y-2 p-3 rounded-lg border border-border bg-card">
-              <div className="flex justify-between mb-2">
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={selectAll}>
-                  Selecionar todos
-                </Button>
-                <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={deselectAll}>
-                  Limpar seleção
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {eventos.map((evento) => {
-                  const eventStats = stats[evento.id] || { total: 0 };
-                  return (
-                    <label
-                      key={evento.id}
-                      className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={selectedEventIds.includes(evento.id)}
-                        onCheckedChange={() => toggleEventId(evento.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {formatDate(evento.data_criacao)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {eventStats.total} viagens
-                        </p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
+        {/* Date Chips - Better Filter */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground">Filtrar por data:</p>
+            <div className="flex gap-1">
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={() => setSelectedEventIds(eventos.map(e => e.id))}
+              >
+                Todos
+              </Button>
+              <span className="text-muted-foreground">|</span>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={() => setSelectedEventIds([])}
+              >
+                Limpar
+              </Button>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {eventos.map((evento) => {
+              const isSelected = selectedEventIds.includes(evento.id);
+              const eventStats = stats[evento.id] || { total: 0 };
+              return (
+                <button
+                  key={evento.id}
+                  onClick={() => toggleEventId(evento.id)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
+                  )}
+                >
+                  {formatShortDate(evento.data_criacao)}
+                  {eventStats.total > 0 && (
+                    <span className="ml-1 opacity-70">({eventStats.total})</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Action Button */}
         <Button 
-          className="w-full mt-3" 
+          className="w-full" 
           onClick={handleEnterEvent}
           disabled={selectedEventIds.length === 0}
         >

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { RefreshCw, FolderOpen } from 'lucide-react';
+import { RefreshCw, FolderOpen, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EventoGroupCard } from '@/components/eventos/EventoGroupCard';
+import { CreateEventoWizard } from '@/components/eventos/CreateEventoWizard';
 import { useEventos } from '@/hooks/useEventos';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Evento } from '@/lib/types/viagem';
@@ -88,6 +89,15 @@ export default function Eventos() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Atualizar
             </Button>
+            <CreateEventoWizard
+              onSuccess={refetch}
+              trigger={
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Evento
+                </Button>
+              }
+            />
           </div>
         </div>
 

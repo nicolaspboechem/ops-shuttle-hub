@@ -14,9 +14,43 @@ export type Database = {
   }
   public: {
     Tables: {
+      evento_usuarios: {
+        Row: {
+          created_at: string | null
+          evento_id: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          evento_id: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          evento_id?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evento_usuarios_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos: {
         Row: {
           data_criacao: string
+          data_fim: string | null
+          data_inicio: string | null
           data_ultima_sync: string
           id: string
           nome_planilha: string
@@ -26,6 +60,8 @@ export type Database = {
         }
         Insert: {
           data_criacao?: string
+          data_fim?: string | null
+          data_inicio?: string | null
           data_ultima_sync?: string
           id?: string
           nome_planilha: string
@@ -35,6 +71,8 @@ export type Database = {
         }
         Update: {
           data_criacao?: string
+          data_fim?: string | null
+          data_inicio?: string | null
           data_ultima_sync?: string
           id?: string
           nome_planilha?: string

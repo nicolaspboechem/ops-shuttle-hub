@@ -11,6 +11,16 @@ export interface Evento {
   data_ultima_sync: string;
   total_viagens: number | null;
   status: string | null;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+}
+
+export interface EventoUsuario {
+  id: string;
+  evento_id: string;
+  user_id: string;
+  role: 'coordenador' | 'motorista' | 'operador';
+  created_at: string;
 }
 
 export interface Viagem {
