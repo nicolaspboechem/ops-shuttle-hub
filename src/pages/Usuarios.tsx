@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2 } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -32,6 +35,14 @@ export default function Usuarios() {
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  
+  // Modal de criar usuário
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -39,28 +50,24 @@ export default function Usuarios() {
 
   const fetchUsers = async () => {
     try {
-      // Fetch all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*');
 
       if (profilesError) throw profilesError;
 
-      // Fetch all roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
       if (rolesError) throw rolesError;
 
-      // Fetch all permissions
       const { data: permissions, error: permError } = await supabase
         .from('user_permissions')
         .select('*');
 
       if (permError) throw permError;
 
-      // Combine data
       const usersData: UserWithPermissions[] = (profiles || []).map(profile => {
         const role = roles?.find(r => r.user_id === profile.user_id);
         const userPerms = permissions?.filter(p => p.user_id === profile.user_id) || [];
@@ -84,6 +91,48 @@ export default function Usuarios() {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!isAdmin) {
+      toast.error('Apenas administradores podem criar usuários');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      // Criar usuário via Supabase Auth Admin (usando service role via edge function)
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newEmail,
+          password: newPassword,
+          full_name: newFullName
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success('Usuário criado com sucesso!');
+      setShowCreateModal(false);
+      setNewEmail('');
+      setNewPassword('');
+      setNewFullName('');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      toast.error(error.message || 'Erro ao criar usuário');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const togglePermission = async (userId: string, permission: AppPermission, currentlyHas: boolean) => {
     if (!isAdmin) {
       toast.error('Apenas administradores podem alterar permissões');
@@ -94,7 +143,6 @@ export default function Usuarios() {
 
     try {
       if (currentlyHas) {
-        // Remove permission
         const { error } = await supabase
           .from('user_permissions')
           .delete()
@@ -103,7 +151,6 @@ export default function Usuarios() {
 
         if (error) throw error;
       } else {
-        // Add permission
         const { error } = await supabase
           .from('user_permissions')
           .insert({
@@ -115,7 +162,6 @@ export default function Usuarios() {
         if (error) throw error;
       }
 
-      // Update local state
       setUsers(prev => prev.map(u => {
         if (u.user_id !== userId) return u;
         return {
@@ -148,14 +194,23 @@ export default function Usuarios() {
   return (
     <MainLayout>
       <div className="p-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            <Users className="w-7 h-7" />
-            Usuários
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gerencie usuários e suas permissões no sistema
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+              <Users className="w-7 h-7" />
+              Usuários
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Gerencie usuários e suas permissões no sistema
+            </p>
+          </div>
+          
+          {isAdmin && (
+            <Button onClick={() => setShowCreateModal(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Criar Usuário
+            </Button>
+          )}
         </div>
 
         {!isAdmin && (
@@ -256,11 +311,78 @@ export default function Usuarios() {
               <ShieldX className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
               <p className="text-muted-foreground">
-                Os usuários aparecerão aqui quando se cadastrarem no sistema.
+                Clique em "Criar Usuário" para adicionar o primeiro usuário.
               </p>
             </div>
           )}
         </div>
+
+        {/* Modal Criar Usuário */}
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Criar Novo Usuário</DialogTitle>
+            </DialogHeader>
+            
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-fullname">Nome completo</Label>
+                <Input
+                  id="new-fullname"
+                  type="text"
+                  placeholder="Nome do usuário"
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-email">Email</Label>
+                <Input
+                  id="new-email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Mínimo 6 caracteres"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={creating}>
+                  {creating && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Criar Usuário
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
