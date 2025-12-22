@@ -1,0 +1,294 @@
+import { useState } from 'react';
+import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
+import { useViagemOperacao } from '@/hooks/useViagemOperacao';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { 
+  Bus, 
+  MapPin, 
+  Users, 
+  Clock, 
+  Play, 
+  CheckCircle, 
+  ArrowLeft,
+  Loader2,
+  XCircle
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface ViagemCardOperadorProps {
+  viagem: Viagem;
+  onUpdate: () => void;
+}
+
+const statusConfig: Record<StatusViagemOperacao, { label: string; className: string; icon: React.ElementType }> = {
+  agendado: { 
+    label: 'Agendado', 
+    className: 'bg-muted text-muted-foreground',
+    icon: Clock
+  },
+  em_andamento: { 
+    label: 'Em Andamento', 
+    className: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
+    icon: Bus
+  },
+  aguardando_retorno: { 
+    label: 'Aguardando Retorno', 
+    className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
+    icon: Clock
+  },
+  encerrado: { 
+    label: 'Encerrado', 
+    className: 'bg-green-500/10 text-green-600 border-green-500/30',
+    icon: CheckCircle
+  },
+  cancelado: { 
+    label: 'Cancelado', 
+    className: 'bg-destructive/10 text-destructive border-destructive/30',
+    icon: XCircle
+  }
+};
+
+export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps) {
+  const { iniciarViagem, registrarChegada, registrarRetorno, cancelarViagem } = useViagemOperacao();
+  const [loading, setLoading] = useState(false);
+  const [showPaxDialog, setShowPaxDialog] = useState(false);
+  const [paxInput, setPaxInput] = useState('');
+  const [actionType, setActionType] = useState<'chegada' | 'retorno'>('chegada');
+
+  const status = (viagem.status || 'agendado') as StatusViagemOperacao;
+  const config = statusConfig[status];
+  const StatusIcon = config.icon;
+
+  const handleIniciar = async () => {
+    setLoading(true);
+    await iniciarViagem(viagem);
+    onUpdate();
+    setLoading(false);
+  };
+
+  const handleChegada = () => {
+    setActionType('chegada');
+    setPaxInput(viagem.qtd_pax?.toString() || '');
+    setShowPaxDialog(true);
+  };
+
+  const handleRetorno = () => {
+    setActionType('retorno');
+    setPaxInput(viagem.qtd_pax_retorno?.toString() || viagem.qtd_pax?.toString() || '');
+    setShowPaxDialog(true);
+  };
+
+  const confirmAction = async () => {
+    setLoading(true);
+    setShowPaxDialog(false);
+    
+    const pax = paxInput ? parseInt(paxInput) : undefined;
+    
+    if (actionType === 'chegada') {
+      await registrarChegada(viagem, pax);
+    } else {
+      await registrarRetorno(viagem, pax);
+    }
+    
+    onUpdate();
+    setLoading(false);
+  };
+
+  const handleCancelar = async () => {
+    if (!confirm('Cancelar esta viagem?')) return;
+    setLoading(true);
+    await cancelarViagem(viagem);
+    onUpdate();
+    setLoading(false);
+  };
+
+  return (
+    <>
+      <Card className={cn(
+        "transition-all",
+        status === 'em_andamento' && "border-blue-500/50 bg-blue-500/5",
+        status === 'aguardando_retorno' && "border-yellow-500/50 bg-yellow-500/5",
+        status === 'encerrado' && "opacity-70",
+        status === 'cancelado' && "opacity-50"
+      )}>
+        <CardContent className="p-4">
+          {/* Header: Status e Tipo */}
+          <div className="flex items-center justify-between mb-3">
+            <Badge variant="outline" className={config.className}>
+              <StatusIcon className="h-3 w-3 mr-1" />
+              {config.label}
+            </Badge>
+            <Badge variant="secondary">
+              {viagem.tipo_veiculo === 'Ônibus' ? '🚌' : '🚐'} {viagem.tipo_operacao}
+            </Badge>
+          </div>
+
+          {/* Motorista e Placa */}
+          <div className="flex items-center gap-2 mb-2">
+            <Bus className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">{viagem.motorista}</span>
+            {viagem.placa && (
+              <span className="text-muted-foreground">• {viagem.placa}</span>
+            )}
+          </div>
+
+          {/* Ponto de Embarque */}
+          {viagem.ponto_embarque && (
+            <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>{viagem.ponto_embarque}</span>
+            </div>
+          )}
+
+          {/* PAX e Horários */}
+          <div className="flex items-center gap-4 mb-3 text-sm">
+            <div className="flex items-center gap-1">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span>{viagem.qtd_pax || 0} PAX</span>
+            </div>
+            {viagem.h_pickup && (
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>Pickup: {viagem.h_pickup?.slice(0, 5)}</span>
+              </div>
+            )}
+            {viagem.h_chegada && (
+              <div className="text-muted-foreground">
+                Chegou: {viagem.h_chegada?.slice(0, 5)}
+              </div>
+            )}
+          </div>
+
+          {/* Observação */}
+          {viagem.observacao && (
+            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+              {viagem.observacao}
+            </p>
+          )}
+
+          {/* Ações baseadas no status */}
+          <div className="flex gap-2">
+            {status === 'agendado' && (
+              <>
+                <Button 
+                  className="flex-1" 
+                  onClick={handleIniciar}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Iniciar
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={handleCancelar}
+                  disabled={loading}
+                >
+                  <XCircle className="h-4 w-4 text-destructive" />
+                </Button>
+              </>
+            )}
+
+            {status === 'em_andamento' && (
+              <Button 
+                className="flex-1 bg-yellow-600 hover:bg-yellow-700" 
+                onClick={handleChegada}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Registrar Chegada
+                  </>
+                )}
+              </Button>
+            )}
+
+            {status === 'aguardando_retorno' && (
+              <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700" 
+                onClick={handleRetorno}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Registrar Retorno
+                  </>
+                )}
+              </Button>
+            )}
+
+            {(status === 'encerrado' || status === 'cancelado') && (
+              <div className="flex-1 text-center text-sm text-muted-foreground py-2">
+                {status === 'encerrado' && viagem.h_retorno && (
+                  <>Retorno: {viagem.h_retorno?.slice(0, 5)}</>
+                )}
+                {status === 'cancelado' && 'Viagem cancelada'}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dialog para confirmar PAX */}
+      <Dialog open={showPaxDialog} onOpenChange={setShowPaxDialog}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>
+              {actionType === 'chegada' ? 'Confirmar Chegada' : 'Confirmar Retorno'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Quantidade de Passageiros
+              </label>
+              <Input
+                type="number"
+                value={paxInput}
+                onChange={e => setPaxInput(e.target.value)}
+                placeholder="0"
+                min="0"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowPaxDialog(false)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button onClick={confirmAction} className="flex-1">
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

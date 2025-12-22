@@ -136,6 +136,83 @@ export type Database = {
           },
         ]
       }
+      ponto_motoristas: {
+        Row: {
+          created_at: string | null
+          id: string
+          motorista_id: string
+          ponto_id: string
+          prioridade: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          motorista_id: string
+          ponto_id: string
+          prioridade?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          motorista_id?: string
+          ponto_id?: string
+          prioridade?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ponto_motoristas_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ponto_motoristas_ponto_id_fkey"
+            columns: ["ponto_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pontos_embarque: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          endereco: string | null
+          evento_id: string
+          id: string
+          nome: string
+          observacao: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          endereco?: string | null
+          evento_id: string
+          id?: string
+          nome: string
+          observacao?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          endereco?: string | null
+          evento_id?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pontos_embarque_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

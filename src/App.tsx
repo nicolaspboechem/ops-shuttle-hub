@@ -21,6 +21,8 @@ import Operacao from "./pages/Operacao";
 import AppHome from "./pages/app/AppHome";
 import AppCoordenador from "./pages/app/AppCoordenador";
 import AppMotorista from "./pages/app/AppMotorista";
+import AppOperador from "./pages/app/AppOperador";
+import PontosEmbarque from "./pages/PontosEmbarque";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,7 @@ const App = () => (
             <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
             <Route path="/app/:eventoId/coordenador" element={<ProtectedRoute><AppCoordenador /></ProtectedRoute>} />
             <Route path="/app/:eventoId/motorista" element={<ProtectedRoute><AppMotorista /></ProtectedRoute>} />
+            <Route path="/app/:eventoId/operador" element={<ProtectedRoute><AppOperador /></ProtectedRoute>} />
             {/* Admin Routes */}
             <Route path="/eventos" element={<ProtectedRoute><Eventos /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
@@ -50,6 +53,7 @@ const App = () => (
             <Route path="/evento/:eventoId/motoristas" element={<ProtectedRoute><Motoristas /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/veiculos" element={<ProtectedRoute><Veiculos /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<ProtectedRoute><EventoUsuarios /></ProtectedRoute>} />
+            <Route path="/evento/:eventoId/pontos" element={<ProtectedRoute><PontosEmbarque /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

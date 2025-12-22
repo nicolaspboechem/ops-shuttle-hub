@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, UserCircle, LogOut, Loader2 } from 'lucide-react';
+import { Bus, UserCircle, LogOut, Loader2, Radio } from 'lucide-react';
 
 export default function AppHome() {
   const { user, signOut, profile } = useAuth();
@@ -46,6 +46,12 @@ export default function AppHome() {
   const handleMotorista = () => {
     if (selectedEvento) {
       navigate(`/app/${selectedEvento}/motorista`);
+    }
+  };
+
+  const handleOperador = () => {
+    if (selectedEvento) {
+      navigate(`/app/${selectedEvento}/operador`);
     }
   };
 
@@ -126,6 +132,23 @@ export default function AppHome() {
                   <CardTitle className="text-lg">Motorista</CardTitle>
                   <CardDescription>
                     Registrar minhas viagens
+                  </CardDescription>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card 
+              className="cursor-pointer hover:border-primary transition-colors"
+              onClick={handleOperador}
+            >
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center">
+                  <Radio className="h-8 w-8 text-orange-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Operador</CardTitle>
+                  <CardDescription>
+                    Criar e controlar viagens
                   </CardDescription>
                 </div>
               </CardContent>
