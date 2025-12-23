@@ -57,6 +57,7 @@ export type Database = {
           status: string | null
           tipo_operacao: string | null
           total_viagens: number | null
+          visivel_publico: boolean | null
         }
         Insert: {
           data_criacao?: string
@@ -68,6 +69,7 @@ export type Database = {
           status?: string | null
           tipo_operacao?: string | null
           total_viagens?: number | null
+          visivel_publico?: boolean | null
         }
         Update: {
           data_criacao?: string
@@ -79,6 +81,7 @@ export type Database = {
           status?: string | null
           tipo_operacao?: string | null
           total_viagens?: number | null
+          visivel_publico?: boolean | null
         }
         Relationships: []
       }
