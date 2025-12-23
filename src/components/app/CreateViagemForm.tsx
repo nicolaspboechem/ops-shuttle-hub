@@ -65,6 +65,7 @@ export function CreateViagemForm({
   const [placaOpen, setPlacaOpen] = useState(false);
   const [tipoVeiculo, setTipoVeiculo] = useState<string>('Van');
   const [pontoEmbarque, setPontoEmbarque] = useState('');
+  const [pontoDesembarque, setPontoDesembarque] = useState('');
   const [qtdPax, setQtdPax] = useState('');
   const [tipoOperacao, setTipoOperacao] = useState('transfer');
   const [observacao, setObservacao] = useState('');
@@ -78,6 +79,7 @@ export function CreateViagemForm({
       setPlaca('');
       setTipoVeiculo('Van');
       setPontoEmbarque('');
+      setPontoDesembarque('');
       setQtdPax('');
       setTipoOperacao('transfer');
       setObservacao('');
@@ -132,6 +134,7 @@ export function CreateViagemForm({
           placa: placa || null,
           tipo_veiculo: tipoVeiculo,
           ponto_embarque: pontoEmbarque,
+          ponto_desembarque: pontoDesembarque || null,
           qtd_pax: qtdPax ? parseInt(qtdPax) : 0,
           tipo_operacao: tipoOperacao,
           observacao: observacao || null,
@@ -163,7 +166,7 @@ export function CreateViagemForm({
           viagem_id: viagemData.id,
           user_id: user?.id,
           acao: 'inicio',
-          detalhes: { motorista, placa, ponto_embarque: pontoEmbarque }
+          detalhes: { motorista, placa, ponto_embarque: pontoEmbarque, ponto_desembarque: pontoDesembarque }
         }]);
       }
 
@@ -307,7 +310,22 @@ export function CreateViagemForm({
               <Label>Ponto de Embarque *</Label>
               <Select value={pontoEmbarque} onValueChange={setPontoEmbarque}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o ponto" />
+                  <SelectValue placeholder="Selecione o embarque" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePontos.map(p => (
+                    <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ponto de Desembarque */}
+            <div className="space-y-2">
+              <Label>Ponto de Desembarque</Label>
+              <Select value={pontoDesembarque} onValueChange={setPontoDesembarque}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o desembarque" />
                 </SelectTrigger>
                 <SelectContent>
                   {activePontos.map(p => (

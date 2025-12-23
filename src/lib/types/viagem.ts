@@ -45,6 +45,7 @@ export interface Viagem {
   qtd_pax_retorno: number | null;
   encerrado: boolean | null;
   observacao: string | null;
+  ponto_desembarque?: string | null;
   data_criacao: string;
   data_atualizacao: string;
   // Novos campos de controle

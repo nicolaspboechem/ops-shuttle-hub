@@ -62,8 +62,14 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, onRetorno, load
           </div>
           {viagem.ponto_embarque && (
             <div className="col-span-2 flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span className="truncate">{viagem.ponto_embarque}</span>
+              <MapPin className="h-4 w-4 text-green-600" />
+              <span className="truncate"><strong>De:</strong> {viagem.ponto_embarque}</span>
+            </div>
+          )}
+          {viagem.ponto_desembarque && (
+            <div className="col-span-2 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-red-600" />
+              <span className="truncate"><strong>Para:</strong> {viagem.ponto_desembarque}</span>
             </div>
           )}
         </div>
