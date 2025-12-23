@@ -138,18 +138,9 @@ export default function Auth() {
             </button>
           </form>
 
-          <button 
-            type="button"
-            className="w-full text-center text-[13px] text-gray-500 hover:text-gray-400 transition-colors mt-5"
-          >
-            Esqueci minha senha
-          </button>
-
-          <div className="mt-6 pt-5 border-t border-[#1E3A5F]/30">
-            <p className="text-[11px] text-gray-600 text-center leading-relaxed">
-              Ao continuar, você concorda com os Termos e a Política de Privacidade.
-            </p>
-          </div>
+          <p className="text-[13px] text-gray-500 text-center mt-5">
+            Para criar conta, contate o administrador
+          </p>
         </div>
       </div>
 
