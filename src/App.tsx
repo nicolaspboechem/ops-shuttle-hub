@@ -50,12 +50,12 @@ const App = () => (
             {/* App Campo - Interface Mobile (role-based) */}
             <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
             <Route path="/app/:eventoId/motorista" element={
-              <EventRoleRoute allowedRoles={['motorista', 'operador', 'coordenador']}>
+              <EventRoleRoute allowedRoles={['motorista', 'operador']}>
                 <AppMotorista />
               </EventRoleRoute>
             } />
             <Route path="/app/:eventoId/operador" element={
-              <EventRoleRoute allowedRoles={['operador', 'coordenador']}>
+              <EventRoleRoute allowedRoles={['operador']}>
                 <AppOperador />
               </EventRoleRoute>
             } />

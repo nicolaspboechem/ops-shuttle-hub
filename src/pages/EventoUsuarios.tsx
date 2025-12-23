@@ -157,7 +157,7 @@ export default function EventoUsuarios() {
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
-      case 'coordenador': return 'default';
+      case 'operador': return 'default';
       case 'motorista': return 'secondary';
       default: return 'outline';
     }
@@ -165,7 +165,6 @@ export default function EventoUsuarios() {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'coordenador': return 'Coordenador';
       case 'motorista': return 'Motorista';
       case 'operador': return 'Operador';
       default: return role;
@@ -234,22 +233,16 @@ export default function EventoUsuarios() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="coordenador">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Coordenador</span>
-                          <span className="text-xs text-muted-foreground">Acesso total ao evento (App Operador + Motorista)</span>
-                        </div>
-                      </SelectItem>
                       <SelectItem value="operador">
                         <div className="flex flex-col items-start">
                           <span className="font-medium">Operador</span>
-                          <span className="text-xs text-muted-foreground">Criar/gerenciar viagens e ver motoristas</span>
+                          <span className="text-xs text-muted-foreground">Gerencia viagens, motoristas e veículos</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="motorista">
                         <div className="flex flex-col items-start">
                           <span className="font-medium">Motorista</span>
-                          <span className="text-xs text-muted-foreground">Apenas registrar próprias viagens</span>
+                          <span className="text-xs text-muted-foreground">Visualiza e registra próprias viagens</span>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -271,7 +264,7 @@ export default function EventoUsuarios() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="p-3 rounded-lg bg-primary/10">
@@ -280,17 +273,6 @@ export default function EventoUsuarios() {
               <div>
                 <p className="text-2xl font-bold">{usuarios.length}</p>
                 <p className="text-sm text-muted-foreground">Total</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-amber-500/10">
-                <Users className="w-6 h-6 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{usuarios.filter(u => u.role === 'coordenador').length}</p>
-                <p className="text-sm text-muted-foreground">Coordenadores</p>
               </div>
             </CardContent>
           </Card>
@@ -369,7 +351,6 @@ export default function EventoUsuarios() {
                           </Badge>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="coordenador">Coordenador</SelectItem>
                           <SelectItem value="operador">Operador</SelectItem>
                           <SelectItem value="motorista">Motorista</SelectItem>
                         </SelectContent>
