@@ -9,7 +9,7 @@ import { Evento } from '@/lib/types/viagem';
 import { Bus, UserCircle, LogOut, Loader2, Radio } from 'lucide-react';
 
 export default function AppHome() {
-  const { user, signOut, profile } = useAuth();
+  const { user, signOut, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [selectedEvento, setSelectedEvento] = useState<string>('');
@@ -21,19 +21,52 @@ export default function AppHome() {
       return;
     }
     fetchEventos();
-  }, [user, navigate]);
+  }, [user, navigate, isAdmin]);
 
   const fetchEventos = async () => {
-    const { data } = await supabase
-      .from('eventos')
-      .select('*')
-      .eq('status', 'ativo')
-      .order('data_criacao', { ascending: false });
-    
-    setEventos(data || []);
-    if (data && data.length === 1) {
-      setSelectedEvento(data[0].id);
+    if (!user) return;
+
+    // If admin, show all active events
+    // If regular user, show only linked events
+    if (isAdmin) {
+      const { data } = await supabase
+        .from('eventos')
+        .select('*')
+        .eq('status', 'ativo')
+        .order('data_criacao', { ascending: false });
+      
+      setEventos(data || []);
+      if (data && data.length === 1) {
+        setSelectedEvento(data[0].id);
+      }
+    } else {
+      // Get events where user is linked via evento_usuarios
+      const { data: linkedEvents, error } = await supabase
+        .from('evento_usuarios')
+        .select('evento_id')
+        .eq('user_id', user.id);
+
+      if (error || !linkedEvents || linkedEvents.length === 0) {
+        setEventos([]);
+        setLoading(false);
+        return;
+      }
+
+      const eventIds = linkedEvents.map(e => e.evento_id);
+      
+      const { data } = await supabase
+        .from('eventos')
+        .select('*')
+        .eq('status', 'ativo')
+        .in('id', eventIds)
+        .order('data_criacao', { ascending: false });
+      
+      setEventos(data || []);
+      if (data && data.length === 1) {
+        setSelectedEvento(data[0].id);
+      }
     }
+    
     setLoading(false);
   };
 
@@ -79,89 +112,93 @@ export default function AppHome() {
           </Button>
         </div>
 
-        {/* Seletor de Evento */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Selecione o Evento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select value={selectedEvento} onValueChange={setSelectedEvento}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha um evento" />
-              </SelectTrigger>
-              <SelectContent>
-                {eventos.map(evento => (
-                  <SelectItem key={evento.id} value={evento.id}>
-                    {evento.nome_planilha}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
-        {/* Botões de Acesso */}
-        {selectedEvento && (
-          <div className="grid gap-4">
-            <Card 
-              className="cursor-pointer hover:border-primary transition-colors"
-              onClick={handleCoordenador}
-            >
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center">
-                  <UserCircle className="h-8 w-8 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Coordenador</CardTitle>
-                  <CardDescription>
-                    Iniciar e controlar viagens do ponto
-                  </CardDescription>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary transition-colors"
-              onClick={handleMotorista}
-            >
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-                  <Bus className="h-8 w-8 text-green-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Motorista</CardTitle>
-                  <CardDescription>
-                    Registrar minhas viagens
-                  </CardDescription>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card 
-              className="cursor-pointer hover:border-primary transition-colors"
-              onClick={handleOperador}
-            >
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center">
-                  <Radio className="h-8 w-8 text-orange-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Operador</CardTitle>
-                  <CardDescription>
-                    Criar e controlar viagens
-                  </CardDescription>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {eventos.length === 0 && (
+        {eventos.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground">
-              Nenhum evento ativo no momento
+            <CardContent className="p-6 text-center text-muted-foreground space-y-2">
+              <Bus className="h-12 w-12 mx-auto opacity-50" />
+              <p>Você não está vinculado a nenhum evento ativo</p>
+              <p className="text-sm">Contate um administrador para ser adicionado.</p>
             </CardContent>
           </Card>
+        ) : (
+          <>
+            {/* Seletor de Evento */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Selecione o Evento</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select value={selectedEvento} onValueChange={setSelectedEvento}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha um evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventos.map(evento => (
+                      <SelectItem key={evento.id} value={evento.id}>
+                        {evento.nome_planilha}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
+            {/* Botões de Acesso */}
+            {selectedEvento && (
+              <div className="grid gap-4">
+                <Card 
+                  className="cursor-pointer hover:border-primary transition-colors"
+                  onClick={handleCoordenador}
+                >
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center">
+                      <UserCircle className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Coordenador</CardTitle>
+                      <CardDescription>
+                        Iniciar e controlar viagens do ponto
+                      </CardDescription>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:border-primary transition-colors"
+                  onClick={handleMotorista}
+                >
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
+                      <Bus className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Motorista</CardTitle>
+                      <CardDescription>
+                        Registrar minhas viagens
+                      </CardDescription>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className="cursor-pointer hover:border-primary transition-colors"
+                  onClick={handleOperador}
+                >
+                  <CardContent className="p-6 flex items-center gap-4">
+                    <div className="h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center">
+                      <Radio className="h-8 w-8 text-orange-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Operador</CardTitle>
+                      <CardDescription>
+                        Criar e controlar viagens
+                      </CardDescription>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

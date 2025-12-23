@@ -22,9 +22,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { QuickMotoristaForm } from './QuickMotoristaForm';
 import { toast } from 'sonner';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CreateViagemFormProps {
   open: boolean;
@@ -46,7 +60,9 @@ export function CreateViagemForm({
   const { getAgoraSync } = useServerTime();
 
   const [motorista, setMotorista] = useState('');
+  const [motoristaOpen, setMotoristaOpen] = useState(false);
   const [placa, setPlaca] = useState('');
+  const [placaOpen, setPlacaOpen] = useState(false);
   const [tipoVeiculo, setTipoVeiculo] = useState<string>('Van');
   const [pontoEmbarque, setPontoEmbarque] = useState('');
   const [qtdPax, setQtdPax] = useState('');
@@ -68,9 +84,26 @@ export function CreateViagemForm({
     }
   }, [open]);
 
-  // Auto-preencher placa quando selecionar veículo
-  const handleVeiculoChange = (value: string) => {
+  // Auto-fill vehicle when selecting motorista with linked vehicle
+  const handleMotoristaChange = (nome: string) => {
+    setMotorista(nome);
+    setMotoristaOpen(false);
+    
+    // Find linked vehicle for this motorista
+    const motoristaData = motoristas.find(m => m.nome === nome);
+    if (motoristaData?.veiculo_id) {
+      const veiculo = veiculos.find(v => v.id === motoristaData.veiculo_id);
+      if (veiculo) {
+        setPlaca(veiculo.placa);
+        setTipoVeiculo(veiculo.tipo_veiculo);
+      }
+    }
+  };
+
+  // Auto-fill vehicle type when selecting placa
+  const handlePlacaChange = (value: string) => {
     setPlaca(value);
+    setPlacaOpen(false);
     const veiculo = veiculos.find(v => v.placa === value);
     if (veiculo) {
       setTipoVeiculo(veiculo.tipo_veiculo);
@@ -158,7 +191,7 @@ export function CreateViagemForm({
           </DrawerHeader>
 
           <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
-            {/* Motorista */}
+            {/* Motorista - Combobox with search */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Motorista *</Label>
@@ -172,33 +205,87 @@ export function CreateViagemForm({
                   Novo
                 </Button>
               </div>
-              <Select value={motorista} onValueChange={setMotorista}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o motorista" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeMotoristas.map(m => (
-                    <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={motoristaOpen} onOpenChange={setMotoristaOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={motoristaOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {motorista || "Buscar motorista..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar motorista..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum motorista encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {activeMotoristas.map((m) => (
+                          <CommandItem
+                            key={m.id}
+                            value={m.nome}
+                            onSelect={() => handleMotoristaChange(m.nome)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                motorista === m.nome ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {m.nome}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
-            {/* Veículo/Placa */}
+            {/* Veículo/Placa - Combobox with search */}
             <div className="space-y-2">
               <Label>Veículo/Placa</Label>
-              <Select value={placa} onValueChange={handleVeiculoChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione ou deixe em branco" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeVeiculos.map(v => (
-                    <SelectItem key={v.id} value={v.placa}>
-                      {v.placa} - {v.tipo_veiculo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={placaOpen} onOpenChange={setPlacaOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={placaOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {placa ? `${placa} - ${veiculos.find(v => v.placa === placa)?.tipo_veiculo || ''}` : "Buscar veículo..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar por placa..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {activeVeiculos.map((v) => (
+                          <CommandItem
+                            key={v.id}
+                            value={v.placa}
+                            onSelect={() => handlePlacaChange(v.placa)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                placa === v.placa ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {v.placa} - {v.tipo_veiculo}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Tipo de Veículo */}
