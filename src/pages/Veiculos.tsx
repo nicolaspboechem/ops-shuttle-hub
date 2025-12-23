@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download } from 'lucide-react';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,11 +14,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
+import { useUserNames } from '@/hooks/useUserNames';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VeiculoModal } from '@/components/cadastros/CadastroModals';
 import { Viagem } from '@/lib/types/viagem';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface VeiculoStats {
   placa: string | null;
@@ -42,6 +45,13 @@ export default function Veiculos() {
   const { veiculos, loading: loadingVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { getEventoById } = useEventos();
+  
+  // Buscar nomes dos usuários que atualizaram
+  const userIds = useMemo(() => 
+    veiculos.flatMap(v => [v.criado_por, v.atualizado_por]),
+    [veiculos]
+  );
+  const { getName } = useUserNames(userIds);
 
   const evento = eventoId ? getEventoById(eventoId) : null;
 
@@ -497,6 +507,20 @@ export default function Veiculos() {
                         </Badge>
                       )}
                     </div>
+                    
+                    {/* Auditoria - quem atualizou */}
+                    {veiculo.atualizado_por && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground border-t pt-3">
+                        <UserCheck className="w-3 h-3" />
+                        <span>
+                          Editado por {getName(veiculo.atualizado_por)}{' '}
+                          {formatDistanceToNow(new Date(veiculo.data_atualizacao), { 
+                            addSuffix: true, 
+                            locale: ptBR 
+                          })}
+                        </span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

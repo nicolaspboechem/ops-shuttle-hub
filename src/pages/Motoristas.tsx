@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,12 +14,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
+import { useUserNames } from '@/hooks/useUserNames';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -32,6 +35,13 @@ export default function Motoristas() {
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
+  
+  // Buscar nomes dos usuários que atualizaram
+  const userIds = useMemo(() => 
+    motoristasCadastrados.flatMap(m => [m.criado_por, m.atualizado_por]),
+    [motoristasCadastrados]
+  );
+  const { getName } = useUserNames(userIds);
 
   const evento = eventoId ? getEventoById(eventoId) : null;
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
@@ -474,6 +484,20 @@ export default function Motoristas() {
                             <MessageCircle className="w-4 h-4 mr-1" />
                             WhatsApp
                           </Button>
+                        </div>
+                      )}
+                      
+                      {/* Auditoria - quem atualizou */}
+                      {motorista.atualizado_por && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+                          <UserCheck className="w-3 h-3" />
+                          <span>
+                            Editado por {getName(motorista.atualizado_por)}{' '}
+                            {formatDistanceToNow(new Date(motorista.data_atualizacao), { 
+                              addSuffix: true, 
+                              locale: ptBR 
+                            })}
+                          </span>
                         </div>
                       )}
                     </div>
