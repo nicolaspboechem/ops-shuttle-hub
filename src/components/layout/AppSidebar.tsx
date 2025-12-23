@@ -29,7 +29,6 @@ export function AppSidebar() {
     { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
     { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
     { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
-    { name: 'Pontos Embarque', href: `/evento/${eventoId}/pontos`, icon: Bus },
     { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart },
     { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
     { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: LayoutDashboard },
