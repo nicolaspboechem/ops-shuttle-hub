@@ -67,30 +67,25 @@ export default function Auth() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#4361ee]/10 to-transparent blur-[80px]" />
 
       {/* Logo */}
-      <div className="mb-12 relative z-10">
+      <div className="mb-10 relative z-10">
         <img 
           src={logoASBranca} 
           alt="AS Brasil" 
-          className="h-24 w-auto object-contain"
+          className="h-32 w-auto object-contain"
         />
       </div>
 
       {/* Card with glowing border */}
       <div className="w-full max-w-[420px] relative z-10">
-        <div className="relative p-[1px] rounded-2xl overflow-hidden">
-          {/* Glowing border */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#4361ee]/40 via-[#7c3aed]/20 to-[#4361ee]/40 rounded-2xl" />
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent rounded-2xl" />
-          
-          {/* Content */}
-          <div 
-            className="relative rounded-2xl p-8"
-            style={{
-              background: 'linear-gradient(145deg, rgba(20, 28, 50, 0.95) 0%, rgba(10, 14, 26, 0.98) 100%)',
-            }}
-          >
-            {/* Subtle inner glow */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+        <div 
+          className="relative rounded-2xl p-8 border border-[#2a3f6f]/60"
+          style={{
+            background: 'linear-gradient(145deg, rgba(15, 22, 40, 0.95) 0%, rgba(10, 14, 26, 0.98) 100%)',
+            boxShadow: '0 0 30px rgba(67, 97, 238, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+          }}
+        >
+          {/* Subtle inner glow */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
             
             {/* Header */}
             <div className="relative mb-8">
@@ -117,10 +112,11 @@ export default function Auth() {
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
                   required
                   autoComplete="email"
                   disabled={loading}
-                  className="w-full h-10 px-4 rounded-lg bg-white text-[#0a0e1a] border-0 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                  className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
                 />
               </div>
 
@@ -138,7 +134,8 @@ export default function Auth() {
                     required
                     autoComplete="current-password"
                     disabled={loading}
-                    className="w-full h-10 px-4 pr-11 rounded-lg bg-white text-[#0a0e1a] border-0 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                    style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
+                    className="w-full h-11 px-4 pr-11 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
                   />
                   <button
                     type="button"
@@ -160,12 +157,14 @@ export default function Auth() {
               </button>
             </form>
 
-            <p className="text-[13px] text-gray-500 text-center mt-5">
-              Para criar conta, contate o administrador
-            </p>
+            {/* Glowing bottom line */}
+            <div className="mt-6 pt-5 border-t border-[#2a3f6f]/40">
+              <p className="text-[13px] text-gray-500 text-center">
+                Para criar conta, contate o administrador
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Footer */}
       <p className="text-center text-[11px] text-gray-600 mt-10 relative z-10">
