@@ -49,8 +49,8 @@ export function EventoHero({
           </div>
         )}
         
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+        {/* Dark Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
       </div>
 
       {/* Content */}
@@ -79,14 +79,14 @@ export function EventoHero({
           )}
 
           <div className="flex-1 space-y-2">
-            <h1 className="text-2xl md:text-4xl font-bold text-foreground">{nome}</h1>
+            <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-md">{nome}</h1>
             
             {descricao && (
-              <p className="text-muted-foreground max-w-2xl line-clamp-2">{descricao}</p>
+              <p className="text-white/80 max-w-2xl line-clamp-2">{descricao}</p>
             )}
 
             {dateRange && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-white/80">
                 <Calendar className="h-4 w-4" />
                 <span>{dateRange}</span>
               </div>
