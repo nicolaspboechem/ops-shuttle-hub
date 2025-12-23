@@ -8,6 +8,7 @@ import { Evento } from '@/lib/types/viagem';
 import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppHome() {
   const { user, signOut, profile, isAdmin, getEventRole } = useAuth();
@@ -127,13 +128,15 @@ export default function AppHome() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
-                <Bus className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img 
+                src={logoAS} 
+                alt="AS Brasil" 
+                className="h-10 w-10 rounded-lg object-contain"
+              />
               <div>
-                <h1 className="text-lg font-semibold">App Campo</h1>
+                <h1 className="text-lg font-semibold">Controle Operacional (Campo)</h1>
                 <p className="text-xs text-muted-foreground">
-                  {profile?.full_name || user?.email}
+                  {profile?.full_name || user?.email} - AS Brasil
                 </p>
               </div>
             </div>
