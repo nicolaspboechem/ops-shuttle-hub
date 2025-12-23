@@ -26,7 +26,6 @@ import AppHome from "./pages/app/AppHome";
 
 import AppMotorista from "./pages/app/AppMotorista";
 import AppOperador from "./pages/app/AppOperador";
-import PontosEmbarque from "./pages/PontosEmbarque";
 import PainelPublico from "./pages/PainelPublico";
 import NotFound from "./pages/NotFound";
 
@@ -71,7 +70,7 @@ const App = () => (
             <Route path="/evento/:eventoId/motoristas" element={<AdminRoute><Motoristas /></AdminRoute>} />
             <Route path="/evento/:eventoId/veiculos" element={<AdminRoute><Veiculos /></AdminRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
-            <Route path="/evento/:eventoId/pontos" element={<AdminRoute><PontosEmbarque /></AdminRoute>} />
+            
             <Route path="/evento/:eventoId/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
             <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
             <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
