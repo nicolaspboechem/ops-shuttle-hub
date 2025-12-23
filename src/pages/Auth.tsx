@@ -71,7 +71,7 @@ export default function Auth() {
         <img 
           src={logoASBranca} 
           alt="AS Brasil" 
-          className="h-32 w-auto object-contain"
+          className="h-96 w-auto object-contain"
         />
       </div>
 
