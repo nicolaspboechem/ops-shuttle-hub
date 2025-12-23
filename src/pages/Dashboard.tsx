@@ -1,14 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
+import { RoutePerformanceChart } from '@/components/dashboard/RoutePerformanceChart';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
@@ -25,13 +27,34 @@ export default function Dashboard() {
   const { getEventoById } = useEventos();
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+  const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
 
   const evento = eventoId ? getEventoById(eventoId) : null;
 
+  // Extrair pontos de embarque únicos
+  const pontosEmbarque = useMemo(() => {
+    const pontos = new Set(viagens.map(v => v.ponto_embarque).filter(Boolean));
+    return Array.from(pontos).sort();
+  }, [viagens]);
+
+  // Filtrar viagens por tipo de operação e rota
   const viagensFiltradas = useMemo(() => {
-    if (tipoOperacao === 'todos') return viagens;
-    return viagens.filter(v => v.tipo_operacao === tipoOperacao);
-  }, [viagens, tipoOperacao]);
+    let filtered = viagens;
+    if (tipoOperacao !== 'todos') {
+      filtered = filtered.filter(v => v.tipo_operacao === tipoOperacao);
+    }
+    if (rotaFiltro !== 'todas') {
+      filtered = filtered.filter(v => v.ponto_embarque === rotaFiltro);
+    }
+    return filtered;
+  }, [viagens, tipoOperacao, rotaFiltro]);
+
+  // Total de PAX nas viagens ativas
+  const totalPaxAtivas = useMemo(() => {
+    return viagensFiltradas
+      .filter(v => v.status === 'em_andamento' || !v.h_retorno)
+      .reduce((acc, v) => acc + (v.qtd_pax || 0), 0);
+  }, [viagensFiltradas]);
 
   const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas, motoristas: metricasMotoristas } = useCalculos(viagensFiltradas);
 
@@ -126,10 +149,44 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+        {/* Filtros */}
+        <div className="flex flex-wrap items-center gap-4">
+          <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+          
+          {pontosEmbarque.length > 0 && (
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              <Select value={rotaFiltro} onValueChange={setRotaFiltro}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filtrar por rota" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as rotas</SelectItem>
+                  {pontosEmbarque.map(ponto => (
+                    <SelectItem key={ponto} value={ponto!}>
+                      {ponto}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {rotaFiltro !== 'todas' && (
+            <Badge variant="secondary" className="gap-1">
+              Filtro: {rotaFiltro}
+              <button 
+                onClick={() => setRotaFiltro('todas')} 
+                className="ml-1 hover:text-destructive"
+              >
+                ×
+              </button>
+            </Badge>
+          )}
+        </div>
 
         {/* Cards de Métricas em Tempo Real */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCard 
             title="Viagens Ativas" 
             value={metricsRealTime.viagensAtivas} 
@@ -138,7 +195,14 @@ export default function Dashboard() {
             highlight={true}
           />
           <MetricCard 
-            title="Motoristas em Operação" 
+            title="PAX em Trânsito" 
+            value={totalPaxAtivas} 
+            subtitle="Passageiros nas viagens ativas" 
+            icon={<Users className="w-6 h-6" />} 
+            highlight={true}
+          />
+          <MetricCard 
+            title="Motoristas Ativos" 
             value={metricsRealTime.motoristasAtivos} 
             subtitle={`${motoristas.length} cadastrados`} 
             icon={<Users className="w-6 h-6" />} 
@@ -150,7 +214,7 @@ export default function Dashboard() {
             icon={<Truck className="w-6 h-6" />} 
           />
           <MetricCard 
-            title="Tempo Médio de Ciclo" 
+            title="Tempo Médio" 
             value={kpis ? formatarMinutos(kpis.tempoMedioGeral) : '-'} 
             subtitle="Pickup → Retorno" 
             icon={<Clock className="w-6 h-6" />} 
@@ -267,9 +331,10 @@ export default function Dashboard() {
         </div>
 
         {/* Grid com Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <VehiclesChart data={metricasPorHora} />
           <PassengersChart data={metricasPorHora} />
+          <RoutePerformanceChart viagens={viagensFiltradas} />
         </div>
       </div>
     </EventLayout>
