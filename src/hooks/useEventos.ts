@@ -42,8 +42,8 @@ export function useEventos() {
       )
       .subscribe();
 
-    // Polling fallback every 30 seconds - silencioso
-    const interval = setInterval(() => fetchEventos(false), 30000);
+    // Polling fallback every 5 minutes - silencioso
+    const interval = setInterval(() => fetchEventos(false), 300000);
 
     return () => {
       supabase.removeChannel(channel);
