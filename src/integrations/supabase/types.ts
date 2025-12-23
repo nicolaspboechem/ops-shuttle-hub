@@ -56,6 +56,7 @@ export type Database = {
           id: string
           imagem_banner: string | null
           imagem_logo: string | null
+          local: string | null
           nome_planilha: string
           status: string | null
           tipo_operacao: string | null
@@ -71,6 +72,7 @@ export type Database = {
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
+          local?: string | null
           nome_planilha: string
           status?: string | null
           tipo_operacao?: string | null
@@ -86,6 +88,7 @@ export type Database = {
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
+          local?: string | null
           nome_planilha?: string
           status?: string | null
           tipo_operacao?: string | null

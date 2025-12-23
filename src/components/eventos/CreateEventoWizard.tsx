@@ -26,6 +26,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
 
   // Form data
   const [nome, setNome] = useState('');
+  const [local, setLocal] = useState('');
   const [tipoOperacao, setTipoOperacao] = useState<'transfer' | 'shuttle' | 'ambos'>('transfer');
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
@@ -34,6 +35,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const resetForm = () => {
     setStep(1);
     setNome('');
+    setLocal('');
     setTipoOperacao('transfer');
     setDataInicio(undefined);
     setDataFim(undefined);
@@ -50,6 +52,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     try {
       const { error } = await supabase.from('eventos').insert({
         nome_planilha: nome,
+        local: local.trim() || null,
         tipo_operacao: tipoOperacao === 'ambos' ? 'transfer' : tipoOperacao,
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
@@ -57,7 +60,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         status: 'ativo',
         total_viagens: 0,
         visivel_publico: true,
-      });
+      } as any);
 
       if (error) throw error;
 
@@ -124,6 +127,16 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 placeholder="Ex: Rock in Rio 2025"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="local">Local do Evento</Label>
+              <Input
+                id="local"
+                placeholder="Ex: Parque Olímpico, Rio de Janeiro - RJ"
+                value={local}
+                onChange={(e) => setLocal(e.target.value)}
               />
             </div>
 
@@ -253,6 +266,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 <span className="text-muted-foreground">Nome:</span>
                 <span className="font-medium">{nome}</span>
               </div>
+              {local && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Local:</span>
+                  <span className="font-medium">{local}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Tipo:</span>
                 <span className="font-medium capitalize">{tipoOperacao}</span>
