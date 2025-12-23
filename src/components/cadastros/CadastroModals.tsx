@@ -30,6 +30,14 @@ const veiculoSchema = z.object({
   fornecedor: z.string().max(100).optional(),
   km_inicial: z.number().min(0).optional().nullable(),
   km_final: z.number().min(0).optional().nullable(),
+}).refine((data) => {
+  if (data.km_inicial != null && data.km_final != null) {
+    return data.km_final > data.km_inicial;
+  }
+  return true;
+}, {
+  message: 'KM Final deve ser maior que KM Inicial',
+  path: ['km_final'],
 });
 
 type VeiculoFormData = z.infer<typeof veiculoSchema>;
