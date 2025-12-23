@@ -10,6 +10,7 @@ interface MetricCardProps {
   trend?: string;
   trendUp?: boolean;
   className?: string;
+  highlight?: boolean;
 }
 
 export function MetricCard({ 
@@ -19,10 +20,11 @@ export function MetricCard({
   icon, 
   trend,
   trendUp,
-  className 
+  className,
+  highlight 
 }: MetricCardProps) {
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn("overflow-hidden", highlight && "ring-2 ring-primary/50 bg-primary/5", className)}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-2">

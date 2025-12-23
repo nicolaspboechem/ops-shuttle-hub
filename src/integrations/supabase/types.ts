@@ -363,6 +363,12 @@ export type Database = {
           evento_id: string | null
           fornecedor: string | null
           id: string
+          km_final: number | null
+          km_final_data: string | null
+          km_final_registrado_por: string | null
+          km_inicial: number | null
+          km_inicial_data: string | null
+          km_inicial_registrado_por: string | null
           marca: string | null
           modelo: string | null
           motorista_id: string | null
@@ -378,6 +384,12 @@ export type Database = {
           evento_id?: string | null
           fornecedor?: string | null
           id?: string
+          km_final?: number | null
+          km_final_data?: string | null
+          km_final_registrado_por?: string | null
+          km_inicial?: number | null
+          km_inicial_data?: string | null
+          km_inicial_registrado_por?: string | null
           marca?: string | null
           modelo?: string | null
           motorista_id?: string | null
@@ -393,6 +405,12 @@ export type Database = {
           evento_id?: string | null
           fornecedor?: string | null
           id?: string
+          km_final?: number | null
+          km_final_data?: string | null
+          km_final_registrado_por?: string | null
+          km_inicial?: number | null
+          km_inicial_data?: string | null
+          km_inicial_registrado_por?: string | null
           marca?: string | null
           modelo?: string | null
           motorista_id?: string | null

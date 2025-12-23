@@ -18,6 +18,13 @@ export interface Veiculo {
   data_criacao: string;
   data_atualizacao: string;
   motorista?: Motorista;
+  // KM tracking
+  km_inicial?: number | null;
+  km_final?: number | null;
+  km_inicial_registrado_por?: string | null;
+  km_final_registrado_por?: string | null;
+  km_inicial_data?: string | null;
+  km_final_data?: string | null;
 }
 
 export interface Motorista {

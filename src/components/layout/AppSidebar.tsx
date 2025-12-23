@@ -7,7 +7,8 @@ import {
   Truck,
   Settings,
   LogOut,
-  ArrowLeft
+  ArrowLeft,
+  FileBarChart
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,7 @@ export function AppSidebar() {
     { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
     { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
     { name: 'Pontos Embarque', href: `/evento/${eventoId}/pontos`, icon: Bus },
+    { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart },
     { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
     { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: LayoutDashboard },
   ];

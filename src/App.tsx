@@ -19,6 +19,7 @@ import Veiculos from "./pages/Veiculos";
 import Configuracoes from "./pages/Configuracoes";
 import Usuarios from "./pages/Usuarios";
 import Operacao from "./pages/Operacao";
+import Auditoria from "./pages/Auditoria";
 import AppHome from "./pages/app/AppHome";
 
 import AppMotorista from "./pages/app/AppMotorista";
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/evento/:eventoId/veiculos" element={<ProtectedRoute><Veiculos /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<ProtectedRoute><EventoUsuarios /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/pontos" element={<ProtectedRoute><PontosEmbarque /></ProtectedRoute>} />
+            <Route path="/evento/:eventoId/auditoria" element={<ProtectedRoute><Auditoria /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/painel-config" element={<ProtectedRoute><EventoPainelConfig /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
