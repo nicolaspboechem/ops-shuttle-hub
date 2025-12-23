@@ -68,6 +68,25 @@ export default function AppHome() {
     setLoading(false);
   };
 
+  const handleSelectEvento = (evento: Evento) => {
+    // Auto-redirect based on role
+    if (isAdmin) {
+      // Admin can choose, so show selection
+      setSelectedEvento(evento);
+      return;
+    }
+
+    const role = getEventRole(evento.id);
+    if (role === 'operador') {
+      navigate(`/app/${evento.id}/operador`);
+    } else if (role === 'motorista') {
+      navigate(`/app/${evento.id}/motorista`);
+    } else {
+      // No role - shouldn't happen but fallback
+      setSelectedEvento(evento);
+    }
+  };
+
   const handleMotorista = () => {
     if (selectedEvento) {
       navigate(`/app/${selectedEvento.id}/motorista`);
@@ -91,19 +110,6 @@ export default function AppHome() {
       return `${format(start, 'dd MMM', { locale: ptBR })} - ${format(end, 'dd MMM', { locale: ptBR })}`;
     }
     return null;
-  };
-
-  // Check what roles are available for selected event
-  const canAccessMotorista = (eventoId: string): boolean => {
-    if (isAdmin) return true;
-    const role = getEventRole(eventoId);
-    return role === 'motorista' || role === 'operador';
-  };
-
-  const canAccessOperador = (eventoId: string): boolean => {
-    if (isAdmin) return true;
-    const role = getEventRole(eventoId);
-    return role === 'operador';
   };
 
   if (loading) {
@@ -186,7 +192,7 @@ export default function AppHome() {
                 <Card 
                   key={evento.id}
                   className="cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-200 overflow-hidden"
-                  onClick={() => setSelectedEvento(evento)}
+                  onClick={() => handleSelectEvento(evento)}
                 >
                   {evento.imagem_banner && (
                     <div className="aspect-[3/1] overflow-hidden">
@@ -250,69 +256,63 @@ export default function AppHome() {
               )}
             </div>
 
-            {/* Modos de Operação */}
+            {/* Modos de Operação - Apenas para Admin */}
             <div className="space-y-3">
               <h3 className="text-lg font-semibold">Selecione o modo</h3>
 
-              {canAccessMotorista(selectedEvento.id) && (
-                <Card 
-                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                  onClick={handleMotorista}
-                >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Bus className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold">Motorista</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Registrar minhas viagens
-                      </p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              )}
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                onClick={handleMotorista}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Bus className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Motorista</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Registrar minhas viagens
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
 
-              {canAccessOperador(selectedEvento.id) && (
-                <Card 
-                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                  onClick={handleOperador}
-                >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Radio className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold">Operador</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Criar e controlar viagens
-                      </p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              )}
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                onClick={handleOperador}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Radio className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Operador</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Criar e controlar viagens
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
 
-              {isAdmin && (
-                <Card 
-                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all border-primary/30 bg-primary/5"
-                  onClick={() => navigate(`/evento/${selectedEvento.id}/dashboard`)}
-                >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <LayoutDashboard className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold">Painel CCO</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Dashboard e controle completo
-                      </p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </CardContent>
-                </Card>
-              )}
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all border-primary/30 bg-primary/5"
+                onClick={() => navigate(`/evento/${selectedEvento.id}/dashboard`)}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <LayoutDashboard className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Painel CCO</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Dashboard e controle completo
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}
