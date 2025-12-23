@@ -39,6 +39,7 @@ import {
   Car,
   Gauge
 } from 'lucide-react';
+import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
 
@@ -117,13 +118,15 @@ export default function AppOperador() {
               <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
-                <Radio className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img 
+                src={logoAS} 
+                alt="AS Brasil" 
+                className="h-10 w-10 rounded-lg object-contain"
+              />
               <div>
                 <h1 className="text-lg font-semibold">Operador</h1>
                 <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                  {evento?.nome_planilha || 'Carregando...'}
+                  {evento?.nome_planilha || 'Carregando...'} - AS Brasil
                 </p>
               </div>
             </div>

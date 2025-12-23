@@ -9,6 +9,7 @@ import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotorist
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus, Plus } from 'lucide-react';
+import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -94,12 +95,14 @@ export default function AppMotorista() {
               <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
-                <Bus className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img 
+                src={logoAS} 
+                alt="AS Brasil" 
+                className="h-10 w-10 rounded-lg object-contain"
+              />
               <div>
                 <h1 className="text-lg font-semibold">Motorista</h1>
-                <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
+                <p className="text-xs text-muted-foreground">{evento?.nome_planilha} - AS Brasil</p>
               </div>
             </div>
 
