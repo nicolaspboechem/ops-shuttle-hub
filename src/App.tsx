@@ -18,6 +18,7 @@ import ViagensAtivas from "./pages/ViagensAtivas";
 import ViagensFinalizadas from "./pages/ViagensFinalizadas";
 import Motoristas from "./pages/Motoristas";
 import Veiculos from "./pages/Veiculos";
+import RotasShuttle from "./pages/RotasShuttle";
 import Configuracoes from "./pages/Configuracoes";
 import Usuarios from "./pages/Usuarios";
 import Operacao from "./pages/Operacao";
@@ -69,6 +70,7 @@ const App = () => (
             <Route path="/evento/:eventoId/viagens-finalizadas" element={<AdminRoute><ViagensFinalizadas /></AdminRoute>} />
             <Route path="/evento/:eventoId/motoristas" element={<AdminRoute><Motoristas /></AdminRoute>} />
             <Route path="/evento/:eventoId/veiculos" element={<AdminRoute><Veiculos /></AdminRoute>} />
+            <Route path="/evento/:eventoId/rotas-shuttle" element={<AdminRoute><RotasShuttle /></AdminRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
             
             <Route path="/evento/:eventoId/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
