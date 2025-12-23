@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
+type EventRole = 'motorista' | 'operador' | 'coordenador';
 
 interface UserProfile {
   id: string;
@@ -12,17 +13,25 @@ interface UserProfile {
   avatar_url: string | null;
 }
 
+interface EventRoleMapping {
+  eventoId: string;
+  role: EventRole;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
   isAdmin: boolean;
   permissions: AppPermission[];
+  eventRoles: EventRoleMapping[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasPermission: (permission: AppPermission) => boolean;
+  getEventRole: (eventoId: string) => EventRole | null;
+  hasEventAccess: (eventoId: string, allowedRoles: EventRole[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [permissions, setPermissions] = useState<AppPermission[]>([]);
+  const [eventRoles, setEventRoles] = useState<EventRoleMapping[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -51,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setIsAdmin(false);
           setPermissions([]);
+          setEventRoles([]);
           setLoading(false);
         }
       }
@@ -106,6 +117,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setPermissions(permData.map(p => p.permission as AppPermission));
         }
       }
+
+      // Fetch event roles (from evento_usuarios)
+      const { data: eventRolesData } = await supabase
+        .from('evento_usuarios')
+        .select('evento_id, role')
+        .eq('user_id', userId);
+      
+      if (eventRolesData) {
+        setEventRoles(eventRolesData.map(er => ({
+          eventoId: er.evento_id,
+          role: er.role as EventRole
+        })));
+      }
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
@@ -144,11 +168,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setIsAdmin(false);
     setPermissions([]);
+    setEventRoles([]);
   };
 
   const hasPermission = (permission: AppPermission): boolean => {
     if (isAdmin) return true;
     return permissions.includes(permission);
+  };
+
+  const getEventRole = (eventoId: string): EventRole | null => {
+    if (isAdmin) return 'coordenador'; // Admin has full access
+    const mapping = eventRoles.find(er => er.eventoId === eventoId);
+    return mapping?.role || null;
+  };
+
+  const hasEventAccess = (eventoId: string, allowedRoles: EventRole[]): boolean => {
+    if (isAdmin) return true;
+    const role = getEventRole(eventoId);
+    if (!role) return false;
+    return allowedRoles.includes(role);
   };
 
   return (
@@ -158,11 +196,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       isAdmin,
       permissions,
+      eventRoles,
       loading,
       signIn,
       signUp,
       signOut,
       hasPermission,
+      getEventRole,
+      hasEventAccess,
     }}>
       {children}
     </AuthContext.Provider>
@@ -176,3 +217,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export type { EventRole };

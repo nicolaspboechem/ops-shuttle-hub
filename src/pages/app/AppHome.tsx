@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useAuth, EventRole } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function AppHome() {
-  const { user, signOut, profile, isAdmin } = useAuth();
+  const { user, signOut, profile, isAdmin, getEventRole } = useAuth();
   const navigate = useNavigate();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [selectedEvento, setSelectedEvento] = useState<Evento | null>(null);
@@ -68,7 +68,6 @@ export default function AppHome() {
     setLoading(false);
   };
 
-
   const handleMotorista = () => {
     if (selectedEvento) {
       navigate(`/app/${selectedEvento.id}/motorista`);
@@ -81,6 +80,10 @@ export default function AppHome() {
     }
   };
 
+  const handleCCO = () => {
+    navigate('/eventos');
+  };
+
   const getDateRange = (evento: Evento) => {
     if (evento.data_inicio && evento.data_fim) {
       const start = new Date(evento.data_inicio + 'T12:00:00');
@@ -88,6 +91,19 @@ export default function AppHome() {
       return `${format(start, 'dd MMM', { locale: ptBR })} - ${format(end, 'dd MMM', { locale: ptBR })}`;
     }
     return null;
+  };
+
+  // Check what roles are available for selected event
+  const canAccessMotorista = (eventoId: string): boolean => {
+    if (isAdmin) return true;
+    const role = getEventRole(eventoId);
+    return role === 'motorista' || role === 'operador' || role === 'coordenador';
+  };
+
+  const canAccessOperador = (eventoId: string): boolean => {
+    if (isAdmin) return true;
+    const role = getEventRole(eventoId);
+    return role === 'operador' || role === 'coordenador';
   };
 
   if (loading) {
@@ -130,6 +146,12 @@ export default function AppHome() {
             <Bus className="h-20 w-20 mx-auto mb-4 opacity-30" />
             <p className="text-xl font-medium">Sem eventos vinculados</p>
             <p className="text-sm mt-1">Contate um administrador para ser adicionado a um evento.</p>
+            {isAdmin && (
+              <Button className="mt-4" onClick={handleCCO}>
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Acessar Painel CCO
+              </Button>
+            )}
           </div>
         ) : !selectedEvento ? (
           /* Grid de Eventos */
@@ -138,6 +160,26 @@ export default function AppHome() {
               <h2 className="text-2xl font-bold">Seus Eventos</h2>
               <p className="text-muted-foreground">Selecione um evento para operar</p>
             </div>
+            
+            {isAdmin && (
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all border-primary/30 bg-primary/5"
+                onClick={handleCCO}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <LayoutDashboard className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Painel CCO</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Acesso administrativo completo
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            )}
             
             <div className="grid gap-4 sm:grid-cols-2">
               {eventos.map((evento) => (
@@ -211,43 +253,66 @@ export default function AppHome() {
             {/* Modos de Operação */}
             <div className="space-y-3">
               <h3 className="text-lg font-semibold">Selecione o modo</h3>
-              
 
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={handleMotorista}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Bus className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Motorista</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Registrar minhas viagens
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
+              {canAccessMotorista(selectedEvento.id) && (
+                <Card 
+                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                  onClick={handleMotorista}
+                >
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Bus className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold">Motorista</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Registrar minhas viagens
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              )}
 
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={handleOperador}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Radio className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Operador</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Criar e controlar viagens
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
+              {canAccessOperador(selectedEvento.id) && (
+                <Card 
+                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                  onClick={handleOperador}
+                >
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Radio className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold">Operador</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Criar e controlar viagens
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              )}
+
+              {isAdmin && (
+                <Card 
+                  className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all border-primary/30 bg-primary/5"
+                  onClick={() => navigate(`/evento/${selectedEvento.id}/dashboard`)}
+                >
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <LayoutDashboard className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold">Painel CCO</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Dashboard e controle completo
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         )}
