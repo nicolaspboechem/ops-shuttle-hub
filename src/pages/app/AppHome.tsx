@@ -97,13 +97,13 @@ export default function AppHome() {
   const canAccessMotorista = (eventoId: string): boolean => {
     if (isAdmin) return true;
     const role = getEventRole(eventoId);
-    return role === 'motorista' || role === 'operador' || role === 'coordenador';
+    return role === 'motorista' || role === 'operador';
   };
 
   const canAccessOperador = (eventoId: string): boolean => {
     if (isAdmin) return true;
     const role = getEventRole(eventoId);
-    return role === 'operador' || role === 'coordenador';
+    return role === 'operador';
   };
 
   if (loading) {
