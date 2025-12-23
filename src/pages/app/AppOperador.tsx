@@ -3,12 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
-import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { Viagem, Evento } from '@/lib/types/viagem';
+import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   Select, 
   SelectContent, 
@@ -26,7 +24,7 @@ import {
   Bus,
   Clock,
   CheckCircle,
-  XCircle
+  Radio
 } from 'lucide-react';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
@@ -59,7 +57,6 @@ export default function AppOperador() {
     return true;
   });
 
-  // Ordenar por status (em andamento primeiro) e depois por horário
   const sortedViagens = [...filteredViagens].sort((a, b) => {
     const statusOrder = { 
       em_andamento: 0, 
@@ -74,7 +71,6 @@ export default function AppOperador() {
     return (a.h_pickup || '').localeCompare(b.h_pickup || '');
   });
 
-  // Contadores
   const counts = {
     agendado: viagens.filter(v => v.status === 'agendado').length,
     em_andamento: viagens.filter(v => v.status === 'em_andamento').length,
@@ -87,78 +83,87 @@ export default function AppOperador() {
     return null;
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header fixo */}
-      <header className="sticky top-0 z-50 bg-background border-b px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="font-semibold">Operador</h1>
-              <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                {evento?.nome_planilha || 'Carregando...'}
-              </p>
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
+                <Radio className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold">Operador</h1>
+                <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                  {evento?.nome_planilha || 'Carregando...'}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={refetch}>
-              <RefreshCw className="h-5 w-5" />
-            </Button>
-            <Button size="icon" onClick={() => setShowForm(true)}>
-              <Plus className="h-5 w-5" />
-            </Button>
+
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={refetch}>
+                <RefreshCw className="h-5 w-5" />
+              </Button>
+              <Button size="icon" onClick={() => setShowForm(true)}>
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Badges de status */}
-      <div className="px-4 py-3 flex gap-2 overflow-x-auto">
-        <Badge 
-          variant={statusFilter === 'todos' ? 'default' : 'outline'}
-          className="cursor-pointer whitespace-nowrap"
-          onClick={() => setStatusFilter('todos')}
-        >
-          Todos ({viagens.length})
-        </Badge>
-        <Badge 
-          variant={statusFilter === 'agendado' ? 'default' : 'outline'}
-          className="cursor-pointer whitespace-nowrap"
-          onClick={() => setStatusFilter('agendado')}
-        >
-          <Clock className="h-3 w-3 mr-1" />
-          Agendado ({counts.agendado})
-        </Badge>
-        <Badge 
-          variant={statusFilter === 'em_andamento' ? 'default' : 'outline'}
-          className="cursor-pointer whitespace-nowrap bg-blue-500/10 text-blue-600 border-blue-500/30"
-          onClick={() => setStatusFilter('em_andamento')}
-        >
-          <Bus className="h-3 w-3 mr-1" />
-          Em Andamento ({counts.em_andamento})
-        </Badge>
-        <Badge 
-          variant={statusFilter === 'aguardando_retorno' ? 'default' : 'outline'}
-          className="cursor-pointer whitespace-nowrap bg-yellow-500/10 text-yellow-600 border-yellow-500/30"
-          onClick={() => setStatusFilter('aguardando_retorno')}
-        >
-          Aguardando ({counts.aguardando_retorno})
-        </Badge>
-        <Badge 
-          variant={statusFilter === 'encerrado' ? 'default' : 'outline'}
-          className="cursor-pointer whitespace-nowrap bg-green-500/10 text-green-600 border-green-500/30"
-          onClick={() => setStatusFilter('encerrado')}
-        >
-          <CheckCircle className="h-3 w-3 mr-1" />
-          Encerrado ({counts.encerrado})
-        </Badge>
-      </div>
+      {/* Main content */}
+      <main className="container mx-auto px-4 py-4 space-y-4">
+        {/* Status Cards */}
+        <div className="grid grid-cols-4 gap-2">
+          <div 
+            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
+            onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
+          >
+            <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+            <p className="text-xl font-bold">{counts.agendado}</p>
+            <p className="text-[10px] text-muted-foreground">Agendado</p>
+          </div>
+          <div 
+            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
+            onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
+          >
+            <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
+            <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
+            <p className="text-[10px] text-muted-foreground">Andamento</p>
+          </div>
+          <div 
+            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
+            onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
+          >
+            <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+            <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
+            <p className="text-[10px] text-muted-foreground">Aguardando</p>
+          </div>
+          <div 
+            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
+            onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
+          >
+            <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+            <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
+            <p className="text-[10px] text-muted-foreground">Encerrado</p>
+          </div>
+        </div>
 
-      {/* Filtro por ponto */}
-      {pontos.length > 0 && (
-        <div className="px-4 pb-3">
+        {/* Filtro por ponto */}
+        {pontos.length > 0 && (
           <Select value={pontoFilter} onValueChange={setPontoFilter}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Filtrar por ponto" />
@@ -170,21 +175,15 @@ export default function AppOperador() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      )}
+        )}
 
-      {/* Lista de viagens */}
-      <div className="px-4 space-y-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : sortedViagens.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Bus className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-medium mb-2">Nenhuma viagem</h3>
-              <p className="text-muted-foreground mb-4">
+        {/* Lista de viagens */}
+        <div className="space-y-3">
+          {sortedViagens.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <p className="text-lg font-medium">Nenhuma viagem</p>
+              <p className="text-sm mb-4">
                 {statusFilter !== 'todos' 
                   ? 'Nenhuma viagem com este status'
                   : 'Crie a primeira viagem do evento'}
@@ -193,18 +192,18 @@ export default function AppOperador() {
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Viagem
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          sortedViagens.map(viagem => (
-            <ViagemCardOperador 
-              key={viagem.id} 
-              viagem={viagem} 
-              onUpdate={refetch}
-            />
-          ))
-        )}
-      </div>
+            </div>
+          ) : (
+            sortedViagens.map(viagem => (
+              <ViagemCardOperador 
+                key={viagem.id} 
+                viagem={viagem} 
+                onUpdate={refetch}
+              />
+            ))
+          )}
+        </div>
+      </main>
 
       {/* Form de criação (Drawer) */}
       <CreateViagemForm

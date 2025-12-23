@@ -7,9 +7,8 @@ import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus } from 'lucide-react';
 
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -24,7 +23,6 @@ export default function AppMotorista() {
 
   const evento = eventos.find(e => e.id === eventoId);
 
-  // Auto-preencher busca com nome do usuário se disponível
   useEffect(() => {
     if (profile?.full_name && !busca) {
       setBusca(profile.full_name);
@@ -41,7 +39,6 @@ export default function AppMotorista() {
         v.placa?.toLowerCase().includes(termo)
       )
       .sort((a, b) => {
-        // Ordenar: em_andamento primeiro, depois aguardando_retorno, depois agendado
         const ordem: Record<string, number> = {
           'em_andamento': 0,
           'aguardando_retorno': 1,
@@ -80,31 +77,40 @@ export default function AppMotorista() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header Fixo */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="font-semibold">Motorista</h1>
-              <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
+                <Bus className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold">Motorista</h1>
+                <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
+              </div>
             </div>
-          </div>
-          <Button variant="outline" size="icon" onClick={refetch}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
 
+            <Button variant="ghost" size="icon" onClick={refetch}>
+              <RefreshCw className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="container mx-auto px-4 py-4 space-y-4">
         {/* Busca por nome/placa */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -115,47 +121,40 @@ export default function AppMotorista() {
             className="pl-9"
           />
         </div>
-      </header>
 
-      <main className="p-4 space-y-4">
         {/* Stats Card */}
         {busca && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex justify-around text-center">
-                <div>
-                  <p className="text-2xl font-bold text-blue-600">{stats.ativas}</p>
-                  <p className="text-xs text-muted-foreground">Ativas</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{stats.concluidas}</p>
-                  <p className="text-xs text-muted-foreground">Concluídas</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-3 rounded-lg bg-primary/10">
+              <p className="text-2xl font-bold text-primary">{stats.ativas}</p>
+              <p className="text-xs text-muted-foreground">Ativas</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-emerald-500/10">
+              <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
+              <p className="text-xs text-muted-foreground">Concluídas</p>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted/50">
+              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
+            </div>
+          </div>
         )}
 
         {/* Lista de Viagens */}
         {!busca.trim() ? (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground">
-              <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Digite seu nome ou placa para ver suas viagens</p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-16 text-muted-foreground">
+            <Search className="h-16 w-16 mx-auto mb-4 opacity-30" />
+            <p className="text-lg font-medium">Busque suas viagens</p>
+            <p className="text-sm">Digite seu nome ou placa para ver suas viagens</p>
+          </div>
         ) : minhasViagens.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground">
-              Nenhuma viagem encontrada para "{busca}"
-            </CardContent>
-          </Card>
+          <div className="text-center py-16 text-muted-foreground">
+            <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
+            <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
+            <p className="text-sm">Nenhuma viagem para "{busca}"</p>
+          </div>
         ) : (
-          <>
+          <div className="space-y-3">
             {/* Viagens ativas primeiro */}
             {minhasViagens
               .filter(v => v.status !== 'encerrado' && v.status !== 'cancelado')
@@ -171,13 +170,13 @@ export default function AppMotorista() {
               ))
             }
 
-            {/* Viagens concluídas colapsadas */}
+            {/* Viagens concluídas */}
             {minhasViagens.filter(v => v.status === 'encerrado').length > 0 && (
-              <div className="pt-4">
-                <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  Viagens concluídas ({minhasViagens.filter(v => v.status === 'encerrado').length})
-                </p>
+              <div className="pt-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>Viagens concluídas ({minhasViagens.filter(v => v.status === 'encerrado').length})</span>
+                </div>
                 {minhasViagens
                   .filter(v => v.status === 'encerrado')
                   .map(viagem => (
@@ -189,7 +188,7 @@ export default function AppMotorista() {
                 }
               </div>
             )}
-          </>
+          </div>
         )}
       </main>
     </div>
