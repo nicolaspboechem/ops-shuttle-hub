@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { toast } from 'sonner';
 
 // Motorista interface moved below Veiculo to avoid circular reference
 
@@ -117,6 +118,9 @@ export function useMotoristas(eventoId?: string) {
 
       if (viagensError) {
         console.error('Erro ao sincronizar viagens com novo nome do motorista:', viagensError);
+        toast.error('Erro ao sincronizar viagens com o novo nome do motorista');
+      } else {
+        toast.success('Viagens atualizadas com o novo nome do motorista');
       }
     }
 
@@ -225,6 +229,9 @@ export function useVeiculos(eventoId?: string) {
 
         if (viagensError) {
           console.error('Erro ao sincronizar viagens com novos dados do veículo:', viagensError);
+          toast.error('Erro ao sincronizar viagens com os novos dados do veículo');
+        } else {
+          toast.success('Viagens atualizadas com os novos dados do veículo');
         }
       }
     }

@@ -12,6 +12,15 @@ serve(async (req) => {
   }
 
   try {
+    // Verificar autenticação do chamador
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Autorização necessária" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -22,6 +31,37 @@ serve(async (req) => {
         },
       }
     );
+
+    // Verificar se o usuário chamador é admin
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: callerUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !callerUser) {
+      console.error("Auth error:", authError);
+      return new Response(
+        JSON.stringify({ error: "Token inválido" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verificar se o usuário é admin usando a função is_admin
+    const { data: isAdminResult, error: adminCheckError } = await supabaseAdmin
+      .rpc('is_admin', { _user_id: callerUser.id });
+
+    if (adminCheckError) {
+      console.error("Admin check error:", adminCheckError);
+      return new Response(
+        JSON.stringify({ error: "Erro ao verificar permissões" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!isAdminResult) {
+      return new Response(
+        JSON.stringify({ error: "Apenas administradores podem criar usuários" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { email, password, full_name } = await req.json();
 

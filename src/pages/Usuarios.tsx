@@ -45,6 +45,7 @@ export default function Usuarios() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newConfirmPassword, setNewConfirmPassword] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -130,6 +131,11 @@ export default function Usuarios() {
       return;
     }
 
+    if (newPassword !== newConfirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
     setCreating(true);
 
     try {
@@ -148,6 +154,7 @@ export default function Usuarios() {
       setShowCreateModal(false);
       setNewEmail('');
       setNewPassword('');
+      setNewConfirmPassword('');
       setNewFullName('');
       fetchUsers();
     } catch (error: any) {
@@ -620,6 +627,24 @@ export default function Usuarios() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-confirm-password">Confirmar Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="new-confirm-password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Repita a senha"
+                    value={newConfirmPassword}
+                    onChange={(e) => setNewConfirmPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                </div>
+                {newConfirmPassword && newPassword !== newConfirmPassword && (
+                  <p className="text-xs text-destructive">As senhas não coincidem</p>
+                )}
               </div>
 
               <DialogFooter>
