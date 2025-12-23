@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Edit2, Clock } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Edit2, Clock, Bus, Radio } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -16,6 +16,8 @@ import { calcularTempoViagem, formatarMinutos, formatarHora } from '@/lib/utils/
 import { EditViagemModal } from '@/components/viagens/EditViagemModal';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useUserNames } from '@/hooks/useUserNames';
 
 interface ShuttleTableProps {
   viagens: Viagem[];
@@ -24,6 +26,13 @@ interface ShuttleTableProps {
 
 export function ShuttleTable({ viagens, onUpdate }: ShuttleTableProps) {
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
+  
+  // Get unique creator IDs to fetch names
+  const creatorIds = useMemo(() => 
+    viagens.map(v => v.criado_por).filter(Boolean), 
+    [viagens]
+  );
+  const { getName } = useUserNames(creatorIds);
 
   const handleUpdate = async (updated: Viagem) => {
     const { error } = await supabase
@@ -83,7 +92,33 @@ export function ShuttleTable({ viagens, onUpdate }: ShuttleTableProps) {
                   className="hover:bg-muted/30 transition-colors"
                 >
                   <TableCell>
-                    <StatusBadge status={viagem.encerrado ? 'ok' : 'alerta'} />
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge status={viagem.encerrado ? 'ok' : 'alerta'} />
+                      {viagem.criado_por && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className={`h-5 w-5 rounded-full flex items-center justify-center ${
+                              viagem.motorista.toLowerCase().includes(getName(viagem.criado_por).toLowerCase().split(' ')[0])
+                                ? 'bg-blue-500/20 text-blue-600'
+                                : 'bg-primary/20 text-primary'
+                            }`}>
+                              {viagem.motorista.toLowerCase().includes(getName(viagem.criado_por).toLowerCase().split(' ')[0])
+                                ? <Bus className="h-3 w-3" />
+                                : <Radio className="h-3 w-3" />
+                              }
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">
+                              Criado por: {getName(viagem.criado_por)}
+                              {viagem.motorista.toLowerCase().includes(getName(viagem.criado_por).toLowerCase().split(' ')[0])
+                                ? ' (Motorista)'
+                                : ' (Operador)'}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="font-medium text-foreground">{viagem.motorista}</div>

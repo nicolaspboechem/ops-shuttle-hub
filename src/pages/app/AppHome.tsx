@@ -5,17 +5,21 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Users } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 import { Badge } from '@/components/ui/badge';
 
+interface EventoWithCount extends Evento {
+  viagensAtivas?: number;
+}
+
 export default function AppHome() {
   const { user, signOut, profile, isAdmin, getEventRole } = useAuth();
   const navigate = useNavigate();
-  const [eventos, setEventos] = useState<Evento[]>([]);
-  const [selectedEvento, setSelectedEvento] = useState<Evento | null>(null);
+  const [eventos, setEventos] = useState<EventoWithCount[]>([]);
+  const [selectedEvento, setSelectedEvento] = useState<EventoWithCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'motorista' | 'operador' | null>(null);
 
@@ -37,9 +41,12 @@ export default function AppHome() {
         .eq('status', 'ativo')
         .order('data_criacao', { ascending: false });
       
-      setEventos(data || []);
-      if (data && data.length === 1) {
-        setSelectedEvento(data[0]);
+      // Fetch active trips count for each event
+      const eventosWithCounts = await fetchViagensCount(data || []);
+      
+      setEventos(eventosWithCounts);
+      if (eventosWithCounts && eventosWithCounts.length === 1) {
+        setSelectedEvento(eventosWithCounts[0]);
       }
       setLoading(false);
     } else {
@@ -67,11 +74,14 @@ export default function AppHome() {
         .in('id', eventIds)
         .order('data_criacao', { ascending: false });
       
-      setEventos(data || []);
+      // Fetch active trips count for each event
+      const eventosWithCounts = await fetchViagensCount(data || []);
+      
+      setEventos(eventosWithCounts);
       
       // Auto-redirect for non-admin with 1 event
-      if (data && data.length === 1) {
-        const evento = data[0];
+      if (eventosWithCounts && eventosWithCounts.length === 1) {
+        const evento = eventosWithCounts[0];
         const role = getEventRole(evento.id);
         
         if (role === 'motorista') {
@@ -85,6 +95,32 @@ export default function AppHome() {
       
       setLoading(false);
     }
+  };
+
+  const fetchViagensCount = async (eventosData: Evento[]): Promise<EventoWithCount[]> => {
+    if (eventosData.length === 0) return [];
+
+    const eventIds = eventosData.map(e => e.id);
+    
+    // Fetch count of active trips (not encerrado) for each event
+    const { data: viagens } = await supabase
+      .from('viagens')
+      .select('evento_id')
+      .in('evento_id', eventIds)
+      .or('encerrado.is.null,encerrado.eq.false');
+
+    // Count trips per event
+    const countMap: Record<string, number> = {};
+    viagens?.forEach(v => {
+      if (v.evento_id) {
+        countMap[v.evento_id] = (countMap[v.evento_id] || 0) + 1;
+      }
+    });
+
+    return eventosData.map(evento => ({
+      ...evento,
+      viagensAtivas: countMap[evento.id] || 0
+    }));
   };
 
   const handleSelectEvento = (evento: Evento) => {
@@ -252,6 +288,12 @@ export default function AppHome() {
                               <><Bus className="h-3 w-3 mr-1" />Motorista</>
                             )}
                           </Badge>
+                          {evento.viagensAtivas !== undefined && evento.viagensAtivas > 0 && (
+                            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                              <Activity className="h-3 w-3 mr-1" />
+                              {evento.viagensAtivas} ativa{evento.viagensAtivas !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>
                       </div>
@@ -304,19 +346,29 @@ export default function AppHome() {
                     </div>
                   )}
                   <CardContent className="p-4">
-                    <h3 className="font-semibold text-lg">{evento.nome_planilha}</h3>
-                    {evento.local && (
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span>{evento.local}</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg">{evento.nome_planilha}</h3>
+                        {evento.local && (
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            <span>{evento.local}</span>
+                          </div>
+                        )}
+                        {getDateRange(evento) && (
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{getDateRange(evento)}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {getDateRange(evento) && (
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>{getDateRange(evento)}</span>
-                      </div>
-                    )}
+                      {evento.viagensAtivas !== undefined && evento.viagensAtivas > 0 && (
+                        <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+                          <Activity className="h-3 w-3 mr-1" />
+                          {evento.viagensAtivas} ativa{evento.viagensAtivas !== 1 ? 's' : ''}
+                        </Badge>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
