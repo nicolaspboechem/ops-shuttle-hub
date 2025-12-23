@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck } from 'lucide-react';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -465,6 +465,38 @@ export default function Veiculos() {
                       </div>
                     )}
 
+                    {/* Quilometragem */}
+                    {(veiculo.km_inicial != null || veiculo.km_final != null) && (
+                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
+                          <Gauge className="w-3.5 h-3.5" />
+                          <span className="text-xs">Quilometragem</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <div>
+                            <span className="text-muted-foreground text-xs">Inicial: </span>
+                            <span className="font-medium">
+                              {veiculo.km_inicial?.toLocaleString('pt-BR') || '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground text-xs">Final: </span>
+                            <span className="font-medium">
+                              {veiculo.km_final?.toLocaleString('pt-BR') || '-'}
+                            </span>
+                          </div>
+                          {veiculo.km_inicial != null && veiculo.km_final != null && (
+                            <div>
+                              <span className="text-muted-foreground text-xs">Total: </span>
+                              <span className="font-semibold text-primary">
+                                {(veiculo.km_final - veiculo.km_inicial).toLocaleString('pt-BR')} km
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Stats Grid */}
                     {stats && (
                       <div className="grid grid-cols-3 gap-3">
@@ -535,6 +567,7 @@ export default function Veiculos() {
                   <TableHead>Placa</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Motorista</TableHead>
+                  <TableHead>KM</TableHead>
                   <TableHead>Viagens</TableHead>
                   <TableHead>PAX</TableHead>
                   <TableHead>Status</TableHead>
@@ -569,6 +602,19 @@ export default function Veiculos() {
                       <TableCell>
                         {motoristaVinculado ? (
                           <span className="font-medium">{motoristaVinculado.nome}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {veiculo.km_inicial != null && veiculo.km_final != null ? (
+                          <span className="font-medium text-primary">
+                            {(veiculo.km_final - veiculo.km_inicial).toLocaleString('pt-BR')} km
+                          </span>
+                        ) : veiculo.km_inicial != null || veiculo.km_final != null ? (
+                          <span className="text-muted-foreground text-xs">
+                            {veiculo.km_inicial?.toLocaleString('pt-BR') || '-'} / {veiculo.km_final?.toLocaleString('pt-BR') || '-'}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
