@@ -48,12 +48,15 @@ export interface Viagem {
   ponto_desembarque?: string | null;
   data_criacao: string;
   data_atualizacao: string;
-  // Novos campos de controle
+  // Campos de controle
   status?: StatusViagemOperacao;
   iniciado_por?: string | null;
   finalizado_por?: string | null;
   h_inicio_real?: string | null;
   h_fim_real?: string | null;
+  // Campos de auditoria
+  criado_por?: string | null;
+  atualizado_por?: string | null;
 }
 
 export interface ViagemLog {

@@ -100,7 +100,9 @@ export type Database = {
       motoristas: {
         Row: {
           ativo: boolean | null
+          atualizado_por: string | null
           cnh: string | null
+          criado_por: string | null
           data_atualizacao: string
           data_criacao: string
           evento_id: string | null
@@ -112,7 +114,9 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           cnh?: string | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
@@ -124,7 +128,9 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           cnh?: string | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
@@ -193,7 +199,10 @@ export type Database = {
       pontos_embarque: {
         Row: {
           ativo: boolean | null
+          atualizado_por: string | null
           created_at: string | null
+          criado_por: string | null
+          data_atualizacao: string | null
           endereco: string | null
           evento_id: string
           id: string
@@ -202,7 +211,10 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
           endereco?: string | null
           evento_id: string
           id?: string
@@ -211,7 +223,10 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
           endereco?: string | null
           evento_id?: string
           id?: string
@@ -261,7 +276,10 @@ export type Database = {
       rotas_shuttle: {
         Row: {
           ativo: boolean | null
+          atualizado_por: string | null
           created_at: string | null
+          criado_por: string | null
+          data_atualizacao: string | null
           destino: string
           evento_id: string
           frequencia_minutos: number | null
@@ -274,7 +292,10 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
           destino: string
           evento_id: string
           frequencia_minutos?: number | null
@@ -287,7 +308,10 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
           destino?: string
           evento_id?: string
           frequencia_minutos?: number | null
@@ -357,7 +381,9 @@ export type Database = {
         Row: {
           ano: number | null
           ativo: boolean | null
+          atualizado_por: string | null
           capacidade: number | null
+          criado_por: string | null
           data_atualizacao: string
           data_criacao: string
           evento_id: string | null
@@ -378,7 +404,9 @@ export type Database = {
         Insert: {
           ano?: number | null
           ativo?: boolean | null
+          atualizado_por?: string | null
           capacidade?: number | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
@@ -399,7 +427,9 @@ export type Database = {
         Update: {
           ano?: number | null
           ativo?: boolean | null
+          atualizado_por?: string | null
           capacidade?: number | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           evento_id?: string | null
@@ -471,7 +501,9 @@ export type Database = {
       }
       viagens: {
         Row: {
+          atualizado_por: string | null
           coordenador: string | null
+          criado_por: string | null
           data_atualizacao: string
           data_criacao: string
           encerrado: boolean | null
@@ -496,7 +528,9 @@ export type Database = {
           tipo_veiculo: string | null
         }
         Insert: {
+          atualizado_por?: string | null
           coordenador?: string | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           encerrado?: boolean | null
@@ -521,7 +555,9 @@ export type Database = {
           tipo_veiculo?: string | null
         }
         Update: {
+          atualizado_por?: string | null
           coordenador?: string | null
+          criado_por?: string | null
           data_atualizacao?: string
           data_criacao?: string
           encerrado?: boolean | null

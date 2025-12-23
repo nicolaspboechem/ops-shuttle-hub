@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 // Motorista interface moved below Veiculo to avoid circular reference
 
@@ -25,6 +26,9 @@ export interface Veiculo {
   km_final_registrado_por?: string | null;
   km_inicial_data?: string | null;
   km_final_data?: string | null;
+  // Auditoria
+  criado_por?: string | null;
+  atualizado_por?: string | null;
 }
 
 export interface Motorista {
@@ -39,9 +43,12 @@ export interface Motorista {
   data_criacao: string;
   data_atualizacao: string;
   veiculo?: Veiculo;
+  criado_por?: string | null;
+  atualizado_por?: string | null;
 }
 
 export function useMotoristas(eventoId?: string) {
+  const { user } = useAuth();
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -73,12 +80,14 @@ export function useMotoristas(eventoId?: string) {
     fetchMotoristas();
   }, [fetchMotoristas]);
 
-  const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao' | 'evento_id'> & { evento_id?: string }) => {
+  const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
     const { data, error } = await supabase
       .from('motoristas')
       .insert({
         ...motorista,
-        evento_id: motorista.evento_id || eventoId || null
+        evento_id: motorista.evento_id || eventoId || null,
+        criado_por: user?.id || null,
+        atualizado_por: user?.id || null
       })
       .select()
       .single();
@@ -91,7 +100,10 @@ export function useMotoristas(eventoId?: string) {
   const updateMotorista = async (id: string, updates: Partial<Motorista>, oldNome?: string) => {
     const { error } = await supabase
       .from('motoristas')
-      .update(updates)
+      .update({
+        ...updates,
+        atualizado_por: user?.id || null
+      })
       .eq('id', id);
 
     if (error) throw error;
@@ -100,7 +112,7 @@ export function useMotoristas(eventoId?: string) {
     if (oldNome && updates.nome && oldNome !== updates.nome) {
       const { error: viagensError } = await supabase
         .from('viagens')
-        .update({ motorista: updates.nome })
+        .update({ motorista: updates.nome, atualizado_por: user?.id || null })
         .eq('motorista', oldNome);
 
       if (viagensError) {
@@ -132,6 +144,7 @@ export function useMotoristas(eventoId?: string) {
 }
 
 export function useVeiculos(eventoId?: string) {
+  const { user } = useAuth();
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -163,12 +176,14 @@ export function useVeiculos(eventoId?: string) {
     fetchVeiculos();
   }, [fetchVeiculos]);
 
-  const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista' | 'evento_id'> & { evento_id?: string }) => {
+  const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
     const { data, error } = await supabase
       .from('veiculos')
       .insert({
         ...veiculo,
-        evento_id: veiculo.evento_id || eventoId || null
+        evento_id: veiculo.evento_id || eventoId || null,
+        criado_por: user?.id || null,
+        atualizado_por: user?.id || null
       })
       .select('*')
       .single();
@@ -182,14 +197,17 @@ export function useVeiculos(eventoId?: string) {
     const { motorista, ...updateData } = updates;
     const { error } = await supabase
       .from('veiculos')
-      .update(updateData)
+      .update({
+        ...updateData,
+        atualizado_por: user?.id || null
+      })
       .eq('id', id);
 
     if (error) throw error;
 
     // Sincronização bidirecional: atualizar viagens com a placa/tipo antigo
     if (oldPlaca) {
-      const syncUpdates: { placa?: string; tipo_veiculo?: string } = {};
+      const syncUpdates: { placa?: string; tipo_veiculo?: string; atualizado_por?: string | null } = {};
       
       if (updates.placa && oldPlaca !== updates.placa) {
         syncUpdates.placa = updates.placa;
@@ -199,6 +217,7 @@ export function useVeiculos(eventoId?: string) {
       }
 
       if (Object.keys(syncUpdates).length > 0) {
+        syncUpdates.atualizado_por = user?.id || null;
         const { error: viagensError } = await supabase
           .from('viagens')
           .update(syncUpdates)
