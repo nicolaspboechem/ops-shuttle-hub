@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, UserCircle, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -68,11 +68,6 @@ export default function AppHome() {
     setLoading(false);
   };
 
-  const handleCoordenador = () => {
-    if (selectedEvento) {
-      navigate(`/app/${selectedEvento.id}/coordenador`);
-    }
-  };
 
   const handleMotorista = () => {
     if (selectedEvento) {
@@ -217,23 +212,6 @@ export default function AppHome() {
             <div className="space-y-3">
               <h3 className="text-lg font-semibold">Selecione o modo</h3>
               
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={handleCoordenador}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <UserCircle className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Coordenador</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Iniciar e controlar viagens do ponto
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
 
               <Card 
                 className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"

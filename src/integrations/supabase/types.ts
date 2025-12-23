@@ -469,6 +469,7 @@ export type Database = {
           motorista: string
           observacao: string | null
           placa: string | null
+          ponto_desembarque: string | null
           ponto_embarque: string | null
           qtd_pax: number | null
           qtd_pax_retorno: number | null
@@ -493,6 +494,7 @@ export type Database = {
           motorista: string
           observacao?: string | null
           placa?: string | null
+          ponto_desembarque?: string | null
           ponto_embarque?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null
@@ -517,6 +519,7 @@ export type Database = {
           motorista?: string
           observacao?: string | null
           placa?: string | null
+          ponto_desembarque?: string | null
           ponto_embarque?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null

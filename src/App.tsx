@@ -20,7 +20,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Usuarios from "./pages/Usuarios";
 import Operacao from "./pages/Operacao";
 import AppHome from "./pages/app/AppHome";
-import AppCoordenador from "./pages/app/AppCoordenador";
+
 import AppMotorista from "./pages/app/AppMotorista";
 import AppOperador from "./pages/app/AppOperador";
 import PontosEmbarque from "./pages/PontosEmbarque";
@@ -44,7 +44,7 @@ const App = () => (
             <Route path="/painel/:eventoId" element={<PainelPublico />} />
             {/* App Campo - Interface Mobile */}
             <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
-            <Route path="/app/:eventoId/coordenador" element={<ProtectedRoute><AppCoordenador /></ProtectedRoute>} />
+            
             <Route path="/app/:eventoId/motorista" element={<ProtectedRoute><AppMotorista /></ProtectedRoute>} />
             <Route path="/app/:eventoId/operador" element={<ProtectedRoute><AppOperador /></ProtectedRoute>} />
             {/* Admin Routes */}

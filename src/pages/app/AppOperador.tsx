@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
+import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   Select, 
   SelectContent, 
@@ -14,8 +14,16 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
+import { QuickMotoristaForm } from '@/components/app/QuickMotoristaForm';
+import { QuickVeiculoForm } from '@/components/app/QuickVeiculoForm';
 import { 
   ArrowLeft, 
   Plus, 
@@ -24,7 +32,10 @@ import {
   Bus,
   Clock,
   CheckCircle,
-  Radio
+  Radio,
+  Settings,
+  User,
+  Car
 } from 'lucide-react';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
@@ -35,8 +46,12 @@ export default function AppOperador() {
   const { user } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
+  const { refetch: refetchMotoristas } = useMotoristas(eventoId);
+  const { refetch: refetchVeiculos } = useVeiculos(eventoId);
   const [evento, setEvento] = useState<Evento | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showMotoristaForm, setShowMotoristaForm] = useState(false);
+  const [showVeiculoForm, setShowVeiculoForm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [pontoFilter, setPontoFilter] = useState<string>('todos');
 
@@ -113,6 +128,25 @@ export default function AppOperador() {
             </div>
 
             <div className="flex items-center gap-1">
+              {/* Menu de cadastros */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowMotoristaForm(true)}>
+                    <User className="h-4 w-4 mr-2" />
+                    Cadastrar Motorista
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowVeiculoForm(true)}>
+                    <Car className="h-4 w-4 mr-2" />
+                    Cadastrar Veículo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button variant="ghost" size="icon" onClick={refetch}>
                 <RefreshCw className="h-5 w-5" />
               </Button>
@@ -205,12 +239,28 @@ export default function AppOperador() {
         </div>
       </main>
 
-      {/* Form de criação (Drawer) */}
+      {/* Form de criação de viagem (Drawer) */}
       <CreateViagemForm
         open={showForm}
         onOpenChange={setShowForm}
         eventoId={eventoId!}
         onCreated={refetch}
+      />
+
+      {/* Form de cadastro rápido de motorista */}
+      <QuickMotoristaForm
+        open={showMotoristaForm}
+        onOpenChange={setShowMotoristaForm}
+        eventoId={eventoId!}
+        onCreated={() => refetchMotoristas()}
+      />
+
+      {/* Form de cadastro rápido de veículo */}
+      <QuickVeiculoForm
+        open={showVeiculoForm}
+        onOpenChange={setShowVeiculoForm}
+        eventoId={eventoId!}
+        onCreated={() => refetchVeiculos()}
       />
     </div>
   );

@@ -141,13 +141,21 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
             )}
           </div>
 
-          {/* Ponto de Embarque */}
-          {viagem.ponto_embarque && (
-            <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{viagem.ponto_embarque}</span>
-            </div>
-          )}
+          {/* Ponto de Embarque e Desembarque */}
+          <div className="flex flex-col gap-1 mb-2 text-sm">
+            {viagem.ponto_embarque && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="h-4 w-4 text-green-600" />
+                <span><strong>De:</strong> {viagem.ponto_embarque}</span>
+              </div>
+            )}
+            {viagem.ponto_desembarque && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="h-4 w-4 text-red-600" />
+                <span><strong>Para:</strong> {viagem.ponto_desembarque}</span>
+              </div>
+            )}
+          </div>
 
           {/* PAX e Horários */}
           <div className="flex items-center gap-4 mb-3 text-sm">

@@ -5,10 +5,10 @@ import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
+import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus, Plus } from 'lucide-react';
 
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -20,6 +20,7 @@ export default function AppMotorista() {
   
   const [busca, setBusca] = useState<string>('');
   const [operando, setOperando] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   const evento = eventos.find(e => e.id === eventoId);
 
@@ -102,9 +103,16 @@ export default function AppMotorista() {
               </div>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={refetch}>
-              <RefreshCw className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={refetch}>
+                <RefreshCw className="h-5 w-5" />
+              </Button>
+              {busca.trim() && (
+                <Button size="icon" onClick={() => setShowForm(true)}>
+                  <Plus className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -151,7 +159,11 @@ export default function AppMotorista() {
           <div className="text-center py-16 text-muted-foreground">
             <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
             <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
-            <p className="text-sm">Nenhuma viagem para "{busca}"</p>
+            <p className="text-sm mb-4">Nenhuma viagem para "{busca}"</p>
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Nova Viagem
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -191,6 +203,17 @@ export default function AppMotorista() {
           </div>
         )}
       </main>
+
+      {/* Form de criação para motorista */}
+      {busca.trim() && (
+        <CreateViagemMotoristaForm
+          open={showForm}
+          onOpenChange={setShowForm}
+          eventoId={eventoId!}
+          motoristaName={busca.trim()}
+          onCreated={refetch}
+        />
+      )}
     </div>
   );
 }
