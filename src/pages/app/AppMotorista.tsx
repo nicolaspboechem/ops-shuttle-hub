@@ -3,18 +3,24 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus, Plus } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada, registrarRetorno } = useViagemOperacao();
@@ -115,6 +121,25 @@ export default function AppMotorista() {
                   <Plus className="h-5 w-5" />
                 </Button>
               )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem 
+                    onClick={async () => {
+                      await signOut();
+                      navigate('/auth');
+                    }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

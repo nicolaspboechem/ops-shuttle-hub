@@ -37,7 +37,8 @@ import {
   Settings,
   User,
   Car,
-  Gauge
+  Gauge,
+  LogOut
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
@@ -46,7 +47,7 @@ type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno'
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
   
   const { refetch: refetchMotoristas } = useMotoristas(eventoId);
@@ -152,6 +153,17 @@ export default function AppOperador() {
                   <DropdownMenuItem onClick={() => setShowKmModal(true)}>
                     <Gauge className="h-4 w-4 mr-2" />
                     Registrar KM
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={async () => {
+                      await signOut();
+                      navigate('/auth');
+                    }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sair
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
