@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, LayoutDashboard, FileBarChart } from 'lucide-react';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, FileBarChart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
@@ -19,7 +19,7 @@ import { useUserNames } from '@/hooks/useUserNames';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VeiculoModal } from '@/components/cadastros/CadastroModals';
-import { VeiculosTempoReal } from '@/components/veiculos/VeiculosTempoReal';
+
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { Viagem } from '@/lib/types/viagem';
 import { toast } from 'sonner';
@@ -37,9 +37,8 @@ interface VeiculoStats {
 }
 
 const sections: InnerSidebarSection[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
   { id: 'cadastro', label: 'Veículos', icon: Truck },
+  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
 export default function Veiculos() {
@@ -636,9 +635,6 @@ export default function Veiculos() {
           storageKey="veiculos-sidebar-collapsed"
         />
         <div className="flex-1 p-6 overflow-auto">
-          {activeSection === 'dashboard' && (
-            <VeiculosTempoReal viagens={viagens} veiculosCadastrados={veiculos} />
-          )}
           {activeSection === 'auditoria' && (
             <VeiculosAuditoria viagens={viagens} veiculosCadastrados={veiculos} motoristas={motoristas} />
           )}

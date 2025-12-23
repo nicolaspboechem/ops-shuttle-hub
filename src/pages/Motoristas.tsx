@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, LayoutDashboard, FileBarChart } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
-import { MotoristasTempoReal } from '@/components/motoristas/MotoristasTempoReal';
+
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,9 +28,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const sections: InnerSidebarSection[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
   { id: 'cadastro', label: 'Motoristas', icon: Users },
+  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
 export default function Motoristas() {
@@ -571,9 +570,6 @@ export default function Motoristas() {
           storageKey="motoristas-sidebar-collapsed"
         />
         <div className="flex-1 p-6 overflow-auto">
-          {activeSection === 'dashboard' && (
-            <MotoristasTempoReal viagens={viagens} motoristasCadastrados={motoristasCadastrados} />
-          )}
           {activeSection === 'auditoria' && (
             <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
           )}
