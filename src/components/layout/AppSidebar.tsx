@@ -30,6 +30,7 @@ export function AppSidebar() {
     { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
     { name: 'Pontos Embarque', href: `/evento/${eventoId}/pontos`, icon: Bus },
     { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
+    { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: LayoutDashboard },
   ];
 
   const bottomNav = [

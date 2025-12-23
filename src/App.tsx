@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Eventos from "./pages/Eventos";
 import EventoDetalhes from "./pages/EventoDetalhes";
 import EventoUsuarios from "./pages/EventoUsuarios";
+import EventoPainelConfig from "./pages/EventoPainelConfig";
 import Dashboard from "./pages/Dashboard";
 import ViagensAtivas from "./pages/ViagensAtivas";
 import ViagensFinalizadas from "./pages/ViagensFinalizadas";
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/evento/:eventoId/veiculos" element={<ProtectedRoute><Veiculos /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<ProtectedRoute><EventoUsuarios /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/pontos" element={<ProtectedRoute><PontosEmbarque /></ProtectedRoute>} />
+            <Route path="/evento/:eventoId/painel-config" element={<ProtectedRoute><EventoPainelConfig /></ProtectedRoute>} />
             <Route path="/evento/:eventoId/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

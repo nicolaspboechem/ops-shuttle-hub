@@ -1,46 +1,51 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEventosPublicos } from '@/hooks/useEventosPublicos';
-import { ProximasViagens } from '@/components/public/ProximasViagens';
+import { useRotasPublicas } from '@/hooks/useRotasPublicas';
+import { EventosGrid } from '@/components/public/EventosGrid';
+import { EventoHero } from '@/components/public/EventoHero';
+import { RotaCard } from '@/components/public/RotaCard';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Bus, RefreshCw, LogIn, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Bus, RefreshCw, LogIn, Loader2, Search, Route } from 'lucide-react';
 
 export default function PainelPublico() {
   const { eventoId: paramEventoId } = useParams();
   const navigate = useNavigate();
-  const { eventos, loading } = useEventosPublicos();
+  const { eventos, loading, refetch } = useEventosPublicos();
   const [selectedEvento, setSelectedEvento] = useState<string | null>(paramEventoId || null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  
+  const { rotas, loading: loadingRotas } = useRotasPublicas(selectedEvento);
 
-  // Auto-select first event or use URL param
+  const evento = eventos.find(e => e.id === selectedEvento);
+
   useEffect(() => {
-    if (!loading && eventos.length > 0) {
-      if (paramEventoId) {
-        setSelectedEvento(paramEventoId);
-      } else if (!selectedEvento) {
-        setSelectedEvento(eventos[0].id);
-      }
+    if (paramEventoId) {
+      setSelectedEvento(paramEventoId);
     }
-  }, [loading, eventos, paramEventoId, selectedEvento]);
+  }, [paramEventoId]);
 
-  const handleEventoChange = (value: string) => {
-    setSelectedEvento(value);
-    navigate(`/painel/${value}`, { replace: true });
+  const handleSelectEvento = (id: string) => {
+    setSelectedEvento(id);
+    navigate(`/painel/${id}`, { replace: true });
   };
 
-  const handleRefresh = () => {
+  const handleBack = () => {
+    setSelectedEvento(null);
+    navigate('/painel', { replace: true });
+  };
+
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await refetch();
+    setRefreshing(false);
   };
 
-  const selectedEventoName = eventos.find(e => e.id === selectedEvento)?.nome_planilha;
+  const filteredEventos = eventos.filter(e =>
+    e.nome_planilha.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -57,9 +62,30 @@ export default function PainelPublico() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Bus className="h-6 w-6 text-primary" />
-              <h1 className="text-lg font-semibold">Próximas Viagens</h1>
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
+                <Bus className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-semibold">Shuttle</h1>
+                <p className="text-xs text-muted-foreground">Transporte de Eventos</p>
+              </div>
             </div>
+
+            {/* Search */}
+            {!selectedEvento && eventos.length > 1 && (
+              <div className="flex-1 max-w-md">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar evento..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -71,8 +97,8 @@ export default function PainelPublico() {
               </Button>
               <Link to="/auth">
                 <Button variant="outline" size="sm">
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Entrar
+                  <LogIn className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Entrar</span>
                 </Button>
               </Link>
             </div>
@@ -81,45 +107,71 @@ export default function PainelPublico() {
       </header>
 
       {/* Main content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 space-y-6">
         {eventos.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Bus className="h-16 w-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">Nenhum evento disponível no momento</p>
+          <div className="text-center py-16 text-muted-foreground">
+            <Bus className="h-20 w-20 mx-auto mb-4 opacity-30" />
+            <p className="text-xl font-medium">Nenhum evento disponível</p>
+            <p className="text-sm mt-1">Volte mais tarde para conferir os eventos</p>
+          </div>
+        ) : !selectedEvento ? (
+          /* Grid de Eventos */
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Eventos Disponíveis</h2>
+              <p className="text-muted-foreground">Selecione um evento para ver as rotas de transporte</p>
+            </div>
+            <EventosGrid
+              eventos={filteredEventos}
+              onSelect={handleSelectEvento}
+            />
           </div>
         ) : (
+          /* Detalhes do Evento */
           <div className="space-y-6">
-            {/* Event selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Selecione o evento
-              </label>
-              <Select value={selectedEvento || ''} onValueChange={handleEventoChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Escolha um evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {eventos.map((evento) => (
-                    <SelectItem key={evento.id} value={evento.id}>
-                      {evento.nome_planilha}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <EventoHero
+              nome={evento?.nome_planilha || ''}
+              descricao={evento?.descricao}
+              imagemBanner={evento?.imagem_banner}
+              imagemLogo={evento?.imagem_logo}
+              dataInicio={evento?.data_inicio}
+              dataFim={evento?.data_fim}
+              onBack={eventos.length > 1 ? handleBack : undefined}
+            />
 
-            {/* Event name display */}
-            {selectedEventoName && (
-              <div className="text-center">
-                <h2 className="text-xl font-bold">{selectedEventoName}</h2>
-                <p className="text-sm text-muted-foreground">
-                  Viagens de hoje • Atualização em tempo real
-                </p>
+            {/* Rotas */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Route className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Rotas Disponíveis</h2>
               </div>
-            )}
 
-            {/* Trips list */}
-            <ProximasViagens eventoId={selectedEvento} />
+              {loadingRotas ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : rotas.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground border rounded-lg">
+                  <Route className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p>Nenhuma rota disponível no momento</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {rotas.map((rota) => (
+                    <RotaCard
+                      key={rota.id}
+                      nome={rota.nome}
+                      origem={rota.origem}
+                      destino={rota.destino}
+                      frequenciaMinutos={rota.frequencia_minutos}
+                      horarioInicio={rota.horario_inicio}
+                      horarioFim={rota.horario_fim}
+                      observacoes={rota.observacoes}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

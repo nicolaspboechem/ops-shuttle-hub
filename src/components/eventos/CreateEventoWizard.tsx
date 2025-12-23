@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -28,6 +29,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const [tipoOperacao, setTipoOperacao] = useState<'transfer' | 'shuttle' | 'ambos'>('transfer');
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
+  const [descricao, setDescricao] = useState('');
 
   const resetForm = () => {
     setStep(1);
@@ -35,6 +37,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setTipoOperacao('transfer');
     setDataInicio(undefined);
     setDataFim(undefined);
+    setDescricao('');
   };
 
   const handleCreate = async () => {
@@ -50,8 +53,10 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         tipo_operacao: tipoOperacao === 'ambos' ? 'transfer' : tipoOperacao,
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
+        descricao: descricao.trim() || null,
         status: 'ativo',
         total_viagens: 0,
+        visivel_publico: true,
       });
 
       if (error) throw error;
@@ -73,6 +78,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     return true;
   };
 
+  const totalSteps = 4;
+
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
       <DialogTrigger asChild>
@@ -83,13 +90,14 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           <DialogTitle>
             {step === 1 && 'Novo Evento - Informações Básicas'}
             {step === 2 && 'Novo Evento - Datas'}
-            {step === 3 && 'Novo Evento - Confirmar'}
+            {step === 3 && 'Novo Evento - Descrição'}
+            {step === 4 && 'Novo Evento - Confirmar'}
           </DialogTitle>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
               className={cn(
@@ -214,8 +222,31 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           </div>
         )}
 
-        {/* Step 3: Confirm */}
+        {/* Step 3: Description */}
         {step === 3 && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="descricao">Descrição do Evento</Label>
+              <p className="text-xs text-muted-foreground">
+                Esta descrição será exibida no painel público para passageiros
+              </p>
+              <Textarea
+                id="descricao"
+                placeholder="Ex: Transporte oficial do evento. Shuttles gratuitos para credenciados entre hotéis e local do evento."
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              💡 Você pode adicionar imagens e rotas de shuttle após criar o evento, na aba "Painel Público"
+            </p>
+          </div>
+        )}
+
+        {/* Step 4: Confirm */}
+        {step === 4 && (
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-muted/50 space-y-3">
               <div className="flex justify-between">
@@ -232,6 +263,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                   {dataInicio && format(dataInicio, 'dd/MM/yyyy')} - {dataFim && format(dataFim, 'dd/MM/yyyy')}
                 </span>
               </div>
+              {descricao && (
+                <div className="pt-2 border-t">
+                  <span className="text-muted-foreground text-sm">Descrição:</span>
+                  <p className="text-sm mt-1">{descricao}</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -247,9 +284,9 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
             Voltar
           </Button>
 
-          {step < 3 ? (
+          {step < totalSteps ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
-              Próximo
+              {step === 3 ? 'Revisar' : 'Próximo'}
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (

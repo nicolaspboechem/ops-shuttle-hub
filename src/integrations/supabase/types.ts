@@ -52,7 +52,10 @@ export type Database = {
           data_fim: string | null
           data_inicio: string | null
           data_ultima_sync: string
+          descricao: string | null
           id: string
+          imagem_banner: string | null
+          imagem_logo: string | null
           nome_planilha: string
           status: string | null
           tipo_operacao: string | null
@@ -64,7 +67,10 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           data_ultima_sync?: string
+          descricao?: string | null
           id?: string
+          imagem_banner?: string | null
+          imagem_logo?: string | null
           nome_planilha: string
           status?: string | null
           tipo_operacao?: string | null
@@ -76,7 +82,10 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           data_ultima_sync?: string
+          descricao?: string | null
           id?: string
+          imagem_banner?: string | null
+          imagem_logo?: string | null
           nome_planilha?: string
           status?: string | null
           tipo_operacao?: string | null
@@ -245,6 +254,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      rotas_shuttle: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          destino: string
+          evento_id: string
+          frequencia_minutos: number | null
+          horario_fim: string | null
+          horario_inicio: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          origem: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          destino: string
+          evento_id: string
+          frequencia_minutos?: number | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          origem: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          destino?: string
+          evento_id?: string
+          frequencia_minutos?: number | null
+          horario_fim?: string | null
+          horario_inicio?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          origem?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rotas_shuttle_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_permissions: {
         Row: {
