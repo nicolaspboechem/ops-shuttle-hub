@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
-import logoASBranca from '@/assets/logo_as_branca.png';
+import logoASHorizontal from '@/assets/logo_as_horizontal.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -67,11 +67,11 @@ export default function Auth() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#4361ee]/10 to-transparent blur-[80px]" />
 
       {/* Logo */}
-      <div className="mb-10 relative z-10">
+      <div className="mb-4 relative z-10">
         <img 
-          src={logoASBranca} 
+          src={logoASHorizontal} 
           alt="AS Brasil" 
-          className="h-96 w-auto object-contain"
+          className="w-[250px] h-auto object-contain"
         />
       </div>
 
