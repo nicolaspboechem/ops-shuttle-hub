@@ -165,7 +165,18 @@ export default function Usuarios() {
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
-      toast.error(error.message || 'Erro ao criar usuário');
+      
+      // Map common error messages to Portuguese
+      let errorMessage = 'Erro ao criar usuário';
+      const msg = error.message?.toLowerCase() || '';
+      
+      if (msg.includes('email') && msg.includes('already') || msg.includes('email_exists')) {
+        errorMessage = 'Já existe um usuário cadastrado com este email';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
     }
