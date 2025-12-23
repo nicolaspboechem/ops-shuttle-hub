@@ -10,7 +10,6 @@ import { EventRoleRoute } from "@/components/auth/EventRoleRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Eventos from "./pages/Eventos";
-import EventoDetalhes from "./pages/EventoDetalhes";
 import EventoUsuarios from "./pages/EventoUsuarios";
 import EventoPainelConfig from "./pages/EventoPainelConfig";
 import Dashboard from "./pages/Dashboard";
@@ -63,7 +62,7 @@ const App = () => (
             {/* Admin Routes (CCO - only for admins) */}
             <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />
             <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
-            <Route path="/evento/:eventoId" element={<AdminRoute><EventoDetalhes /></AdminRoute>} />
+            <Route path="/evento/:eventoId" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="/evento/:eventoId/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="/evento/:eventoId/operacao" element={<AdminRoute><Operacao /></AdminRoute>} />
             <Route path="/evento/:eventoId/viagens-ativas" element={<AdminRoute><ViagensAtivas /></AdminRoute>} />
