@@ -14,7 +14,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function EventoDetalhes() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
+  const { viagens, loading: loadingViagens, refreshing, lastUpdate, refetch } = useViagens(eventoId);
   const { getEventoById, loading: loadingEventos } = useEventos();
   const [selectedDate, setSelectedDate] = useState<string>('all');
   
@@ -135,9 +135,9 @@ export default function EventoDetalhes() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={refetch}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Atualizar
+                <Button variant="outline" onClick={refetch} disabled={refreshing}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  {refreshing ? 'Atualizando...' : 'Atualizar'}
                 </Button>
               </div>
             </div>

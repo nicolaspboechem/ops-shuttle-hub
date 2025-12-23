@@ -10,13 +10,18 @@ import {
 export function useViagens(eventoId?: string) {
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const fetchViagens = useCallback(async (showLoading = false) => {
+  const fetchViagens = useCallback(async (showLoading = false, isManualRefresh = false) => {
     // Só mostra loading no carregamento inicial
     if (showLoading) {
       setLoading(true);
+    }
+    // Mostra refreshing quando é atualização manual
+    if (isManualRefresh) {
+      setRefreshing(true);
     }
 
     let query = supabase
@@ -33,12 +38,14 @@ export function useViagens(eventoId?: string) {
     if (error) {
       console.error('Erro ao buscar viagens:', error);
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
     setViagens((data as Viagem[]) || []);
     setLastUpdate(new Date());
     setLoading(false);
+    setRefreshing(false);
     setIsInitialLoad(false);
   }, [eventoId]);
 
@@ -87,12 +94,13 @@ export function useViagens(eventoId?: string) {
     );
   }, []);
 
-  // Wrapper para ser usado como onClick handler
-  const refetch = useCallback(() => fetchViagens(false), [fetchViagens]);
+  // Wrapper para ser usado como onClick handler - com animação
+  const refetch = useCallback(() => fetchViagens(false, true), [fetchViagens]);
 
   return {
     viagens,
     loading,
+    refreshing,
     lastUpdate,
     refetch,
     updateViagem

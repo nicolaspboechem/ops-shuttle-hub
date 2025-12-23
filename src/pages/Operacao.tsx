@@ -16,7 +16,7 @@ import { RefreshCw, Play, MapPin, RotateCcw, XCircle, Bus, Car, Clock, Users, Ac
 
 export default function Operacao() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading, refetch } = useViagens(eventoId);
+  const { viagens, loading, refreshing, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada, registrarRetorno, cancelarViagem } = useViagemOperacao();
   
@@ -85,9 +85,9 @@ export default function Operacao() {
             <h1 className="text-2xl font-bold">Centro de Controle</h1>
             <p className="text-muted-foreground">{evento?.nome_planilha}</p>
           </div>
-          <Button onClick={refetch} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Atualizar
+          <Button onClick={refetch} variant="outline" disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
           </Button>
         </div>
 

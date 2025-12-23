@@ -53,7 +53,7 @@ function groupEventos(eventos: Evento[]): Record<string, Evento[]> {
 }
 
 export default function Eventos() {
-  const { eventos, loading, lastUpdate, refetch } = useEventos();
+  const { eventos, loading, refreshing, lastUpdate, refetch } = useEventos();
   const [activeTab, setActiveTab] = useState<'ativos' | 'inativos'>('ativos');
 
   // Filter events by status
@@ -99,9 +99,9 @@ export default function Eventos() {
             <span className="text-sm text-muted-foreground">
               {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <Button variant="outline" size="sm" onClick={refetch}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Atualizar
+            <Button variant="outline" size="sm" onClick={refetch} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Atualizando...' : 'Atualizar'}
             </Button>
             <CreateEventoWizard
               onSuccess={refetch}

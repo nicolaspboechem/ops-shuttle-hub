@@ -19,7 +19,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading, lastUpdate, refetch } = useViagens(eventoId);
+  const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId);
   const { veiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { getEventoById } = useEventos();
@@ -117,10 +117,11 @@ export default function Dashboard() {
             </Badge>
             <button 
               onClick={() => refetch()} 
-              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              className="p-2 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
               title="Atualizar dados"
+              disabled={refreshing}
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
