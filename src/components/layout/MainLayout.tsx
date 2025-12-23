@@ -1,9 +1,11 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bus, Calendar, Users, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Users, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import logoASBranca from '@/assets/as_logo_reduzida_branca.png';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -12,7 +14,14 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const { signOut, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    const stored = localStorage.getItem('main-sidebar-collapsed');
+    return stored === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('main-sidebar-collapsed', String(collapsed));
+  }, [collapsed]);
 
   const handleLogout = async () => {
     await signOut();
@@ -27,22 +36,28 @@ export function MainLayout({ children }: MainLayoutProps) {
   const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
-      <aside className={cn(
-        "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0 transition-all duration-300 z-50",
-        collapsed ? "w-16" : "w-64"
-      )}>
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-primary flex-shrink-0">
-            <Bus className="w-6 h-6 text-sidebar-primary-foreground" />
+    <TooltipProvider delayDuration={0}>
+      <div className="min-h-screen flex w-full bg-background">
+        <aside className={cn(
+          "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0 transition-all duration-300 z-50",
+          collapsed ? "w-16" : "w-64"
+        )}>
+          <div className={cn(
+            "flex items-center gap-3 py-5 border-b border-sidebar-border",
+            collapsed ? "px-3 justify-center" : "px-4"
+          )}>
+            <img 
+              src={logoASBranca} 
+              alt="AS Brasil" 
+              className="w-10 h-10 object-contain shrink-0"
+            />
+            {!collapsed && (
+              <div>
+                <h1 className="text-lg font-semibold text-sidebar-accent-foreground">CCO</h1>
+                <p className="text-xs text-sidebar-foreground/60">Centro de Controle Operacional</p>
+              </div>
+            )}
           </div>
-          {!collapsed && (
-            <div>
-              <h1 className="text-lg font-semibold text-sidebar-accent-foreground">Shuttle</h1>
-              <p className="text-xs text-sidebar-foreground/60">Controle Operacional</p>
-            </div>
-          )}
-        </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           {filteredNav.map((item) => (
@@ -73,9 +88,10 @@ export function MainLayout({ children }: MainLayoutProps) {
         </button>
       </aside>
 
-      <main className={cn("flex-1 transition-all duration-300", collapsed ? "ml-16" : "ml-64")}>
-        {children}
-      </main>
-    </div>
+        <main className={cn("flex-1 transition-all duration-300", collapsed ? "ml-16" : "ml-64")}>
+          {children}
+        </main>
+      </div>
+    </TooltipProvider>
   );
 }
