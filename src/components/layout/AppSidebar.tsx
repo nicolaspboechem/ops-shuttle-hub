@@ -30,7 +30,7 @@ export function AppSidebar() {
     {
       title: 'Monitoramento',
       items: [
-        { name: 'Dashboard', href: `/evento/${eventoId}`, icon: LayoutDashboard, end: true },
+        { name: 'Dashboard', href: `/evento/${eventoId}/dashboard`, icon: LayoutDashboard },
         { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus },
         { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
       ]
@@ -111,7 +111,6 @@ export function AppSidebar() {
                 <NavLink
                   key={item.name}
                   to={item.href}
-                  end={item.end}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                     "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
