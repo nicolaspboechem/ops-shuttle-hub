@@ -8,6 +8,7 @@ import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
 import { RoutePerformanceChart } from '@/components/dashboard/RoutePerformanceChart';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
+import { DashboardMobile } from '@/components/dashboard/DashboardMobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -123,7 +124,7 @@ export default function Dashboard() {
   }
 
   return (
-    <EventLayout>
+    <EventLayout mobileComponent={<DashboardMobile />}>
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         {/* Header com status real-time */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
