@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -9,11 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { cn } from '@/lib/utils';
+
+type UserType = 'motorista' | 'operador' | 'admin';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
 
@@ -47,6 +50,7 @@ export default function Usuarios() {
   const [newPassword, setNewPassword] = useState('');
   const [newConfirmPassword, setNewConfirmPassword] = useState('');
   const [newFullName, setNewFullName] = useState('');
+  const [newUserType, setNewUserType] = useState<UserType>('operador');
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -143,7 +147,8 @@ export default function Usuarios() {
         body: {
           email: newEmail,
           password: newPassword,
-          full_name: newFullName
+          full_name: newFullName,
+          user_type: newUserType
         }
       });
 
@@ -156,6 +161,7 @@ export default function Usuarios() {
       setNewPassword('');
       setNewConfirmPassword('');
       setNewFullName('');
+      setNewUserType('operador');
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -645,6 +651,50 @@ export default function Usuarios() {
                 {newConfirmPassword && newPassword !== newConfirmPassword && (
                   <p className="text-xs text-destructive">As senhas não coincidem</p>
                 )}
+              </div>
+
+              {/* Tipo de Usuário */}
+              <div className="space-y-3">
+                <Label>Tipo de Usuário</Label>
+                <RadioGroup 
+                  value={newUserType} 
+                  onValueChange={(value) => setNewUserType(value as UserType)}
+                  className="grid grid-cols-3 gap-3"
+                >
+                  <div>
+                    <RadioGroupItem value="motorista" id="type-motorista" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-motorista"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Car className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Motorista</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Apenas visualiza</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="operador" id="type-operador" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-operador"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Headset className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Operador</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Acesso operacional</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="admin" id="type-admin" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-admin"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Crown className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Admin</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Acesso total</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               <DialogFooter>

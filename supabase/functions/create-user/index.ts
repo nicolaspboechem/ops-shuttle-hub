@@ -63,7 +63,7 @@ serve(async (req) => {
       );
     }
 
-    const { email, password, full_name } = await req.json();
+    const { email, password, full_name, user_type } = await req.json();
 
     if (!email || !password) {
       return new Response(
@@ -88,6 +88,46 @@ serve(async (req) => {
         JSON.stringify({ error: error.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const newUserId = data.user.id;
+
+    // Criar profile
+    await supabaseAdmin.from('profiles').insert({
+      user_id: newUserId,
+      email: email,
+      full_name: full_name || email,
+    });
+
+    // Definir role baseado no tipo de usuário
+    const role = user_type === 'admin' ? 'admin' : 'user';
+    await supabaseAdmin.from('user_roles').insert({
+      user_id: newUserId,
+      role: role,
+    });
+
+    // Definir permissões baseadas no tipo de usuário
+    const permissionsToGrant: string[] = [];
+    
+    if (user_type === 'admin') {
+      // Admin tem acesso total (sem necessidade de permissões específicas)
+    } else if (user_type === 'operador') {
+      // Operador pode ver viagens, editar viagens e gerenciar motoristas
+      permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
+    } else if (user_type === 'motorista') {
+      // Motorista só pode ver viagens
+      permissionsToGrant.push('view_trips');
+    }
+
+    // Inserir permissões
+    if (permissionsToGrant.length > 0) {
+      const permissionInserts = permissionsToGrant.map(p => ({
+        user_id: newUserId,
+        permission: p,
+        granted_by: callerUser.id,
+      }));
+      
+      await supabaseAdmin.from('user_permissions').insert(permissionInserts);
     }
 
     return new Response(
