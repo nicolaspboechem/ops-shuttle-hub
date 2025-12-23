@@ -18,12 +18,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { QuickMotoristaForm } from '@/components/app/QuickMotoristaForm';
 import { QuickVeiculoForm } from '@/components/app/QuickVeiculoForm';
+import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { 
   ArrowLeft, 
   Plus, 
@@ -35,7 +37,8 @@ import {
   Radio,
   Settings,
   User,
-  Car
+  Car,
+  Gauge
 } from 'lucide-react';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
@@ -52,6 +55,7 @@ export default function AppOperador() {
   const [showForm, setShowForm] = useState(false);
   const [showMotoristaForm, setShowMotoristaForm] = useState(false);
   const [showVeiculoForm, setShowVeiculoForm] = useState(false);
+  const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [pontoFilter, setPontoFilter] = useState<string>('todos');
 
@@ -143,6 +147,11 @@ export default function AppOperador() {
                   <DropdownMenuItem onClick={() => setShowVeiculoForm(true)}>
                     <Car className="h-4 w-4 mr-2" />
                     Cadastrar Veículo
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowKmModal(true)}>
+                    <Gauge className="h-4 w-4 mr-2" />
+                    Registrar KM
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -261,6 +270,14 @@ export default function AppOperador() {
         onOpenChange={setShowVeiculoForm}
         eventoId={eventoId!}
         onCreated={() => refetchVeiculos()}
+      />
+
+      {/* Modal de registro de KM */}
+      <VeiculoKmModal
+        open={showKmModal}
+        onOpenChange={setShowKmModal}
+        eventoId={eventoId!}
+        onUpdated={() => refetchVeiculos()}
       />
     </div>
   );
