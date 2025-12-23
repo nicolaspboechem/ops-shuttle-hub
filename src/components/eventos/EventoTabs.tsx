@@ -81,6 +81,11 @@ function StatusCard({ title, value, icon, variant }: { title: string; value: num
 export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpdate, selectedDate }: EventoTabsProps) {
   const [activeTab, setActiveTab] = useState<'geral' | 'transfer' | 'shuttle'>('geral');
 
+  // Detectar modalidades disponíveis
+  const temTransfer = viagensTransfer.length > 0;
+  const temShuttle = viagensShuttle.length > 0;
+  const temAmbas = temTransfer && temShuttle;
+
   // Combinar todas as viagens para cálculos gerais
   const todasViagens = [...viagensTransfer, ...viagensShuttle];
   const { kpis, metricasPorHora, viagensAtivas } = useCalculos(todasViagens);
@@ -91,6 +96,34 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpda
     return placas.size;
   }, [todasViagens]);
 
+  // Se só tem uma modalidade, renderizar diretamente sem tabs
+  if (!temAmbas) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-end">
+          <ExportButton 
+            viagensTransfer={viagensTransfer} 
+            viagensShuttle={viagensShuttle} 
+            eventoNome={eventoNome}
+          />
+        </div>
+        {temTransfer && (
+          <>
+            <TransferMetrics viagens={viagensTransfer} />
+            <TransferTable viagens={viagensTransfer} onUpdate={onUpdate} />
+          </>
+        )}
+        {temShuttle && (
+          <>
+            <ShuttleMetrics viagens={viagensShuttle} />
+            <ShuttleTable viagens={viagensShuttle} onUpdate={onUpdate} />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Com ambas as modalidades, mostrar tabs completas
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'geral' | 'transfer' | 'shuttle')}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
