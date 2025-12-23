@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
-import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Evento } from '@/lib/types/viagem';
@@ -48,7 +47,7 @@ export default function AppOperador() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
-  const { pontos } = usePontosEmbarque(eventoId);
+  
   const { refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { refetch: refetchVeiculos } = useVeiculos(eventoId);
   const [evento, setEvento] = useState<Evento | null>(null);
@@ -57,7 +56,6 @@ export default function AppOperador() {
   const [showVeiculoForm, setShowVeiculoForm] = useState(false);
   const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
-  const [pontoFilter, setPontoFilter] = useState<string>('todos');
 
   useEffect(() => {
     if (eventoId) {
@@ -72,7 +70,6 @@ export default function AppOperador() {
 
   const filteredViagens = viagens.filter(v => {
     if (statusFilter !== 'todos' && v.status !== statusFilter) return false;
-    if (pontoFilter !== 'todos' && v.ponto_embarque !== pontoFilter) return false;
     return true;
   });
 
@@ -205,20 +202,6 @@ export default function AppOperador() {
           </div>
         </div>
 
-        {/* Filtro por ponto */}
-        {pontos.length > 0 && (
-          <Select value={pontoFilter} onValueChange={setPontoFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Filtrar por ponto" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os pontos</SelectItem>
-              {pontos.filter(p => p.ativo).map(p => (
-                <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
 
         {/* Lista de viagens */}
         <div className="space-y-3">

@@ -6,7 +6,6 @@ import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
-import { PontosInsights } from '@/components/dashboard/PontosInsights';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
@@ -157,16 +156,11 @@ export default function Dashboard() {
         {/* Painel de Alertas */}
         {kpis && <AlertsPanel criticos={kpis.alertasCriticos} alertas={kpis.alertas} />}
 
-        {/* Grid com Insights e Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Insights de Pontos */}
-          <PontosInsights viagens={viagensFiltradas} viagensAtivas={viagensAtivas} />
+        {/* Grid com Gráficos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* Gráficos */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <VehiclesChart data={metricasPorHora} />
-            <PassengersChart data={metricasPorHora} />
-          </div>
+          <VehiclesChart data={metricasPorHora} />
+          <PassengersChart data={metricasPorHora} />
         </div>
       </div>
     </EventLayout>

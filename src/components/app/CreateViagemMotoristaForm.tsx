@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useServerTime } from '@/hooks/useServerTime';
 import { Button } from '@/components/ui/button';
@@ -41,7 +40,6 @@ export function CreateViagemMotoristaForm({
   onCreated
 }: CreateViagemMotoristaFormProps) {
   const { user } = useAuth();
-  const { pontos } = usePontosEmbarque(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { veiculos } = useVeiculos(eventoId);
   const { getAgoraSync } = useServerTime();
@@ -156,7 +154,6 @@ export function CreateViagemMotoristaForm({
     }
   };
 
-  const activePontos = pontos.filter(p => p.ativo);
   const VeiculoIcon = veiculoVinculado?.tipo_veiculo === 'Ônibus' ? Bus : Car;
 
   return (
@@ -193,31 +190,23 @@ export function CreateViagemMotoristaForm({
           {/* Ponto de Embarque */}
           <div className="space-y-2">
             <Label>Ponto de Embarque *</Label>
-            <Select value={pontoEmbarque} onValueChange={setPontoEmbarque}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o embarque" />
-              </SelectTrigger>
-              <SelectContent>
-                {activePontos.map(p => (
-                  <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={pontoEmbarque}
+              onChange={e => setPontoEmbarque(e.target.value)}
+              placeholder="Local de embarque"
+              required
+            />
           </div>
 
           {/* Ponto de Desembarque */}
           <div className="space-y-2">
             <Label>Ponto de Desembarque *</Label>
-            <Select value={pontoDesembarque} onValueChange={setPontoDesembarque}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o desembarque" />
-              </SelectTrigger>
-              <SelectContent>
-                {activePontos.map(p => (
-                  <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={pontoDesembarque}
+              onChange={e => setPontoDesembarque(e.target.value)}
+              placeholder="Local de desembarque"
+              required
+            />
           </div>
 
           {/* Quantidade de PAX e Tipo de Operação */}
