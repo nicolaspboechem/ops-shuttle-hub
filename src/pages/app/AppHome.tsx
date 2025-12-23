@@ -3,16 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, UserCircle, LogOut, Loader2, Radio } from 'lucide-react';
+import { Bus, UserCircle, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function AppHome() {
   const { user, signOut, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [eventos, setEventos] = useState<Evento[]>([]);
-  const [selectedEvento, setSelectedEvento] = useState<string>('');
+  const [selectedEvento, setSelectedEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,8 +27,6 @@ export default function AppHome() {
   const fetchEventos = async () => {
     if (!user) return;
 
-    // If admin, show all active events
-    // If regular user, show only linked events
     if (isAdmin) {
       const { data } = await supabase
         .from('eventos')
@@ -37,10 +36,9 @@ export default function AppHome() {
       
       setEventos(data || []);
       if (data && data.length === 1) {
-        setSelectedEvento(data[0].id);
+        setSelectedEvento(data[0]);
       }
     } else {
-      // Get events where user is linked via evento_usuarios
       const { data: linkedEvents, error } = await supabase
         .from('evento_usuarios')
         .select('evento_id')
@@ -63,7 +61,7 @@ export default function AppHome() {
       
       setEventos(data || []);
       if (data && data.length === 1) {
-        setSelectedEvento(data[0].id);
+        setSelectedEvento(data[0]);
       }
     }
     
@@ -72,20 +70,29 @@ export default function AppHome() {
 
   const handleCoordenador = () => {
     if (selectedEvento) {
-      navigate(`/app/${selectedEvento}/coordenador`);
+      navigate(`/app/${selectedEvento.id}/coordenador`);
     }
   };
 
   const handleMotorista = () => {
     if (selectedEvento) {
-      navigate(`/app/${selectedEvento}/motorista`);
+      navigate(`/app/${selectedEvento.id}/motorista`);
     }
   };
 
   const handleOperador = () => {
     if (selectedEvento) {
-      navigate(`/app/${selectedEvento}/operador`);
+      navigate(`/app/${selectedEvento.id}/operador`);
     }
+  };
+
+  const getDateRange = (evento: Evento) => {
+    if (evento.data_inicio && evento.data_fim) {
+      const start = new Date(evento.data_inicio + 'T12:00:00');
+      const end = new Date(evento.data_fim + 'T12:00:00');
+      return `${format(start, 'dd MMM', { locale: ptBR })} - ${format(end, 'dd MMM', { locale: ptBR })}`;
+    }
+    return null;
   };
 
   if (loading) {
@@ -97,110 +104,176 @@ export default function AppHome() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-md mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">App Campo</h1>
-            <p className="text-sm text-muted-foreground">
-              Olá, {profile?.full_name || user?.email}
-            </p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
+                <Bus className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold">App Campo</h1>
+                <p className="text-xs text-muted-foreground">
+                  {profile?.full_name || user?.email}
+                </p>
+              </div>
+            </div>
+
+            <Button variant="ghost" size="icon" onClick={signOut}>
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={signOut}>
-            <LogOut className="h-5 w-5" />
-          </Button>
         </div>
+      </header>
 
+      {/* Main content */}
+      <main className="container mx-auto px-4 py-6 space-y-6">
         {eventos.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center text-muted-foreground space-y-2">
-              <Bus className="h-12 w-12 mx-auto opacity-50" />
-              <p>Você não está vinculado a nenhum evento ativo</p>
-              <p className="text-sm">Contate um administrador para ser adicionado.</p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-16 text-muted-foreground">
+            <Bus className="h-20 w-20 mx-auto mb-4 opacity-30" />
+            <p className="text-xl font-medium">Sem eventos vinculados</p>
+            <p className="text-sm mt-1">Contate um administrador para ser adicionado a um evento.</p>
+          </div>
+        ) : !selectedEvento ? (
+          /* Grid de Eventos */
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold">Seus Eventos</h2>
+              <p className="text-muted-foreground">Selecione um evento para operar</p>
+            </div>
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+              {eventos.map((evento) => (
+                <Card 
+                  key={evento.id}
+                  className="cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                  onClick={() => setSelectedEvento(evento)}
+                >
+                  {evento.imagem_banner && (
+                    <div className="aspect-[3/1] overflow-hidden">
+                      <img
+                        src={evento.imagem_banner}
+                        alt={evento.nome_planilha}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-lg">{evento.nome_planilha}</h3>
+                    {evento.local && (
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>{evento.local}</span>
+                      </div>
+                    )}
+                    {getDateRange(evento) && (
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span>{getDateRange(evento)}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         ) : (
-          <>
-            {/* Seletor de Evento */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Selecione o Evento</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select value={selectedEvento} onValueChange={setSelectedEvento}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha um evento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eventos.map(evento => (
-                      <SelectItem key={evento.id} value={evento.id}>
-                        {evento.nome_planilha}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {/* Botões de Acesso */}
-            {selectedEvento && (
-              <div className="grid gap-4">
-                <Card 
-                  className="cursor-pointer hover:border-primary transition-colors"
-                  onClick={handleCoordenador}
-                >
-                  <CardContent className="p-6 flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-full bg-blue-100 flex items-center justify-center">
-                      <UserCircle className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Coordenador</CardTitle>
-                      <CardDescription>
-                        Iniciar e controlar viagens do ponto
-                      </CardDescription>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:border-primary transition-colors"
-                  onClick={handleMotorista}
-                >
-                  <CardContent className="p-6 flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-                      <Bus className="h-8 w-8 text-green-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Motorista</CardTitle>
-                      <CardDescription>
-                        Registrar minhas viagens
-                      </CardDescription>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className="cursor-pointer hover:border-primary transition-colors"
-                  onClick={handleOperador}
-                >
-                  <CardContent className="p-6 flex items-center gap-4">
-                    <div className="h-14 w-14 rounded-full bg-orange-100 flex items-center justify-center">
-                      <Radio className="h-8 w-8 text-orange-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Operador</CardTitle>
-                      <CardDescription>
-                        Criar e controlar viagens
-                      </CardDescription>
-                    </div>
-                  </CardContent>
-                </Card>
+          /* Modo de Operação */
+          <div className="space-y-6">
+            {/* Hero do Evento */}
+            {selectedEvento.imagem_banner && (
+              <div className="aspect-[3/1] rounded-xl overflow-hidden">
+                <img
+                  src={selectedEvento.imagem_banner}
+                  alt={selectedEvento.nome_planilha}
+                  className="w-full h-full object-cover"
+                />
               </div>
             )}
-          </>
+
+            <div className="space-y-1">
+              {eventos.length > 1 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-muted-foreground -ml-2 mb-2"
+                  onClick={() => setSelectedEvento(null)}
+                >
+                  ← Trocar evento
+                </Button>
+              )}
+              <h2 className="text-2xl font-bold">{selectedEvento.nome_planilha}</h2>
+              {selectedEvento.local && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>{selectedEvento.local}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modos de Operação */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold">Selecione o modo</h3>
+              
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                onClick={handleCoordenador}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <UserCircle className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Coordenador</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Iniciar e controlar viagens do ponto
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                onClick={handleMotorista}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Bus className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Motorista</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Registrar minhas viagens
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+                onClick={handleOperador}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Radio className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Operador</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Criar e controlar viagens
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
