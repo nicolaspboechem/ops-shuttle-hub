@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth/AuthContext';
 import logoASBranca from '@/assets/logo_as_branca.png';
 
@@ -19,15 +16,11 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !authLoading) {
-      // Smart redirect based on role
       if (isAdmin) {
-        // Admin goes to CCO panel
         navigate('/eventos', { replace: true });
       } else if (eventRoles.length > 0) {
-        // User with event roles goes to app
         navigate('/app', { replace: true });
       } else {
-        // User without any roles - go to app (will show message)
         navigate('/app', { replace: true });
       }
     }
@@ -55,43 +48,50 @@ export default function Auth() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-[#0B1425] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#3B82F6]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1628] flex flex-col items-center justify-center p-4">
-      {/* Logo */}
-      <div className="mb-8">
+    <div className="min-h-screen bg-[#0B1425] flex flex-col items-center justify-center p-4">
+      {/* Logo - maior como na referência */}
+      <div className="mb-12">
         <img 
           src={logoASBranca} 
           alt="AS Brasil" 
-          className="h-16 w-auto object-contain"
+          className="h-12 w-auto object-contain"
         />
       </div>
 
       {/* Card de Login */}
-      <div className="w-full max-w-md">
-        <div className="rounded-xl border border-[#1e3a5f]/60 bg-[#0d1f35]/80 backdrop-blur-sm p-8 shadow-2xl">
-          <h2 className="text-xl font-semibold text-white mb-6">
+      <div className="w-full max-w-[420px]">
+        <div 
+          className="rounded-2xl p-8"
+          style={{
+            background: 'linear-gradient(145deg, rgba(30, 58, 95, 0.3) 0%, rgba(15, 30, 50, 0.6) 100%)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            boxShadow: '0 0 40px rgba(59, 130, 246, 0.05)'
+          }}
+        >
+          <h2 className="text-[22px] font-bold text-white mb-8">
             Sistema de Controle Operacional
           </h2>
 
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-6">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSignIn} className="space-y-5">
+          <form onSubmit={handleSignIn} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email-login" className="text-gray-300 text-sm">
+              <label htmlFor="email-login" className="block text-[13px] font-medium text-gray-400">
                 E-mail
-              </Label>
-              <Input
+              </label>
+              <input
                 id="email-login"
                 type="email"
                 placeholder="seu@email.com"
@@ -99,16 +99,16 @@ export default function Auth() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="bg-[#0d2847] border-[#1e3a5f] text-white placeholder:text-gray-500 focus:border-primary focus:ring-primary"
+                className="w-full h-11 px-4 rounded-lg bg-[#0A1628] border border-[#1E3A5F] text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] transition-colors"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password-login" className="text-gray-300 text-sm">
+              <label htmlFor="password-login" className="block text-[13px] font-medium text-gray-400">
                 Senha
-              </Label>
+              </label>
               <div className="relative">
-                <Input
+                <input
                   id="password-login"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
@@ -116,37 +116,37 @@ export default function Auth() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="bg-[#0d2847] border-[#1e3a5f] text-white placeholder:text-gray-500 focus:border-primary focus:ring-primary pr-10"
+                  className="w-full h-11 px-4 pr-11 rounded-lg bg-[#0A1628] border border-[#1E3A5F] text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
                 </button>
               </div>
             </div>
 
-            <Button 
+            <button 
               type="submit" 
-              className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-5 uppercase tracking-wide"
               disabled={loading}
+              className="w-full h-11 rounded-lg bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold uppercase tracking-wider transition-colors flex items-center justify-center"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Entrar
-            </Button>
+            </button>
           </form>
 
           <button 
             type="button"
-            className="w-full text-center text-sm text-gray-500 hover:text-gray-400 transition-colors mt-4"
+            className="w-full text-center text-[13px] text-gray-500 hover:text-gray-400 transition-colors mt-5"
           >
             Esqueci minha senha
           </button>
 
-          <div className="mt-6 pt-4 border-t border-[#1e3a5f]/40">
-            <p className="text-xs text-gray-500 text-center">
+          <div className="mt-6 pt-5 border-t border-[#1E3A5F]/30">
+            <p className="text-[11px] text-gray-600 text-center leading-relaxed">
               Ao continuar, você concorda com os Termos e a Política de Privacidade.
             </p>
           </div>
@@ -154,7 +154,7 @@ export default function Auth() {
       </div>
 
       {/* Footer */}
-      <p className="text-center text-xs text-gray-600 mt-8">
+      <p className="text-center text-[11px] text-gray-600 mt-10">
         © 2025 AS Brasil. Todos os direitos reservados.
       </p>
     </div>
