@@ -11,9 +11,13 @@ export function useViagens(eventoId?: string) {
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const fetchViagens = useCallback(async () => {
-    setLoading(true);
+  const fetchViagens = useCallback(async (showLoading = false) => {
+    // Só mostra loading no carregamento inicial
+    if (showLoading) {
+      setLoading(true);
+    }
 
     let query = supabase
       .from('viagens')
@@ -35,23 +39,24 @@ export function useViagens(eventoId?: string) {
     setViagens((data as Viagem[]) || []);
     setLastUpdate(new Date());
     setLoading(false);
+    setIsInitialLoad(false);
   }, [eventoId]);
 
   useEffect(() => {
-    fetchViagens();
+    fetchViagens(true); // Carregamento inicial com loading
 
-    // Realtime subscription
+    // Realtime subscription - atualização em segundo plano
     const channel = supabase
       .channel('viagens-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'viagens' },
-        () => fetchViagens()
+        () => fetchViagens(false) // Refetch silencioso
       )
       .subscribe();
 
-    // Polling fallback every 30 seconds
-    const interval = setInterval(fetchViagens, 30000);
+    // Polling fallback every 30 seconds - silencioso
+    const interval = setInterval(() => fetchViagens(false), 30000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -82,11 +87,14 @@ export function useViagens(eventoId?: string) {
     );
   }, []);
 
+  // Wrapper para ser usado como onClick handler
+  const refetch = useCallback(() => fetchViagens(false), [fetchViagens]);
+
   return {
     viagens,
     loading,
     lastUpdate,
-    refetch: fetchViagens,
+    refetch,
     updateViagem
   };
 }

@@ -53,8 +53,12 @@ export function useMotoristas(eventoId?: string) {
   const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchMotoristas = useCallback(async () => {
-    setLoading(true);
+  const fetchMotoristas = useCallback(async (showLoading = false) => {
+    // Só mostra loading no carregamento inicial
+    if (showLoading) {
+      setLoading(true);
+    }
+    
     let query = supabase
       .from('motoristas')
       .select('*')
@@ -78,7 +82,7 @@ export function useMotoristas(eventoId?: string) {
   }, [eventoId]);
 
   useEffect(() => {
-    fetchMotoristas();
+    fetchMotoristas(true); // Carregamento inicial com loading
   }, [fetchMotoristas]);
 
   const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
@@ -137,10 +141,13 @@ export function useMotoristas(eventoId?: string) {
     setMotoristas(prev => prev.filter(m => m.id !== id));
   };
 
+  // Wrapper para ser usado como onClick handler
+  const refetch = useCallback(() => fetchMotoristas(false), [fetchMotoristas]);
+
   return {
     motoristas,
     loading,
-    refetch: fetchMotoristas,
+    refetch,
     createMotorista,
     updateMotorista,
     deleteMotorista
@@ -152,8 +159,12 @@ export function useVeiculos(eventoId?: string) {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchVeiculos = useCallback(async () => {
-    setLoading(true);
+  const fetchVeiculos = useCallback(async (showLoading = false) => {
+    // Só mostra loading no carregamento inicial
+    if (showLoading) {
+      setLoading(true);
+    }
+    
     let query = supabase
       .from('veiculos')
       .select('*')
@@ -177,7 +188,7 @@ export function useVeiculos(eventoId?: string) {
   }, [eventoId]);
 
   useEffect(() => {
-    fetchVeiculos();
+    fetchVeiculos(true); // Carregamento inicial com loading
   }, [fetchVeiculos]);
 
   const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
@@ -249,10 +260,13 @@ export function useVeiculos(eventoId?: string) {
     setVeiculos(prev => prev.filter(v => v.id !== id));
   };
 
+  // Wrapper para ser usado como onClick handler
+  const refetch = useCallback(() => fetchVeiculos(false), [fetchVeiculos]);
+
   return {
     veiculos,
     loading,
-    refetch: fetchVeiculos,
+    refetch,
     createVeiculo,
     updateVeiculo,
     deleteVeiculo
