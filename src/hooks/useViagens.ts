@@ -55,8 +55,8 @@ export function useViagens(eventoId?: string) {
       )
       .subscribe();
 
-    // Polling fallback every 30 seconds - silencioso
-    const interval = setInterval(() => fetchViagens(false), 30000);
+    // Polling fallback every 5 minutes - silencioso
+    const interval = setInterval(() => fetchViagens(false), 300000);
 
     return () => {
       supabase.removeChannel(channel);
