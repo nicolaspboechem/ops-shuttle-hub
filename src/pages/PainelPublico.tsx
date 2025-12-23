@@ -1,26 +1,40 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useEventosPublicos } from '@/hooks/useEventosPublicos';
 import { useRotasPublicas } from '@/hooks/useRotasPublicas';
 import { EventosGrid } from '@/components/public/EventosGrid';
 import { EventoHero } from '@/components/public/EventoHero';
 import { RotaCard } from '@/components/public/RotaCard';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Bus, RefreshCw, LogIn, Loader2, Search, Route } from 'lucide-react';
+import { Bus, Loader2, Search, Route } from 'lucide-react';
+import { rotaEstaAtiva } from '@/lib/utils/calcularProximasSaidas';
 import asLogo from '@/assets/as_logo_reduzida_preta.png';
 
 export default function PainelPublico() {
   const { eventoId: paramEventoId } = useParams();
   const navigate = useNavigate();
-  const { eventos, loading, refetch } = useEventosPublicos();
+  const { eventos, loading } = useEventosPublicos();
   const [selectedEvento, setSelectedEvento] = useState<string | null>(paramEventoId || null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   
   const { rotas, loading: loadingRotas } = useRotasPublicas(selectedEvento);
 
   const evento = eventos.find(e => e.id === selectedEvento);
+  
+  // Atualiza o horário atual a cada 60 segundos para recalcular rotas ativas
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // 60 segundos
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Filtra apenas rotas que ainda estão ativas baseado no horário atual
+  const rotasAtivas = useMemo(() => {
+    return rotas.filter(rota => rotaEstaAtiva(rota.horario_fim, currentTime));
+  }, [rotas, currentTime]);
 
   useEffect(() => {
     if (paramEventoId) {
@@ -38,11 +52,6 @@ export default function PainelPublico() {
     navigate('/painel', { replace: true });
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
 
   const filteredEventos = eventos.filter(e =>
     e.nome_planilha.toLowerCase().includes(searchQuery.toLowerCase())
@@ -135,14 +144,14 @@ export default function PainelPublico() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : rotas.length === 0 ? (
+              ) : rotasAtivas.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground border rounded-lg">
                   <Route className="h-12 w-12 mx-auto mb-3 opacity-30" />
                   <p>Nenhuma rota disponível no momento</p>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {rotas.map((rota) => (
+                  {rotasAtivas.map((rota) => (
                     <RotaCard
                       key={rota.id}
                       nome={rota.nome}

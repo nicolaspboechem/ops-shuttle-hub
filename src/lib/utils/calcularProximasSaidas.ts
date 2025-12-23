@@ -68,3 +68,17 @@ export function formatarHorarioOperacao(inicio: string | null, fim: string | nul
   const formatTime = (t: string) => t.slice(0, 5);
   return `${formatTime(inicio)} às ${formatTime(fim)}`;
 }
+
+/**
+ * Verifica se uma rota ainda está ativa baseado no horário de fim
+ * Retorna true se a rota ainda está operando ou se não tem horário definido
+ */
+export function rotaEstaAtiva(horarioFim: string | null, horaAtual?: Date): boolean {
+  if (!horarioFim) return true; // Sem horário definido = sempre ativa
+  
+  const agora = horaAtual || new Date();
+  const hoje = agora.toISOString().split('T')[0];
+  const fimDate = new Date(`${hoje}T${horarioFim}`);
+  
+  return agora <= fimDate;
+}
