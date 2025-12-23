@@ -28,8 +28,6 @@ const veiculoSchema = z.object({
   tipo_veiculo: z.enum(['Ônibus', 'Van']),
   placa: z.string().min(7, 'Placa inválida').max(10),
   fornecedor: z.string().max(100).optional(),
-  km_inicial: z.number().min(0).optional().nullable(),
-  km_final: z.number().min(0).optional().nullable(),
 });
 
 type VeiculoFormData = z.infer<typeof veiculoSchema>;
@@ -53,8 +51,6 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
       tipo_veiculo: 'Van',
       placa: '',
       fornecedor: '',
-      km_inicial: null,
-      km_final: null,
     },
   });
 
@@ -64,16 +60,12 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
         tipo_veiculo: (veiculo.tipo_veiculo as 'Ônibus' | 'Van') || 'Van',
         placa: veiculo.placa || '',
         fornecedor: veiculo.fornecedor || '',
-        km_inicial: veiculo.km_inicial ?? null,
-        km_final: veiculo.km_final ?? null,
       });
     } else if (open && !veiculo) {
       form.reset({
         tipo_veiculo: 'Van',
         placa: '',
         fornecedor: '',
-        km_inicial: null,
-        km_final: null,
       });
     }
   }, [open, veiculo, form]);
@@ -85,8 +77,6 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
         placa: data.placa.toUpperCase(),
         tipo_veiculo: data.tipo_veiculo,
         fornecedor: data.fornecedor || null,
-        km_inicial: data.km_inicial ?? null,
-        km_final: data.km_final ?? null,
         evento_id: eventoId,
       };
 
@@ -171,31 +161,6 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
               placeholder="Nome do fornecedor (opcional)"
               {...form.register('fornecedor')}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="km_inicial">KM Inicial</Label>
-              <Input
-                id="km_inicial"
-                type="number"
-                placeholder="0"
-                {...form.register('km_inicial', { 
-                  setValueAs: (v) => v === '' ? null : Number(v) 
-                })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="km_final">KM Final</Label>
-              <Input
-                id="km_final"
-                type="number"
-                placeholder="0"
-                {...form.register('km_final', { 
-                  setValueAs: (v) => v === '' ? null : Number(v) 
-                })}
-              />
-            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
