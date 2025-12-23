@@ -33,6 +33,7 @@ export function useViagemOperacao() {
       .update({
         status: 'em_andamento' as StatusViagemOperacao,
         iniciado_por: user.id,
+        atualizado_por: user.id,
         h_inicio_real: new Date().toISOString()
       })
       .eq('id', viagem.id);
@@ -66,7 +67,8 @@ export function useViagemOperacao() {
       .update({
         status: 'aguardando_retorno' as StatusViagemOperacao,
         h_chegada: horaChegada,
-        qtd_pax: qtdPax ?? viagem.qtd_pax
+        qtd_pax: qtdPax ?? viagem.qtd_pax,
+        atualizado_por: user.id
       })
       .eq('id', viagem.id);
 
@@ -101,6 +103,7 @@ export function useViagemOperacao() {
         h_retorno: horaRetorno,
         h_fim_real: now.toISOString(),
         finalizado_por: user.id,
+        atualizado_por: user.id,
         encerrado: true,
         qtd_pax_retorno: qtdPaxRetorno ?? viagem.qtd_pax_retorno
       })
@@ -133,6 +136,7 @@ export function useViagemOperacao() {
         status: 'encerrado' as StatusViagemOperacao,
         h_fim_real: new Date().toISOString(),
         finalizado_por: user.id,
+        atualizado_por: user.id,
         encerrado: true
       })
       .eq('id', viagem.id);
@@ -159,6 +163,7 @@ export function useViagemOperacao() {
       .update({
         status: 'cancelado' as StatusViagemOperacao,
         encerrado: true,
+        atualizado_por: user.id,
         observacao: motivo ? `CANCELADO: ${motivo}` : viagem.observacao
       })
       .eq('id', viagem.id);

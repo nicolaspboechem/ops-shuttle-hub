@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ export function QuickVeiculoForm({
   eventoId,
   onCreated
 }: QuickVeiculoFormProps) {
+  const { user } = useAuth();
   const [placa, setPlaca] = useState('');
   const [tipoVeiculo, setTipoVeiculo] = useState('Van');
   const [capacidade, setCapacidade] = useState('15');
@@ -57,7 +59,9 @@ export function QuickVeiculoForm({
           tipo_veiculo: tipoVeiculo,
           capacidade: capacidade ? parseInt(capacidade) : 15,
           fornecedor: fornecedor.trim() || null,
-          ativo: true
+          ativo: true,
+          criado_por: user?.id || null,
+          atualizado_por: user?.id || null
         }]);
 
       if (error) {

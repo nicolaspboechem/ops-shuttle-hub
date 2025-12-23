@@ -139,7 +139,9 @@ export function CreateViagemForm({
           status: 'em_andamento',
           h_pickup: horaPickup,
           h_inicio_real: agora.toISOString(),
-          iniciado_por: user?.id
+          iniciado_por: user?.id,
+          criado_por: user?.id,
+          atualizado_por: user?.id
         }]);
 
       if (error) {

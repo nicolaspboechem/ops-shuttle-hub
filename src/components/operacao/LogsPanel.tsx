@@ -56,7 +56,8 @@ export function LogsPanel({ eventoId }: LogsPanelProps) {
       .from('viagem_logs')
       .select(`
         *,
-        viagem:viagens!viagem_id(motorista, placa, evento_id)
+        viagem:viagens!viagem_id(motorista, placa, evento_id),
+        profile:profiles!user_id(full_name)
       `)
       .order('created_at', { ascending: false })
       .limit(50);

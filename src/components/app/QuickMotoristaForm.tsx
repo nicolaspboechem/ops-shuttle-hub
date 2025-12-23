@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +26,7 @@ export function QuickMotoristaForm({
   eventoId,
   onCreated
 }: QuickMotoristaFormProps) {
+  const { user } = useAuth();
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [saving, setSaving] = useState(false);
@@ -46,7 +48,9 @@ export function QuickMotoristaForm({
           evento_id: eventoId,
           nome: nome.trim(),
           telefone: telefone.trim() || null,
-          ativo: true
+          ativo: true,
+          criado_por: user?.id || null,
+          atualizado_por: user?.id || null
         }]);
 
       if (error) {
