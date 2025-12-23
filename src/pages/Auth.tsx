@@ -14,14 +14,24 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, user, loading: authLoading } = useAuth();
+  const { signIn, user, loading: authLoading, isAdmin, eventRoles } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/eventos', { replace: true });
+      // Smart redirect based on role
+      if (isAdmin) {
+        // Admin goes to CCO panel
+        navigate('/eventos', { replace: true });
+      } else if (eventRoles.length > 0) {
+        // User with event roles goes to app
+        navigate('/app', { replace: true });
+      } else {
+        // User without any roles - go to app (will show message)
+        navigate('/app', { replace: true });
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isAdmin, eventRoles]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
