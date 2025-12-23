@@ -64,8 +64,8 @@ export function EventoCard({
           </div>
         )}
         
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        {/* Dark Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-black/10" />
         
         {/* Logo */}
         {imagemLogo && (
@@ -90,13 +90,13 @@ export function EventoCard({
 
       {/* Content */}
       <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
-        <h3 className="text-xl font-bold text-foreground line-clamp-1">{nome}</h3>
+        <h3 className="text-xl font-bold text-white line-clamp-1">{nome}</h3>
         
         {descricao && (
-          <p className="text-sm text-muted-foreground line-clamp-2">{descricao}</p>
+          <p className="text-sm text-white/70 line-clamp-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">{descricao}</p>
         )}
 
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-sm text-white/80">
           {dateRange && (
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
