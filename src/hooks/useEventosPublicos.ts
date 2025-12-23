@@ -7,6 +7,10 @@ export interface EventoPublico {
   tipo_operacao: string | null;
   data_inicio: string | null;
   data_fim: string | null;
+  descricao: string | null;
+  imagem_banner: string | null;
+  imagem_logo: string | null;
+  rotas_count?: number;
 }
 
 export function useEventosPublicos() {
@@ -18,7 +22,7 @@ export function useEventosPublicos() {
 
     const { data, error } = await supabase
       .from('eventos')
-      .select('id, nome_planilha, tipo_operacao, data_inicio, data_fim')
+      .select('id, nome_planilha, tipo_operacao, data_inicio, data_fim, descricao, imagem_banner, imagem_logo')
       .eq('status', 'ativo')
       .eq('visivel_publico', true)
       .order('data_criacao', { ascending: false });
@@ -29,7 +33,20 @@ export function useEventosPublicos() {
       return;
     }
 
-    setEventos(data || []);
+    // Fetch rotas count for each evento
+    const eventosWithRotas = await Promise.all(
+      (data || []).map(async (evento) => {
+        const { count } = await supabase
+          .from('rotas_shuttle')
+          .select('*', { count: 'exact', head: true })
+          .eq('evento_id', evento.id)
+          .eq('ativo', true);
+        
+        return { ...evento, rotas_count: count || 0 };
+      })
+    );
+
+    setEventos(eventosWithRotas);
     setLoading(false);
   }, []);
 
