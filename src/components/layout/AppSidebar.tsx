@@ -16,6 +16,7 @@ import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useEventos } from '@/hooks/useEventos';
+import logoASBranca from '@/assets/as_logo_reduzida_branca.png';
 
 export function AppSidebar() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -71,12 +72,14 @@ export function AppSidebar() {
     <aside className="flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-primary">
-          <Bus className="w-6 h-6 text-sidebar-primary-foreground" />
-        </div>
+        <img 
+          src={logoASBranca} 
+          alt="AS Brasil" 
+          className="w-10 h-10 object-contain"
+        />
         <div>
-          <h1 className="text-lg font-semibold text-sidebar-accent-foreground">Shuttle</h1>
-          <p className="text-xs text-sidebar-foreground/60">Controle Operacional</p>
+          <h1 className="text-lg font-semibold text-sidebar-accent-foreground">CCO</h1>
+          <p className="text-xs text-sidebar-foreground/60">Centro de Controle Operacional</p>
         </div>
       </div>
 
