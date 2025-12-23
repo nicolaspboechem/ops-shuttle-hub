@@ -124,19 +124,19 @@ export default function Dashboard() {
 
   return (
     <EventLayout>
-      <div className="p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         {/* Header com status real-time */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">Painel de Controle</h1>
-            <p className="text-sm text-muted-foreground">
-              Monitoramento em tempo real da operação
+            <h1 className="text-xl md:text-2xl font-bold">Painel de Controle</h1>
+            <p className="text-xs md:text-sm text-muted-foreground">
+              Monitoramento em tempo real
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="flex items-center gap-1 text-xs">
               <span className="w-2 h-2 rounded-full bg-status-ok animate-pulse" />
-              Atualizado: {format(lastUpdate, "HH:mm:ss", { locale: ptBR })}
+              {format(lastUpdate, "HH:mm:ss", { locale: ptBR })}
             </Badge>
             <button 
               onClick={() => refetch()} 
@@ -150,14 +150,14 @@ export default function Dashboard() {
         </div>
         
         {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3">
           <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
           
           {pontosEmbarque.length > 0 && (
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <MapPin className="w-4 h-4 text-muted-foreground hidden sm:block" />
               <Select value={rotaFiltro} onValueChange={setRotaFiltro}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Filtrar por rota" />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,7 +174,7 @@ export default function Dashboard() {
           
           {rotaFiltro !== 'todas' && (
             <Badge variant="secondary" className="gap-1">
-              Filtro: {rotaFiltro}
+              {rotaFiltro}
               <button 
                 onClick={() => setRotaFiltro('todas')} 
                 className="ml-1 hover:text-destructive"
@@ -185,60 +185,61 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Cards de Métricas em Tempo Real */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Cards de Métricas em Tempo Real - Grid responsivo */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
           <MetricCard 
             title="Viagens Ativas" 
             value={metricsRealTime.viagensAtivas} 
             subtitle={`${viagensFinalizadas.length} finalizadas`} 
-            icon={<Bus className="w-6 h-6" />} 
+            icon={<Bus className="w-5 h-5 md:w-6 md:h-6" />} 
             highlight={true}
           />
           <MetricCard 
             title="PAX em Trânsito" 
             value={totalPaxAtivas} 
-            subtitle="Passageiros nas viagens ativas" 
-            icon={<Users className="w-6 h-6" />} 
+            subtitle="Nas viagens ativas" 
+            icon={<Users className="w-5 h-5 md:w-6 md:h-6" />} 
             highlight={true}
           />
           <MetricCard 
-            title="Motoristas Ativos" 
+            title="Motoristas" 
             value={metricsRealTime.motoristasAtivos} 
             subtitle={`${motoristas.length} cadastrados`} 
-            icon={<Users className="w-6 h-6" />} 
+            icon={<Users className="w-5 h-5 md:w-6 md:h-6" />} 
           />
           <MetricCard 
-            title="Veículos Ativos" 
+            title="Veículos" 
             value={metricsRealTime.veiculosAtivos} 
-            subtitle={`${metricsRealTime.onibus} ônibus, ${metricsRealTime.vans} vans`} 
-            icon={<Truck className="w-6 h-6" />} 
+            subtitle={`${metricsRealTime.onibus} ôn. ${metricsRealTime.vans} vans`} 
+            icon={<Truck className="w-5 h-5 md:w-6 md:h-6" />} 
           />
           <MetricCard 
             title="Tempo Médio" 
             value={kpis ? formatarMinutos(kpis.tempoMedioGeral) : '-'} 
             subtitle="Pickup → Retorno" 
-            icon={<Clock className="w-6 h-6" />} 
+            icon={<Clock className="w-5 h-5 md:w-6 md:h-6" />} 
+            className="col-span-2 sm:col-span-1"
           />
         </div>
 
-        {/* Cards de Status */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Cards de Status - Grid responsivo */}
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
           <MetricCard 
-            title="Viagens OK" 
+            title="OK" 
             value={kpis?.viagensOk || 0} 
-            icon={<CheckCircle className="w-6 h-6 text-status-ok" />} 
+            icon={<CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-status-ok" />} 
             className="border-status-ok/20" 
           />
           <MetricCard 
-            title="Em Alerta" 
+            title="Alerta" 
             value={kpis?.alertas.length || 0} 
-            icon={<AlertTriangle className="w-6 h-6 text-status-alert" />} 
+            icon={<AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-status-alert" />} 
             className="border-status-alert/20" 
           />
           <MetricCard 
-            title="Críticos" 
+            title="Crítico" 
             value={kpis?.alertasCriticos.length || 0} 
-            icon={<AlertTriangle className="w-6 h-6 text-status-critical" />} 
+            icon={<AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-status-critical" />} 
             className="border-status-critical/20" 
           />
         </div>
@@ -246,8 +247,8 @@ export default function Dashboard() {
         {/* Painel de Alertas */}
         {kpis && <AlertsPanel criticos={kpis.alertasCriticos} alertas={kpis.alertas} />}
 
-        {/* Rankings */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Rankings - Oculto em mobile para economizar espaço */}
+        <div className="hidden md:grid md:grid-cols-2 gap-6">
           {/* Top Motoristas */}
           <Card>
             <CardHeader className="pb-3">
@@ -330,8 +331,8 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Grid com Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Grid com Gráficos - Oculto em mobile */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           <VehiclesChart data={metricasPorHora} />
           <PassengersChart data={metricasPorHora} />
           <RoutePerformanceChart viagens={viagensFiltradas} />
