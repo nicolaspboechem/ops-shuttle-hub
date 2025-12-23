@@ -67,7 +67,7 @@ export default function Auth() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-[#4361ee]/10 to-transparent blur-[80px]" />
 
       {/* Logo */}
-      <div className="mb-4 relative z-10">
+      <div className="mb-8 relative z-10">
         <img 
           src={logoASHorizontal} 
           alt="AS Brasil" 
