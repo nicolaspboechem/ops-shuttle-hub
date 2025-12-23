@@ -86,22 +86,8 @@ export default function PainelPublico() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              </Button>
-              <Link to="/auth">
-                <Button variant="outline" size="sm">
-                  <LogIn className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Entrar</span>
-                </Button>
-              </Link>
-            </div>
+            {/* Spacer para manter o layout */}
+            <div className="w-10" />
           </div>
         </div>
       </header>
