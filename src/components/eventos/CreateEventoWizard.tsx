@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { CalendarIcon, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -31,6 +31,9 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [descricao, setDescricao] = useState('');
+  const [imagemBanner, setImagemBanner] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setStep(1);
@@ -40,6 +43,47 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setDataInicio(undefined);
     setDataFim(undefined);
     setDescricao('');
+    setImagemBanner(null);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Imagem muito grande. Máximo 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const ext = file.name.split('.').pop();
+      const fileName = `temp/banner-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('eventos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('eventos')
+        .getPublicUrl(fileName);
+
+      setImagemBanner(publicUrl);
+      toast.success('Imagem enviada com sucesso');
+    } catch (error: any) {
+      console.error('Erro no upload:', error);
+      toast.error('Erro ao enviar imagem');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -57,6 +101,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
         descricao: descricao.trim() || null,
+        imagem_banner: imagemBanner,
         status: 'ativo',
         total_viagens: 0,
         visivel_publico: true,
@@ -81,7 +126,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     return true;
   };
 
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
@@ -93,14 +138,15 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           <DialogTitle>
             {step === 1 && 'Novo Evento - Informações Básicas'}
             {step === 2 && 'Novo Evento - Datas'}
-            {step === 3 && 'Novo Evento - Descrição'}
-            {step === 4 && 'Novo Evento - Confirmar'}
+            {step === 3 && 'Novo Evento - Imagem de Capa'}
+            {step === 4 && 'Novo Evento - Descrição'}
+            {step === 5 && 'Novo Evento - Confirmar'}
           </DialogTitle>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3, 4, 5].map((s) => (
             <div
               key={s}
               className={cn(
@@ -235,8 +281,69 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           </div>
         )}
 
-        {/* Step 3: Description */}
+        {/* Step 3: Image */}
         {step === 3 && (
+          <div className="space-y-4">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            
+            <div className="space-y-2">
+              <Label>Imagem de Capa</Label>
+              <p className="text-xs text-muted-foreground">
+                Esta imagem será exibida como banner do evento no painel público
+              </p>
+            </div>
+
+            {imagemBanner ? (
+              <div className="relative aspect-[3/1] rounded-lg overflow-hidden border bg-muted">
+                <img
+                  src={imagemBanner}
+                  alt="Banner do evento"
+                  className="w-full h-full object-cover"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="absolute top-2 right-2 h-8 w-8"
+                  onClick={() => setImagemBanner(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="flex flex-col items-center justify-center w-full aspect-[3/1] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 hover:bg-muted hover:border-muted-foreground/50 transition-colors cursor-pointer"
+              >
+                {uploadingImage ? (
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                ) : (
+                  <>
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      Clique para enviar uma imagem
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              💡 A imagem é opcional. Você pode adicionar ou alterar depois.
+            </p>
+          </div>
+        )}
+
+        {/* Step 4: Description */}
+        {step === 4 && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="descricao">Descrição do Evento</Label>
@@ -253,14 +360,23 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              💡 Você pode adicionar imagens e rotas de shuttle após criar o evento, na aba "Painel Público"
+              💡 Você pode adicionar rotas de shuttle após criar o evento, na aba "Painel Público"
             </p>
           </div>
         )}
 
-        {/* Step 4: Confirm */}
-        {step === 4 && (
+        {/* Step 5: Confirm */}
+        {step === 5 && (
           <div className="space-y-4">
+            {imagemBanner && (
+              <div className="aspect-[3/1] rounded-lg overflow-hidden border bg-muted">
+                <img
+                  src={imagemBanner}
+                  alt="Banner do evento"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
             <div className="p-4 rounded-lg bg-muted/50 space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Nome:</span>
@@ -305,7 +421,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
 
           {step < totalSteps ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
-              {step === 3 ? 'Revisar' : 'Próximo'}
+              {step === 4 ? 'Revisar' : 'Próximo'}
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
