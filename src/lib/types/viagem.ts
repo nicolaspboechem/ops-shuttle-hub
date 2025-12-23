@@ -15,6 +15,10 @@ export interface Evento {
   data_inicio?: string | null;
   data_fim?: string | null;
   visivel_publico?: boolean | null;
+  imagem_banner?: string | null;
+  imagem_logo?: string | null;
+  descricao?: string | null;
+  local?: string | null;
 }
 
 export interface EventoUsuario {

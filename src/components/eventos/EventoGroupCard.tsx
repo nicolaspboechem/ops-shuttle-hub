@@ -198,8 +198,22 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
         !isActive && "opacity-75"
       )}>
         <CardContent className="p-0">
+          {/* Imagem de Capa */}
+          {primaryEvento.imagem_banner && (
+            <div className="aspect-[3/1] overflow-hidden">
+              <img
+                src={primaryEvento.imagem_banner}
+                alt={groupName}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+
           {/* Header colorido */}
-          <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-5 border-b">
+          <div className={cn(
+            "bg-gradient-to-r from-primary/10 to-primary/5 p-5 border-b",
+            !primaryEvento.imagem_banner && "rounded-t-lg"
+          )}>
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1">
                 <div className="flex items-center gap-2">
