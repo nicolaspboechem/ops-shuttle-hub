@@ -8,6 +8,7 @@ import { RotaCard } from '@/components/public/RotaCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Bus, RefreshCw, LogIn, Loader2, Search, Route } from 'lucide-react';
+import asLogo from '@/assets/as_logo_reduzida_preta.png';
 
 export default function PainelPublico() {
   const { eventoId: paramEventoId } = useParams();
@@ -62,12 +63,10 @@ export default function PainelPublico() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary">
-                <Bus className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img src={asLogo} alt="AS Brasil" className="h-10 w-auto" />
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold">Shuttle</h1>
-                <p className="text-xs text-muted-foreground">Transporte de Eventos</p>
+                <h1 className="text-lg font-semibold">AS Brasil</h1>
+                <p className="text-xs text-muted-foreground">Logística de Transporte e Hospitalidade para Eventos</p>
               </div>
             </div>
 
