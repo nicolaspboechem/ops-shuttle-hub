@@ -14,6 +14,7 @@ export interface Evento {
   status: string | null;
   data_inicio?: string | null;
   data_fim?: string | null;
+  visivel_publico?: boolean | null;
 }
 
 export interface EventoUsuario {
