@@ -8,7 +8,9 @@ import {
   Settings,
   LogOut,
   ArrowLeft,
-  FileBarChart
+  FileBarChart,
+  Eye,
+  Route
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -23,15 +25,37 @@ export function AppSidebar() {
 
   const evento = eventoId ? getEventoById(eventoId) : null;
 
-  const navigation = [
-    { name: 'Dashboard', href: `/evento/${eventoId}`, icon: LayoutDashboard },
-    { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus },
-    { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
-    { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
-    { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
-    { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart },
-    { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
-    { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: LayoutDashboard },
+  // Seções organizadas logicamente
+  const sections = [
+    {
+      title: 'Monitoramento',
+      items: [
+        { name: 'Dashboard', href: `/evento/${eventoId}`, icon: LayoutDashboard, end: true },
+        { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus },
+        { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
+      ]
+    },
+    {
+      title: 'Cadastros',
+      items: [
+        { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
+        { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
+        { name: 'Rotas Shuttle', href: `/evento/${eventoId}/rotas-shuttle`, icon: Route },
+      ]
+    },
+    {
+      title: 'Análise',
+      items: [
+        { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart },
+      ]
+    },
+    {
+      title: 'Administração',
+      items: [
+        { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
+        { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: Eye },
+      ]
+    },
   ];
 
   const bottomNav = [
@@ -75,22 +99,31 @@ export function AppSidebar() {
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navigation.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            end={item.href === `/evento/${eventoId}`}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-              "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            )}
-            activeClassName="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-          >
-            <item.icon className="w-5 h-5" />
-            {item.name}
-          </NavLink>
+      {/* Navigation with Sections */}
+      <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+              {section.title}
+            </p>
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  end={item.end}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                  activeClassName="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.name}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
