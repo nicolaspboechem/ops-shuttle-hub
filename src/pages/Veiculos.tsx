@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, FileBarChart } from 'lucide-react';
+import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, FileBarChart, AlertTriangle, CheckCircle, Loader } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
@@ -19,6 +19,7 @@ import { useUserNames } from '@/hooks/useUserNames';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VeiculoModal } from '@/components/cadastros/CadastroModals';
+import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { Viagem } from '@/lib/types/viagem';
@@ -48,6 +49,7 @@ export default function Veiculos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [wizardOpen, setWizardOpen] = useState(false);
   
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
@@ -251,12 +253,19 @@ export default function Veiculos() {
             <Download className="w-4 h-4 mr-2" />
             Importar das Viagens
           </Button>
-          <VeiculoModal 
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-          />
+          <Button onClick={() => setWizardOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Veículo
+          </Button>
         </div>
       </div>
+
+      <CreateVeiculoWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        eventoId={eventoId || ''}
+        onCreated={refetchVeiculos}
+      />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -314,16 +323,10 @@ export default function Veiculos() {
             {hasActiveFilters ? 'Tente ajustar os filtros de busca.' : 'Clique em "Novo Veículo" para começar.'}
           </p>
           {!hasActiveFilters && (
-            <VeiculoModal 
-              eventoId={eventoId}
-              onSave={handleSaveVeiculo}
-              trigger={
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Cadastrar Primeiro Veículo
-                </Button>
-              }
-            />
+            <Button onClick={() => setWizardOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Cadastrar Primeiro Veículo
+            </Button>
           )}
         </Card>
       ) : viewMode === 'card' ? (
