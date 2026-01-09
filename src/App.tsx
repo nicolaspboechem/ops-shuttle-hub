@@ -16,6 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import ViagensAtivas from "./pages/ViagensAtivas";
 import ViagensFinalizadas from "./pages/ViagensFinalizadas";
 import Motoristas from "./pages/Motoristas";
+import VincularVeiculo from "./pages/VincularVeiculo";
 import Veiculos from "./pages/Veiculos";
 import RotasShuttle from "./pages/RotasShuttle";
 import Configuracoes from "./pages/Configuracoes";
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/evento/:eventoId/viagens-ativas" element={<AdminRoute><ViagensAtivas /></AdminRoute>} />
             <Route path="/evento/:eventoId/viagens-finalizadas" element={<AdminRoute><ViagensFinalizadas /></AdminRoute>} />
             <Route path="/evento/:eventoId/motoristas" element={<AdminRoute><Motoristas /></AdminRoute>} />
+            <Route path="/evento/:eventoId/vincular-veiculo/:motoristaId" element={<AdminRoute><VincularVeiculo /></AdminRoute>} />
             <Route path="/evento/:eventoId/veiculos" element={<AdminRoute><Veiculos /></AdminRoute>} />
             <Route path="/evento/:eventoId/rotas-shuttle" element={<AdminRoute><RotasShuttle /></AdminRoute>} />
             <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
