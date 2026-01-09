@@ -2,26 +2,25 @@ import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, MapPin, RotateCcw, CheckCircle, Clock, Users, Bus, Car } from 'lucide-react';
+import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ViagemCardMobileProps {
   viagem: Viagem;
   onIniciar?: () => void;
   onChegada?: () => void;
-  onRetorno?: () => void;
   loading?: boolean;
 }
 
 const statusConfig: Record<StatusViagemOperacao, { label: string; color: string; icon: React.ReactNode }> = {
   agendado: { label: 'Agendado', color: 'bg-slate-500', icon: <Clock className="h-4 w-4" /> },
   em_andamento: { label: 'Em Andamento', color: 'bg-blue-500', icon: <Play className="h-4 w-4" /> },
-  aguardando_retorno: { label: 'Aguardando Retorno', color: 'bg-amber-500', icon: <MapPin className="h-4 w-4" /> },
+  aguardando_retorno: { label: 'Standby', color: 'bg-amber-500', icon: <Clock className="h-4 w-4" /> },
   encerrado: { label: 'Encerrado', color: 'bg-green-500', icon: <CheckCircle className="h-4 w-4" /> },
   cancelado: { label: 'Cancelado', color: 'bg-red-500', icon: <CheckCircle className="h-4 w-4" /> },
 };
 
-export function ViagemCardMobile({ viagem, onIniciar, onChegada, onRetorno, loading }: ViagemCardMobileProps) {
+export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: ViagemCardMobileProps) {
   const status = (viagem.status || 'agendado') as StatusViagemOperacao;
   const config = statusConfig[status];
 
@@ -30,8 +29,7 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, onRetorno, load
   return (
     <Card className={cn(
       "overflow-hidden transition-all",
-      status === 'em_andamento' && "ring-2 ring-blue-500 shadow-lg",
-      status === 'aguardando_retorno' && "ring-2 ring-amber-500"
+      status === 'em_andamento' && "ring-2 ring-blue-500 shadow-lg"
     )}>
       <div className={cn("h-2", config.color)} />
       <CardContent className="p-4 space-y-4">
@@ -74,23 +72,16 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, onRetorno, load
           )}
         </div>
 
-        {/* Tempos registrados */}
-        {(viagem.h_chegada || viagem.h_retorno) && (
+        {/* Tempo de chegada registrado */}
+        {viagem.h_chegada && (
           <div className="flex gap-4 text-sm border-t pt-3">
-            {viagem.h_chegada && (
-              <span className="text-green-600">
-                Chegada: <strong>{viagem.h_chegada}</strong>
-              </span>
-            )}
-            {viagem.h_retorno && (
-              <span className="text-blue-600">
-                Retorno: <strong>{viagem.h_retorno}</strong>
-              </span>
-            )}
+            <span className="text-green-600">
+              Chegada: <strong>{viagem.h_chegada}</strong>
+            </span>
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Action Buttons - Motorista só pode Iniciar e Chegou */}
         <div className="flex gap-2 pt-2">
           {status === 'agendado' && onIniciar && (
             <Button 
@@ -113,22 +104,17 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, onRetorno, load
               CHEGOU
             </Button>
           )}
-          
-          {status === 'aguardando_retorno' && onRetorno && (
-            <Button 
-              onClick={onRetorno} 
-              className="flex-1 h-12 text-base bg-green-600 hover:bg-green-700"
-              disabled={loading}
-            >
-              <RotateCcw className="h-5 w-5 mr-2" />
-              RETORNOU
-            </Button>
-          )}
 
           {status === 'encerrado' && (
             <div className="flex-1 h-12 flex items-center justify-center text-green-600 font-medium">
               <CheckCircle className="h-5 w-5 mr-2" />
-              Viagem Concluída
+              Rota Concluída
+            </div>
+          )}
+
+          {status === 'cancelado' && (
+            <div className="flex-1 h-12 flex items-center justify-center text-muted-foreground font-medium">
+              Viagem Cancelada
             </div>
           )}
         </div>
