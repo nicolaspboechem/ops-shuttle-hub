@@ -132,6 +132,7 @@ export function MotoristaKanbanCard({
                   Vincular Veículo
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem>
                   <Pencil className="w-4 h-4 mr-2" />
                   Editar Motorista
                 </DropdownMenuItem>

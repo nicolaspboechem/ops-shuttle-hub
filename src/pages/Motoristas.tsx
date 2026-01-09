@@ -451,9 +451,7 @@ export default function Motoristas() {
                 motorista={activeMotorista}
                 metricas={getMetricasMotorista(activeMotorista.nome)}
                 veiculo={getVeiculoDoMotorista(activeMotorista.id)}
-                onEdit={() => {}}
                 onDelete={() => {}}
-                onViewViagens={() => {}}
                 onVincularVeiculo={() => {}}
                 isDragOverlay
               />
