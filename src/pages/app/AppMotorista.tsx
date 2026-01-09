@@ -12,9 +12,10 @@ import {
 import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
+import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, RefreshCw, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
@@ -30,6 +31,10 @@ export default function AppMotorista() {
   const [showForm, setShowForm] = useState(false);
 
   const evento = eventos.find(e => e.id === eventoId);
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
 
   useEffect(() => {
     if (profile?.full_name && !busca) {
@@ -91,7 +96,7 @@ export default function AppMotorista() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-4">
@@ -112,14 +117,6 @@ export default function AppMotorista() {
             </div>
 
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={refetch}>
-                <RefreshCw className="h-5 w-5" />
-              </Button>
-              {busca.trim() && (
-                <Button size="icon" onClick={() => setShowForm(true)}>
-                  <Plus className="h-5 w-5" />
-                </Button>
-              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -144,91 +141,100 @@ export default function AppMotorista() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="container mx-auto px-4 py-4 space-y-4">
-        {/* Busca por nome/placa */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome ou placa..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
-        {/* Stats Card */}
-        {busca && (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="text-center p-3 rounded-lg bg-primary/10">
-              <p className="text-2xl font-bold text-primary">{stats.ativas}</p>
-              <p className="text-xs text-muted-foreground">Ativas</p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-emerald-500/10">
-              <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
-              <p className="text-xs text-muted-foreground">Concluídas</p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted/50">
-              <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
-            </div>
+      {/* Main content com Pull-to-Refresh */}
+      <PullToRefresh onRefresh={handleRefresh}>
+        <main className="container mx-auto px-4 py-4 space-y-4 pb-24">
+          {/* Busca por nome/placa */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome ou placa..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="pl-9"
+            />
           </div>
-        )}
 
-        {/* Lista de Viagens */}
-        {!busca.trim() ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <Search className="h-16 w-16 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-medium">Busque suas viagens</p>
-            <p className="text-sm">Digite seu nome ou placa para ver suas viagens</p>
-          </div>
-        ) : minhasViagens.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-            <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
-            <p className="text-sm mb-4">Nenhuma viagem para "{busca}"</p>
-            <Button onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Nova Viagem
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* Viagens ativas primeiro */}
-            {minhasViagens
-              .filter(v => v.status !== 'encerrado' && v.status !== 'cancelado')
-              .map(viagem => (
-                <ViagemCardMobile
-                  key={viagem.id}
-                  viagem={viagem}
-                  loading={operando === viagem.id}
-                  onIniciar={() => handleAction(viagem.id, 'iniciar')}
-                  onChegada={() => handleAction(viagem.id, 'chegada')}
-                />
-              ))
-            }
-
-            {/* Viagens concluídas */}
-            {minhasViagens.filter(v => v.status === 'encerrado').length > 0 && (
-              <div className="pt-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span>Viagens concluídas ({minhasViagens.filter(v => v.status === 'encerrado').length})</span>
-                </div>
-                {minhasViagens
-                  .filter(v => v.status === 'encerrado')
-                  .map(viagem => (
-                    <ViagemCardMobile
-                      key={viagem.id}
-                      viagem={viagem}
-                    />
-                  ))
-                }
+          {/* Stats Card */}
+          {busca && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center p-3 rounded-lg bg-primary/10">
+                <p className="text-2xl font-bold text-primary">{stats.ativas}</p>
+                <p className="text-xs text-muted-foreground">Ativas</p>
               </div>
-            )}
-          </div>
-        )}
-      </main>
+              <div className="text-center p-3 rounded-lg bg-emerald-500/10">
+                <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
+                <p className="text-xs text-muted-foreground">Concluídas</p>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-muted/50">
+                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
+              </div>
+            </div>
+          )}
+
+          {/* Lista de Viagens */}
+          {!busca.trim() ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Search className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <p className="text-lg font-medium">Busque suas viagens</p>
+              <p className="text-sm">Digite seu nome ou placa para ver suas viagens</p>
+            </div>
+          ) : minhasViagens.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
+              <p className="text-sm mb-4">Nenhuma viagem para "{busca}"</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Viagens ativas primeiro */}
+              {minhasViagens
+                .filter(v => v.status !== 'encerrado' && v.status !== 'cancelado')
+                .map(viagem => (
+                  <ViagemCardMobile
+                    key={viagem.id}
+                    viagem={viagem}
+                    loading={operando === viagem.id}
+                    onIniciar={() => handleAction(viagem.id, 'iniciar')}
+                    onChegada={() => handleAction(viagem.id, 'chegada')}
+                  />
+                ))
+              }
+
+              {/* Viagens concluídas */}
+              {minhasViagens.filter(v => v.status === 'encerrado').length > 0 && (
+                <div className="pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>Viagens concluídas ({minhasViagens.filter(v => v.status === 'encerrado').length})</span>
+                  </div>
+                  {minhasViagens
+                    .filter(v => v.status === 'encerrado')
+                    .map(viagem => (
+                      <ViagemCardMobile
+                        key={viagem.id}
+                        viagem={viagem}
+                      />
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      </PullToRefresh>
+
+      {/* FAB Fixo - Nova Viagem */}
+      {busca.trim() && (
+        <Button
+          size="lg"
+          onClick={() => setShowForm(true)}
+          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
 
       {/* Form de criação para motorista */}
       {busca.trim() && (
