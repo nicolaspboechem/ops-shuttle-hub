@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Search, Filter, X, Plus, Truck, Download, FileBarChart } from 'lucide-react';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
@@ -16,6 +17,7 @@ import { calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKanbanColumnFull } from '@/components/veiculos/VeiculoKanbanColumnFull';
+import { VeiculoKanbanCardFull } from '@/components/veiculos/VeiculoKanbanCardFull';
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { toast } from 'sonner';
 
@@ -35,6 +37,16 @@ export default function Veiculos() {
   const { viagensAtivas } = useCalculos(viagens);
   const { veiculos, loading: loadingVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
+  const [activeVeiculoId, setActiveVeiculoId] = useState<string | null>(null);
+  
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
   const { getEventoById } = useEventos();
   
   const userIds = useMemo(() => 
@@ -73,6 +85,39 @@ export default function Veiculos() {
       toast.error(`Erro ao excluir: ${error.message}`);
     }
   };
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveVeiculoId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveVeiculoId(null);
+
+    if (!over) return;
+
+    const veiculoId = active.id as string;
+    const newStatus = over.id as string;
+    
+    // Validate status
+    const validStatuses = ['liberado', 'pendente', 'em_inspecao', 'manutencao'];
+    if (!validStatuses.includes(newStatus)) return;
+
+    const veiculo = veiculos.find(v => v.id === veiculoId);
+    if (!veiculo || veiculo.status === newStatus) return;
+
+    try {
+      await handleUpdateVeiculo(veiculoId, { status: newStatus }, veiculo.placa);
+      toast.success(`Veículo ${veiculo.placa} movido para "${newStatus === 'liberado' ? 'Liberados' : newStatus === 'pendente' ? 'Pendentes' : newStatus === 'em_inspecao' ? 'Em Inspeção' : 'Manutenção'}"`);
+    } catch (error: any) {
+      toast.error(`Erro ao mover veículo: ${error.message}`);
+    }
+  }, [veiculos, handleUpdateVeiculo]);
+
+  const activeVeiculo = useMemo(() => 
+    activeVeiculoId ? veiculos.find(v => v.id === activeVeiculoId) : null,
+  [activeVeiculoId, veiculos]);
 
   const handleImportFromViagens = async () => {
     if (!eventoId) return;
@@ -313,52 +358,72 @@ export default function Veiculos() {
           )}
         </Card>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
-          <VeiculoKanbanColumnFull
-            status="liberado"
-            veiculos={veiculosPorStatus.liberado}
-            veiculosStats={veiculosStatsMap}
-            motoristas={motoristas}
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-            onUpdate={handleUpdateVeiculo}
-            onDelete={handleDeleteVeiculo}
-            getName={getName}
-          />
-          <VeiculoKanbanColumnFull
-            status="pendente"
-            veiculos={veiculosPorStatus.pendente}
-            veiculosStats={veiculosStatsMap}
-            motoristas={motoristas}
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-            onUpdate={handleUpdateVeiculo}
-            onDelete={handleDeleteVeiculo}
-            getName={getName}
-          />
-          <VeiculoKanbanColumnFull
-            status="em_inspecao"
-            veiculos={veiculosPorStatus.em_inspecao}
-            veiculosStats={veiculosStatsMap}
-            motoristas={motoristas}
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-            onUpdate={handleUpdateVeiculo}
-            onDelete={handleDeleteVeiculo}
-            getName={getName}
-          />
-          <VeiculoKanbanColumnFull
-            status="manutencao"
-            veiculos={veiculosPorStatus.manutencao}
-            veiculosStats={veiculosStatsMap}
-            motoristas={motoristas}
-            eventoId={eventoId}
-            onSave={handleSaveVeiculo}
-            onUpdate={handleUpdateVeiculo}
-            onDelete={handleDeleteVeiculo}
-            getName={getName}
-          />
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+            <VeiculoKanbanColumnFull
+              status="liberado"
+              veiculos={veiculosPorStatus.liberado}
+              veiculosStats={veiculosStatsMap}
+              motoristas={motoristas}
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+              onUpdate={handleUpdateVeiculo}
+              onDelete={handleDeleteVeiculo}
+              getName={getName}
+            />
+            <VeiculoKanbanColumnFull
+              status="pendente"
+              veiculos={veiculosPorStatus.pendente}
+              veiculosStats={veiculosStatsMap}
+              motoristas={motoristas}
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+              onUpdate={handleUpdateVeiculo}
+              onDelete={handleDeleteVeiculo}
+              getName={getName}
+            />
+            <VeiculoKanbanColumnFull
+              status="em_inspecao"
+              veiculos={veiculosPorStatus.em_inspecao}
+              veiculosStats={veiculosStatsMap}
+              motoristas={motoristas}
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+              onUpdate={handleUpdateVeiculo}
+              onDelete={handleDeleteVeiculo}
+              getName={getName}
+            />
+            <VeiculoKanbanColumnFull
+              status="manutencao"
+              veiculos={veiculosPorStatus.manutencao}
+              veiculosStats={veiculosStatsMap}
+              motoristas={motoristas}
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+              onUpdate={handleUpdateVeiculo}
+              onDelete={handleDeleteVeiculo}
+              getName={getName}
+            />
+          </div>
+          <DragOverlay>
+            {activeVeiculo && (
+              <VeiculoKanbanCardFull
+                veiculo={activeVeiculo}
+                stats={veiculosStatsMap.get(activeVeiculo.placa)}
+                motoristaVinculado={motoristas.find(m => m.veiculo_id === activeVeiculo.id)}
+                onSave={handleSaveVeiculo}
+                onUpdate={handleUpdateVeiculo}
+                onDelete={handleDeleteVeiculo}
+                isDragOverlay
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
     </div>
   );

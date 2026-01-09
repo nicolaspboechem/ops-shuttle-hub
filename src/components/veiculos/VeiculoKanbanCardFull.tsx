@@ -3,13 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck, GripVertical } from "lucide-react";
 import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from "./VeiculoStatusBadge";
 import { VeiculoModal } from "@/components/cadastros/CadastroModals";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Veiculo {
   id: string;
@@ -42,6 +44,7 @@ interface VeiculoKanbanCardFullProps {
   onUpdate: (id: string, data: any, oldPlaca: string) => Promise<void>;
   onDelete: (id: string) => void;
   getName?: (id: string) => string;
+  isDragOverlay?: boolean;
 }
 
 export function VeiculoKanbanCardFull({ 
@@ -52,16 +55,69 @@ export function VeiculoKanbanCardFull({
   onSave,
   onUpdate,
   onDelete,
-  getName
+  getName,
+  isDragOverlay = false
 }: VeiculoKanbanCardFullProps) {
   const TipoIcon = veiculo.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
 
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: veiculo.id,
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+  };
+
+  // If this is the drag overlay, render without draggable hooks
+  if (isDragOverlay) {
+    return (
+      <Card className="overflow-hidden shadow-xl border-2 border-primary rotate-2 scale-105">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "p-2 rounded-lg",
+                veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+              )}>
+                <TipoIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</p>
+                <code className="font-bold text-base tracking-wider bg-muted px-1.5 py-0.5 rounded">{veiculo.placa}</code>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <VeiculoStatusBadge status={veiculo.status} size="sm" />
+            <FuelIndicator level={veiculo.nivel_combustivel} size="sm" />
+            <AvariaIndicator hasAvarias={veiculo.possui_avarias} size="sm" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow">
+    <Card 
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "overflow-hidden hover:shadow-md transition-all",
+        isDragging && "opacity-50 shadow-lg"
+      )}
+    >
       <CardContent className="p-4 space-y-3">
         {/* Header: Tipo + Placa + Menu */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
+            {/* Drag Handle */}
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-muted touch-none"
+            >
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </div>
             <div className={cn(
               "p-2 rounded-lg",
               veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
