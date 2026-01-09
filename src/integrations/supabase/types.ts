@@ -377,6 +377,50 @@ export type Database = {
         }
         Relationships: []
       }
+      veiculo_fotos: {
+        Row: {
+          area_veiculo: string | null
+          criado_por: string | null
+          data_criacao: string | null
+          descricao: string | null
+          id: string
+          ordem: number | null
+          tipo: string | null
+          url: string
+          veiculo_id: string
+        }
+        Insert: {
+          area_veiculo?: string | null
+          criado_por?: string | null
+          data_criacao?: string | null
+          descricao?: string | null
+          id?: string
+          ordem?: number | null
+          tipo?: string | null
+          url: string
+          veiculo_id: string
+        }
+        Update: {
+          area_veiculo?: string | null
+          criado_por?: string | null
+          data_criacao?: string | null
+          descricao?: string | null
+          id?: string
+          ordem?: number | null
+          tipo?: string | null
+          url?: string
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veiculo_fotos_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       veiculos: {
         Row: {
           ano: number | null
@@ -389,16 +433,25 @@ export type Database = {
           evento_id: string | null
           fornecedor: string | null
           id: string
+          inspecao_dados: Json | null
+          inspecao_data: string | null
+          inspecao_por: string | null
           km_final: number | null
           km_final_data: string | null
           km_final_registrado_por: string | null
           km_inicial: number | null
           km_inicial_data: string | null
           km_inicial_registrado_por: string | null
+          liberado_em: string | null
+          liberado_por: string | null
           marca: string | null
           modelo: string | null
           motorista_id: string | null
+          nivel_combustivel: string | null
+          observacoes_gerais: string | null
           placa: string
+          possui_avarias: boolean | null
+          status: string | null
           tipo_veiculo: string
         }
         Insert: {
@@ -412,16 +465,25 @@ export type Database = {
           evento_id?: string | null
           fornecedor?: string | null
           id?: string
+          inspecao_dados?: Json | null
+          inspecao_data?: string | null
+          inspecao_por?: string | null
           km_final?: number | null
           km_final_data?: string | null
           km_final_registrado_por?: string | null
           km_inicial?: number | null
           km_inicial_data?: string | null
           km_inicial_registrado_por?: string | null
+          liberado_em?: string | null
+          liberado_por?: string | null
           marca?: string | null
           modelo?: string | null
           motorista_id?: string | null
+          nivel_combustivel?: string | null
+          observacoes_gerais?: string | null
           placa: string
+          possui_avarias?: boolean | null
+          status?: string | null
           tipo_veiculo?: string
         }
         Update: {
@@ -435,16 +497,25 @@ export type Database = {
           evento_id?: string | null
           fornecedor?: string | null
           id?: string
+          inspecao_dados?: Json | null
+          inspecao_data?: string | null
+          inspecao_por?: string | null
           km_final?: number | null
           km_final_data?: string | null
           km_final_registrado_por?: string | null
           km_inicial?: number | null
           km_inicial_data?: string | null
           km_inicial_registrado_por?: string | null
+          liberado_em?: string | null
+          liberado_por?: string | null
           marca?: string | null
           modelo?: string | null
           motorista_id?: string | null
+          nivel_combustivel?: string | null
+          observacoes_gerais?: string | null
           placa?: string
+          possui_avarias?: boolean | null
+          status?: string | null
           tipo_veiculo?: string
         }
         Relationships: [
