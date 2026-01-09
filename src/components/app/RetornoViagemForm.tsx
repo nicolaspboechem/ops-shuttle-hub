@@ -124,7 +124,8 @@ export function RetornoViagemForm({
         iniciado_por: user.id,
         criado_por: user.id,
         atualizado_por: user.id,
-        observacao: `Retorno - Rota continuação`
+        observacao: `Retorno - Rota continuação`,
+        viagem_pai_id: viagemOriginal.id // Vincula à viagem anterior para rastreamento
       };
 
       const { error } = await supabase

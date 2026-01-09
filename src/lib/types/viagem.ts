@@ -57,6 +57,8 @@ export interface Viagem {
   // Campos de auditoria
   criado_por?: string | null;
   atualizado_por?: string | null;
+  // Campo para rastrear sequência de rotas
+  viagem_pai_id?: string | null;
 }
 
 export interface ViagemLog {
