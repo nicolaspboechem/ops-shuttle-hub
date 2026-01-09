@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
@@ -53,6 +53,32 @@ export default function Motoristas() {
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
   
+  // Realtime subscription para atualização automática do status
+  useEffect(() => {
+    if (!eventoId) return;
+
+    const channel = supabase
+      .channel('motoristas-status-changes')
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'motoristas',
+          filter: `evento_id=eq.${eventoId}`
+        },
+        () => {
+          // Refetch silencioso quando o status mudar
+          refetchMotoristas();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventoId, refetchMotoristas]);
+
   const userIds = useMemo(() => 
     motoristasCadastrados.flatMap(m => [m.criado_por, m.atualizado_por]),
     [motoristasCadastrados]
