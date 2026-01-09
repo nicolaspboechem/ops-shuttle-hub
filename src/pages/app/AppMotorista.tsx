@@ -23,7 +23,7 @@ export default function AppMotorista() {
   const { profile, signOut } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
-  const { iniciarViagem, registrarChegada, registrarRetorno } = useViagemOperacao();
+  const { iniciarViagem, registrarChegada } = useViagemOperacao();
   
   const [busca, setBusca] = useState<string>('');
   const [operando, setOperando] = useState<string | null>(null);
@@ -68,7 +68,7 @@ export default function AppMotorista() {
     return { ativas, concluidas, total: minhasViagens.length };
   }, [minhasViagens]);
 
-  const handleAction = async (viagemId: string, action: 'iniciar' | 'chegada' | 'retorno') => {
+  const handleAction = async (viagemId: string, action: 'iniciar' | 'chegada') => {
     const viagem = viagens.find(v => v.id === viagemId);
     if (!viagem) return;
 
@@ -76,7 +76,6 @@ export default function AppMotorista() {
     try {
       if (action === 'iniciar') await iniciarViagem(viagem);
       if (action === 'chegada') await registrarChegada(viagem);
-      if (action === 'retorno') await registrarRetorno(viagem);
       refetch();
     } finally {
       setOperando(null);
@@ -205,7 +204,6 @@ export default function AppMotorista() {
                   loading={operando === viagem.id}
                   onIniciar={() => handleAction(viagem.id, 'iniciar')}
                   onChegada={() => handleAction(viagem.id, 'chegada')}
-                  onRetorno={() => handleAction(viagem.id, 'retorno')}
                 />
               ))
             }

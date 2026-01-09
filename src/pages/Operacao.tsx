@@ -18,7 +18,7 @@ export default function Operacao() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
-  const { iniciarViagem, registrarChegada, registrarRetorno, cancelarViagem } = useViagemOperacao();
+  const { iniciarViagem, registrarChegada, cancelarViagem } = useViagemOperacao();
   
   const [selectedViagem, setSelectedViagem] = useState<Viagem | null>(null);
   const [operando, setOperando] = useState(false);
@@ -45,7 +45,7 @@ export default function Operacao() {
     return counts;
   }, [viagens]);
 
-  const handleAction = async (action: 'iniciar' | 'chegada' | 'retorno' | 'cancelar') => {
+  const handleAction = async (action: 'iniciar' | 'chegada' | 'cancelar') => {
     if (!selectedViagem) return;
     
     setOperando(true);
@@ -53,7 +53,6 @@ export default function Operacao() {
       let success = false;
       if (action === 'iniciar') success = await iniciarViagem(selectedViagem);
       if (action === 'chegada') success = await registrarChegada(selectedViagem);
-      if (action === 'retorno') success = await registrarRetorno(selectedViagem);
       if (action === 'cancelar') success = await cancelarViagem(selectedViagem);
       
       if (success) {
@@ -245,16 +244,7 @@ export default function Operacao() {
                     </Button>
                   )}
                   
-                  {selectedViagem.status === 'aguardando_retorno' && (
-                    <Button 
-                      onClick={() => handleAction('retorno')} 
-                      disabled={operando}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Registrar Retorno
-                    </Button>
-                  )}
+                  {/* Botão de retorno removido - retorno agora cria nova viagem via ViagemCardOperador */}
 
                   {selectedViagem.status !== 'encerrado' && selectedViagem.status !== 'cancelado' && (
                     <Button 

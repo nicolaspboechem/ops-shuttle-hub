@@ -53,6 +53,7 @@ export function useViagemOperacao() {
     return true;
   }, [user, registrarLog]);
 
+  // Registrar chegada agora ENCERRA a viagem (cada viagem = 1 rota)
   const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number) => {
     if (!user) {
       toast.error('Você precisa estar logado');
@@ -65,10 +66,13 @@ export function useViagemOperacao() {
     const { error } = await supabase
       .from('viagens')
       .update({
-        status: 'aguardando_retorno' as StatusViagemOperacao,
+        status: 'encerrado' as StatusViagemOperacao,
         h_chegada: horaChegada,
-        qtd_pax: qtdPax ?? viagem.qtd_pax,
-        atualizado_por: user.id
+        h_fim_real: now.toISOString(),
+        finalizado_por: user.id,
+        atualizado_por: user.id,
+        encerrado: true,
+        qtd_pax: qtdPax ?? viagem.qtd_pax
       })
       .eq('id', viagem.id);
 
@@ -83,44 +87,7 @@ export function useViagemOperacao() {
       qtd_pax: qtdPax ?? viagem.qtd_pax
     });
     
-    toast.success('Chegada registrada!');
-    return true;
-  }, [user, registrarLog]);
-
-  const registrarRetorno = useCallback(async (viagem: Viagem, qtdPaxRetorno?: number) => {
-    if (!user) {
-      toast.error('Você precisa estar logado');
-      return false;
-    }
-
-    const now = new Date();
-    const horaRetorno = now.toTimeString().slice(0, 8);
-
-    const { error } = await supabase
-      .from('viagens')
-      .update({
-        status: 'encerrado' as StatusViagemOperacao,
-        h_retorno: horaRetorno,
-        h_fim_real: now.toISOString(),
-        finalizado_por: user.id,
-        atualizado_por: user.id,
-        encerrado: true,
-        qtd_pax_retorno: qtdPaxRetorno ?? viagem.qtd_pax_retorno
-      })
-      .eq('id', viagem.id);
-
-    if (error) {
-      console.error('Erro ao registrar retorno:', error);
-      toast.error('Erro ao registrar retorno');
-      return false;
-    }
-
-    await registrarLog(viagem.id, 'retorno', { 
-      h_retorno: horaRetorno,
-      qtd_pax_retorno: qtdPaxRetorno ?? viagem.qtd_pax_retorno
-    });
-    
-    toast.success('Viagem encerrada!');
+    toast.success('Rota concluída!');
     return true;
   }, [user, registrarLog]);
 
@@ -182,7 +149,6 @@ export function useViagemOperacao() {
   return {
     iniciarViagem,
     registrarChegada,
-    registrarRetorno,
     encerrarViagem,
     cancelarViagem
   };
