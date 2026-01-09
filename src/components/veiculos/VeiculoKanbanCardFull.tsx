@@ -12,6 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Veiculo {
   id: string;
@@ -64,48 +65,66 @@ export function VeiculoKanbanCardFull({
     id: veiculo.id,
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-  };
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    zIndex: isDragging ? 50 : 1,
+  } : undefined;
 
   // If this is the drag overlay, render without draggable hooks
   if (isDragOverlay) {
     return (
-      <Card className="overflow-hidden shadow-xl border-2 border-primary rotate-2 scale-105">
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "p-2 rounded-lg",
-                veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-              )}>
-                <TipoIcon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</p>
-                <code className="font-bold text-base tracking-wider bg-muted px-1.5 py-0.5 rounded">{veiculo.placa}</code>
+      <motion.div
+        initial={{ scale: 1, rotate: 0 }}
+        animate={{ scale: 1.05, rotate: 2, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      >
+        <Card className="overflow-hidden border-2 border-primary bg-card">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                )}>
+                  <TipoIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</p>
+                  <code className="font-bold text-base tracking-wider bg-muted px-1.5 py-0.5 rounded">{veiculo.placa}</code>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <VeiculoStatusBadge status={veiculo.status} size="sm" />
-            <FuelIndicator level={veiculo.nivel_combustivel} size="sm" />
-            <AvariaIndicator hasAvarias={veiculo.possui_avarias} size="sm" />
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex items-center gap-2 flex-wrap">
+              <VeiculoStatusBadge status={veiculo.status} size="sm" />
+              <FuelIndicator level={veiculo.nivel_combustivel} size="sm" />
+              <AvariaIndicator hasAvarias={veiculo.possui_avarias} size="sm" />
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   }
 
   return (
-    <Card 
+    <motion.div
+      layout
+      layoutId={veiculo.id}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ 
+        opacity: isDragging ? 0.5 : 1, 
+        scale: 1,
+        transition: { type: "spring", stiffness: 500, damping: 30 }
+      }}
+      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
       ref={setNodeRef}
       style={style}
-      className={cn(
-        "overflow-hidden hover:shadow-md transition-all",
-        isDragging && "opacity-50 shadow-lg"
-      )}
     >
+      <Card 
+        className={cn(
+          "overflow-hidden hover:shadow-md transition-shadow duration-200",
+          isDragging && "shadow-lg ring-2 ring-primary/50"
+        )}
+      >
       <CardContent className="p-4 space-y-3">
         {/* Header: Tipo + Placa + Menu */}
         <div className="flex items-start justify-between gap-2">
@@ -259,5 +278,6 @@ export function VeiculoKanbanCardFull({
         )}
       </CardContent>
     </Card>
+    </motion.div>
   );
 }

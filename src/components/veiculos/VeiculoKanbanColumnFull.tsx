@@ -3,6 +3,7 @@ import { CheckCircle, AlertTriangle, Loader, Wrench } from "lucide-react";
 import { VeiculoKanbanCardFull } from "./VeiculoKanbanCardFull";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface Veiculo {
   id: string;
@@ -92,13 +93,17 @@ export function VeiculoKanbanColumnFull({
   });
 
   return (
-    <div 
+    <motion.div 
       ref={setNodeRef}
+      animate={{
+        scale: isOver ? 1.02 : 1,
+        boxShadow: isOver ? "0 0 0 2px hsl(var(--primary))" : "none",
+      }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
       className={cn(
-        "flex flex-col rounded-xl border min-w-[300px] flex-1 transition-all duration-200",
+        "flex flex-col rounded-xl border min-w-[300px] flex-1",
         config.bgColor,
-        config.borderColor,
-        isOver && "ring-2 ring-primary ring-offset-2 scale-[1.02]"
+        config.borderColor
       )}
     >
       {/* Header */}
@@ -109,44 +114,55 @@ export function VeiculoKanbanColumnFull({
       )}>
         <Icon className={cn("h-5 w-5", config.iconColor)} />
         <span className="font-semibold">{config.title}</span>
-        <span className={cn(
-          "ml-auto px-2 py-0.5 rounded-full text-xs font-medium",
-          config.iconColor,
-          "bg-white/50 dark:bg-black/20"
-        )}>
+        <motion.span 
+          key={veiculos.length}
+          initial={{ scale: 1.3 }}
+          animate={{ scale: 1 }}
+          className={cn(
+            "ml-auto px-2 py-0.5 rounded-full text-xs font-medium",
+            config.iconColor,
+            "bg-white/50 dark:bg-black/20"
+          )}
+        >
           {veiculos.length}
-        </span>
+        </motion.span>
       </div>
 
       {/* Cards */}
       <ScrollArea className="flex-1 max-h-[calc(100vh-320px)]">
         <div className="p-3 space-y-3">
-          {veiculos.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Nenhum veículo
-            </p>
-          ) : (
-            veiculos.map((veiculo) => {
-              const stats = veiculosStats.get(veiculo.placa);
-              const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
-              
-              return (
-                <VeiculoKanbanCardFull
-                  key={veiculo.id}
-                  veiculo={veiculo}
-                  stats={stats}
-                  motoristaVinculado={motoristaVinculado}
-                  eventoId={eventoId}
-                  onSave={onSave}
-                  onUpdate={onUpdate}
-                  onDelete={onDelete}
-                  getName={getName}
-                />
-              );
-            })
-          )}
+          <AnimatePresence mode="popLayout">
+            {veiculos.length === 0 ? (
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-sm text-muted-foreground text-center py-8"
+              >
+                Nenhum veículo
+              </motion.p>
+            ) : (
+              veiculos.map((veiculo) => {
+                const stats = veiculosStats.get(veiculo.placa);
+                const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
+                
+                return (
+                  <VeiculoKanbanCardFull
+                    key={veiculo.id}
+                    veiculo={veiculo}
+                    stats={stats}
+                    motoristaVinculado={motoristaVinculado}
+                    eventoId={eventoId}
+                    onSave={onSave}
+                    onUpdate={onUpdate}
+                    onDelete={onDelete}
+                    getName={getName}
+                  />
+                );
+              })
+            )}
+          </AnimatePresence>
         </div>
       </ScrollArea>
-    </div>
+    </motion.div>
   );
 }
