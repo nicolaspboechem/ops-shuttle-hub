@@ -2,6 +2,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckCircle, AlertTriangle, Loader, Wrench } from "lucide-react";
 import { VeiculoKanbanCardFull } from "./VeiculoKanbanCardFull";
 import { cn } from "@/lib/utils";
+import { useDroppable } from "@dnd-kit/core";
 
 interface Veiculo {
   id: string;
@@ -86,12 +87,20 @@ export function VeiculoKanbanColumnFull({
   const config = statusConfig[status];
   const Icon = config.icon;
 
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+  });
+
   return (
-    <div className={cn(
-      "flex flex-col rounded-xl border min-w-[300px] flex-1",
-      config.bgColor,
-      config.borderColor
-    )}>
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "flex flex-col rounded-xl border min-w-[300px] flex-1 transition-all duration-200",
+        config.bgColor,
+        config.borderColor,
+        isOver && "ring-2 ring-primary ring-offset-2 scale-[1.02]"
+      )}
+    >
       {/* Header */}
       <div className={cn(
         "flex items-center gap-2 px-4 py-3 rounded-t-xl border-b",
