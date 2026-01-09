@@ -3,12 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX } from "lucide-react";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
 import { Motorista, Veiculo } from "@/hooks/useCadastros";
+
+// Status configuration with colors and icons
+const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
+  disponivel: { label: 'Disponível', color: 'text-emerald-600', bgColor: 'bg-emerald-100', icon: CheckCircle },
+  em_viagem: { label: 'Em Viagem', color: 'text-blue-600', bgColor: 'bg-blue-100', icon: Car },
+  indisponivel: { label: 'Indisponível', color: 'text-amber-600', bgColor: 'bg-amber-100', icon: XCircle },
+  inativo: { label: 'Inativo', color: 'text-gray-500', bgColor: 'bg-gray-100', icon: UserX },
+};
 
 interface MotoristaMetricas {
   motorista: string;
@@ -110,8 +118,24 @@ export function MotoristaKanbanCard({
               <div className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary font-semibold text-sm flex-shrink-0">
                 {motorista.nome.charAt(0)}
               </div>
-              <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{motorista.nome}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm truncate">{motorista.nome}</p>
+                  {/* Status Badge */}
+                  {motorista.status && STATUS_CONFIG[motorista.status] && (
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[10px] px-1.5 py-0 h-4 shrink-0",
+                        STATUS_CONFIG[motorista.status].bgColor,
+                        STATUS_CONFIG[motorista.status].color,
+                        "border-0"
+                      )}
+                    >
+                      {STATUS_CONFIG[motorista.status].label}
+                    </Badge>
+                  )}
+                </div>
                 {motorista.telefone && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Phone className="w-3 h-3" />
