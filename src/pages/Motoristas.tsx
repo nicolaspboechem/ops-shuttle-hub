@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2 } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,32 +13,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
-import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
+import { useMotoristas, useVeiculos, Motorista } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { useUserNames } from '@/hooks/useUserNames';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
+import { MotoristaKanbanColumn } from '@/components/motoristas/MotoristaKanbanColumn';
+import { MotoristaKanbanCard } from '@/components/motoristas/MotoristaKanbanCard';
 
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
+const MOTORISTA_STATUSES = ['disponivel', 'em_viagem', 'indisponivel', 'inativo'] as const;
+
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>('cadastro');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'list' | 'kanban'>('card');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [activeMotorista, setActiveMotorista] = useState<Motorista | null>(null);
   
   const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
@@ -128,6 +135,58 @@ export default function Motoristas() {
     return metricasMotoristas.find(m => m.motorista === nomeMotorista);
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    const motorista = motoristasCadastrados.find(m => m.id === event.active.id);
+    if (motorista) {
+      setActiveMotorista(motorista);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveMotorista(null);
+
+    if (!over) return;
+
+    const motoristaId = active.id as string;
+    const newStatus = over.id as string;
+
+    // Check if dropped on a valid status column
+    if (!MOTORISTA_STATUSES.includes(newStatus as typeof MOTORISTA_STATUSES[number])) return;
+
+    const motorista = motoristasCadastrados.find(m => m.id === motoristaId);
+    if (!motorista || motorista.status === newStatus) return;
+
+    try {
+      await updateMotorista(motoristaId, { status: newStatus }, motorista.nome);
+      toast.success(`${motorista.nome} movido para ${newStatus === 'disponivel' ? 'Disponíveis' : newStatus === 'em_viagem' ? 'Em Viagem' : newStatus === 'indisponivel' ? 'Indisponíveis' : 'Inativos'}`);
+    } catch (error: any) {
+      toast.error(`Erro ao atualizar status: ${error.message}`);
+    }
+  };
+
+  // Group motoristas by status for kanban
+  const motoristasByStatus = useMemo(() => {
+    const grouped: Record<string, Motorista[]> = {
+      disponivel: [],
+      em_viagem: [],
+      indisponivel: [],
+      inativo: [],
+    };
+
+    motoristasCadastrados.forEach(m => {
+      const status = m.status || 'disponivel';
+      if (grouped[status]) {
+        grouped[status].push(m);
+      } else {
+        grouped.disponivel.push(m);
+      }
+    });
+
+    return grouped;
+  }, [motoristasCadastrados]);
+
   const filteredCadastrados = useMemo(() => {
     let filtered = [...motoristasCadastrados];
 
@@ -146,19 +205,24 @@ export default function Motoristas() {
       });
     }
 
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(m => (m.status || 'disponivel') === filterStatus);
+    }
+
     return filtered.sort((a, b) => {
       const metricasA = getMetricasMotorista(a.nome);
       const metricasB = getMetricasMotorista(b.nome);
       return (metricasB?.totalViagens || 0) - (metricasA?.totalViagens || 0);
     });
-  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, veiculos, metricasMotoristas]);
+  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, filterStatus, veiculos, metricasMotoristas]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setFilterTipoVeiculo('all');
+    setFilterStatus('all');
   };
 
-  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all';
+  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterStatus !== 'all';
 
   if (loadingViagens || loadingCadastros) {
     return (
@@ -306,10 +370,23 @@ export default function Motoristas() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
-          <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
+        <div className="flex gap-2 flex-wrap">
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[140px]">
               <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="disponivel">Disponíveis</SelectItem>
+              <SelectItem value="em_viagem">Em Viagem</SelectItem>
+              <SelectItem value="indisponivel">Indisponíveis</SelectItem>
+              <SelectItem value="inativo">Inativos</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
+            <SelectTrigger className="w-[140px]">
+              <Truck className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Veículo" />
             </SelectTrigger>
             <SelectContent>
@@ -336,234 +413,298 @@ export default function Motoristas() {
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('list')}
-              className="rounded-l-none"
+              className="rounded-none border-x"
             >
               <List className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              className="rounded-l-none"
+            >
+              <Columns className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </div>
 
-      {filteredCadastrados.length === 0 ? (
-        <Card className="p-8 text-center">
-          <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-          <h3 className="font-medium mb-2">
-            {hasActiveFilters ? 'Nenhum motorista encontrado' : 'Nenhum motorista cadastrado'}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            {hasActiveFilters 
-              ? 'Tente ajustar os filtros de busca.' 
-              : 'Cadastre motoristas ou importe das viagens existentes.'}
-          </p>
-          {!hasActiveFilters && (
-            <MotoristaModal 
-              veiculosDisponiveis={veiculos}
-              eventoId={eventoId}
-              onSave={handleSaveMotorista}
-              onUpdate={handleUpdateMotorista}
-              trigger={
-                <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
-                  <Plus className="w-4 h-4" />
-                  Cadastrar Motorista
-                </span>
-              }
-            />
-          )}
-        </Card>
-      ) : viewMode === 'card' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCadastrados.map((motorista, index) => {
-            const veiculo = getVeiculoDoMotorista(motorista.id);
-            const metricas = getMetricasMotorista(motorista.nome);
-            
-            return (
-              <Card key={motorista.id} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
-                        {motorista.nome.charAt(0)}
-                      </div>
-                      <div>
-                        <CardTitle className="text-base">{motorista.nome}</CardTitle>
-                        {motorista.telefone && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {motorista.telefone}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {metricas && (
-                        <Badge variant="outline" className="text-xs">
-                          #{index + 1}
-                        </Badge>
-                      )}
-                      <MotoristaDropdownActions 
-                        motoristaNome={motorista.nome}
-                        motoristaCadastrado={motorista}
-                        veiculo={veiculo}
-                      />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {metricas ? (
-                    <>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total Viagens</span>
-                          <span className="font-medium">{metricas.totalViagens}</span>
-                        </div>
-                        <Progress 
-                          value={(metricas.totalViagens / maxViagens) * 100} 
-                          className="h-2"
-                        />
-                      </div>
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {MOTORISTA_STATUSES.map(status => (
+              <MotoristaKanbanColumn
+                key={status}
+                status={status}
+                motoristas={motoristasByStatus[status]}
+                veiculos={veiculos}
+                metricas={metricasMotoristas}
+                onDelete={handleDeleteMotorista}
+                onVincularVeiculo={(motoristaId) => navigate(`/evento/${eventoId}/vincular-veiculo/${motoristaId}`)}
+              />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeMotorista && (
+              <MotoristaKanbanCard
+                motorista={activeMotorista}
+                metricas={getMetricasMotorista(activeMotorista.nome)}
+                veiculo={getVeiculoDoMotorista(activeMotorista.id)}
+                onEdit={() => {}}
+                onDelete={() => {}}
+                onViewViagens={() => {}}
+                onVincularVeiculo={() => {}}
+                isDragOverlay
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Users className="w-3.5 h-3.5" />
-                            <span className="text-xs">PAX</span>
-                          </div>
-                          <p className="text-lg font-semibold">{metricas.totalPax}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span className="text-xs">Tempo Médio</span>
-                          </div>
-                          <p className="text-lg font-semibold">
-                            {formatarMinutos(metricas.tempoMedio)}
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-2 text-sm text-muted-foreground">
-                      Nenhuma viagem registrada
-                    </div>
-                  )}
-
-                  <div className="border-t pt-3 space-y-2">
-                    {veiculo ? (
-                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                        <div className="flex items-center gap-2">
-                          <Truck className="w-4 h-4 text-muted-foreground" />
-                          <code className="text-xs">{veiculo.placa}</code>
-                          <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded text-muted-foreground text-sm">
-                        <Truck className="w-4 h-4" />
-                        Sem veículo vinculado
-                      </div>
-                    )}
-                    
-                    {motorista.telefone && (
-                      <div className="flex items-center justify-between p-2 bg-green-500/10 rounded">
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-medium">{motorista.telefone}</span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-500/20"
-                          onClick={() => {
-                            const phone = motorista.telefone?.replace(/\D/g, '');
-                            const url = `https://wa.me/55${phone}`;
-                            window.open(url, '_blank');
-                          }}
-                        >
-                          <MessageCircle className="w-4 h-4 mr-1" />
-                          WhatsApp
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {motorista.atualizado_por && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
-                        <UserCheck className="w-3 h-3" />
-                        <span>
-                          Editado por {getName(motorista.atualizado_por)}{' '}
-                          {formatDistanceToNow(new Date(motorista.data_atualizacao), { 
-                            addSuffix: true, 
-                            locale: ptBR 
-                          })}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead>WhatsApp</TableHead>
-                <TableHead>Veículo</TableHead>
-                <TableHead>Viagens</TableHead>
-                <TableHead>PAX</TableHead>
-                <TableHead>Tempo Médio</TableHead>
-                <TableHead className="w-[50px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      {/* Card/List Views */}
+      {viewMode !== 'kanban' && (
+        <>
+          {filteredCadastrados.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
+              <h3 className="font-medium mb-2">
+                {hasActiveFilters ? 'Nenhum motorista encontrado' : 'Nenhum motorista cadastrado'}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {hasActiveFilters 
+                  ? 'Tente ajustar os filtros de busca.' 
+                  : 'Cadastre motoristas ou importe das viagens existentes.'}
+              </p>
+              {!hasActiveFilters && (
+                <MotoristaModal 
+                  veiculosDisponiveis={veiculos}
+                  eventoId={eventoId}
+                  onSave={handleSaveMotorista}
+                  onUpdate={handleUpdateMotorista}
+                  trigger={
+                    <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
+                      <Plus className="w-4 h-4" />
+                      Cadastrar Motorista
+                    </span>
+                  }
+                />
+              )}
+            </Card>
+          ) : viewMode === 'card' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredCadastrados.map((motorista, index) => {
                 const veiculo = getVeiculoDoMotorista(motorista.id);
                 const metricas = getMetricasMotorista(motorista.nome);
                 
                 return (
-                  <TableRow key={motorista.id}>
-                    <TableCell>
-                      <Badge variant="outline">#{index + 1}</Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
-                          {motorista.nome.charAt(0)}
+                  <Card key={motorista.id} className="overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
+                            {motorista.nome.charAt(0)}
+                          </div>
+                          <div>
+                            <CardTitle className="text-base">{motorista.nome}</CardTitle>
+                            {motorista.telefone && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {motorista.telefone}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        {motorista.nome}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {motorista.telefone || '-'}
-                    </TableCell>
-                    <TableCell>
-                      {veiculo ? (
                         <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
-                          <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                          {metricas && (
+                            <Badge variant="outline" className="text-xs">
+                              #{index + 1}
+                            </Badge>
+                          )}
+                          <MotoristaDropdownActions 
+                            motoristaNome={motorista.nome}
+                            motoristaCadastrado={motorista}
+                            veiculo={veiculo}
+                          />
                         </div>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell>{metricas?.totalViagens || 0}</TableCell>
-                    <TableCell>{metricas?.totalPax || 0}</TableCell>
-                    <TableCell>{metricas ? formatarMinutos(metricas.tempoMedio) : '-'}</TableCell>
-                    <TableCell>
-                      <MotoristaDropdownActions 
-                        motoristaNome={motorista.nome}
-                        motoristaCadastrado={motorista}
-                        veiculo={veiculo}
-                      />
-                    </TableCell>
-                  </TableRow>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {metricas ? (
+                        <>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Total Viagens</span>
+                              <span className="font-medium">{metricas.totalViagens}</span>
+                            </div>
+                            <Progress 
+                              value={(metricas.totalViagens / maxViagens) * 100} 
+                              className="h-2"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Users className="w-3.5 h-3.5" />
+                                <span className="text-xs">PAX</span>
+                              </div>
+                              <p className="text-lg font-semibold">{metricas.totalPax}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="text-xs">Tempo Médio</span>
+                              </div>
+                              <p className="text-lg font-semibold">
+                                {formatarMinutos(metricas.tempoMedio)}
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-2 text-sm text-muted-foreground">
+                          Nenhuma viagem registrada
+                        </div>
+                      )}
+
+                      <div className="border-t pt-3 space-y-2">
+                        {veiculo ? (
+                          <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                            <div className="flex items-center gap-2">
+                              <Truck className="w-4 h-4 text-muted-foreground" />
+                              <code className="text-xs">{veiculo.placa}</code>
+                              <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-2 bg-muted/30 rounded text-muted-foreground text-sm">
+                            <Truck className="w-4 h-4" />
+                            Sem veículo vinculado
+                          </div>
+                        )}
+                        
+                        {motorista.telefone && (
+                          <div className="flex items-center justify-between p-2 bg-green-500/10 rounded">
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-4 h-4 text-green-600" />
+                              <span className="text-xs font-medium">{motorista.telefone}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-500/20"
+                              onClick={() => {
+                                const phone = motorista.telefone?.replace(/\D/g, '');
+                                const url = `https://wa.me/55${phone}`;
+                                window.open(url, '_blank');
+                              }}
+                            >
+                              <MessageCircle className="w-4 h-4 mr-1" />
+                              WhatsApp
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {motorista.atualizado_por && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
+                            <UserCheck className="w-3 h-3" />
+                            <span>
+                              Editado por {getName(motorista.atualizado_por)}{' '}
+                              {formatDistanceToNow(new Date(motorista.data_atualizacao), { 
+                                addSuffix: true, 
+                                locale: ptBR 
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
-            </TableBody>
-          </Table>
-        </Card>
+            </div>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Motorista</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Viagens</TableHead>
+                    <TableHead>PAX</TableHead>
+                    <TableHead>Tempo Médio</TableHead>
+                    <TableHead className="w-[50px]">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCadastrados.map((motorista, index) => {
+                    const veiculo = getVeiculoDoMotorista(motorista.id);
+                    const metricas = getMetricasMotorista(motorista.nome);
+                    const status = motorista.status || 'disponivel';
+                    
+                    return (
+                      <TableRow key={motorista.id}>
+                        <TableCell>
+                          <Badge variant="outline">#{index + 1}</Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                              {motorista.nome.charAt(0)}
+                            </div>
+                            {motorista.nome}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              status === 'disponivel' ? 'border-emerald-500 text-emerald-600' :
+                              status === 'em_viagem' ? 'border-blue-500 text-blue-600' :
+                              status === 'indisponivel' ? 'border-amber-500 text-amber-600' :
+                              'border-gray-500 text-gray-600'
+                            }
+                          >
+                            {status === 'disponivel' ? 'Disponível' :
+                             status === 'em_viagem' ? 'Em Viagem' :
+                             status === 'indisponivel' ? 'Indisponível' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {motorista.telefone || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {veiculo ? (
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+                              <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+                            </div>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>{metricas?.totalViagens || 0}</TableCell>
+                        <TableCell>{metricas?.totalPax || 0}</TableCell>
+                        <TableCell>{metricas ? formatarMinutos(metricas.tempoMedio) : '-'}</TableCell>
+                        <TableCell>
+                          <MotoristaDropdownActions 
+                            motoristaNome={motorista.nome}
+                            motoristaCadastrado={motorista}
+                            veiculo={veiculo}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </>
       )}
+
     </div>
   );
 
