@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Pencil, Truck, User } from 'lucide-react';
+import { Plus, Pencil, Truck, User, Bus, CheckCircle, AlertTriangle, Loader, Fuel } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Motorista, Veiculo } from '@/hooks/useCadastros';
 
@@ -305,11 +309,138 @@ export function MotoristaModal({
   };
 
   // Filtrar veículos disponíveis (sem motorista vinculado ou vinculado ao motorista atual)
-  const veiculosParaSelecao = veiculosDisponiveis.filter(v => {
-    if (!motorista) return true; // Criando novo: mostrar todos
-    // Editando: mostrar veículos sem motorista ou já vinculados a este motorista
-    return !v.motorista_id || v.id === motorista.veiculo_id;
-  });
+  const veiculosParaSelecao = useMemo(() => {
+    const filtered = veiculosDisponiveis.filter(v => {
+      if (!motorista) return true; // Criando novo: mostrar todos
+      // Editando: mostrar veículos sem motorista ou já vinculados a este motorista
+      return !v.motorista_id || v.id === motorista.veiculo_id;
+    });
+
+    // Ordenar por status: liberados primeiro, depois pendentes, depois em inspeção
+    const statusOrder: Record<string, number> = { liberado: 0, pendente: 1, em_inspecao: 2, manutencao: 3 };
+    return filtered.sort((a, b) => {
+      const statusA = statusOrder[a.status || 'em_inspecao'] ?? 2;
+      const statusB = statusOrder[b.status || 'em_inspecao'] ?? 2;
+      if (statusA !== statusB) return statusA - statusB;
+      return a.placa.localeCompare(b.placa);
+    });
+  }, [veiculosDisponiveis, motorista]);
+
+  // Agrupar veículos por status
+  const veiculosAgrupados = useMemo(() => {
+    const liberados = veiculosParaSelecao.filter(v => v.status === 'liberado');
+    const pendentes = veiculosParaSelecao.filter(v => v.status === 'pendente');
+    const emInspecao = veiculosParaSelecao.filter(v => !v.status || v.status === 'em_inspecao');
+    const manutencao = veiculosParaSelecao.filter(v => v.status === 'manutencao');
+    return { liberados, pendentes, emInspecao, manutencao };
+  }, [veiculosParaSelecao]);
+
+  const getStatusBadge = (status: string | null | undefined) => {
+    switch (status) {
+      case 'liberado':
+        return (
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] px-1.5 py-0">
+            <CheckCircle className="w-2.5 h-2.5 mr-0.5" />
+            Liberado
+          </Badge>
+        );
+      case 'pendente':
+        return (
+          <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] px-1.5 py-0">
+            <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+            Pendente
+          </Badge>
+        );
+      case 'manutencao':
+        return (
+          <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">
+            Manutenção
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] px-1.5 py-0">
+            <Loader className="w-2.5 h-2.5 mr-0.5" />
+            Em Inspeção
+          </Badge>
+        );
+    }
+  };
+
+  const getFuelIndicator = (level: string | null | undefined) => {
+    if (!level) return null;
+    const fuelLevels: Record<string, { percentage: number; color: string }> = {
+      vazio: { percentage: 0, color: 'bg-destructive' },
+      '1/4': { percentage: 25, color: 'bg-amber-500' },
+      '1/2': { percentage: 50, color: 'bg-amber-500' },
+      '3/4': { percentage: 75, color: 'bg-emerald-500' },
+      cheio: { percentage: 100, color: 'bg-emerald-500' },
+    };
+    const config = fuelLevels[level] || fuelLevels['1/2'];
+    return (
+      <div className="flex items-center gap-1 text-[10px]">
+        <Fuel className="w-2.5 h-2.5 text-muted-foreground" />
+        <div className="w-6 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className={cn('h-full', config.color)} style={{ width: `${config.percentage}%` }} />
+        </div>
+      </div>
+    );
+  };
+
+  const VeiculoOption = ({ veiculo, isSelected }: { veiculo: Veiculo; isSelected: boolean }) => (
+    <label
+      htmlFor={veiculo.id}
+      className={cn(
+        'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+        isSelected
+          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+          : 'border-border hover:border-primary/50 hover:bg-muted/50'
+      )}
+    >
+      <RadioGroupItem value={veiculo.id} id={veiculo.id} className="mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className={cn(
+            'flex items-center justify-center w-6 h-6 rounded',
+            veiculo.tipo_veiculo === 'Ônibus' ? 'bg-primary/10 text-primary' : 'bg-emerald-500/10 text-emerald-600'
+          )}>
+            <Bus className="w-3.5 h-3.5" />
+          </div>
+          <span className="font-medium text-sm">{veiculo.tipo_veiculo}</span>
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+        </div>
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          {getStatusBadge(veiculo.status)}
+          {getFuelIndicator(veiculo.nivel_combustivel)}
+          {veiculo.possui_avarias && (
+            <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] px-1.5 py-0">
+              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+              Avarias
+            </Badge>
+          )}
+        </div>
+        {veiculo.fornecedor && (
+          <p className="text-[10px] text-muted-foreground mt-1 truncate">
+            {veiculo.fornecedor}
+          </p>
+        )}
+      </div>
+    </label>
+  );
+
+  const renderVeiculoGroup = (veiculos: Veiculo[], title: string, selectedId: string) => {
+    if (veiculos.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <div className="space-y-2">
+          {veiculos.map(v => (
+            <VeiculoOption key={v.id} veiculo={v} isSelected={v.id === selectedId} />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -327,7 +458,7 @@ export function MotoristaModal({
           )
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="w-5 h-5" />
@@ -357,27 +488,45 @@ export function MotoristaModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="veiculo_id">Veículo Vinculado</Label>
-            <Select
-              value={form.watch('veiculo_id') || ''}
-              onValueChange={(value) => form.setValue('veiculo_id', value === 'none' ? '' : value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um veículo (opcional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {veiculosParaSelecao.map(v => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.tipo_veiculo} - {v.placa} {v.fornecedor ? `(${v.fornecedor})` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {veiculosParaSelecao.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Nenhum veículo disponível. Cadastre veículos primeiro.
-              </p>
+            <Label>Veículo Vinculado</Label>
+            {veiculosParaSelecao.length === 0 ? (
+              <div className="p-4 border border-dashed rounded-lg text-center">
+                <Truck className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  Nenhum veículo disponível
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Cadastre veículos primeiro
+                </p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[200px] rounded-lg border p-2">
+                <RadioGroup
+                  value={form.watch('veiculo_id') || 'none'}
+                  onValueChange={(value) => form.setValue('veiculo_id', value === 'none' ? '' : value)}
+                  className="space-y-3"
+                >
+                  {/* Opção Nenhum */}
+                  <label
+                    htmlFor="none"
+                    className={cn(
+                      'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all',
+                      !form.watch('veiculo_id') || form.watch('veiculo_id') === 'none'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                    )}
+                  >
+                    <RadioGroupItem value="none" id="none" />
+                    <span className="text-sm text-muted-foreground">Nenhum veículo</span>
+                  </label>
+                  
+                  {/* Veículos agrupados */}
+                  {renderVeiculoGroup(veiculosAgrupados.liberados, '✓ Liberados', form.watch('veiculo_id') || '')}
+                  {renderVeiculoGroup(veiculosAgrupados.pendentes, '⚠ Pendentes', form.watch('veiculo_id') || '')}
+                  {renderVeiculoGroup(veiculosAgrupados.emInspecao, '🔄 Em Inspeção', form.watch('veiculo_id') || '')}
+                  {renderVeiculoGroup(veiculosAgrupados.manutencao, '🔧 Manutenção', form.watch('veiculo_id') || '')}
+                </RadioGroup>
+              </ScrollArea>
             )}
           </div>
 

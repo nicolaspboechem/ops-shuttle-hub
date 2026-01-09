@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, MapPin, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, FileBarChart, AlertTriangle, CheckCircle, Loader } from 'lucide-react';
+import { Bus, Users, Clock, Search, Filter, X, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, Truck, Download, UserCheck, Gauge, FileBarChart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
@@ -20,7 +20,7 @@ import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VeiculoModal } from '@/components/cadastros/CadastroModals';
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
-
+import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from '@/components/veiculos/VeiculoStatusBadge';
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { Viagem } from '@/lib/types/viagem';
 import { toast } from 'sonner';
@@ -213,8 +213,19 @@ export default function Veiculos() {
       filtered = filtered.filter(v => v.tipo_veiculo === filterTipoVeiculo);
     }
 
-    return filtered.sort((a, b) => a.placa.localeCompare(b.placa));
-  }, [veiculos, searchTerm, filterTipoVeiculo]);
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(v => (v.status || 'em_inspecao') === filterStatus);
+    }
+
+    // Ordenar: liberados primeiro, depois pendentes, depois em inspeção
+    const statusOrder = { liberado: 0, pendente: 1, em_inspecao: 2, manutencao: 3 };
+    return filtered.sort((a, b) => {
+      const statusA = statusOrder[a.status || 'em_inspecao'] ?? 2;
+      const statusB = statusOrder[b.status || 'em_inspecao'] ?? 2;
+      if (statusA !== statusB) return statusA - statusB;
+      return a.placa.localeCompare(b.placa);
+    });
+  }, [veiculos, searchTerm, filterTipoVeiculo, filterStatus]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -279,14 +290,26 @@ export default function Veiculos() {
         </div>
         <div className="flex gap-2">
           <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
-            <SelectTrigger className="w-[140px]">
-              <Filter className="w-4 h-4 mr-2" />
+            <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos tipos</SelectItem>
               <SelectItem value="Van">Van</SelectItem>
               <SelectItem value="Ônibus">Ônibus</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[140px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="liberado">Liberado</SelectItem>
+              <SelectItem value="pendente">Pendente</SelectItem>
+              <SelectItem value="em_inspecao">Em Inspeção</SelectItem>
+              <SelectItem value="manutencao">Manutenção</SelectItem>
             </SelectContent>
           </Select>
           {hasActiveFilters && (
@@ -396,6 +419,12 @@ export default function Veiculos() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <VeiculoStatusBadge status={veiculo.status} />
+                    <AvariaIndicator hasAvarias={veiculo.possui_avarias} />
+                    <FuelIndicator level={veiculo.nivel_combustivel} />
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {veiculo.fornecedor && (
@@ -471,7 +500,7 @@ export default function Veiculos() {
                     </div>
                   )}
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {stats?.ativo && (
                       <Badge className="bg-status-ok text-status-ok-foreground text-xs">
                         Em Operação
@@ -565,12 +594,14 @@ export default function Veiculos() {
                     <TableCell>{stats?.totalViagens || 0}</TableCell>
                     <TableCell>{stats?.totalPax || 0}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-2">
+                        <VeiculoStatusBadge status={veiculo.status} size="sm" />
                         {stats?.ativo && (
-                          <Badge className="bg-status-ok text-status-ok-foreground text-xs">
+                          <Badge className="bg-status-ok text-status-ok-foreground text-[10px] px-1.5 py-0">
                             Ativo
                           </Badge>
                         )}
+                        <AvariaIndicator hasAvarias={veiculo.possui_avarias} size="sm" />
                       </div>
                     </TableCell>
                     <TableCell>
