@@ -57,6 +57,7 @@ export interface Motorista {
   veiculo?: Veiculo;
   criado_por?: string | null;
   atualizado_por?: string | null;
+  status?: string | null; // 'disponivel' | 'em_viagem' | 'indisponivel' | 'inativo'
 }
 
 export function useMotoristas(eventoId?: string) {
