@@ -2,8 +2,9 @@ import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car } from 'lucide-react';
+import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUserNames } from '@/hooks/useUserNames';
 
 interface ViagemCardMobileProps {
   viagem: Viagem;
@@ -25,6 +26,9 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
   const config = statusConfig[status];
 
   const VeiculoIcon = viagem.tipo_veiculo === 'Ônibus' ? Bus : Car;
+
+  // Buscar nomes dos usuários envolvidos
+  const { getName } = useUserNames([viagem.criado_por, viagem.iniciado_por, viagem.finalizado_por]);
 
   return (
     <Card className={cn(
@@ -78,6 +82,30 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
             <span className="text-green-600">
               Chegada: <strong>{viagem.h_chegada}</strong>
             </span>
+          </div>
+        )}
+
+        {/* Auditoria - quem fez o quê */}
+        {(viagem.criado_por || viagem.iniciado_por || viagem.finalizado_por) && (
+          <div className="border-t pt-2 text-xs text-muted-foreground space-y-0.5">
+            {viagem.criado_por && (
+              <div className="flex items-center gap-1">
+                <UserPlus className="h-3 w-3" />
+                <span>Criado: {getName(viagem.criado_por)}</span>
+              </div>
+            )}
+            {viagem.iniciado_por && (
+              <div className="flex items-center gap-1">
+                <Play className="h-3 w-3" />
+                <span>Iniciado: {getName(viagem.iniciado_por)}</span>
+              </div>
+            )}
+            {viagem.finalizado_por && (
+              <div className="flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                <span>Encerrado: {getName(viagem.finalizado_por)}</span>
+              </div>
+            )}
           </div>
         )}
 

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useUserNames } from '@/hooks/useUserNames';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +25,8 @@ import {
   ArrowRight,
   Loader2,
   XCircle,
-  PauseCircle
+  PauseCircle,
+  UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -74,6 +76,9 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
   const status = (viagem.status || 'agendado') as StatusViagemOperacao;
   const config = statusConfig[status];
   const StatusIcon = config.icon;
+
+  // Buscar nomes dos usuários envolvidos
+  const { getName } = useUserNames([viagem.criado_por, viagem.iniciado_por, viagem.finalizado_por]);
 
   // Verificar permissão para iniciar retorno
   const role = eventoId ? getEventRole(eventoId) : null;
@@ -202,6 +207,30 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
             <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
               {viagem.observacao}
             </p>
+          )}
+
+          {/* Auditoria - quem fez o quê */}
+          {(viagem.criado_por || viagem.iniciado_por || viagem.finalizado_por) && (
+            <div className="border-t pt-2 mb-3 text-xs text-muted-foreground space-y-0.5">
+              {viagem.criado_por && (
+                <div className="flex items-center gap-1">
+                  <UserPlus className="h-3 w-3" />
+                  <span>Criado: {getName(viagem.criado_por)}</span>
+                </div>
+              )}
+              {viagem.iniciado_por && (
+                <div className="flex items-center gap-1">
+                  <Play className="h-3 w-3" />
+                  <span>Iniciado: {getName(viagem.iniciado_por)}</span>
+                </div>
+              )}
+              {viagem.finalizado_por && (
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  <span>Encerrado: {getName(viagem.finalizado_por)}</span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Ações baseadas no status */}

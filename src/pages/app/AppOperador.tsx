@@ -6,13 +6,6 @@ import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,15 +18,14 @@ import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { QuickMotoristaForm } from '@/components/app/QuickMotoristaForm';
 import { QuickVeiculoForm } from '@/components/app/QuickVeiculoForm';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
+import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { 
   ArrowLeft, 
   Plus, 
-  RefreshCw, 
   Loader2,
   Bus,
   Clock,
   CheckCircle,
-  Radio,
   Settings,
   User,
   Car,
@@ -58,6 +50,10 @@ export default function AppOperador() {
   const [showVeiculoForm, setShowVeiculoForm] = useState(false);
   const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
 
   useEffect(() => {
     if (eventoId) {
@@ -110,7 +106,7 @@ export default function AppOperador() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-4">
@@ -167,84 +163,83 @@ export default function AppOperador() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-
-              <Button variant="ghost" size="icon" onClick={refetch}>
-                <RefreshCw className="h-5 w-5" />
-              </Button>
-              <Button size="icon" onClick={() => setShowForm(true)}>
-                <Plus className="h-5 w-5" />
-              </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="container mx-auto px-4 py-4 space-y-4">
-        {/* Status Cards */}
-        <div className="grid grid-cols-4 gap-2">
-          <div 
-            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
-            onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
-          >
-            <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-            <p className="text-xl font-bold">{counts.agendado}</p>
-            <p className="text-[10px] text-muted-foreground">Agendado</p>
-          </div>
-          <div 
-            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
-            onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
-          >
-            <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
-            <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
-            <p className="text-[10px] text-muted-foreground">Andamento</p>
-          </div>
-          <div 
-            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
-            onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
-          >
-            <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
-            <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
-            <p className="text-[10px] text-muted-foreground">Aguardando</p>
-          </div>
-          <div 
-            className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
-            onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
-          >
-            <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
-            <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
-            <p className="text-[10px] text-muted-foreground">Encerrado</p>
-          </div>
-        </div>
-
-
-        {/* Lista de viagens */}
-        <div className="space-y-3">
-          {sortedViagens.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Nenhuma viagem</p>
-              <p className="text-sm mb-4">
-                {statusFilter !== 'todos' 
-                  ? 'Nenhuma viagem com este status'
-                  : 'Crie a primeira viagem do evento'}
-              </p>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Viagem
-              </Button>
+      {/* Main content com Pull-to-Refresh */}
+      <PullToRefresh onRefresh={handleRefresh}>
+        <main className="container mx-auto px-4 py-4 space-y-4 pb-24">
+          {/* Status Cards */}
+          <div className="grid grid-cols-4 gap-2">
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
+              onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
+            >
+              <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="text-xl font-bold">{counts.agendado}</p>
+              <p className="text-[10px] text-muted-foreground">Agendado</p>
             </div>
-          ) : (
-            sortedViagens.map(viagem => (
-              <ViagemCardOperador 
-                key={viagem.id} 
-                viagem={viagem} 
-                onUpdate={refetch}
-              />
-            ))
-          )}
-        </div>
-      </main>
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
+            >
+              <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
+              <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
+              <p className="text-[10px] text-muted-foreground">Andamento</p>
+            </div>
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
+            >
+              <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+              <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
+              <p className="text-[10px] text-muted-foreground">Aguardando</p>
+            </div>
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
+            >
+              <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+              <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
+              <p className="text-[10px] text-muted-foreground">Encerrado</p>
+            </div>
+          </div>
+
+          {/* Lista de viagens */}
+          <div className="space-y-3">
+            {sortedViagens.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium">Nenhuma viagem</p>
+                <p className="text-sm mb-4">
+                  {statusFilter !== 'todos' 
+                    ? 'Nenhuma viagem com este status'
+                    : 'Crie a primeira viagem do evento'}
+                </p>
+              </div>
+            ) : (
+              sortedViagens.map(viagem => (
+                <ViagemCardOperador 
+                  key={viagem.id} 
+                  viagem={viagem} 
+                  onUpdate={refetch}
+                />
+              ))
+            )}
+          </div>
+        </main>
+      </PullToRefresh>
+
+      {/* FAB Fixo - Nova Viagem */}
+      <Button
+        size="lg"
+        onClick={() => setShowForm(true)}
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
 
       {/* Form de criação de viagem (Drawer) */}
       <CreateViagemForm
