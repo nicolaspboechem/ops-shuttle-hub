@@ -30,6 +30,17 @@ export interface Veiculo {
   // Auditoria
   criado_por?: string | null;
   atualizado_por?: string | null;
+  // Status e inspeção
+  status?: string | null;
+  nivel_combustivel?: string | null;
+  possui_avarias?: boolean | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inspecao_dados?: any;
+  inspecao_data?: string | null;
+  inspecao_por?: string | null;
+  liberado_em?: string | null;
+  liberado_por?: string | null;
+  observacoes_gerais?: string | null;
 }
 
 export interface Motorista {
