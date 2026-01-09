@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2 } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,7 @@ const sections: InnerSidebarSection[] = [
 
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>('cadastro');
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [searchTerm, setSearchTerm] = useState('');
@@ -200,6 +201,12 @@ export default function Motoristas() {
         <DropdownMenuSeparator />
         {motoristaCadastrado ? (
           <>
+            <DropdownMenuItem 
+              onSelect={() => navigate(`/evento/${eventoId}/vincular-veiculo/${motoristaCadastrado.id}`)}
+            >
+              <Link2 className="w-4 h-4 mr-2" />
+              Vincular Veículo
+            </DropdownMenuItem>
             <MotoristaModal 
               motorista={motoristaCadastrado}
               veiculosDisponiveis={veiculos}
