@@ -4,6 +4,42 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { toast } from 'sonner';
 
+// Helper para atualizar status do motorista
+async function atualizarStatusMotorista(motoristaNome: string, eventoId: string, novoStatus: string) {
+  const { error } = await supabase
+    .from('motoristas')
+    .update({ status: novoStatus } as any)
+    .eq('nome', motoristaNome)
+    .eq('evento_id', eventoId);
+
+  if (error) {
+    console.error('Erro ao atualizar status do motorista:', error);
+  }
+}
+
+// Helper para verificar se motorista tem outras viagens ativas
+async function motoristaTemViagensAtivas(motoristaNome: string, eventoId: string, viagemIdExcluir?: string): Promise<boolean> {
+  let query = supabase
+    .from('viagens')
+    .select('id')
+    .eq('motorista', motoristaNome)
+    .eq('evento_id', eventoId)
+    .eq('encerrado', false);
+
+  if (viagemIdExcluir) {
+    query = query.neq('id', viagemIdExcluir);
+  }
+
+  const { data, error } = await query;
+  
+  if (error) {
+    console.error('Erro ao verificar viagens ativas:', error);
+    return false;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
 export function useViagemOperacao() {
   const { user } = useAuth();
 
@@ -48,6 +84,11 @@ export function useViagemOperacao() {
       motorista: viagem.motorista,
       placa: viagem.placa 
     });
+
+    // Sincronizar status do motorista para 'em_viagem'
+    if (viagem.motorista && viagem.evento_id) {
+      await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'em_viagem');
+    }
     
     toast.success('Viagem iniciada!');
     return true;
@@ -86,6 +127,14 @@ export function useViagemOperacao() {
       h_chegada: horaChegada,
       qtd_pax: qtdPax ?? viagem.qtd_pax
     });
+
+    // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
+    if (viagem.motorista && viagem.evento_id) {
+      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista, viagem.evento_id, viagem.id);
+      if (!temOutrasViagens) {
+        await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
+      }
+    }
     
     toast.success('Rota concluída!');
     return true;
@@ -115,6 +164,15 @@ export function useViagemOperacao() {
     }
 
     await registrarLog(viagem.id, 'encerramento');
+
+    // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
+    if (viagem.motorista && viagem.evento_id) {
+      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista, viagem.evento_id, viagem.id);
+      if (!temOutrasViagens) {
+        await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
+      }
+    }
+
     toast.success('Viagem encerrada!');
     return true;
   }, [user, registrarLog]);
