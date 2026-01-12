@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,8 +7,9 @@ import { cn } from '@/lib/utils';
 
 interface MissaoCardMobileProps {
   missao: Missao;
-  onAceitar?: () => Promise<boolean>;
-  onRecusar?: () => Promise<boolean>;
+  loading?: boolean;
+  onAceitar?: () => void;
+  onRecusar?: () => void;
   onIniciar?: () => void;
 }
 
@@ -26,22 +26,15 @@ const statusLabels: Record<string, string> = {
   em_andamento: 'Em Andamento',
 };
 
-export function MissaoCardMobile({ missao, onAceitar, onRecusar, onIniciar }: MissaoCardMobileProps) {
-  const [loading, setLoading] = useState<'aceitar' | 'recusar' | null>(null);
+export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onIniciar }: MissaoCardMobileProps) {
   const config = prioridadeConfig[missao.prioridade];
 
-  const handleAceitar = async () => {
-    if (!onAceitar) return;
-    setLoading('aceitar');
-    await onAceitar();
-    setLoading(null);
+  const handleAceitar = () => {
+    if (onAceitar) onAceitar();
   };
 
-  const handleRecusar = async () => {
-    if (!onRecusar) return;
-    setLoading('recusar');
-    await onRecusar();
-    setLoading(null);
+  const handleRecusar = () => {
+    if (onRecusar) onRecusar();
   };
 
   return (
@@ -102,9 +95,9 @@ export function MissaoCardMobile({ missao, onAceitar, onRecusar, onIniciar }: Mi
                 variant="outline"
                 className="flex-1"
                 onClick={handleRecusar}
-                disabled={loading !== null}
+                disabled={loading}
               >
-                {loading === 'recusar' ? (
+                {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
@@ -116,9 +109,9 @@ export function MissaoCardMobile({ missao, onAceitar, onRecusar, onIniciar }: Mi
               <Button
                 className="flex-1"
                 onClick={handleAceitar}
-                disabled={loading !== null}
+                disabled={loading}
               >
-                {loading === 'aceitar' ? (
+                {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>

@@ -11,12 +11,12 @@ import {
 import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface MissaoCardProps {
+export interface MissaoCardProps {
   missao: Missao;
+  motoristaNome?: string;
   onEdit?: () => void;
   onDelete?: () => void;
-  onConcluir?: () => void;
-  onCancelar?: () => void;
+  onStatusChange?: (status: string) => void;
 }
 
 const prioridadeConfig: Record<MissaoPrioridade, { label: string; className: string }> = {
@@ -34,9 +34,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   cancelada: { label: 'Cancelada', className: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
-export function MissaoCard({ missao, onEdit, onDelete, onConcluir, onCancelar }: MissaoCardProps) {
+export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusChange }: MissaoCardProps) {
   const prioridade = prioridadeConfig[missao.prioridade];
   const status = statusConfig[missao.status];
+  const displayNome = motoristaNome || missao.motorista_nome || 'Não atribuído';
 
   return (
     <Card className={cn(
@@ -70,14 +71,14 @@ export function MissaoCard({ missao, onEdit, onDelete, onConcluir, onCancelar }:
                   Editar
                 </DropdownMenuItem>
               )}
-              {onConcluir && missao.status !== 'concluida' && (
-                <DropdownMenuItem onClick={onConcluir}>
+              {onStatusChange && missao.status !== 'concluida' && (
+                <DropdownMenuItem onClick={() => onStatusChange('concluida')}>
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Marcar como Concluída
                 </DropdownMenuItem>
               )}
-              {onCancelar && missao.status !== 'cancelada' && (
-                <DropdownMenuItem onClick={onCancelar} className="text-destructive">
+              {onStatusChange && missao.status !== 'cancelada' && (
+                <DropdownMenuItem onClick={() => onStatusChange('cancelada')} className="text-destructive">
                   <XCircle className="h-4 w-4 mr-2" />
                   Cancelar
                 </DropdownMenuItem>
@@ -101,7 +102,7 @@ export function MissaoCard({ missao, onEdit, onDelete, onConcluir, onCancelar }:
         {/* Motorista */}
         <div className="flex items-center gap-2 text-sm mb-2">
           <User className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{missao.motorista_nome || 'Não atribuído'}</span>
+          <span className="font-medium">{displayNome}</span>
         </div>
 
         {/* Pontos */}

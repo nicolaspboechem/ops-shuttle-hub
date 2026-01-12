@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
+import { useMissoes } from '@/hooks/useMissoes';
+import { useMotoristas } from '@/hooks/useCadastros';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
+import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut } from 'lucide-react';
+import { ArrowLeft, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut, ClipboardList } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
@@ -25,15 +28,51 @@ export default function AppMotorista() {
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada } = useViagemOperacao();
+  const { motoristas } = useMotoristas(eventoId);
+  const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
   
   const [busca, setBusca] = useState<string>('');
   const [operando, setOperando] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const evento = eventos.find(e => e.id === eventoId);
+  
+  // Find motorista ID from name
+  const motoristaData = motoristas.find(m => 
+    m.nome.toLowerCase() === busca.toLowerCase().trim()
+  );
+
+  // Filter missions for this driver
+  const minhasMissoes = useMemo(() => {
+    if (!motoristaData) return [];
+    return missoes.filter(m => 
+      m.motorista_id === motoristaData.id && 
+      ['pendente', 'aceita', 'em_andamento'].includes(m.status)
+    );
+  }, [missoes, motoristaData]);
 
   const handleRefresh = async () => {
-    await refetch();
+    await Promise.all([refetch(), refetchMissoes()]);
+  };
+
+  const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar') => {
+    const missao = missoes.find(m => m.id === missaoId);
+    if (!missao) return;
+
+    setOperando(missaoId);
+    try {
+      if (action === 'aceitar') {
+        await updateMissao(missaoId, { status: 'aceita' });
+      } else if (action === 'recusar') {
+        await updateMissao(missaoId, { status: 'cancelada' });
+      } else if (action === 'iniciar') {
+        await updateMissao(missaoId, { status: 'em_andamento' });
+        // Could also create a trip automatically here
+      }
+      refetchMissoes();
+    } finally {
+      setOperando(null);
+    }
   };
 
   useEffect(() => {
@@ -173,6 +212,26 @@ export default function AppMotorista() {
             </div>
           )}
 
+          {/* Missões designadas */}
+          {minhasMissoes.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ClipboardList className="h-4 w-4 text-primary" />
+                <span>Missões Designadas ({minhasMissoes.length})</span>
+              </div>
+              {minhasMissoes.map(missao => (
+                <MissaoCardMobile
+                  key={missao.id}
+                  missao={missao}
+                  loading={operando === missao.id}
+                  onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
+                  onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
+                  onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
+                />
+              ))}
+            </div>
+          )}
+
           {/* Lista de Viagens */}
           {!busca.trim() ? (
             <div className="text-center py-16 text-muted-foreground">
@@ -180,13 +239,13 @@ export default function AppMotorista() {
               <p className="text-lg font-medium">Busque suas viagens</p>
               <p className="text-sm">Digite seu nome ou placa para ver suas viagens</p>
             </div>
-          ) : minhasViagens.length === 0 ? (
+          ) : minhasViagens.length === 0 && minhasMissoes.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
               <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
               <p className="text-sm mb-4">Nenhuma viagem para "{busca}"</p>
             </div>
-          ) : (
+          ) : minhasViagens.length > 0 && (
             <div className="space-y-3">
               {/* Viagens ativas primeiro */}
               {minhasViagens

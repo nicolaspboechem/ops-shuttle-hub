@@ -31,7 +31,7 @@ import { ptBR } from 'date-fns/locale';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 
 import { ClipboardList } from 'lucide-react';
-import { useMissoes, Missao } from '@/hooks/useMissoes';
+import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
@@ -736,6 +736,105 @@ export default function Motoristas() {
         </>
       )}
 
+    </div>
+  );
+
+  // Conteúdo da seção Missões
+  const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
+  const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
+  const [showMissaoModal, setShowMissaoModal] = useState(false);
+  const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
+  const [missaoFilter, setMissaoFilter] = useState<string>('all');
+
+  const filteredMissoes = useMemo(() => {
+    if (missaoFilter === 'all') return missoes;
+    return missoes.filter(m => m.status === missaoFilter);
+  }, [missoes, missaoFilter]);
+
+  const handleSaveMissao = async (data: any) => {
+    if (editingMissao) {
+      await updateMissao(editingMissao.id, data);
+    } else {
+      await createMissao(data);
+    }
+    setShowMissaoModal(false);
+    setEditingMissao(null);
+  };
+
+  const handleDeleteMissao = async (id: string) => {
+    await deleteMissao(id);
+  };
+
+  const MissoesContent = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Missões</h1>
+          <p className="text-sm text-muted-foreground">
+            Designe missões específicas para motoristas
+          </p>
+        </div>
+        <Button onClick={() => { setEditingMissao(null); setShowMissaoModal(true); }}>
+          <Plus className="w-4 h-4 mr-2" />
+          Nova Missão
+        </Button>
+      </div>
+
+      <div className="flex gap-3">
+        <Select value={missaoFilter} onValueChange={setMissaoFilter}>
+          <SelectTrigger className="w-[180px]">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="pendente">Pendentes</SelectItem>
+            <SelectItem value="aceita">Aceitas</SelectItem>
+            <SelectItem value="em_andamento">Em Andamento</SelectItem>
+            <SelectItem value="concluida">Concluídas</SelectItem>
+            <SelectItem value="cancelada">Canceladas</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {loadingMissoes ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
+      ) : filteredMissoes.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <ClipboardList className="h-16 w-16 mx-auto mb-4 opacity-30" />
+          <p className="text-lg font-medium">Nenhuma missão encontrada</p>
+          <p className="text-sm">Crie uma missão para designar um motorista</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMissoes.map(missao => {
+            const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+            return (
+              <MissaoCard
+                key={missao.id}
+                missao={missao}
+                motoristaNome={motorista?.nome || 'Motorista não encontrado'}
+                onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
+                onDelete={() => handleDeleteMissao(missao.id)}
+                onStatusChange={(status) => updateMissao(missao.id, { status: status as MissaoStatus })}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      <MissaoModal
+        open={showMissaoModal}
+        onOpenChange={(open) => { setShowMissaoModal(open); if (!open) setEditingMissao(null); }}
+        missao={editingMissao}
+        motoristas={motoristasCadastrados}
+        pontos={pontosEmbarque}
+        onSave={handleSaveMissao}
+      />
     </div>
   );
 
