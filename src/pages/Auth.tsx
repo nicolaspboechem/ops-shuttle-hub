@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Loader2, Mail, Phone } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
+import { maskPhone, formatPhoneInternational, isValidPhone } from '@/lib/utils/formatPhone';
+import { cn } from '@/lib/utils';
+
+type LoginType = 'email' | 'phone';
 
 export default function Auth() {
+  const [loginType, setLoginType] = useState<LoginType>('phone');
   const [email, setEmail] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -26,16 +32,31 @@ export default function Auth() {
     }
   }, [user, authLoading, navigate, isAdmin, eventRoles]);
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTelefone(maskPhone(e.target.value));
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    let loginIdentifier = email;
+    
+    if (loginType === 'phone') {
+      if (!isValidPhone(telefone)) {
+        setError('Digite um número de celular válido');
+        setLoading(false);
+        return;
+      }
+      loginIdentifier = formatPhoneInternational(telefone);
+    }
+
+    const { error } = await signIn(loginIdentifier, password, loginType);
     
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
-        setError('Email ou senha inválidos');
+        setError(loginType === 'phone' ? 'Celular ou senha inválidos' : 'Email ou senha inválidos');
       } else if (error.message.includes('Email not confirmed')) {
         setError('Email não confirmado. Verifique sua caixa de entrada.');
       } else {
@@ -88,10 +109,40 @@ export default function Auth() {
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
             
             {/* Header */}
-            <div className="relative mb-8">
+            <div className="relative mb-6">
               <h2 className="text-[22px] font-bold text-white">
                 Sistema de Controle Operacional
               </h2>
+            </div>
+
+            {/* Login Type Toggle */}
+            <div className="flex gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => setLoginType('phone')}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all",
+                  loginType === 'phone'
+                    ? "bg-[#4361ee] text-white"
+                    : "bg-[#1a2744] text-gray-400 hover:text-white hover:bg-[#243352]"
+                )}
+              >
+                <Phone className="w-4 h-4" />
+                Celular
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginType('email')}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all",
+                  loginType === 'email'
+                    ? "bg-[#4361ee] text-white"
+                    : "bg-[#1a2744] text-gray-400 hover:text-white hover:bg-[#243352]"
+                )}
+              >
+                <Mail className="w-4 h-4" />
+                Email
+              </button>
             </div>
 
             {error && (
@@ -102,23 +153,43 @@ export default function Auth() {
             )}
 
             <form onSubmit={handleSignIn} className="space-y-5 relative">
-              <div className="space-y-2">
-                <label htmlFor="email-login" className="block text-[13px] font-medium text-gray-400">
-                  E-mail
-                </label>
-                <input
-                  id="email-login"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
-                  required
-                  autoComplete="email"
-                  disabled={loading}
-                  className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
-                />
-              </div>
+              {loginType === 'email' ? (
+                <div className="space-y-2">
+                  <label htmlFor="email-login" className="block text-[13px] font-medium text-gray-400">
+                    E-mail
+                  </label>
+                  <input
+                    id="email-login"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
+                    required
+                    autoComplete="email"
+                    disabled={loading}
+                    className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label htmlFor="phone-login" className="block text-[13px] font-medium text-gray-400">
+                    Celular
+                  </label>
+                  <input
+                    id="phone-login"
+                    type="tel"
+                    placeholder="(11) 99999-9999"
+                    value={telefone}
+                    onChange={handlePhoneChange}
+                    style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
+                    required
+                    autoComplete="tel"
+                    disabled={loading}
+                    className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label htmlFor="password-login" className="block text-[13px] font-medium text-gray-400">

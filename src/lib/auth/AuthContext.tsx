@@ -26,7 +26,7 @@ interface AuthContextType {
   permissions: AppPermission[];
   eventRoles: EventRoleMapping[];
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (identifier: string, password: string, type?: 'email' | 'phone') => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasPermission: (permission: AppPermission) => boolean;
@@ -137,9 +137,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string, type: 'email' | 'phone' = 'email') => {
+    if (type === 'phone') {
+      const { error } = await supabase.auth.signInWithPassword({
+        phone: identifier,
+        password,
+      });
+      return { error: error as Error | null };
+    }
+    
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: identifier,
       password,
     });
     return { error: error as Error | null };
