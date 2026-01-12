@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
+import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useServerTime } from '@/hooks/useServerTime';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Drawer,
   DrawerClose,
@@ -21,8 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Bus, Car } from 'lucide-react';
+import { Loader2, Bus, Car, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CreateViagemMotoristaFormProps {
   open: boolean;
@@ -42,14 +57,19 @@ export function CreateViagemMotoristaForm({
   const { user } = useAuth();
   const { motoristas } = useMotoristas(eventoId);
   const { veiculos } = useVeiculos(eventoId);
+  const { pontos } = usePontosEmbarque(eventoId);
   const { getAgoraSync } = useServerTime();
 
   const [pontoEmbarque, setPontoEmbarque] = useState('');
+  const [pontoEmbarqueOpen, setPontoEmbarqueOpen] = useState(false);
   const [pontoDesembarque, setPontoDesembarque] = useState('');
+  const [pontoDesembarqueOpen, setPontoDesembarqueOpen] = useState(false);
   const [qtdPax, setQtdPax] = useState('');
   const [tipoOperacao, setTipoOperacao] = useState('transfer');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const activePontos = pontos.filter(p => p.ativo);
 
   // Encontrar veículo vinculado ao motorista
   const motoristaData = motoristas.find(m => 
@@ -190,23 +210,123 @@ export function CreateViagemMotoristaForm({
           {/* Ponto de Embarque */}
           <div className="space-y-2">
             <Label>Ponto de Embarque *</Label>
-            <Input
-              value={pontoEmbarque}
-              onChange={e => setPontoEmbarque(e.target.value)}
-              placeholder="Local de embarque"
-              required
-            />
+            <Popover open={pontoEmbarqueOpen} onOpenChange={setPontoEmbarqueOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={pontoEmbarqueOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {pontoEmbarque || "Selecionar ponto..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar ou digitar..." />
+                  <CommandList>
+                    <CommandEmpty>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+                          if (input?.value) {
+                            setPontoEmbarque(input.value);
+                            setPontoEmbarqueOpen(false);
+                          }
+                        }}
+                      >
+                        Usar texto digitado
+                      </Button>
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {activePontos.map((p) => (
+                        <CommandItem
+                          key={p.id}
+                          value={p.nome}
+                          onSelect={() => {
+                            setPontoEmbarque(p.nome);
+                            setPontoEmbarqueOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              pontoEmbarque === p.nome ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {p.nome}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Ponto de Desembarque */}
           <div className="space-y-2">
             <Label>Ponto de Desembarque *</Label>
-            <Input
-              value={pontoDesembarque}
-              onChange={e => setPontoDesembarque(e.target.value)}
-              placeholder="Local de desembarque"
-              required
-            />
+            <Popover open={pontoDesembarqueOpen} onOpenChange={setPontoDesembarqueOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={pontoDesembarqueOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {pontoDesembarque || "Selecionar ponto..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar ou digitar..." />
+                  <CommandList>
+                    <CommandEmpty>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+                          if (input?.value) {
+                            setPontoDesembarque(input.value);
+                            setPontoDesembarqueOpen(false);
+                          }
+                        }}
+                      >
+                        Usar texto digitado
+                      </Button>
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {activePontos.map((p) => (
+                        <CommandItem
+                          key={p.id}
+                          value={p.nome}
+                          onSelect={() => {
+                            setPontoDesembarque(p.nome);
+                            setPontoDesembarqueOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              pontoDesembarque === p.nome ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {p.nome}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Quantidade de PAX e Tipo de Operação */}
