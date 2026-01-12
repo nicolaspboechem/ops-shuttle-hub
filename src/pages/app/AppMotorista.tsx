@@ -5,6 +5,8 @@ import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +26,7 @@ import logoAS from '@/assets/as_logo_reduzida_preta.png';
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user } = useAuth();
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada } = useViagemOperacao();
@@ -66,10 +68,103 @@ export default function AppMotorista() {
       } else if (action === 'recusar') {
         await updateMissao(missaoId, { status: 'cancelada' });
       } else if (action === 'iniciar') {
+        // Criar viagem ao iniciar a missão
+        const motorista = motoristas.find(m => m.id === missao.motorista_id);
+        if (!motorista || !eventoId) {
+          toast.error('Motorista não encontrado');
+          return;
+        }
+
+        const now = new Date();
+        const horaPickup = now.toTimeString().slice(0, 8);
+
+        const { data: novaViagem, error } = await supabase
+          .from('viagens')
+          .insert({
+            evento_id: eventoId,
+            motorista: motorista.nome,
+            ponto_embarque: missao.ponto_embarque,
+            ponto_desembarque: missao.ponto_desembarque,
+            tipo_operacao: 'transfer',
+            h_pickup: horaPickup,
+            status: 'em_andamento',
+            criado_por: user?.id,
+            iniciado_por: user?.id,
+            h_inicio_real: now.toISOString(),
+            encerrado: false,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Erro ao criar viagem:', error);
+          toast.error('Erro ao criar viagem da missão');
+          return;
+        }
+
+        // Atualizar status do motorista para em_viagem
+        await supabase
+          .from('motoristas')
+          .update({ status: 'em_viagem' })
+          .eq('id', missao.motorista_id);
+
         await updateMissao(missaoId, { status: 'em_andamento' });
-        // Could also create a trip automatically here
+        refetch(); // Refetch viagens
       } else if (action === 'finalizar') {
+        // Encontrar a viagem correspondente à missão (mesma rota e motorista, em andamento)
+        const motorista = motoristas.find(m => m.id === missao.motorista_id);
+        if (!motorista) {
+          toast.error('Motorista não encontrado');
+          return;
+        }
+
+        // Buscar viagem em andamento deste motorista com a mesma rota
+        const { data: viagensAtivas } = await supabase
+          .from('viagens')
+          .select('*')
+          .eq('evento_id', eventoId)
+          .eq('motorista', motorista.nome)
+          .eq('status', 'em_andamento')
+          .eq('encerrado', false)
+          .order('data_criacao', { ascending: false })
+          .limit(1);
+
+        if (viagensAtivas && viagensAtivas.length > 0) {
+          const viagem = viagensAtivas[0];
+          const now = new Date();
+          const horaChegada = now.toTimeString().slice(0, 8);
+
+          await supabase
+            .from('viagens')
+            .update({
+              status: 'encerrado',
+              h_chegada: horaChegada,
+              h_fim_real: now.toISOString(),
+              finalizado_por: user?.id,
+              atualizado_por: user?.id,
+              encerrado: true,
+            })
+            .eq('id', viagem.id);
+
+          // Verificar se motorista tem outras viagens ativas
+          const { data: outrasViagens } = await supabase
+            .from('viagens')
+            .select('id')
+            .eq('motorista', motorista.nome)
+            .eq('evento_id', eventoId)
+            .eq('encerrado', false)
+            .neq('id', viagem.id);
+
+          if (!outrasViagens || outrasViagens.length === 0) {
+            await supabase
+              .from('motoristas')
+              .update({ status: 'disponivel' })
+              .eq('id', missao.motorista_id);
+          }
+        }
+
         await updateMissao(missaoId, { status: 'concluida' });
+        refetch(); // Refetch viagens
       }
       refetchMissoes();
     } finally {
