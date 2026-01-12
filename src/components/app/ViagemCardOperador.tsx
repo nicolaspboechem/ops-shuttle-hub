@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { RetornoViagemForm } from './RetornoViagemForm';
 import { 
   Bus, 
   MapPin, 
@@ -22,7 +21,6 @@ import {
   Clock, 
   Play, 
   CheckCircle, 
-  ArrowRight,
   Loader2,
   XCircle,
   PauseCircle,
@@ -64,36 +62,17 @@ const statusConfig: Record<StatusViagemOperacao, { label: string; className: str
 };
 
 export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps) {
-  const { eventoId } = useParams();
-  const { isAdmin, getEventRole } = useAuth();
   const { iniciarViagem, registrarChegada, cancelarViagem } = useViagemOperacao();
   
   const [loading, setLoading] = useState(false);
   const [showPaxDialog, setShowPaxDialog] = useState(false);
-  const [showRetornoForm, setShowRetornoForm] = useState(false);
   const [paxInput, setPaxInput] = useState('');
 
   const status = (viagem.status || 'agendado') as StatusViagemOperacao;
   const config = statusConfig[status];
   const StatusIcon = config.icon;
 
-  // Buscar nomes dos usuários envolvidos
   const { getName } = useUserNames([viagem.criado_por, viagem.iniciado_por, viagem.finalizado_por]);
-
-  // Verificar permissão para iniciar retorno
-  const role = eventoId ? getEventRole(eventoId) : null;
-  const canInitiateReturn = isAdmin || role === 'operador';
-
-  // Verificar se a viagem foi encerrada recentemente (últimas 4 horas)
-  const isRecentlyCompleted = () => {
-    if (status !== 'encerrado' || !viagem.h_fim_real) return false;
-    const completedAt = new Date(viagem.h_fim_real);
-    const now = new Date();
-    const hoursDiff = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60);
-    return hoursDiff < 4;
-  };
-
-  const showReturnButton = canInitiateReturn && isRecentlyCompleted();
 
   const handleIniciar = async () => {
     setLoading(true);
@@ -126,33 +105,21 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
     setLoading(false);
   };
 
-  const handleRetorno = () => {
-    setShowRetornoForm(true);
-  };
-
   return (
     <>
       <Card className={cn(
         "transition-all",
         status === 'em_andamento' && "border-blue-500/50 bg-blue-500/5",
-        status === 'encerrado' && showReturnButton && "border-amber-500/30 bg-amber-500/5",
-        status === 'encerrado' && !showReturnButton && "opacity-70",
+        status === 'encerrado' && "opacity-70",
         status === 'cancelado' && "opacity-50"
       )}>
         <CardContent className="p-4">
           {/* Header: Status e Tipo */}
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={config.className}>
-                <StatusIcon className="h-3 w-3 mr-1" />
-                {config.label}
-              </Badge>
-              {showReturnButton && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                  Disponível
-                </Badge>
-              )}
-            </div>
+            <Badge variant="outline" className={config.className}>
+              <StatusIcon className="h-3 w-3 mr-1" />
+              {config.label}
+            </Badge>
             <Badge variant="secondary">
               {viagem.tipo_veiculo === 'Ônibus' ? '🚌' : '🚐'} {viagem.tipo_operacao}
             </Badge>
@@ -209,7 +176,7 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
             </p>
           )}
 
-          {/* Auditoria - quem fez o quê */}
+          {/* Auditoria */}
           {(viagem.criado_por || viagem.iniciado_por || viagem.finalizado_por) && (
             <div className="border-t pt-2 mb-3 text-xs text-muted-foreground space-y-0.5">
               {viagem.criado_por && (
@@ -279,18 +246,7 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
               </Button>
             )}
 
-            {status === 'encerrado' && showReturnButton && (
-              <Button 
-                className="flex-1 bg-primary hover:bg-primary/90" 
-                onClick={handleRetorno}
-                disabled={loading}
-              >
-                <ArrowRight className="h-4 w-4 mr-2" />
-                Iniciar Retorno
-              </Button>
-            )}
-
-            {status === 'encerrado' && !showReturnButton && (
+            {status === 'encerrado' && (
               <div className="flex-1 text-center text-sm text-muted-foreground py-2">
                 {viagem.h_chegada && <>Chegada: {viagem.h_chegada?.slice(0, 5)}</>}
               </div>
@@ -342,14 +298,6 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Form de Retorno */}
-      <RetornoViagemForm
-        open={showRetornoForm}
-        onOpenChange={setShowRetornoForm}
-        viagemOriginal={viagem}
-        onSuccess={onUpdate}
-      />
     </>
   );
 }
