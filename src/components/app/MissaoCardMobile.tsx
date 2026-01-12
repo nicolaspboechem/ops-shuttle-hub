@@ -2,7 +2,7 @@ import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, Loader2, CheckCircle, XCircle, Play } from 'lucide-react';
+import { MapPin, Clock, Loader2, CheckCircle, XCircle, Play, Flag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MissaoCardMobileProps {
@@ -11,6 +11,7 @@ interface MissaoCardMobileProps {
   onAceitar?: () => void;
   onRecusar?: () => void;
   onIniciar?: () => void;
+  onFinalizar?: () => void;
 }
 
 const prioridadeConfig: Record<MissaoPrioridade, { label: string; className: string; cardBorder: string }> = {
@@ -26,7 +27,7 @@ const statusLabels: Record<string, string> = {
   em_andamento: 'Em Andamento',
 };
 
-export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onIniciar }: MissaoCardMobileProps) {
+export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
   const config = prioridadeConfig[missao.prioridade];
 
   const handleAceitar = () => {
@@ -35,6 +36,10 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
 
   const handleRecusar = () => {
     if (onRecusar) onRecusar();
+  };
+
+  const handleFinalizar = () => {
+    if (onFinalizar) onFinalizar();
   };
 
   return (
@@ -130,10 +135,21 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
             </Button>
           )}
 
-          {missao.status === 'em_andamento' && (
-            <div className="flex-1 text-center py-2 text-sm text-amber-600 font-medium">
-              Missão em andamento...
-            </div>
+          {missao.status === 'em_andamento' && onFinalizar && (
+            <Button 
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+              onClick={handleFinalizar}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Flag className="h-4 w-4 mr-2" />
+                  Finalizar Missão
+                </>
+              )}
+            </Button>
           )}
         </div>
       </CardContent>
