@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -15,15 +15,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { cn } from '@/lib/utils';
+import { maskPhone, formatPhoneDisplay, isValidPhone } from '@/lib/utils/formatPhone';
 
 type UserType = 'motorista' | 'operador' | 'admin';
+type LoginType = 'email' | 'phone';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
 
 interface UserWithPermissions {
   id: string;
   user_id: string;
-  email: string;
+  email: string | null;
+  telefone: string | null;
+  login_type: string | null;
   full_name: string | null;
   role: 'admin' | 'user';
   permissions: AppPermission[];
@@ -47,12 +51,18 @@ export default function Usuarios() {
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEmail, setNewEmail] = useState('');
+  const [newTelefone, setNewTelefone] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newConfirmPassword, setNewConfirmPassword] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [newUserType, setNewUserType] = useState<UserType>('operador');
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Modal de credenciais (exibido após criação)
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ login: string; password: string; name: string } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Modal de editar usuário
   const [showEditModal, setShowEditModal] = useState(false);
@@ -65,6 +75,9 @@ export default function Usuarios() {
   const [deletingUser, setDeletingUser] = useState<UserWithPermissions | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Determinar tipo de login baseado no tipo de usuário
+  const loginType: LoginType = newUserType === 'admin' ? 'email' : 'phone';
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -74,7 +87,8 @@ export default function Usuarios() {
     
     const query = searchQuery.toLowerCase();
     return users.filter(user => 
-      user.email.toLowerCase().includes(query) ||
+      (user.email && user.email.toLowerCase().includes(query)) ||
+      (user.telefone && user.telefone.includes(query)) ||
       (user.full_name && user.full_name.toLowerCase().includes(query))
     );
   }, [users, searchQuery]);
@@ -107,6 +121,8 @@ export default function Usuarios() {
           id: profile.id,
           user_id: profile.user_id,
           email: profile.email,
+          telefone: (profile as any).telefone || null,
+          login_type: (profile as any).login_type || 'email',
           full_name: profile.full_name,
           role: (role?.role as 'admin' | 'user') || 'user',
           permissions: userPerms.map(p => p.permission as AppPermission),
@@ -120,6 +136,10 @@ export default function Usuarios() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewTelefone(maskPhone(e.target.value));
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -140,38 +160,73 @@ export default function Usuarios() {
       return;
     }
 
+    // Validar campo de login
+    if (loginType === 'phone') {
+      if (!isValidPhone(newTelefone)) {
+        toast.error('Digite um número de celular válido');
+        return;
+      }
+    } else {
+      if (!newEmail) {
+        toast.error('Digite um email válido');
+        return;
+      }
+    }
+
     setCreating(true);
 
     try {
+      const body = loginType === 'phone' 
+        ? {
+            telefone: newTelefone.replace(/\D/g, ''),
+            login_type: 'phone',
+            password: newPassword,
+            full_name: newFullName,
+            user_type: newUserType
+          }
+        : {
+            email: newEmail,
+            login_type: 'email',
+            password: newPassword,
+            full_name: newFullName,
+            user_type: newUserType
+          };
+
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: {
-          email: newEmail,
-          password: newPassword,
-          full_name: newFullName,
-          user_type: newUserType
-        }
+        body
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success('Usuário criado com sucesso!');
+      // Exibir modal com credenciais
+      setCreatedCredentials({
+        login: loginType === 'phone' ? newTelefone : newEmail,
+        password: newPassword,
+        name: newFullName
+      });
       setShowCreateModal(false);
+      setShowCredentialsModal(true);
+      
+      // Limpar campos
       setNewEmail('');
+      setNewTelefone('');
       setNewPassword('');
       setNewConfirmPassword('');
       setNewFullName('');
       setNewUserType('operador');
+      
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
       
-      // Map common error messages to Portuguese
       let errorMessage = 'Erro ao criar usuário';
       const msg = error.message?.toLowerCase() || '';
       
       if (msg.includes('email') && msg.includes('already') || msg.includes('email_exists')) {
         errorMessage = 'Já existe um usuário cadastrado com este email';
+      } else if (msg.includes('phone') && msg.includes('already')) {
+        errorMessage = 'Já existe um usuário cadastrado com este celular';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -179,6 +234,16 @@ export default function Usuarios() {
       toast.error(errorMessage);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      toast.error('Erro ao copiar');
     }
   };
 
@@ -228,19 +293,16 @@ export default function Usuarios() {
     setDeleting(true);
 
     try {
-      // Delete user permissions
       await supabase
         .from('user_permissions')
         .delete()
         .eq('user_id', deletingUser.user_id);
 
-      // Delete user role
       await supabase
         .from('user_roles')
         .delete()
         .eq('user_id', deletingUser.user_id);
 
-      // Delete profile
       const { error } = await supabase
         .from('profiles')
         .delete()
@@ -360,13 +422,20 @@ export default function Usuarios() {
   const openEditModal = (user: UserWithPermissions) => {
     setEditingUser(user);
     setEditFullName(user.full_name || '');
-    setEditEmail(user.email);
+    setEditEmail(user.email || '');
     setShowEditModal(true);
   };
 
   const openDeleteModal = (user: UserWithPermissions) => {
     setDeletingUser(user);
     setShowDeleteModal(true);
+  };
+
+  const getUserLoginDisplay = (user: UserWithPermissions) => {
+    if (user.login_type === 'phone' && user.telefone) {
+      return formatPhoneDisplay(user.telefone);
+    }
+    return user.email || '-';
   };
 
   if (loading) {
@@ -406,7 +475,7 @@ export default function Usuarios() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Buscar por nome ou email..."
+            placeholder="Buscar por nome, email ou celular..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -442,7 +511,7 @@ export default function Usuarios() {
                         </div>
                         <div>
                           <CardTitle className="text-lg flex items-center gap-2">
-                            {user.full_name || user.email}
+                            {user.full_name || getUserLoginDisplay(user)}
                             {user.role === 'admin' && (
                               <Badge variant="default" className="text-xs">Admin</Badge>
                             )}
@@ -450,7 +519,19 @@ export default function Usuarios() {
                               <Badge variant="outline" className="text-xs">Você</Badge>
                             )}
                           </CardTitle>
-                          <CardDescription>{user.email}</CardDescription>
+                          <CardDescription className="flex items-center gap-1">
+                            {user.login_type === 'phone' ? (
+                              <>
+                                <Phone className="w-3 h-3" />
+                                {formatPhoneDisplay(user.telefone || '')}
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="w-3 h-3" />
+                                {user.email}
+                              </>
+                            )}
+                          </CardDescription>
                         </div>
                       </div>
                       
@@ -576,7 +657,7 @@ export default function Usuarios() {
               <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
               <p className="text-muted-foreground">
-                Tente buscar por outro nome ou email.
+                Tente buscar por outro nome, email ou celular.
               </p>
             </div>
           )}
@@ -600,6 +681,50 @@ export default function Usuarios() {
             </DialogHeader>
             
             <form onSubmit={handleCreateUser} className="space-y-4">
+              {/* Tipo de Usuário */}
+              <div className="space-y-3">
+                <Label>Tipo de Usuário</Label>
+                <RadioGroup 
+                  value={newUserType} 
+                  onValueChange={(value) => setNewUserType(value as UserType)}
+                  className="grid grid-cols-3 gap-3"
+                >
+                  <div>
+                    <RadioGroupItem value="motorista" id="type-motorista" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-motorista"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Car className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Motorista</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="operador" id="type-operador" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-operador"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Headset className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Operador</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="admin" id="type-admin" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-admin"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Crown className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Admin</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Email</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="new-fullname">Nome completo</Label>
                 <Input
@@ -612,17 +737,38 @@ export default function Usuarios() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="new-email">Email</Label>
-                <Input
-                  id="new-email"
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  required
-                />
-              </div>
+              {/* Campo dinâmico: Email ou Celular */}
+              {loginType === 'email' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="new-email" className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </Label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="new-telefone" className="flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    Celular
+                  </Label>
+                  <Input
+                    id="new-telefone"
+                    type="tel"
+                    placeholder="(11) 99999-9999"
+                    value={newTelefone}
+                    onChange={handlePhoneChange}
+                    required
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="new-password">Senha</Label>
@@ -664,50 +810,6 @@ export default function Usuarios() {
                 )}
               </div>
 
-              {/* Tipo de Usuário */}
-              <div className="space-y-3">
-                <Label>Tipo de Usuário</Label>
-                <RadioGroup 
-                  value={newUserType} 
-                  onValueChange={(value) => setNewUserType(value as UserType)}
-                  className="grid grid-cols-3 gap-3"
-                >
-                  <div>
-                    <RadioGroupItem value="motorista" id="type-motorista" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-motorista"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Car className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Motorista</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Apenas visualiza</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="operador" id="type-operador" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-operador"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Headset className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Operador</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Acesso operacional</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="admin" id="type-admin" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-admin"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Crown className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Admin</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Acesso total</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
                   Cancelar
@@ -718,6 +820,96 @@ export default function Usuarios() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Credenciais (após criação) */}
+        <Dialog open={showCredentialsModal} onOpenChange={setShowCredentialsModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-green-600">
+                <Check className="w-5 h-5" />
+                Usuário criado com sucesso!
+              </DialogTitle>
+              <DialogDescription>
+                Envie as credenciais abaixo para o usuário
+              </DialogDescription>
+            </DialogHeader>
+            
+            {createdCredentials && (
+              <div className="space-y-4 py-4">
+                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Nome</p>
+                      <p className="font-medium">{createdCredentials.name}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Login</p>
+                      <p className="font-medium font-mono">{createdCredentials.login}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => copyToClipboard(createdCredentials.login, 'login')}
+                    >
+                      {copiedField === 'login' ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Senha</p>
+                      <p className="font-medium font-mono">{createdCredentials.password}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => copyToClipboard(createdCredentials.password, 'password')}
+                    >
+                      {copiedField === 'password' ? (
+                        <Check className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                
+                <Button 
+                  className="w-full" 
+                  onClick={() => {
+                    const text = `Login: ${createdCredentials.login}\nSenha: ${createdCredentials.password}`;
+                    copyToClipboard(text, 'all');
+                  }}
+                >
+                  {copiedField === 'all' ? (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copiar Tudo
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCredentialsModal(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -772,7 +964,7 @@ export default function Usuarios() {
             <DialogHeader>
               <DialogTitle>Excluir Usuário</DialogTitle>
               <DialogDescription>
-                Tem certeza que deseja excluir o usuário <strong>{deletingUser?.full_name || deletingUser?.email}</strong>? 
+                Tem certeza que deseja excluir o usuário <strong>{deletingUser?.full_name || getUserLoginDisplay(deletingUser!)}</strong>? 
                 Esta ação não pode ser desfeita.
               </DialogDescription>
             </DialogHeader>
