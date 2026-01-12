@@ -67,6 +67,18 @@ export function useMotoristas(eventoId?: string) {
   const [loading, setLoading] = useState(true);
 
   const fetchMotoristas = useCallback(async (showLoading = false) => {
+    // Validar se eventoId é um UUID válido antes de fazer a query
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (eventoId && !isValidUUID) {
+      setMotoristas([]);
+      setLoading(false);
+      return;
+    }
+    
     // Só mostra loading no carregamento inicial
     if (showLoading) {
       setLoading(true);
@@ -78,7 +90,7 @@ export function useMotoristas(eventoId?: string) {
       .order('nome', { ascending: true });
 
     // Filtrar por evento se fornecido
-    if (eventoId) {
+    if (eventoId && isValidUUID) {
       query = query.eq('evento_id', eventoId);
     }
 
@@ -173,6 +185,18 @@ export function useVeiculos(eventoId?: string) {
   const [loading, setLoading] = useState(true);
 
   const fetchVeiculos = useCallback(async (showLoading = false) => {
+    // Validar se eventoId é um UUID válido antes de fazer a query
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (eventoId && !isValidUUID) {
+      setVeiculos([]);
+      setLoading(false);
+      return;
+    }
+    
     // Só mostra loading no carregamento inicial
     if (showLoading) {
       setLoading(true);
@@ -184,7 +208,7 @@ export function useVeiculos(eventoId?: string) {
       .order('placa', { ascending: true });
 
     // Filtrar por evento se fornecido
-    if (eventoId) {
+    if (eventoId && isValidUUID) {
       query = query.eq('evento_id', eventoId);
     }
 
