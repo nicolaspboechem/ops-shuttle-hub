@@ -70,7 +70,13 @@ export default function Motoristas() {
   
   // Realtime subscription para atualização automática do status
   useEffect(() => {
-    if (!eventoId) return;
+    // Validar se eventoId é um UUID válido
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (!isValidUUID) return;
 
     const channel = supabase
       .channel('motoristas-status-changes')

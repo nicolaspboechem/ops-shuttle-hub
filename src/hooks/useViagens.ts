@@ -15,6 +15,20 @@ export function useViagens(eventoId?: string) {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const fetchViagens = useCallback(async (showLoading = false, isManualRefresh = false) => {
+    // Validar se eventoId é um UUID válido antes de fazer a query
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (eventoId && !isValidUUID) {
+      setViagens([]);
+      setLoading(false);
+      setRefreshing(false);
+      setIsInitialLoad(false);
+      return;
+    }
+    
     // Só mostra loading no carregamento inicial
     if (showLoading) {
       setLoading(true);
@@ -29,7 +43,7 @@ export function useViagens(eventoId?: string) {
       .select('*')
       .order('h_pickup', { ascending: true });
 
-    if (eventoId) {
+    if (eventoId && isValidUUID) {
       query = query.eq('evento_id', eventoId);
     }
 

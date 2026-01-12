@@ -40,7 +40,13 @@ export function useMissoes(eventoId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   const fetchMissoes = useCallback(async () => {
-    if (!eventoId) {
+    // Validar se eventoId é um UUID válido antes de fazer a query
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (!isValidUUID) {
       setMissoes([]);
       setLoading(false);
       return;
@@ -76,8 +82,13 @@ export function useMissoes(eventoId: string | undefined) {
   useEffect(() => {
     fetchMissoes();
 
-    // Realtime subscription
-    if (!eventoId) return;
+    // Realtime subscription - validar UUID
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (!isValidUUID) return;
 
     const channel = supabase
       .channel('missoes-changes')
@@ -230,7 +241,17 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   const [loading, setLoading] = useState(true);
 
   const fetchMissoes = useCallback(async () => {
-    if (!eventoId || !motoristaId) {
+    // Validar se eventoId e motoristaId são válidos
+    const isValidEventoId = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    const isValidMotoristaId = motoristaId && 
+      motoristaId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(motoristaId);
+    
+    if (!isValidEventoId || !isValidMotoristaId) {
       setMissoes([]);
       setLoading(false);
       return;
@@ -260,7 +281,17 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   useEffect(() => {
     fetchMissoes();
 
-    if (!eventoId || !motoristaId) return;
+    // Validar se eventoId e motoristaId são UUIDs válidos
+    const isValidEventoId = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    const isValidMotoristaId = motoristaId && 
+      motoristaId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(motoristaId);
+    
+    if (!isValidEventoId || !isValidMotoristaId) return;
 
     const channel = supabase
       .channel(`missoes-motorista-${motoristaId}`)
