@@ -131,9 +131,9 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
       "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0 transition-all duration-300",
       collapsed ? "w-16" : "w-64"
     )}>
-      {/* Logo */}
+      {/* Logo with Collapse Toggle */}
       <div className={cn(
-        "flex items-center gap-3 py-5 border-b border-sidebar-border transition-all",
+        "flex items-center gap-3 py-5 border-b border-sidebar-border transition-all relative",
         collapsed ? "px-3 justify-center" : "px-6"
       )}>
         <img 
@@ -147,6 +147,22 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
             <p className="text-xs text-sidebar-foreground/60">Centro de Controle Operacional</p>
           </div>
         )}
+        
+        {/* Circular Collapse Toggle Button */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className={cn(
+            "absolute w-6 h-6 rounded-full bg-sidebar border border-sidebar-border flex items-center justify-center",
+            "hover:bg-sidebar-accent transition-colors shadow-sm",
+            collapsed ? "-right-3 top-1/2 -translate-y-1/2" : "-right-3 top-1/2 -translate-y-1/2"
+          )}
+        >
+          {collapsed ? (
+            <ChevronRight className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronLeft className="w-3.5 h-3.5" />
+          )}
+        </button>
       </div>
 
       {/* Event Info & Back Button */}
@@ -239,23 +255,6 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
           </button>
         )}
 
-        {/* Collapse Toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors mt-2",
-            collapsed && "justify-center px-2"
-          )}
-        >
-          {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <>
-              <ChevronLeft className="w-5 h-5" />
-              <span>Recolher</span>
-            </>
-          )}
-        </button>
       </div>
     </aside>
   );

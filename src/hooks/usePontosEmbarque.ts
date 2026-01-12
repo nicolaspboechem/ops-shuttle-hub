@@ -29,7 +29,13 @@ export function usePontosEmbarque(eventoId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   const fetchPontos = useCallback(async () => {
-    if (!eventoId) {
+    // Validar se eventoId é um UUID válido antes de fazer a query
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+    
+    if (!isValidUUID) {
       setPontos([]);
       setLoading(false);
       return;
