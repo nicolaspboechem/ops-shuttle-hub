@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bus, Users, Clock, FileSpreadsheet, Gauge, Filter, X } from 'lucide-react';
+import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Viagem } from '@/lib/types/viagem';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
+import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -22,6 +23,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
   const [filtroFornecedor, setFiltroFornecedor] = useState<string>('all');
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'card' | 'lista'>('lista');
 
   // Fornecedores únicos
   const fornecedoresUnicos = useMemo(() => {
@@ -59,6 +61,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
   const metricasConsolidadas = useMemo(() => {
     const veiculosMap = new Map<string, {
       placa: string;
+      nome: string | null;
       tipoVeiculo: string;
       fornecedor: string | null;
       totalViagens: number;
@@ -79,6 +82,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
       
       veiculosMap.set(v.placa, {
         placa: v.placa,
+        nome: v.nome || null,
         tipoVeiculo: v.tipo_veiculo,
         fornecedor: v.fornecedor,
         totalViagens: 0,
@@ -103,6 +107,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
 
       const current = veiculosMap.get(placa) || {
         placa,
+        nome: null,
         tipoVeiculo: v.tipo_veiculo || 'Van',
         fornecedor: null,
         totalViagens: 0,
@@ -171,6 +176,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
   const handleExport = () => {
     const data = metricasConsolidadas.map(v => ({
       'Placa': v.placa,
+      'Nome': v.nome || '-',
       'Tipo': v.tipoVeiculo,
       'Fornecedor': v.fornecedor || '-',
       'Motorista': v.motorista || '-',
@@ -192,6 +198,13 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Veículos');
     XLSX.writeFile(wb, `auditoria-veiculos-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const getTipoIcon = (tipo: string) => {
+    if (tipo?.toLowerCase().includes('van') || tipo === 'Sedan' || tipo === 'SUV') {
+      return Car;
+    }
+    return Bus;
   };
 
   return (
@@ -234,6 +247,8 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Van">Van</SelectItem>
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
+                  <SelectItem value="Sedan">Sedan</SelectItem>
+                  <SelectItem value="SUV">SUV</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -305,81 +320,192 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
         </Card>
       </div>
 
-      {/* Tabela de Auditoria */}
+      {/* Dados Consolidados */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Dados Consolidados por Veículo</CardTitle>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Exportar Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex border rounded-md">
+              <Button 
+                variant={viewMode === 'card' ? 'default' : 'ghost'} 
+                size="icon" 
+                onClick={() => setViewMode('card')}
+                className="rounded-r-none h-8 w-8"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button 
+                variant={viewMode === 'lista' ? 'default' : 'ghost'} 
+                size="icon" 
+                onClick={() => setViewMode('lista')}
+                className="rounded-l-none h-8 w-8"
+              >
+                <ListIcon className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleExport}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Exportar Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Placa</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead className="text-center">Viagens</TableHead>
-                <TableHead className="text-center">PAX</TableHead>
-                <TableHead className="text-center">Tempo Médio</TableHead>
-                <TableHead className="text-center">KM</TableHead>
-                <TableHead>Última Viagem</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {metricasConsolidadas.map((v) => (
-                <TableRow key={v.placa}>
-                  <TableCell>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">
-                      {v.placa}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{v.tipoVeiculo}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {v.fornecedor || '-'}
-                  </TableCell>
-                  <TableCell>
-                    {v.motorista || <span className="text-muted-foreground">-</span>}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {v.totalViagens}
-                    {v.viagensEncerradas < v.totalViagens && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({v.viagensEncerradas} enc.)
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">{v.totalPax}</TableCell>
-                  <TableCell className="text-center">
-                    {v.viagensComTempo > 0 
-                      ? formatarMinutos(v.tempoTotal / v.viagensComTempo)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {v.kmPercorrido > 0 ? (
-                      <span className="font-medium text-primary">
-                        {v.kmPercorrido.toLocaleString()} km
-                      </span>
-                    ) : v.kmInicial != null || v.kmFinal != null ? (
-                      <span className="text-xs text-muted-foreground">
-                        {v.kmInicial?.toLocaleString() || '-'} / {v.kmFinal?.toLocaleString() || '-'}
-                      </span>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {v.ultimaViagem 
-                      ? format(new Date(v.ultimaViagem), 'dd/MM/yyyy HH:mm')
-                      : '-'}
-                  </TableCell>
+          {viewMode === 'card' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {metricasConsolidadas.map((v) => {
+                const TipoIcon = getTipoIcon(v.tipoVeiculo);
+                return (
+                  <Card key={v.placa} className="overflow-hidden">
+                    <CardContent className="p-4 space-y-3">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            v.tipoVeiculo === 'Ônibus' 
+                              ? 'bg-primary/10 text-primary' 
+                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                          )}>
+                            <TipoIcon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{v.tipoVeiculo}</p>
+                            <code className="font-bold text-sm tracking-wider bg-muted px-1.5 py-0.5 rounded">
+                              {v.placa}
+                            </code>
+                            {v.nome && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{v.nome}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* KM */}
+                      {(v.kmInicial != null || v.kmFinal != null) && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
+                          <Gauge className="w-3.5 h-3.5 text-blue-500" />
+                          <span>
+                            {v.kmInicial?.toLocaleString('pt-BR') || '-'} → {v.kmFinal?.toLocaleString('pt-BR') || '-'}
+                            {v.kmPercorrido > 0 && (
+                              <span className="ml-1 font-semibold text-primary">
+                                ({v.kmPercorrido.toLocaleString('pt-BR')} km)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Estatísticas */}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                        <div className="flex items-center gap-1">
+                          <Bus className="w-3.5 h-3.5" />
+                          <span className="font-medium">{v.totalViagens}</span>
+                          <span>viagens</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          <span className="font-medium">{v.totalPax}</span>
+                          <span>pax</span>
+                        </div>
+                        {v.viagensComTempo > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="font-medium">{formatarMinutos(v.tempoTotal / v.viagensComTempo)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Motorista */}
+                      {v.motorista && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
+                          <UserCheck className="h-3 w-3" />
+                          <span className="truncate font-medium">{v.motorista}</span>
+                        </div>
+                      )}
+
+                      {/* Fornecedor */}
+                      {v.fornecedor && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          Fornecedor: <span className="font-medium">{v.fornecedor}</span>
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Veículo</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Motorista</TableHead>
+                  <TableHead className="text-center">Viagens</TableHead>
+                  <TableHead className="text-center">PAX</TableHead>
+                  <TableHead className="text-center">Tempo Médio</TableHead>
+                  <TableHead className="text-center">KM</TableHead>
+                  <TableHead>Última Viagem</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {metricasConsolidadas.map((v) => (
+                  <TableRow key={v.placa}>
+                    <TableCell>
+                      <div>
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">
+                          {v.placa}
+                        </code>
+                        {v.nome && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{v.nome}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{v.tipoVeiculo}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {v.fornecedor || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {v.motorista || <span className="text-muted-foreground">-</span>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {v.totalViagens}
+                      {v.viagensEncerradas < v.totalViagens && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({v.viagensEncerradas} enc.)
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">{v.totalPax}</TableCell>
+                    <TableCell className="text-center">
+                      {v.viagensComTempo > 0 
+                        ? formatarMinutos(v.tempoTotal / v.viagensComTempo)
+                        : '-'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {v.kmPercorrido > 0 ? (
+                        <span className="font-medium text-primary">
+                          {v.kmPercorrido.toLocaleString()} km
+                        </span>
+                      ) : v.kmInicial != null || v.kmFinal != null ? (
+                        <span className="text-xs text-muted-foreground">
+                          {v.kmInicial?.toLocaleString() || '-'} / {v.kmFinal?.toLocaleString() || '-'}
+                        </span>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {v.ultimaViagem 
+                        ? format(new Date(v.ultimaViagem), 'dd/MM/yyyy HH:mm')
+                        : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
           {metricasConsolidadas.length === 0 && (
             <div className="py-8 text-center text-muted-foreground">
               Nenhum dado encontrado com os filtros selecionados

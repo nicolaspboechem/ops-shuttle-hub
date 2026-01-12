@@ -10,6 +10,7 @@ export interface Veiculo {
   motorista_id: string | null;
   placa: string;
   tipo_veiculo: string;
+  nome?: string | null; // Nome/apelido do veículo
   marca: string | null;
   modelo: string | null;
   ano: number | null;
