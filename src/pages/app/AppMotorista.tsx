@@ -55,7 +55,7 @@ export default function AppMotorista() {
     await Promise.all([refetch(), refetchMissoes()]);
   };
 
-  const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar') => {
+  const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar' | 'finalizar') => {
     const missao = missoes.find(m => m.id === missaoId);
     if (!missao) return;
 
@@ -68,6 +68,8 @@ export default function AppMotorista() {
       } else if (action === 'iniciar') {
         await updateMissao(missaoId, { status: 'em_andamento' });
         // Could also create a trip automatically here
+      } else if (action === 'finalizar') {
+        await updateMissao(missaoId, { status: 'concluida' });
       }
       refetchMissoes();
     } finally {
@@ -227,6 +229,7 @@ export default function AppMotorista() {
                   onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
                   onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
                   onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
+                  onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
                 />
               ))}
             </div>
