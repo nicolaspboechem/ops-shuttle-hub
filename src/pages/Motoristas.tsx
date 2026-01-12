@@ -60,6 +60,13 @@ export default function Motoristas() {
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
   
+  // Hooks de missões - devem estar antes de qualquer return condicional
+  const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
+  const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
+  const [showMissaoModal, setShowMissaoModal] = useState(false);
+  const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
+  const [missaoFilter, setMissaoFilter] = useState<string>('all');
+  
   // Realtime subscription para atualização automática do status
   useEffect(() => {
     if (!eventoId) return;
@@ -739,13 +746,7 @@ export default function Motoristas() {
     </div>
   );
 
-  // Conteúdo da seção Missões
-  const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
-  const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
-  const [showMissaoModal, setShowMissaoModal] = useState(false);
-  const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
-  const [missaoFilter, setMissaoFilter] = useState<string>('all');
-
+  // Conteúdo da seção Missões - hooks já declarados no topo do componente
   const filteredMissoes = useMemo(() => {
     if (missaoFilter === 'all') return missoes;
     return missoes.filter(m => m.status === missaoFilter);
