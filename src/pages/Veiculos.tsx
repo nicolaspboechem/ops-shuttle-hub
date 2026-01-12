@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Filter, X, Plus, Truck, Download, FileBarChart } from 'lucide-react';
+import { Search, Filter, X, Plus, Truck, Download, FileBarChart, LayoutGrid, List } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
@@ -19,6 +19,7 @@ import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKanbanColumnFull } from '@/components/veiculos/VeiculoKanbanColumnFull';
 import { VeiculoKanbanCardFull } from '@/components/veiculos/VeiculoKanbanCardFull';
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
+import { VeiculosListView } from '@/components/veiculos/VeiculosListView';
 import { toast } from 'sonner';
 
 const sections: InnerSidebarSection[] = [
@@ -31,6 +32,7 @@ export default function Veiculos() {
   const [activeSection, setActiveSection] = useState<string>('cadastro');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'kanban' | 'lista'>('kanban');
   const [wizardOpen, setWizardOpen] = useState(false);
   
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
@@ -200,6 +202,7 @@ export default function Veiculos() {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(v => 
         v.placa?.toLowerCase().includes(term) ||
+        v.nome?.toLowerCase().includes(term) ||
         v.fornecedor?.toLowerCase().includes(term)
       );
     }
@@ -317,13 +320,31 @@ export default function Veiculos() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por placa ou fornecedor..."
+            placeholder="Buscar por placa, nome ou fornecedor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
         <div className="flex gap-2">
+          <div className="flex border rounded-md">
+            <Button 
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'} 
+              size="icon" 
+              onClick={() => setViewMode('kanban')}
+              className="rounded-r-none"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant={viewMode === 'lista' ? 'default' : 'ghost'} 
+              size="icon" 
+              onClick={() => setViewMode('lista')}
+              className="rounded-l-none"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
           <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
             <SelectTrigger className="w-[120px]">
               <Filter className="w-4 h-4 mr-2" />
@@ -333,6 +354,8 @@ export default function Veiculos() {
               <SelectItem value="all">Todos tipos</SelectItem>
               <SelectItem value="Van">Van</SelectItem>
               <SelectItem value="Ônibus">Ônibus</SelectItem>
+              <SelectItem value="Sedan">Sedan</SelectItem>
+              <SelectItem value="SUV">SUV</SelectItem>
             </SelectContent>
           </Select>
           {hasActiveFilters && (
@@ -357,6 +380,15 @@ export default function Veiculos() {
             </Button>
           )}
         </Card>
+      ) : viewMode === 'lista' ? (
+        <VeiculosListView
+          veiculos={filteredVeiculos}
+          motoristas={motoristas}
+          eventoId={eventoId}
+          onSave={handleSaveVeiculo}
+          onUpdate={handleUpdateVeiculo}
+          onDelete={handleDeleteVeiculo}
+        />
       ) : (
         <DndContext
           sensors={sensors}

@@ -54,6 +54,7 @@ export function CreateVeiculoWizard({
 
   // Step 1 - Dados Básicos
   const [placa, setPlaca] = useState('');
+  const [nome, setNome] = useState('');
   const [tipoVeiculo, setTipoVeiculo] = useState('Van');
   const [capacidade, setCapacidade] = useState('15');
   const [fornecedor, setFornecedor] = useState('');
@@ -130,6 +131,7 @@ export function CreateVeiculoWizard({
         .insert([{
           evento_id: eventoId,
           placa: placa.trim().toUpperCase(),
+          nome: nome.trim() || null,
           tipo_veiculo: tipoVeiculo,
           capacidade: capacidade ? parseInt(capacidade) : 15,
           fornecedor: fornecedor.trim() || null,
@@ -220,6 +222,7 @@ export function CreateVeiculoWizard({
     // Reset form
     setCurrentStep(1);
     setPlaca('');
+    setNome('');
     setTipoVeiculo('Van');
     setCapacidade('15');
     setFornecedor('');
@@ -276,16 +279,27 @@ export function CreateVeiculoWizard({
           {/* Step 1: Dados Básicos */}
           {currentStep === 1 && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="placa">Placa *</Label>
-                <Input
-                  id="placa"
-                  value={placa}
-                  onChange={e => setPlaca(e.target.value)}
-                  placeholder="ABC1234"
-                  className="uppercase"
-                  maxLength={7}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="placa">Placa *</Label>
+                  <Input
+                    id="placa"
+                    value={placa}
+                    onChange={e => setPlaca(e.target.value)}
+                    placeholder="ABC1234"
+                    className="uppercase"
+                    maxLength={7}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome/Apelido</Label>
+                  <Input
+                    id="nome"
+                    value={nome}
+                    onChange={e => setNome(e.target.value)}
+                    placeholder="Sprinter 01"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -298,6 +312,8 @@ export function CreateVeiculoWizard({
                     <SelectContent>
                       <SelectItem value="Van">Van</SelectItem>
                       <SelectItem value="Ônibus">Ônibus</SelectItem>
+                      <SelectItem value="Sedan">Sedan</SelectItem>
+                      <SelectItem value="SUV">SUV</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

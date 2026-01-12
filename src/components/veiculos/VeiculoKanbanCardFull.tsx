@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 interface Veiculo {
   id: string;
   placa: string;
+  nome?: string | null;
   tipo_veiculo: string;
   capacidade?: number | null;
   fornecedor?: string | null;
@@ -59,7 +60,7 @@ export function VeiculoKanbanCardFull({
   getName,
   isDragOverlay = false
 }: VeiculoKanbanCardFullProps) {
-  const TipoIcon = veiculo.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
+  const TipoIcon = (veiculo.tipo_veiculo?.toLowerCase().includes('van') || veiculo.tipo_veiculo === 'Sedan' || veiculo.tipo_veiculo === 'SUV') ? Car : Bus;
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: veiculo.id,
@@ -146,6 +147,9 @@ export function VeiculoKanbanCardFull({
             <div>
               <p className="text-xs text-muted-foreground">{veiculo.tipo_veiculo}</p>
               <code className="font-bold text-base tracking-wider bg-muted px-1.5 py-0.5 rounded">{veiculo.placa}</code>
+              {veiculo.nome && (
+                <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[120px]">{veiculo.nome}</p>
+              )}
             </div>
           </div>
           <DropdownMenu>
@@ -230,27 +234,7 @@ export function VeiculoKanbanCardFull({
           </div>
         )}
 
-        {/* Estatísticas */}
-        {stats && stats.totalViagens > 0 && (
-          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-            <div className="flex items-center gap-1">
-              <Bus className="w-3.5 h-3.5" />
-              <span className="font-medium">{stats.totalViagens}</span>
-              <span>viagens</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="w-3.5 h-3.5" />
-              <span className="font-medium">{stats.totalPax}</span>
-              <span>pax</span>
-            </div>
-            {stats.tempoMedio > 0 && (
-              <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span className="font-medium">{formatarMinutos(stats.tempoMedio)}</span>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Estatísticas removidas do Kanban - visíveis apenas na Auditoria */}
 
         {/* Badges de status operacional */}
         <div className="flex flex-wrap gap-1.5">

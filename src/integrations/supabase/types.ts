@@ -517,6 +517,7 @@ export type Database = {
           modelo: string | null
           motorista_id: string | null
           nivel_combustivel: string | null
+          nome: string | null
           observacoes_gerais: string | null
           placa: string
           possui_avarias: boolean | null
@@ -549,6 +550,7 @@ export type Database = {
           modelo?: string | null
           motorista_id?: string | null
           nivel_combustivel?: string | null
+          nome?: string | null
           observacoes_gerais?: string | null
           placa: string
           possui_avarias?: boolean | null
@@ -581,6 +583,7 @@ export type Database = {
           modelo?: string | null
           motorista_id?: string | null
           nivel_combustivel?: string | null
+          nome?: string | null
           observacoes_gerais?: string | null
           placa?: string
           possui_avarias?: boolean | null

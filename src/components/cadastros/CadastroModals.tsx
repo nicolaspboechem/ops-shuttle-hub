@@ -29,8 +29,9 @@ import { Motorista, Veiculo } from '@/hooks/useCadastros';
 
 // ============ VEÍCULO MODAL ============
 const veiculoSchema = z.object({
-  tipo_veiculo: z.enum(['Ônibus', 'Van']),
+  tipo_veiculo: z.enum(['Ônibus', 'Van', 'Sedan', 'SUV']),
   placa: z.string().min(7, 'Placa inválida').max(10),
+  nome: z.string().max(100).optional(),
   fornecedor: z.string().max(100).optional(),
   km_inicial: z.number().min(0).optional().nullable(),
   km_final: z.number().min(0).optional().nullable(),
@@ -64,6 +65,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
     defaultValues: {
       tipo_veiculo: 'Van',
       placa: '',
+      nome: '',
       fornecedor: '',
       km_inicial: null,
       km_final: null,
@@ -73,8 +75,9 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
   useEffect(() => {
     if (open && veiculo) {
       form.reset({
-        tipo_veiculo: (veiculo.tipo_veiculo as 'Ônibus' | 'Van') || 'Van',
+        tipo_veiculo: (veiculo.tipo_veiculo as 'Ônibus' | 'Van' | 'Sedan' | 'SUV') || 'Van',
         placa: veiculo.placa || '',
+        nome: veiculo.nome || '',
         fornecedor: veiculo.fornecedor || '',
         km_inicial: veiculo.km_inicial ?? null,
         km_final: veiculo.km_final ?? null,
@@ -83,6 +86,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
       form.reset({
         tipo_veiculo: 'Van',
         placa: '',
+        nome: '',
         fornecedor: '',
         km_inicial: null,
         km_final: null,
@@ -96,6 +100,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
       const veiculoData = {
         placa: data.placa.toUpperCase(),
         tipo_veiculo: data.tipo_veiculo,
+        nome: data.nome || null,
         fornecedor: data.fornecedor || null,
         km_inicial: data.km_inicial ?? null,
         km_final: data.km_final ?? null,
@@ -151,7 +156,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
               <Label htmlFor="tipo_veiculo">Tipo *</Label>
               <Select
                 value={form.watch('tipo_veiculo')}
-                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van')}
+                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van' | 'Sedan' | 'SUV')}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -159,6 +164,8 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
                 <SelectContent>
                   <SelectItem value="Van">Van</SelectItem>
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
+                  <SelectItem value="Sedan">Sedan</SelectItem>
+                  <SelectItem value="SUV">SUV</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -176,6 +183,14 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="nome">Nome/Apelido</Label>
+            <Input
+              id="nome"
+              placeholder="Sprinter 01 (opcional)"
+              {...form.register('nome')}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="fornecedor">Fornecedor</Label>
             <Input
