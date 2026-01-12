@@ -22,13 +22,14 @@ import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
 import { MotoristaKanbanColumn } from '@/components/motoristas/MotoristaKanbanColumn';
 import { MotoristaKanbanCard } from '@/components/motoristas/MotoristaKanbanCard';
+import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 
 import { ClipboardList } from 'lucide-react';
 import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
@@ -227,6 +228,44 @@ export default function Motoristas() {
     return grouped;
   }, [motoristasCadastrados]);
 
+  // Calcular última localização de cada motorista baseada em viagens encerradas
+  const ultimasLocalizacoes = useMemo(() => {
+    const localizacoes: Record<string, string> = {};
+    
+    // Ordenar viagens por data de chegada (mais recente primeiro)
+    const viagensEncerradas = viagens
+      .filter(v => v.status === 'encerrado' && (v.ponto_desembarque || v.ponto_embarque))
+      .sort((a, b) => {
+        const dateA = a.h_chegada ? new Date(a.h_chegada).getTime() : 0;
+        const dateB = b.h_chegada ? new Date(b.h_chegada).getTime() : 0;
+        return dateB - dateA;
+      });
+    
+    // Para cada motorista cadastrado, encontrar a última viagem
+    motoristasCadastrados.forEach(m => {
+      const ultimaViagem = viagensEncerradas.find(v => v.motorista === m.nome);
+      if (ultimaViagem) {
+        localizacoes[m.nome] = ultimaViagem.ponto_desembarque || ultimaViagem.ponto_embarque || '';
+      }
+    });
+    
+    return localizacoes;
+  }, [viagens, motoristasCadastrados]);
+
+  // Sensors para drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Estados para modal de edição e wizard
+  const [editingMotorista, setEditingMotorista] = useState<Motorista | null>(null);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [selectedMotoristaForViagens, setSelectedMotoristaForViagens] = useState<Motorista | null>(null);
+
   const filteredCadastrados = useMemo(() => {
     let filtered = [...motoristasCadastrados];
 
@@ -391,11 +430,23 @@ export default function Motoristas() {
             <Download className="w-4 h-4 mr-2" />
             Importar das Viagens
           </Button>
-          <MotoristaModal 
-            veiculosDisponiveis={veiculos}
-            eventoId={eventoId}
-            onSave={handleSaveMotorista}
-            onUpdate={handleUpdateMotorista}
+          <Button onClick={() => setShowCreateWizard(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Motorista
+          </Button>
+          <CreateMotoristaWizard
+            open={showCreateWizard}
+            onOpenChange={setShowCreateWizard}
+            veiculos={veiculos}
+            onSubmit={async (data) => {
+              await handleSaveMotorista({
+                nome: data.nome,
+                telefone: data.telefone || null,
+                veiculo_id: data.veiculo_id || null,
+                ativo: true,
+              });
+              toast.success('Motorista criado com sucesso!');
+            }}
           />
         </div>
       </div>
@@ -471,7 +522,12 @@ export default function Motoristas() {
 
       {/* Kanban View */}
       {viewMode === 'kanban' && (
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext 
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart} 
+          onDragEnd={handleDragEnd}
+        >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {MOTORISTA_STATUSES.map(status => (
               <MotoristaKanbanColumn
@@ -480,8 +536,11 @@ export default function Motoristas() {
                 motoristas={motoristasByStatus[status]}
                 veiculos={veiculos}
                 metricas={metricasMotoristas}
+                ultimasLocalizacoes={ultimasLocalizacoes}
                 onDelete={handleDeleteMotorista}
                 onVincularVeiculo={(motoristaId) => navigate(`/evento/${eventoId}/vincular-veiculo/${motoristaId}`)}
+                onEdit={(motorista) => setEditingMotorista(motorista)}
+                onVerViagens={(motorista) => setSelectedMotoristaForViagens(motorista)}
               />
             ))}
           </div>
@@ -491,6 +550,7 @@ export default function Motoristas() {
                 motorista={activeMotorista}
                 metricas={getMetricasMotorista(activeMotorista.nome)}
                 veiculo={getVeiculoDoMotorista(activeMotorista.id)}
+                ultimaLocalizacao={ultimasLocalizacoes[activeMotorista.nome]}
                 onDelete={() => {}}
                 onVincularVeiculo={() => {}}
                 isDragOverlay

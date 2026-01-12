@@ -18,8 +18,11 @@ interface MotoristaKanbanColumnProps {
   motoristas: Motorista[];
   veiculos: Veiculo[];
   metricas: MotoristaMetricas[];
+  ultimasLocalizacoes: Record<string, string>;
   onDelete: (motoristaId: string) => void;
   onVincularVeiculo: (motoristaId: string) => void;
+  onEdit: (motorista: Motorista) => void;
+  onVerViagens?: (motorista: Motorista) => void;
 }
 
 interface StatusConfigItem {
@@ -71,8 +74,11 @@ export function MotoristaKanbanColumn({
   motoristas, 
   veiculos,
   metricas,
+  ultimasLocalizacoes,
   onDelete,
-  onVincularVeiculo
+  onVincularVeiculo,
+  onEdit,
+  onVerViagens
 }: MotoristaKanbanColumnProps) {
   const config = statusConfig[status] || statusConfig.disponivel;
   const Icon = config.icon;
@@ -136,8 +142,11 @@ export function MotoristaKanbanColumn({
                   motorista={motorista}
                   metricas={getMetricasMotorista(motorista.nome)}
                   veiculo={getVeiculoDoMotorista(motorista.id)}
+                  ultimaLocalizacao={ultimasLocalizacoes[motorista.nome]}
                   onDelete={() => onDelete(motorista.id)}
                   onVincularVeiculo={() => onVincularVeiculo(motorista.id)}
+                  onEdit={() => onEdit(motorista)}
+                  onVerViagens={onVerViagens ? () => onVerViagens(motorista) : undefined}
                 />
               ))
             ) : (

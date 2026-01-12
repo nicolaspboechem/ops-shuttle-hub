@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route } from "lucide-react";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
@@ -29,8 +29,11 @@ interface MotoristaKanbanCardProps {
   motorista: Motorista;
   metricas?: MotoristaMetricas | null;
   veiculo?: Veiculo | null;
+  ultimaLocalizacao?: string;
   onDelete: () => void;
   onVincularVeiculo: () => void;
+  onEdit?: () => void;
+  onVerViagens?: () => void;
   isDragOverlay?: boolean;
 }
 
@@ -38,8 +41,11 @@ export function MotoristaKanbanCard({
   motorista, 
   metricas,
   veiculo,
+  ultimaLocalizacao,
   onDelete,
   onVincularVeiculo,
+  onEdit,
+  onVerViagens,
   isDragOverlay = false
 }: MotoristaKanbanCardProps) {
   const TipoIcon = veiculo?.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
@@ -151,15 +157,26 @@ export function MotoristaKanbanCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-popover z-50">
+                {onVerViagens && (
+                  <DropdownMenuItem onClick={onVerViagens}>
+                    <Route className="w-4 h-4 mr-2" />
+                    Ver Viagens
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={onVincularVeiculo}>
                   <Link2 className="w-4 h-4 mr-2" />
                   Vincular Veículo
                 </DropdownMenuItem>
+                {onEdit && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onEdit}>
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Editar Motorista
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Editar Motorista
-                </DropdownMenuItem>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <DropdownMenuItem 
@@ -195,6 +212,14 @@ export function MotoristaKanbanCard({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* Última localização */}
+          {ultimaLocalizacao && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+              <MapPin className="h-3 w-3 flex-shrink-0 text-primary" />
+              <span className="truncate">Última loc: {ultimaLocalizacao}</span>
+            </div>
+          )}
 
           {/* Veículo vinculado */}
           {veiculo ? (
