@@ -308,20 +308,10 @@ export default function Motoristas() {
   };
 
   const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterStatus !== 'all';
+  
+  const isLoading = loadingViagens || loadingCadastros;
 
-  if (loadingViagens || loadingCadastros) {
-    return (
-      <EventLayout>
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-48" />
-          ))}
-        </div>
-      </EventLayout>
-    );
-  }
-
-  const MotoristaDropdownActions = ({ 
+  const MotoristaDropdownActions = ({
     motoristaNome, 
     motoristaCadastrado, 
     veiculo 
@@ -907,21 +897,29 @@ export default function Motoristas() {
 
   return (
     <EventLayout>
-      <div className="flex h-full">
-        <InnerSidebar 
-          sections={sections}
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          storageKey="motoristas-sidebar-collapsed"
-        />
-        <div className="flex-1 p-6 overflow-auto">
-          {activeSection === 'auditoria' && (
-            <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
-          )}
-          {activeSection === 'cadastro' && <CadastroContent />}
-          {activeSection === 'missoes' && <MissoesContent />}
+      {isLoading ? (
+        <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="flex h-full">
+          <InnerSidebar 
+            sections={sections}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            storageKey="motoristas-sidebar-collapsed"
+          />
+          <div className="flex-1 p-6 overflow-auto">
+            {activeSection === 'auditoria' && (
+              <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
+            )}
+            {activeSection === 'cadastro' && <CadastroContent />}
+            {activeSection === 'missoes' && <MissoesContent />}
+          </div>
+        </div>
+      )}
     </EventLayout>
   );
 }
