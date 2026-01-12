@@ -97,6 +97,72 @@ export type Database = {
         }
         Relationships: []
       }
+      missoes: {
+        Row: {
+          atualizado_por: string | null
+          created_at: string | null
+          criado_por: string | null
+          data_atualizacao: string | null
+          descricao: string | null
+          evento_id: string
+          horario_previsto: string | null
+          id: string
+          motorista_id: string
+          ponto_desembarque: string | null
+          ponto_embarque: string | null
+          prioridade: string | null
+          status: string | null
+          titulo: string
+        }
+        Insert: {
+          atualizado_por?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
+          descricao?: string | null
+          evento_id: string
+          horario_previsto?: string | null
+          id?: string
+          motorista_id: string
+          ponto_desembarque?: string | null
+          ponto_embarque?: string | null
+          prioridade?: string | null
+          status?: string | null
+          titulo: string
+        }
+        Update: {
+          atualizado_por?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          data_atualizacao?: string | null
+          descricao?: string | null
+          evento_id?: string
+          horario_previsto?: string | null
+          id?: string
+          motorista_id?: string
+          ponto_desembarque?: string | null
+          ponto_embarque?: string | null
+          prioridade?: string | null
+          status?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "missoes_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missoes_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       motoristas: {
         Row: {
           ativo: boolean | null
@@ -109,6 +175,7 @@ export type Database = {
           id: string
           nome: string
           observacao: string | null
+          status: string | null
           telefone: string | null
           veiculo_id: string | null
         }
@@ -123,6 +190,7 @@ export type Database = {
           id?: string
           nome: string
           observacao?: string | null
+          status?: string | null
           telefone?: string | null
           veiculo_id?: string | null
         }
@@ -137,6 +205,7 @@ export type Database = {
           id?: string
           nome?: string
           observacao?: string | null
+          status?: string | null
           telefone?: string | null
           veiculo_id?: string | null
         }
@@ -597,6 +666,7 @@ export type Database = {
           status: string | null
           tipo_operacao: string
           tipo_veiculo: string | null
+          viagem_pai_id: string | null
         }
         Insert: {
           atualizado_por?: string | null
@@ -624,6 +694,7 @@ export type Database = {
           status?: string | null
           tipo_operacao: string
           tipo_veiculo?: string | null
+          viagem_pai_id?: string | null
         }
         Update: {
           atualizado_por?: string | null
@@ -651,6 +722,7 @@ export type Database = {
           status?: string | null
           tipo_operacao?: string
           tipo_veiculo?: string | null
+          viagem_pai_id?: string | null
         }
         Relationships: [
           {
@@ -658,6 +730,13 @@ export type Database = {
             columns: ["evento_id"]
             isOneToOne: false
             referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_viagem_pai_id_fkey"
+            columns: ["viagem_pai_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
             referencedColumns: ["id"]
           },
         ]
