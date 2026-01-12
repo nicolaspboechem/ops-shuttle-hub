@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -74,6 +74,14 @@ export default function Usuarios() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUser, setDeletingUser] = useState<UserWithPermissions | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Modal de reset de senha
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserWithPermissions | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   // Determinar tipo de login baseado no tipo de usuário
   const loginType: LoginType = newUserType === 'admin' ? 'email' : 'phone';
@@ -431,6 +439,62 @@ export default function Usuarios() {
     setShowDeleteModal(true);
   };
 
+  const openResetPasswordModal = (user: UserWithPermissions) => {
+    setResetPasswordUser(user);
+    setResetPassword('');
+    setResetConfirmPassword('');
+    setShowResetPassword(false);
+    setShowResetPasswordModal(true);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!isAdmin || !resetPasswordUser) return;
+
+    if (resetPassword.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+
+    if (resetPassword !== resetConfirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: {
+          user_id: resetPasswordUser.user_id,
+          new_password: resetPassword
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Exibir credenciais para o admin copiar
+      setCreatedCredentials({
+        login: getUserLoginDisplay(resetPasswordUser),
+        password: resetPassword,
+        name: resetPasswordUser.full_name || getUserLoginDisplay(resetPasswordUser)
+      });
+      
+      setShowResetPasswordModal(false);
+      setShowCredentialsModal(true);
+      setResetPasswordUser(null);
+      
+      toast.success('Senha alterada com sucesso!');
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast.error(error.message || 'Erro ao resetar senha');
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   const getUserLoginDisplay = (user: UserWithPermissions) => {
     if (user.login_type === 'phone' && user.telefone) {
       return formatPhoneDisplay(user.telefone);
@@ -572,6 +636,11 @@ export default function Usuarios() {
                               
                               {!isCurrentUser && (
                                 <>
+                                  <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
+                                    <KeyRound className="w-4 h-4 mr-2" />
+                                    Resetar Senha
+                                  </DropdownMenuItem>
+                                  
                                   <DropdownMenuItem 
                                     onClick={() => toggleAdminRole(user)}
                                     disabled={updating === `admin-${user.user_id}`}
@@ -964,7 +1033,7 @@ export default function Usuarios() {
             <DialogHeader>
               <DialogTitle>Excluir Usuário</DialogTitle>
               <DialogDescription>
-                Tem certeza que deseja excluir o usuário <strong>{deletingUser?.full_name || getUserLoginDisplay(deletingUser!)}</strong>? 
+                Tem certeza que deseja excluir o usuário <strong>{deletingUser?.full_name || (deletingUser ? getUserLoginDisplay(deletingUser) : '')}</strong>? 
                 Esta ação não pode ser desfeita.
               </DialogDescription>
             </DialogHeader>
@@ -978,6 +1047,70 @@ export default function Usuarios() {
                 Excluir
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Resetar Senha */}
+        <Dialog open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5" />
+                Resetar Senha
+              </DialogTitle>
+              <DialogDescription>
+                Definir nova senha para <strong>{resetPasswordUser?.full_name || (resetPasswordUser ? getUserLoginDisplay(resetPasswordUser) : '')}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-password">Nova Senha</Label>
+                <div className="relative">
+                  <Input
+                    id="reset-password"
+                    type={showResetPassword ? 'text' : 'password'}
+                    placeholder="Mínimo 6 caracteres"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-confirm-password">Confirmar Nova Senha</Label>
+                <Input
+                  id="reset-confirm-password"
+                  type={showResetPassword ? 'text' : 'password'}
+                  placeholder="Repita a nova senha"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  required
+                />
+                {resetConfirmPassword && resetPassword !== resetConfirmPassword && (
+                  <p className="text-xs text-destructive">As senhas não coincidem</p>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowResetPasswordModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={resettingPassword}>
+                  {resettingPassword && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Alterar Senha
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
