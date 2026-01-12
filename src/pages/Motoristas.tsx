@@ -30,8 +30,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
 
+import { ClipboardList } from 'lucide-react';
+import { useMissoes, Missao } from '@/hooks/useMissoes';
+import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
+import { MissaoModal } from '@/components/motoristas/MissaoModal';
+import { MissaoCard } from '@/components/motoristas/MissaoCard';
+
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
+  { id: 'missoes', label: 'Missões', icon: ClipboardList },
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
@@ -746,6 +753,7 @@ export default function Motoristas() {
             <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
           )}
           {activeSection === 'cadastro' && <CadastroContent />}
+          {activeSection === 'missoes' && <MissoesContent />}
         </div>
       </div>
     </EventLayout>
