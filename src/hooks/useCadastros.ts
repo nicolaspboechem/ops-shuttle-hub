@@ -140,6 +140,7 @@ export function useMotoristas(eventoId?: string) {
 
     // Sincronização bidirecional: atualizar viagens com o nome antigo
     if (oldNome && updates.nome && oldNome !== updates.nome) {
+      // Atualizar campo texto (compatibilidade)
       const { error: viagensError } = await supabase
         .from('viagens')
         .update({ motorista: updates.nome, atualizado_por: user?.id || null })

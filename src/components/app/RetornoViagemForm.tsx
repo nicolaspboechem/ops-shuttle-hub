@@ -108,8 +108,19 @@ export function RetornoViagemForm({
       const serverNow = getAgoraSync();
       const horaPickup = serverNow.toTimeString().slice(0, 8);
 
+      // Resolver IDs normalizados
+      const pontoDestinoData = pontos.find(p => p.nome === pontoDestino);
+      // Para origem, usar ponto_desembarque_id da viagem original se disponível
+      const pontoOrigemId = viagemOriginal.ponto_desembarque_id || viagemOriginal.ponto_embarque_id;
+
       const novaViagem = {
         evento_id: eventoId,
+        // Campos FK normalizados
+        motorista_id: viagemOriginal.motorista_id,
+        veiculo_id: viagemOriginal.veiculo_id,
+        ponto_embarque_id: pontoOrigemId || null,
+        ponto_desembarque_id: pontoDestinoData?.id || null,
+        // Campos de texto (compatibilidade)
         motorista: viagemOriginal.motorista,
         placa: viagemOriginal.placa,
         tipo_veiculo: viagemOriginal.tipo_veiculo,
