@@ -22,6 +22,8 @@ export interface Missao {
   atualizado_por: string | null;
   created_at: string;
   data_atualizacao: string;
+  // Campo para vincular diretamente à viagem criada
+  viagem_id: string | null;
 }
 
 export interface MissaoInput {

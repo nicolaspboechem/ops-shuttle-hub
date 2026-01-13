@@ -2,9 +2,10 @@ import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus } from 'lucide-react';
+import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserNames } from '@/hooks/useUserNames';
+import { MissaoBadge } from '@/components/viagens/MissaoBadge';
 
 interface ViagemCardMobileProps {
   viagem: Viagem;
@@ -46,10 +47,15 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
               <p className="text-sm text-muted-foreground">{viagem.placa}</p>
             </div>
           </div>
-          <Badge className={cn("text-white", config.color)}>
-            {config.icon}
-            <span className="ml-1">{config.label}</span>
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge className={cn("text-white", config.color)}>
+              {config.icon}
+              <span className="ml-1">{config.label}</span>
+            </Badge>
+            {viagem.origem_missao_id && (
+              <MissaoBadge missaoId={viagem.origem_missao_id} compact />
+            )}
+          </div>
         </div>
 
         {/* Info Grid */}

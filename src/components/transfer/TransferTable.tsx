@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Viagem } from '@/lib/types/viagem';
 import { StatusBadge } from '@/components/viagens/StatusBadge';
+import { MissaoBadge } from '@/components/viagens/MissaoBadge';
 import { calcularTempoViagem, formatarMinutos, formatarHora } from '@/lib/utils/calculadores';
 import { EditViagemModal } from '@/components/viagens/EditViagemModal';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,7 +97,10 @@ export function TransferTable({ viagens, onUpdate }: TransferTableProps) {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <StatusBadge status={viagem.encerrado ? 'ok' : 'alerta'} />
-                      {viagem.criado_por && (
+                      {viagem.origem_missao_id && (
+                        <MissaoBadge missaoId={viagem.origem_missao_id} />
+                      )}
+                      {viagem.criado_por && !viagem.origem_missao_id && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className={`h-5 w-5 rounded-full flex items-center justify-center ${

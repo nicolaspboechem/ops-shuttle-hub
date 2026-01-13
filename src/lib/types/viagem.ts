@@ -59,6 +59,8 @@ export interface Viagem {
   atualizado_por?: string | null;
   // Campo para rastrear sequência de rotas
   viagem_pai_id?: string | null;
+  // Campo para identificar se viagem veio de uma missão
+  origem_missao_id?: string | null;
 }
 
 export interface ViagemLog {
