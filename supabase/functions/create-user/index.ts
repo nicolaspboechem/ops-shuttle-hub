@@ -63,7 +63,19 @@ serve(async (req) => {
       );
     }
 
-    const { email, telefone, login_type, password, full_name, user_type } = await req.json();
+    const { 
+      email, 
+      telefone, 
+      login_type, 
+      password, 
+      full_name, 
+      user_type,
+      evento_id,      // Optional: link to event
+      motorista_id    // Optional: link to existing motorista record
+    } = await req.json();
+
+    let newUserId: string;
+    let phoneFormatted: string | null = null;
 
     // Validar campos obrigatórios baseado no tipo de login
     if (login_type === 'phone') {
@@ -84,7 +96,7 @@ serve(async (req) => {
       }
       
       // Formatar telefone para padrão internacional (+55...)
-      const phoneFormatted = phoneDigits.startsWith('55') ? `+${phoneDigits}` : `+55${phoneDigits}`;
+      phoneFormatted = phoneDigits.startsWith('55') ? `+${phoneDigits}` : `+55${phoneDigits}`;
       
       // Criar usuário com telefone
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
@@ -104,47 +116,17 @@ serve(async (req) => {
         );
       }
 
-      const newUserId = data.user.id;
+      newUserId = data.user.id;
 
-      // Criar profile com telefone
+      // Criar profile com telefone e user_type
       await supabaseAdmin.from('profiles').insert({
         user_id: newUserId,
         email: null,
         telefone: phoneFormatted,
         login_type: 'phone',
         full_name: full_name || telefone,
+        user_type: user_type || 'operador',
       });
-
-      // Definir role baseado no tipo de usuário
-      const role = user_type === 'admin' ? 'admin' : 'user';
-      await supabaseAdmin.from('user_roles').insert({
-        user_id: newUserId,
-        role: role,
-      });
-
-      // Definir permissões baseadas no tipo de usuário
-      const permissionsToGrant: string[] = [];
-      
-      if (user_type === 'operador') {
-        permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
-      } else if (user_type === 'motorista') {
-        permissionsToGrant.push('view_trips');
-      }
-
-      if (permissionsToGrant.length > 0) {
-        const permissionInserts = permissionsToGrant.map(p => ({
-          user_id: newUserId,
-          permission: p,
-          granted_by: callerUser.id,
-        }));
-        
-        await supabaseAdmin.from('user_permissions').insert(permissionInserts);
-      }
-
-      return new Response(
-        JSON.stringify({ user: data.user, phone: phoneFormatted }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
       
     } else {
       // Login por email (comportamento original)
@@ -173,50 +155,87 @@ serve(async (req) => {
         );
       }
 
-      const newUserId = data.user.id;
+      newUserId = data.user.id;
 
-      // Criar profile com email
+      // Criar profile com email e user_type
       await supabaseAdmin.from('profiles').insert({
         user_id: newUserId,
         email: email,
         telefone: null,
         login_type: 'email',
         full_name: full_name || email,
+        user_type: user_type || 'operador',
       });
-
-      // Definir role baseado no tipo de usuário
-      const role = user_type === 'admin' ? 'admin' : 'user';
-      await supabaseAdmin.from('user_roles').insert({
-        user_id: newUserId,
-        role: role,
-      });
-
-      // Definir permissões baseadas no tipo de usuário
-      const permissionsToGrant: string[] = [];
-      
-      if (user_type === 'admin') {
-        // Admin tem acesso total
-      } else if (user_type === 'operador') {
-        permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
-      } else if (user_type === 'motorista') {
-        permissionsToGrant.push('view_trips');
-      }
-
-      if (permissionsToGrant.length > 0) {
-        const permissionInserts = permissionsToGrant.map(p => ({
-          user_id: newUserId,
-          permission: p,
-          granted_by: callerUser.id,
-        }));
-        
-        await supabaseAdmin.from('user_permissions').insert(permissionInserts);
-      }
-
-      return new Response(
-        JSON.stringify({ user: data.user }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
+
+    // Definir role baseado no tipo de usuário
+    const role = user_type === 'admin' ? 'admin' : 'user';
+    await supabaseAdmin.from('user_roles').insert({
+      user_id: newUserId,
+      role: role,
+    });
+
+    // Definir permissões baseadas no tipo de usuário
+    const permissionsToGrant: string[] = [];
+    
+    if (user_type === 'admin') {
+      // Admin tem acesso total via role
+    } else if (user_type === 'supervisor' || user_type === 'coordenador') {
+      permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
+    } else if (user_type === 'operador') {
+      permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
+    } else if (user_type === 'motorista') {
+      permissionsToGrant.push('view_trips');
+    }
+
+    if (permissionsToGrant.length > 0) {
+      const permissionInserts = permissionsToGrant.map(p => ({
+        user_id: newUserId,
+        permission: p,
+        granted_by: callerUser.id,
+      }));
+      
+      await supabaseAdmin.from('user_permissions').insert(permissionInserts);
+    }
+
+    // Se evento_id fornecido, vincular usuário ao evento
+    if (evento_id) {
+      const eventoRole = user_type === 'motorista' ? 'motorista' : 
+                         user_type === 'supervisor' ? 'supervisor' :
+                         user_type === 'coordenador' ? 'coordenador' : 'operador';
+      
+      await supabaseAdmin.from('evento_usuarios').insert({
+        evento_id: evento_id,
+        user_id: newUserId,
+        role: eventoRole,
+      });
+      
+      console.log(`Linked user ${newUserId} to event ${evento_id} with role ${eventoRole}`);
+    }
+
+    // Se motorista_id fornecido, atualizar registro do motorista com o user_id
+    if (motorista_id) {
+      const { error: motoristaError } = await supabaseAdmin
+        .from('motoristas')
+        .update({ user_id: newUserId })
+        .eq('id', motorista_id);
+      
+      if (motoristaError) {
+        console.error("Error linking user to motorista:", motoristaError);
+      } else {
+        console.log(`Linked user ${newUserId} to motorista ${motorista_id}`);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        user: { id: newUserId }, 
+        phone: phoneFormatted,
+        user_type: user_type || 'operador'
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
