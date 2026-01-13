@@ -17,6 +17,22 @@ async function atualizarStatusMotorista(motoristaNome: string, eventoId: string,
   }
 }
 
+// Helper para atualizar localização do motorista
+async function atualizarLocalizacaoMotorista(motoristaNome: string, eventoId: string, localizacao: string | null) {
+  const { error } = await supabase
+    .from('motoristas')
+    .update({ 
+      ultima_localizacao: localizacao,
+      ultima_localizacao_at: new Date().toISOString()
+    } as any)
+    .eq('nome', motoristaNome)
+    .eq('evento_id', eventoId);
+
+  if (error) {
+    console.error('Erro ao atualizar localização do motorista:', error);
+  }
+}
+
 // Helper para verificar se motorista tem outras viagens ativas
 async function motoristaTemViagensAtivas(motoristaNome: string, eventoId: string, viagemIdExcluir?: string): Promise<boolean> {
   let query = supabase
@@ -134,6 +150,11 @@ export function useViagemOperacao() {
       if (!temOutrasViagens) {
         await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
       }
+      
+      // Atualizar localização do motorista para o ponto de desembarque
+      if (viagem.ponto_desembarque) {
+        await atualizarLocalizacaoMotorista(viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+      }
     }
     
     toast.success('Rota concluída!');
@@ -170,6 +191,11 @@ export function useViagemOperacao() {
       const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista, viagem.evento_id, viagem.id);
       if (!temOutrasViagens) {
         await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
+      }
+      
+      // Atualizar localização do motorista para o ponto de desembarque
+      if (viagem.ponto_desembarque) {
+        await atualizarLocalizacaoMotorista(viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
       }
     }
 

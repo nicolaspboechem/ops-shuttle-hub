@@ -251,6 +251,8 @@ export type Database = {
           observacao: string | null
           status: string | null
           telefone: string | null
+          ultima_localizacao: string | null
+          ultima_localizacao_at: string | null
           user_id: string | null
           veiculo_id: string | null
         }
@@ -267,6 +269,8 @@ export type Database = {
           observacao?: string | null
           status?: string | null
           telefone?: string | null
+          ultima_localizacao?: string | null
+          ultima_localizacao_at?: string | null
           user_id?: string | null
           veiculo_id?: string | null
         }
@@ -283,6 +287,8 @@ export type Database = {
           observacao?: string | null
           status?: string | null
           telefone?: string | null
+          ultima_localizacao?: string | null
+          ultima_localizacao_at?: string | null
           user_id?: string | null
           veiculo_id?: string | null
         }
