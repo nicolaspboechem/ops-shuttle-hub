@@ -110,6 +110,8 @@ export default function AppSupervisor() {
     setWizardOpen(true);
   };
 
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
   const stats = {
     liberados: veiculos.filter(v => v.status === 'liberado').length,
     pendentes: veiculos.filter(v => v.status === 'pendente').length,
@@ -117,11 +119,17 @@ export default function AppSupervisor() {
     manutencao: veiculos.filter(v => v.status === 'manutencao').length,
   };
 
-  const filteredVeiculos = veiculos.filter(v => 
-    v.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.tipo_veiculo.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleStatusFilter = (status: string) => {
+    setStatusFilter(prev => prev === status ? null : status);
+  };
+
+  const filteredVeiculos = veiculos.filter(v => {
+    const matchesSearch = v.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.tipo_veiculo.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = !statusFilter || v.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   // Group by status
   const groupedVeiculos = {
@@ -197,28 +205,56 @@ export default function AppSupervisor() {
       {/* Stats Cards */}
       <div className="container mx-auto px-4 py-4">
         <div className="grid grid-cols-4 gap-2">
-          <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <Card 
+            className={`cursor-pointer transition-all active:scale-95 ${
+              statusFilter === 'liberado' 
+                ? 'border-emerald-500 bg-emerald-500/20 ring-2 ring-emerald-500/50' 
+                : 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10'
+            }`}
+            onClick={() => handleStatusFilter('liberado')}
+          >
             <CardContent className="p-3 text-center">
               <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
               <p className="text-xl font-bold text-emerald-600">{stats.liberados}</p>
               <p className="text-[10px] text-muted-foreground">Liberados</p>
             </CardContent>
           </Card>
-          <Card className="border-destructive/30 bg-destructive/5">
+          <Card 
+            className={`cursor-pointer transition-all active:scale-95 ${
+              statusFilter === 'pendente' 
+                ? 'border-destructive bg-destructive/20 ring-2 ring-destructive/50' 
+                : 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
+            }`}
+            onClick={() => handleStatusFilter('pendente')}
+          >
             <CardContent className="p-3 text-center">
               <AlertTriangle className="h-5 w-5 text-destructive mx-auto mb-1" />
               <p className="text-xl font-bold text-destructive">{stats.pendentes}</p>
               <p className="text-[10px] text-muted-foreground">Pendentes</p>
             </CardContent>
           </Card>
-          <Card className="border-amber-500/30 bg-amber-500/5">
+          <Card 
+            className={`cursor-pointer transition-all active:scale-95 ${
+              statusFilter === 'em_inspecao' 
+                ? 'border-amber-500 bg-amber-500/20 ring-2 ring-amber-500/50' 
+                : 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10'
+            }`}
+            onClick={() => handleStatusFilter('em_inspecao')}
+          >
             <CardContent className="p-3 text-center">
               <Clock className="h-5 w-5 text-amber-600 mx-auto mb-1" />
               <p className="text-xl font-bold text-amber-600">{stats.emInspecao}</p>
               <p className="text-[10px] text-muted-foreground">Em Inspeção</p>
             </CardContent>
           </Card>
-          <Card className="border-muted bg-muted/20">
+          <Card 
+            className={`cursor-pointer transition-all active:scale-95 ${
+              statusFilter === 'manutencao' 
+                ? 'border-muted-foreground bg-muted/40 ring-2 ring-muted-foreground/50' 
+                : 'border-muted bg-muted/20 hover:bg-muted/30'
+            }`}
+            onClick={() => handleStatusFilter('manutencao')}
+          >
             <CardContent className="p-3 text-center">
               <Wrench className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
               <p className="text-xl font-bold text-muted-foreground">{stats.manutencao}</p>
@@ -226,6 +262,16 @@ export default function AppSupervisor() {
             </CardContent>
           </Card>
         </div>
+        {statusFilter && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="mt-2 w-full text-muted-foreground"
+            onClick={() => setStatusFilter(null)}
+          >
+            Limpar filtro
+          </Button>
+        )}
       </div>
 
       {/* Search */}
