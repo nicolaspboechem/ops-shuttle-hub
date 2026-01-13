@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
@@ -21,7 +21,7 @@ export default function AppHome() {
   const [eventos, setEventos] = useState<EventoWithCount[]>([]);
   const [selectedEvento, setSelectedEvento] = useState<EventoWithCount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'motorista' | 'operador' | null>(null);
+  const [userRole, setUserRole] = useState<'motorista' | 'operador' | 'supervisor' | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -61,8 +61,8 @@ export default function AppHome() {
         return;
       }
 
-      // Determine user's primary role (assume same role across events)
-      const primaryRole = linkedEvents[0].role as 'motorista' | 'operador';
+      // Determine user's primary role
+      const primaryRole = linkedEvents[0].role as 'motorista' | 'operador' | 'supervisor';
       setUserRole(primaryRole);
 
       const eventIds = linkedEvents.map(e => e.evento_id);
@@ -89,6 +89,9 @@ export default function AppHome() {
           return;
         } else if (role === 'operador') {
           navigate(`/app/${evento.id}/operador`);
+          return;
+        } else if (role === 'supervisor') {
+          navigate(`/app/${evento.id}/supervisor`);
           return;
         }
       }
@@ -136,6 +139,8 @@ export default function AppHome() {
       navigate(`/app/${evento.id}/operador`);
     } else if (role === 'motorista') {
       navigate(`/app/${evento.id}/motorista`);
+    } else if (role === 'supervisor') {
+      navigate(`/app/${evento.id}/supervisor`);
     }
   };
 
@@ -168,6 +173,7 @@ export default function AppHome() {
     if (isAdmin) return 'Administrador';
     if (userRole === 'operador') return 'Operador';
     if (userRole === 'motorista') return 'Motorista';
+    if (userRole === 'supervisor') return 'Supervisor';
     return null;
   };
 
