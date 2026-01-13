@@ -135,10 +135,14 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
       if (error) throw error;
 
-      // Update driver status to 'disponivel'
+      // Update driver status to 'disponivel' and set initial location to 'Base'
       await supabase
         .from('motoristas')
-        .update({ status: 'disponivel' })
+        .update({ 
+          status: 'disponivel',
+          ultima_localizacao: 'Base',
+          ultima_localizacao_at: now
+        } as any)
         .eq('id', motoristaId);
 
       // Fetch vehicle info if exists

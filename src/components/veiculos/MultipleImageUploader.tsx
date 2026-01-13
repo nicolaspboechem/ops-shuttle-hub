@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Upload, X, Image as ImageIcon, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,7 @@ interface MultipleImageUploaderProps {
   value: string[];
   onChange: (urls: string[]) => void;
   className?: string;
+  enableCamera?: boolean;
 }
 
 export function MultipleImageUploader({
@@ -24,11 +25,13 @@ export function MultipleImageUploader({
   maxFiles = 10,
   value = [],
   onChange,
-  className
+  className,
+  enableCamera = true
 }: MultipleImageUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -120,11 +123,21 @@ export function MultipleImageUploader({
 
   return (
     <div className={cn("space-y-3", className)}>
+      {/* Hidden file inputs */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
         multiple
+        onChange={handleUpload}
+        className="hidden"
+      />
+      {/* Camera input - capture directly from camera */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         onChange={handleUpload}
         className="hidden"
       />
@@ -153,39 +166,61 @@ export function MultipleImageUploader({
 
       {/* Área de upload */}
       {value.length < maxFiles && (
-        <div
-          onClick={() => !uploading && inputRef.current?.click()}
-          className={cn(
-            "border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer transition-colors",
-            "hover:border-primary/50 hover:bg-accent/50",
-            uploading && "pointer-events-none opacity-50"
+        <div className="space-y-2">
+          {/* Camera button - mobile optimized */}
+          {enableCamera && (
+            <button
+              type="button"
+              onClick={() => !uploading && cameraInputRef.current?.click()}
+              disabled={uploading}
+              className={cn(
+                "w-full flex items-center justify-center gap-3 py-4 px-4 rounded-xl border-2 border-primary/50 bg-primary/10 text-primary font-medium transition-colors",
+                "active:bg-primary/20",
+                uploading && "pointer-events-none opacity-50"
+              )}
+            >
+              <Camera className="h-6 w-6" />
+              <span className="text-base">Tirar Foto</span>
+            </button>
           )}
-        >
-          {uploading ? (
-            <div className="space-y-2">
-              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Enviando... {progress}%</p>
-              <div className="h-1 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
+          
+          {/* Gallery picker */}
+          <button
+            type="button"
+            onClick={() => !uploading && inputRef.current?.click()}
+            disabled={uploading}
+            className={cn(
+              "w-full border-2 border-dashed border-muted-foreground/25 rounded-xl p-4 text-center cursor-pointer transition-colors",
+              "hover:border-primary/50 hover:bg-accent/50 active:bg-accent",
+              uploading && "pointer-events-none opacity-50"
+            )}
+          >
+            {uploading ? (
+              <div className="space-y-2">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Enviando... {progress}%</p>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px] mx-auto">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <div className="flex justify-center gap-2">
-                <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                <Upload className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <div className="space-y-1">
+                <div className="flex justify-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Selecionar da galeria
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  {value.length}/{maxFiles} fotos • Máx 5MB cada
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Toque para adicionar fotos
-              </p>
-              <p className="text-xs text-muted-foreground/70">
-                {value.length}/{maxFiles} fotos • Máx 5MB cada
-              </p>
-            </div>
-          )}
+            )}
+          </button>
         </div>
       )}
     </div>
