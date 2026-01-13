@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound } from 'lucide-react';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -17,7 +18,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { cn } from '@/lib/utils';
 import { maskPhone, formatPhoneDisplay, isValidPhone } from '@/lib/utils/formatPhone';
 
-type UserType = 'motorista' | 'operador' | 'admin';
+type UserType = 'motorista' | 'operador' | 'admin' | 'supervisor' | 'coordenador';
 type LoginType = 'email' | 'phone';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
@@ -29,6 +30,7 @@ interface UserWithPermissions {
   telefone: string | null;
   login_type: string | null;
   full_name: string | null;
+  user_type: UserType | null;
   role: 'admin' | 'user';
   permissions: AppPermission[];
 }
@@ -40,6 +42,14 @@ const PERMISSION_LABELS: Record<AppPermission, { label: string; description: str
   export_data: { label: 'Exportar dados', description: 'Baixar relatórios em Excel' },
 };
 
+const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
+  admin: { label: 'Admin', icon: Crown, color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
+  supervisor: { label: 'Supervisor', icon: UserCog, color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
+  coordenador: { label: 'Coordenador', icon: MapPin, color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
+  operador: { label: 'Operador', icon: Headset, color: 'text-emerald-600', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  motorista: { label: 'Motorista', icon: Car, color: 'text-gray-600', bgColor: 'bg-gray-100 dark:bg-gray-900/30' },
+};
+
 export default function Usuarios() {
   const { isAdmin, user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
@@ -47,6 +57,7 @@ export default function Usuarios() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<UserType | 'todos'>('todos');
   
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -90,16 +101,47 @@ export default function Usuarios() {
     fetchUsers();
   }, []);
 
-  const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users;
+  // Contadores por tipo de usuário
+  const userCounts = useMemo(() => {
+    const counts: Record<UserType | 'todos', number> = {
+      todos: users.length,
+      admin: 0,
+      supervisor: 0,
+      coordenador: 0,
+      operador: 0,
+      motorista: 0,
+    };
     
-    const query = searchQuery.toLowerCase();
-    return users.filter(user => 
-      (user.email && user.email.toLowerCase().includes(query)) ||
-      (user.telefone && user.telefone.includes(query)) ||
-      (user.full_name && user.full_name.toLowerCase().includes(query))
-    );
-  }, [users, searchQuery]);
+    users.forEach(user => {
+      const type = user.user_type || 'operador';
+      if (type in counts) {
+        counts[type as UserType]++;
+      }
+    });
+    
+    return counts;
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    let filtered = users;
+    
+    // Filtrar por aba (tipo de usuário)
+    if (activeTab !== 'todos') {
+      filtered = filtered.filter(user => (user.user_type || 'operador') === activeTab);
+    }
+    
+    // Filtrar por busca
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(user => 
+        (user.email && user.email.toLowerCase().includes(query)) ||
+        (user.telefone && user.telefone.includes(query)) ||
+        (user.full_name && user.full_name.toLowerCase().includes(query))
+      );
+    }
+    
+    return filtered;
+  }, [users, searchQuery, activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -132,6 +174,7 @@ export default function Usuarios() {
           telefone: (profile as any).telefone || null,
           login_type: (profile as any).login_type || 'email',
           full_name: profile.full_name,
+          user_type: ((profile as any).user_type as UserType) || 'operador',
           role: (role?.role as 'admin' | 'user') || 'user',
           permissions: userPerms.map(p => p.permission as AppPermission),
         };
@@ -502,6 +545,19 @@ export default function Usuarios() {
     return user.email || '-';
   };
 
+  const getUserTypeBadge = (userType: UserType | null) => {
+    const type = userType || 'operador';
+    const config = USER_TYPE_CONFIG[type];
+    const Icon = config.icon;
+    
+    return (
+      <Badge variant="outline" className={cn("text-xs gap-1", config.color, config.bgColor)}>
+        <Icon className="h-3 w-3" />
+        {config.label}
+      </Badge>
+    );
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -533,6 +589,51 @@ export default function Usuarios() {
             </Button>
           )}
         </div>
+
+        {/* Tabs por tipo de usuário */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as UserType | 'todos')} className="mb-6">
+          <TabsList className="grid w-full grid-cols-6 h-auto">
+            <TabsTrigger value="todos" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium">Todos</span>
+              <span className="text-xs text-muted-foreground">{userCounts.todos}</span>
+            </TabsTrigger>
+            <TabsTrigger value="admin" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <Crown className="h-3 w-3" />
+                Admin
+              </span>
+              <span className="text-xs text-muted-foreground">{userCounts.admin}</span>
+            </TabsTrigger>
+            <TabsTrigger value="supervisor" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <UserCog className="h-3 w-3" />
+                Supervisor
+              </span>
+              <span className="text-xs text-muted-foreground">{userCounts.supervisor}</span>
+            </TabsTrigger>
+            <TabsTrigger value="coordenador" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                Coordenador
+              </span>
+              <span className="text-xs text-muted-foreground">{userCounts.coordenador}</span>
+            </TabsTrigger>
+            <TabsTrigger value="operador" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <Headset className="h-3 w-3" />
+                Operador
+              </span>
+              <span className="text-xs text-muted-foreground">{userCounts.operador}</span>
+            </TabsTrigger>
+            <TabsTrigger value="motorista" className="flex flex-col gap-1 py-3">
+              <span className="text-sm font-medium flex items-center gap-1">
+                <Car className="h-3 w-3" />
+                Motorista
+              </span>
+              <span className="text-xs text-muted-foreground">{userCounts.motorista}</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Barra de pesquisa */}
         <div className="relative mb-6">
@@ -576,9 +677,7 @@ export default function Usuarios() {
                         <div>
                           <CardTitle className="text-lg flex items-center gap-2">
                             {user.full_name || getUserLoginDisplay(user)}
-                            {user.role === 'admin' && (
-                              <Badge variant="default" className="text-xs">Admin</Badge>
-                            )}
+                            {getUserTypeBadge(user.user_type)}
                             {isCurrentUser && (
                               <Badge variant="outline" className="text-xs">Você</Badge>
                             )}
@@ -731,6 +830,16 @@ export default function Usuarios() {
             </div>
           )}
 
+          {filteredUsers.length === 0 && !searchQuery && activeTab !== 'todos' && (
+            <div className="text-center py-12">
+              <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum {USER_TYPE_CONFIG[activeTab as UserType]?.label.toLowerCase()} cadastrado</h3>
+              <p className="text-muted-foreground">
+                Clique em "Criar Usuário" para adicionar um novo usuário deste tipo.
+              </p>
+            </div>
+          )}
+
           {users.length === 0 && !searchQuery && (
             <div className="text-center py-12">
               <ShieldX className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
@@ -777,6 +886,28 @@ export default function Usuarios() {
                     >
                       <Headset className="mb-2 h-5 w-5" />
                       <span className="text-sm font-medium">Operador</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="supervisor" id="type-supervisor" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-supervisor"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <UserCog className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Supervisor</span>
+                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="coordenador" id="type-coordenador" className="peer sr-only" />
+                    <Label
+                      htmlFor="type-coordenador"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <MapPin className="mb-2 h-5 w-5" />
+                      <span className="text-sm font-medium">Coordenador</span>
                       <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
                     </Label>
                   </div>
