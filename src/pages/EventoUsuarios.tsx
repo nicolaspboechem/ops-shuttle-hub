@@ -159,6 +159,7 @@ export default function EventoUsuarios() {
     switch (role) {
       case 'operador': return 'default';
       case 'motorista': return 'secondary';
+      case 'supervisor': return 'outline';
       default: return 'outline';
     }
   };
@@ -167,6 +168,7 @@ export default function EventoUsuarios() {
     switch (role) {
       case 'motorista': return 'Motorista';
       case 'operador': return 'Operador';
+      case 'supervisor': return 'Supervisor';
       default: return role;
     }
   };
@@ -237,6 +239,12 @@ export default function EventoUsuarios() {
                         <div className="flex flex-col items-start">
                           <span className="font-medium">Operador</span>
                           <span className="text-xs text-muted-foreground">Gerencia viagens, motoristas e veículos</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="supervisor">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">Supervisor</span>
+                          <span className="text-xs text-muted-foreground">Vistoria veículos e organiza motoristas</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="motorista">
@@ -352,6 +360,7 @@ export default function EventoUsuarios() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="operador">Operador</SelectItem>
+                          <SelectItem value="supervisor">Supervisor</SelectItem>
                           <SelectItem value="motorista">Motorista</SelectItem>
                         </SelectContent>
                       </Select>

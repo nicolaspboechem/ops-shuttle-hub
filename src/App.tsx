@@ -27,6 +27,7 @@ import AppHome from "./pages/app/AppHome";
 
 import AppMotorista from "./pages/app/AppMotorista";
 import AppOperador from "./pages/app/AppOperador";
+import AppSupervisor from "./pages/app/AppSupervisor";
 import PainelPublico from "./pages/PainelPublico";
 import NotFound from "./pages/NotFound";
 
@@ -57,6 +58,11 @@ const App = () => (
             <Route path="/app/:eventoId/operador" element={
               <EventRoleRoute allowedRoles={['operador']}>
                 <AppOperador />
+              </EventRoleRoute>
+            } />
+            <Route path="/app/:eventoId/supervisor" element={
+              <EventRoleRoute allowedRoles={['supervisor', 'operador']}>
+                <AppSupervisor />
               </EventRoleRoute>
             } />
             
