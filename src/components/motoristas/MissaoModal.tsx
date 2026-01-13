@@ -81,13 +81,21 @@ export function MissaoModal({
     
     if (!motoristaId || !titulo.trim()) return;
 
+    // Resolver IDs dos pontos selecionados
+    const pontoEmbarqueData = pontos.find(p => p.nome === pontoEmbarque);
+    const pontoDesembarqueData = pontos.find(p => p.nome === pontoDesembarque);
+
     setSaving(true);
     await onSave({
       motorista_id: motoristaId,
       titulo: titulo.trim(),
       descricao: descricao.trim() || null,
+      // Campos de texto (compatibilidade)
       ponto_embarque: pontoEmbarque || null,
       ponto_desembarque: pontoDesembarque || null,
+      // Campos FK normalizados
+      ponto_embarque_id: pontoEmbarqueData?.id || null,
+      ponto_desembarque_id: pontoDesembarqueData?.id || null,
       horario_previsto: horarioPrevisto ? `${horarioPrevisto}:00` : null,
       prioridade,
     });

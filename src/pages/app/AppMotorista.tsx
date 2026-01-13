@@ -88,6 +88,9 @@ export default function AppMotorista() {
           return;
         }
 
+        // Encontrar veículo vinculado ao motorista
+        const veiculoVinculado = motorista.veiculo_id;
+
         const now = new Date();
         const horaPickup = now.toTimeString().slice(0, 8);
 
@@ -95,6 +98,12 @@ export default function AppMotorista() {
           .from('viagens')
           .insert({
             evento_id: eventoId,
+            // Campos FK normalizados
+            motorista_id: motorista.id,
+            veiculo_id: veiculoVinculado || null,
+            ponto_embarque_id: missao.ponto_embarque_id || null,
+            ponto_desembarque_id: missao.ponto_desembarque_id || null,
+            // Campos de texto (compatibilidade)
             motorista: motorista.nome,
             ponto_embarque: missao.ponto_embarque,
             ponto_desembarque: missao.ponto_desembarque,
@@ -161,11 +170,11 @@ export default function AppMotorista() {
             .eq('id', viagemId);
         }
 
-        // Verificar se motorista tem outras viagens ativas
+        // Verificar se motorista tem outras viagens ativas (usar motorista_id)
         const { data: outrasViagens } = await supabase
           .from('viagens')
           .select('id')
-          .eq('motorista', motorista.nome)
+          .eq('motorista_id', motorista.id)
           .eq('evento_id', eventoId)
           .eq('encerrado', false);
 
