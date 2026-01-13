@@ -1,16 +1,1 @@
 project_id = "gkrczwtldvondiehsesh"
-
-[functions.reset-password]
-verify_jwt = false
-
-[functions.create-user]
-verify_jwt = false
-
-[functions.sync-data]
-verify_jwt = false
-
-[functions.close-open-trips]
-verify_jwt = false
-
-[functions.import-all-vehicles]
-verify_jwt = false
