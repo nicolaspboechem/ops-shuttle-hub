@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -412,42 +412,21 @@ export default function Motoristas() {
     </DropdownMenu>
   );
 
-  // Conteúdo da seção Cadastro
+  // Conteúdo da seção Cadastro (agora focado em gestão operacional)
   const CadastroContent = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Motoristas</h1>
+          <h1 className="text-2xl font-bold">Gestão de Motoristas</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastre motoristas para facilitar a criação de viagens
+            Gerencie status e acompanhe motoristas em tempo real
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleImportFromViagens}>
-            <Download className="w-4 h-4 mr-2" />
-            Importar das Viagens
+          <Button variant="outline" onClick={() => navigate(`/evento/${eventoId}/equipe`)}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Adicionar via Equipe
           </Button>
-          <Button onClick={() => setShowCreateWizard(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Motorista
-          </Button>
-          <CreateMotoristaWizard
-            open={showCreateWizard}
-            onOpenChange={setShowCreateWizard}
-            veiculos={veiculos}
-            eventoId={eventoId}
-            onSubmit={async (data) => {
-              const motoristaId = await handleSaveMotorista({
-                nome: data.nome,
-                telefone: data.telefone || null,
-                veiculo_id: data.veiculo_id || null,
-                ativo: true,
-              });
-              
-              toast.success('Motorista criado com sucesso!');
-              return motoristaId;
-            }}
-          />
         </div>
       </div>
 
