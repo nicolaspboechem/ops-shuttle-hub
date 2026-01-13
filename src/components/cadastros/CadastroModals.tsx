@@ -253,7 +253,7 @@ interface MotoristaModalProps {
   veiculosDisponiveis: Veiculo[];
   defaultName?: string;
   eventoId?: string;
-  onSave: (data: { nome: string; telefone: string | null; veiculo_id: string | null; ativo: boolean; evento_id?: string }) => Promise<void>;
+  onSave: (data: { nome: string; telefone: string | null; veiculo_id: string | null; ativo: boolean; evento_id?: string }) => Promise<string | undefined | void>;
   onUpdate?: (id: string, data: Partial<Motorista>, oldNome: string) => Promise<void>;
   trigger?: React.ReactNode;
 }

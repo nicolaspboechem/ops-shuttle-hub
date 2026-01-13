@@ -6,16 +6,25 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { Veiculo } from "@/hooks/useCadastros";
-import { User, Phone, Car, Check, ChevronRight, ChevronLeft, AlertTriangle, Fuel, Bus } from "lucide-react";
+import { User, Phone, Car, Check, ChevronRight, ChevronLeft, AlertTriangle, Fuel, Bus, KeyRound, Copy, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface CreateMotoristaWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   veiculos: Veiculo[];
-  onSubmit: (data: { nome: string; telefone: string; veiculo_id?: string }) => Promise<void>;
+  eventoId?: string;
+  onSubmit: (data: { nome: string; telefone: string; veiculo_id?: string }) => Promise<string | undefined>;
+}
+
+interface CreatedCredentials {
+  login: string;
+  password: string;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -25,12 +34,19 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   manutencao: { label: 'Manutenção', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-950/30' },
 };
 
-export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }: CreateMotoristaWizardProps) {
+export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, onSubmit }: CreateMotoristaWizardProps) {
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Credenciais de login (Step 3)
+  const [criarLogin, setCriarLogin] = useState(false);
+  const [senha, setSenha] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
 
   // Agrupar veículos por status
   const veiculosPorStatus = veiculos.reduce((acc, v) => {
@@ -55,32 +71,86 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
   const handleSubmit = async () => {
     if (!nome.trim()) return;
     setIsSubmitting(true);
+    
     try {
-      await onSubmit({
+      // Primeiro criar o motorista e obter o ID
+      const motoristaId = await onSubmit({
         nome: nome.trim(),
         telefone: telefone.trim(),
         veiculo_id: selectedVeiculoId || undefined,
       });
-      // Reset form
-      setNome("");
-      setTelefone("");
-      setSelectedVeiculoId(null);
-      setStep(1);
-      onOpenChange(false);
+      
+      // Se criarLogin está ativo e temos o motoristaId, criar usuário vinculado
+      if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        const response = await supabase.functions.invoke('create-user', {
+          body: {
+            telefone: telefone.trim(),
+            login_type: 'phone',
+            password: senha.trim(),
+            full_name: nome.trim(),
+            user_type: 'motorista',
+            evento_id: eventoId,
+            motorista_id: motoristaId, // Vincular usuário ao motorista
+          },
+          headers: {
+            Authorization: `Bearer ${sessionData.session?.access_token}`,
+          },
+        });
+
+        if (response.error) {
+          toast.error(`Motorista criado, mas erro ao criar login: ${response.error.message}`);
+          handleClose();
+          return;
+        }
+        
+        const phoneFormatted = response.data?.phone || `+55${telefone.replace(/\D/g, '')}`;
+        
+        // Guardar credenciais para mostrar
+        setCreatedCredentials({
+          login: phoneFormatted,
+          password: senha.trim(),
+        });
+        setShowCredentialsModal(true);
+      } else {
+        handleClose();
+      }
+    } catch (err: any) {
+      console.error("Erro ao criar motorista:", err);
+      toast.error("Erro ao criar motorista");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copiado!`);
   };
 
   const handleClose = () => {
     setNome("");
     setTelefone("");
     setSelectedVeiculoId(null);
+    setCriarLogin(false);
+    setSenha("");
+    setCreatedCredentials(null);
+    setShowCredentialsModal(false);
     setStep(1);
     onOpenChange(false);
   };
 
+  const handleCredentialsModalClose = () => {
+    setShowCredentialsModal(false);
+    handleClose();
+  };
+
   const canProceedStep1 = nome.trim().length > 0;
+  const canProceedStep3 = !criarLogin || (telefone.trim().length >= 10 && senha.trim().length >= 6);
+  
+  const totalSteps = 4;
+
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -94,7 +164,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
 
         {/* Step Indicator */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div
                 className={cn(
@@ -108,10 +178,10 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
               >
                 {step > s ? <Check className="h-4 w-4" /> : s}
               </div>
-              {s < 3 && (
+              {s < 4 && (
                 <div
                   className={cn(
-                    "w-12 h-1 rounded-full",
+                    "w-8 h-1 rounded-full",
                     step > s ? "bg-emerald-500" : "bg-muted"
                   )}
                 />
@@ -301,10 +371,117 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
             </motion.div>
           )}
 
-          {/* Step 3: Confirmação */}
+          {/* Step 3: Credenciais de Login (Opcional) */}
           {step === 3 && (
             <motion.div
               key="step3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold">Credenciais de Acesso</h3>
+                <p className="text-sm text-muted-foreground">
+                  Opcional: crie login para o motorista acessar o app
+                </p>
+              </div>
+
+              <div className="max-w-md mx-auto space-y-4">
+                <Card className={cn(
+                  "transition-all cursor-pointer",
+                  criarLogin ? "ring-2 ring-primary" : "hover:bg-accent/50"
+                )} onClick={() => setCriarLogin(!criarLogin)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center",
+                          criarLogin ? "bg-primary text-primary-foreground" : "bg-muted"
+                        )}>
+                          <KeyRound className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Criar login para o motorista</p>
+                          <p className="text-xs text-muted-foreground">
+                            Permitir acesso ao app mobile
+                          </p>
+                        </div>
+                      </div>
+                      <Switch checked={criarLogin} onCheckedChange={setCriarLogin} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {criarLogin && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-4"
+                  >
+                    <div className="space-y-2">
+                      <Label>Telefone (usado como login)</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={telefone}
+                          onChange={(e) => setTelefone(e.target.value)}
+                          placeholder="(11) 99999-9999"
+                          className="pl-10"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        O motorista usará o telefone +55{telefone.replace(/\D/g, '')} para fazer login
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Senha de Acesso *</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          value={senha}
+                          onChange={(e) => setSenha(e.target.value)}
+                          placeholder="Mínimo 6 caracteres"
+                          className="pl-10 pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      {senha.length > 0 && senha.length < 6 && (
+                        <p className="text-xs text-destructive">Senha deve ter pelo menos 6 caracteres</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Voltar
+                </Button>
+                <Button onClick={() => setStep(4)} disabled={!canProceedStep3}>
+                  Próximo
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 4: Confirmação */}
+          {step === 4 && (
+            <motion.div
+              key="step4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -348,11 +525,24 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
                       </p>
                     )}
                   </div>
+
+                  {criarLogin && (
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium mb-2">Credenciais de Acesso</p>
+                      <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+                        <KeyRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <div>
+                          <p className="text-sm">Login: <span className="font-mono">+55{telefone.replace(/\D/g, '')}</span></p>
+                          <p className="text-xs text-muted-foreground">Senha definida pelo admin</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
               <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setStep(2)}>
+                <Button variant="outline" onClick={() => setStep(3)}>
                   <ChevronLeft className="mr-2 h-4 w-4" />
                   Voltar
                 </Button>
@@ -364,6 +554,59 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, onSubmit }
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Modal de Credenciais Criadas */}
+        {showCredentialsModal && createdCredentials && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md mx-4">
+              <CardContent className="p-6 space-y-4">
+                <div className="text-center">
+                  <div className="h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mx-auto mb-4">
+                    <Check className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold">Motorista Criado com Sucesso!</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Anote as credenciais para enviar ao motorista
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Login (Telefone)</p>
+                      <p className="font-mono font-medium">{createdCredentials.login}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(createdCredentials.login, "Login")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Senha</p>
+                      <p className="font-mono font-medium">{createdCredentials.password}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copyToClipboard(createdCredentials.password, "Senha")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <Button className="w-full" onClick={handleCredentialsModalClose}>
+                  Fechar
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
