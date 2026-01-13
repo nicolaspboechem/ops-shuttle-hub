@@ -238,6 +238,7 @@ export type Database = {
           observacao: string | null
           status: string | null
           telefone: string | null
+          user_id: string | null
           veiculo_id: string | null
         }
         Insert: {
@@ -253,6 +254,7 @@ export type Database = {
           observacao?: string | null
           status?: string | null
           telefone?: string | null
+          user_id?: string | null
           veiculo_id?: string | null
         }
         Update: {
@@ -268,6 +270,7 @@ export type Database = {
           observacao?: string | null
           status?: string | null
           telefone?: string | null
+          user_id?: string | null
           veiculo_id?: string | null
         }
         Relationships: [
@@ -380,8 +383,11 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          login_type: string | null
+          telefone: string | null
           updated_at: string | null
           user_id: string
+          user_type: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -389,8 +395,11 @@ export type Database = {
           email: string
           full_name?: string | null
           id?: string
+          login_type?: string | null
+          telefone?: string | null
           updated_at?: string | null
           user_id: string
+          user_type?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -398,8 +407,11 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          login_type?: string | null
+          telefone?: string | null
           updated_at?: string | null
           user_id?: string
+          user_type?: string | null
         }
         Relationships: []
       }
