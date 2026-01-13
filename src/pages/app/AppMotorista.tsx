@@ -308,6 +308,7 @@ export default function AppMotorista() {
           {checkinEnabled && motoristaData && (
             <CheckinCheckoutCard
               presenca={presenca}
+              veiculoAtribuido={veiculoAtribuido}
               onCheckin={realizarCheckin}
               onCheckout={realizarCheckout}
               loading={loadingPresenca}
