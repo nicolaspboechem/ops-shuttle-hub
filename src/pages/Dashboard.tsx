@@ -82,8 +82,9 @@ export default function Dashboard() {
 
   const contadores = useMemo(() => ({
     todos: viagens.length,
-    transfer: viagens.filter(v => v.tipo_operacao === 'transfer').length,
-    shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle').length,
+    transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: viagens.filter(v => v.origem_missao_id).length,
   }), [viagens]);
 
   // Top motoristas (por viagens)

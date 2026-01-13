@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, MapPin, AlertCircle, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -10,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -51,13 +52,13 @@ const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementTyp
 };
 
 export default function Usuarios() {
+  const navigate = useNavigate();
   const { isAdmin, user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<UserType | 'todos'>('todos');
   
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -66,7 +67,7 @@ export default function Usuarios() {
   const [newPassword, setNewPassword] = useState('');
   const [newConfirmPassword, setNewConfirmPassword] = useState('');
   const [newFullName, setNewFullName] = useState('');
-  const [newUserType, setNewUserType] = useState<UserType>('operador');
+  const [newUserType, setNewUserType] = useState<UserType>('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -95,54 +96,32 @@ export default function Usuarios() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  // Determinar tipo de login baseado no tipo de usuário
-  const loginType: LoginType = newUserType === 'admin' ? 'email' : 'phone';
+  // Admin sempre usa email
+  const loginType: LoginType = 'email';
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Contadores por tipo de usuário
-  const userCounts = useMemo(() => {
-    const counts: Record<UserType | 'todos', number> = {
-      todos: users.length,
-      admin: 0,
-      supervisor: 0,
-      coordenador: 0,
-      operador: 0,
-      motorista: 0,
-    };
-    
-    users.forEach(user => {
-      const type = user.user_type || 'operador';
-      if (type in counts) {
-        counts[type as UserType]++;
-      }
-    });
-    
-    return counts;
+  // Apenas administradores
+  const adminUsers = useMemo(() => {
+    return users.filter(user => user.user_type === 'admin' || user.role === 'admin');
   }, [users]);
 
   const filteredUsers = useMemo(() => {
-    let filtered = users;
-    
-    // Filtrar por aba (tipo de usuário)
-    if (activeTab !== 'todos') {
-      filtered = filtered.filter(user => (user.user_type || 'operador') === activeTab);
-    }
+    let filtered = adminUsers;
     
     // Filtrar por busca
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(user => 
         (user.email && user.email.toLowerCase().includes(query)) ||
-        (user.telefone && user.telefone.includes(query)) ||
         (user.full_name && user.full_name.toLowerCase().includes(query))
       );
     }
     
     return filtered;
-  }, [users, searchQuery, activeTab]);
+  }, [adminUsers, searchQuery]);
 
   const fetchUsers = async () => {
     try {
@@ -212,37 +191,22 @@ export default function Usuarios() {
       return;
     }
 
-    // Validar campo de login
-    if (loginType === 'phone') {
-      if (!isValidPhone(newTelefone)) {
-        toast.error('Digite um número de celular válido');
-        return;
-      }
-    } else {
-      if (!newEmail) {
-        toast.error('Digite um email válido');
-        return;
-      }
+    // Admin sempre usa email
+    if (!newEmail) {
+      toast.error('Digite um email válido');
+      return;
     }
 
     setCreating(true);
 
     try {
-      const body = loginType === 'phone' 
-        ? {
-            telefone: newTelefone.replace(/\D/g, ''),
-            login_type: 'phone',
-            password: newPassword,
-            full_name: newFullName,
-            user_type: newUserType
-          }
-        : {
-            email: newEmail,
-            login_type: 'email',
-            password: newPassword,
-            full_name: newFullName,
-            user_type: newUserType
-          };
+      const body = {
+        email: newEmail,
+        login_type: 'email',
+        password: newPassword,
+        full_name: newFullName,
+        user_type: 'admin' as const
+      };
 
       const { data, error } = await supabase.functions.invoke('create-user', {
         body
@@ -253,7 +217,7 @@ export default function Usuarios() {
 
       // Exibir modal com credenciais
       setCreatedCredentials({
-        login: loginType === 'phone' ? newTelefone : newEmail,
+        login: newEmail,
         password: newPassword,
         name: newFullName
       });
@@ -262,11 +226,10 @@ export default function Usuarios() {
       
       // Limpar campos
       setNewEmail('');
-      setNewTelefone('');
       setNewPassword('');
       setNewConfirmPassword('');
       setNewFullName('');
-      setNewUserType('operador');
+      setNewUserType('admin');
       
       fetchUsers();
     } catch (error: any) {
@@ -612,66 +575,40 @@ export default function Usuarios() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-              <Users className="w-7 h-7" />
-              Usuários
+              <Crown className="w-7 h-7 text-amber-500" />
+              Administradores do Sistema
             </h1>
             <p className="text-muted-foreground mt-1">
-              Gerencie usuários e suas permissões no sistema
+              Gerencie os administradores globais do sistema
             </p>
           </div>
           
           {isAdmin && (
             <Button onClick={() => setShowCreateModal(true)}>
               <UserPlus className="w-4 h-4 mr-2" />
-              Criar Usuário
+              Criar Admin
             </Button>
           )}
         </div>
 
-        {/* Tabs por tipo de usuário */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as UserType | 'todos')} className="mb-6">
-          <TabsList className="grid w-full grid-cols-6 h-auto">
-            <TabsTrigger value="todos" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium">Todos</span>
-              <span className="text-xs text-muted-foreground">{userCounts.todos}</span>
-            </TabsTrigger>
-            <TabsTrigger value="admin" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium flex items-center gap-1">
-                <Crown className="h-3 w-3" />
-                Admin
-              </span>
-              <span className="text-xs text-muted-foreground">{userCounts.admin}</span>
-            </TabsTrigger>
-            <TabsTrigger value="supervisor" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium flex items-center gap-1">
-                <UserCog className="h-3 w-3" />
-                Supervisor
-              </span>
-              <span className="text-xs text-muted-foreground">{userCounts.supervisor}</span>
-            </TabsTrigger>
-            <TabsTrigger value="coordenador" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                Coordenador
-              </span>
-              <span className="text-xs text-muted-foreground">{userCounts.coordenador}</span>
-            </TabsTrigger>
-            <TabsTrigger value="operador" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium flex items-center gap-1">
-                <Headset className="h-3 w-3" />
-                Operador
-              </span>
-              <span className="text-xs text-muted-foreground">{userCounts.operador}</span>
-            </TabsTrigger>
-            <TabsTrigger value="motorista" className="flex flex-col gap-1 py-3">
-              <span className="text-sm font-medium flex items-center gap-1">
-                <Car className="h-3 w-3" />
-                Motorista
-              </span>
-              <span className="text-xs text-muted-foreground">{userCounts.motorista}</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Alerta informativo sobre equipe de eventos */}
+        <Alert className="mb-6 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800 dark:text-blue-300">Cadastro de Equipe por Evento</AlertTitle>
+          <AlertDescription className="text-blue-700 dark:text-blue-400">
+            Para cadastrar <strong>Motoristas, Operadores, Supervisores e Coordenadores</strong>, acesse a página <strong>Equipe</strong> dentro de cada evento. 
+            Cada tipo de equipe é vinculado ao seu evento específico.
+          </AlertDescription>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-3 border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300"
+            onClick={() => navigate('/eventos')}
+          >
+            Ir para Eventos
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </Alert>
 
         {/* Barra de pesquisa */}
         <div className="relative mb-6">
@@ -868,25 +805,16 @@ export default function Usuarios() {
             </div>
           )}
 
-          {filteredUsers.length === 0 && !searchQuery && activeTab !== 'todos' && (
+          {filteredUsers.length === 0 && !searchQuery && (
             <div className="text-center py-12">
-              <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum {USER_TYPE_CONFIG[activeTab as UserType]?.label.toLowerCase()} cadastrado</h3>
+              <Crown className="w-12 h-12 text-amber-500/50 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum administrador cadastrado</h3>
               <p className="text-muted-foreground">
-                Clique em "Criar Usuário" para adicionar um novo usuário deste tipo.
+                Clique em "Criar Admin" para adicionar o primeiro administrador.
               </p>
             </div>
           )}
 
-          {users.length === 0 && !searchQuery && (
-            <div className="text-center py-12">
-              <ShieldX className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
-              <p className="text-muted-foreground">
-                Clique em "Criar Usuário" para adicionar o primeiro usuário.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Modal Criar Usuário */}
@@ -897,70 +825,14 @@ export default function Usuarios() {
             </DialogHeader>
             
             <form onSubmit={handleCreateUser} className="space-y-4">
-              {/* Tipo de Usuário */}
-              <div className="space-y-3">
-                <Label>Tipo de Usuário</Label>
-                <RadioGroup 
-                  value={newUserType} 
-                  onValueChange={(value) => setNewUserType(value as UserType)}
-                  className="grid grid-cols-3 gap-3"
-                >
+              <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-3">
+                  <Crown className="h-6 w-6 text-amber-600" />
                   <div>
-                    <RadioGroupItem value="motorista" id="type-motorista" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-motorista"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Car className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Motorista</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
-                    </Label>
+                    <p className="font-medium text-amber-800 dark:text-amber-300">Novo Administrador</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-400">Acesso total ao sistema via email</p>
                   </div>
-                  <div>
-                    <RadioGroupItem value="operador" id="type-operador" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-operador"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Headset className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Operador</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="supervisor" id="type-supervisor" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-supervisor"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <UserCog className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Supervisor</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="coordenador" id="type-coordenador" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-coordenador"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <MapPin className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Coordenador</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Celular</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="admin" id="type-admin" className="peer sr-only" />
-                    <Label
-                      htmlFor="type-admin"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Crown className="mb-2 h-5 w-5" />
-                      <span className="text-sm font-medium">Admin</span>
-                      <span className="text-xs text-muted-foreground text-center mt-1">Login: Email</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -968,45 +840,27 @@ export default function Usuarios() {
                 <Input
                   id="new-fullname"
                   type="text"
-                  placeholder="Nome do usuário"
+                  placeholder="Nome do administrador"
                   value={newFullName}
                   onChange={(e) => setNewFullName(e.target.value)}
                   required
                 />
               </div>
 
-              {/* Campo dinâmico: Email ou Celular */}
-              {loginType === 'email' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="new-email" className="flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    Email
-                  </Label>
-                  <Input
-                    id="new-email"
-                    type="email"
-                    placeholder="email@exemplo.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="new-telefone" className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    Celular
-                  </Label>
-                  <Input
-                    id="new-telefone"
-                    type="tel"
-                    placeholder="(11) 99999-9999"
-                    value={newTelefone}
-                    onChange={handlePhoneChange}
-                    required
-                  />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="new-email" className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email
+                </Label>
+                <Input
+                  id="new-email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  required
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="new-password">Senha</Label>

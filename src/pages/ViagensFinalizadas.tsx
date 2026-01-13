@@ -18,8 +18,9 @@ export default function ViagensFinalizadas() {
 
   const contadores = useMemo(() => ({
     todos: viagensFinalizadas.length,
-    transfer: viagensFinalizadas.filter(v => v.tipo_operacao === 'transfer').length,
-    shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle').length,
+    transfer: viagensFinalizadas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: viagensFinalizadas.filter(v => v.origem_missao_id).length,
   }), [viagensFinalizadas]);
 
   const motoristas = useMemo(() => {
@@ -29,7 +30,12 @@ export default function ViagensFinalizadas() {
 
   const viagensFiltradas = useMemo(() => {
     return viagensFinalizadas.filter(v => {
-      if (tipoOperacao !== 'todos' && v.tipo_operacao !== tipoOperacao) return false;
+      // Filtro por tipo de operação ou missão
+      if (tipoOperacao === 'missao') {
+        if (!v.origem_missao_id) return false;
+      } else if (tipoOperacao !== 'todos') {
+        if (v.tipo_operacao !== tipoOperacao || v.origem_missao_id) return false;
+      }
       if (filtros.tipoVeiculo !== 'todos' && v.tipo_veiculo !== filtros.tipoVeiculo) return false;
       if (filtros.motorista !== 'todos' && v.motorista !== filtros.motorista) return false;
       if (filtros.busca) {
