@@ -79,6 +79,7 @@ export default function Usuarios() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithPermissions | null>(null);
   const [editFullName, setEditFullName] = useState('');
+  const [editUserType, setEditUserType] = useState<UserType>('operador');
   const [editEmail, setEditEmail] = useState('');
 
   // Modal de deletar usuário
@@ -306,20 +307,56 @@ export default function Usuarios() {
     setUpdating(editingUser.id);
 
     try {
-      const { error } = await supabase
+      // Atualizar profile com user_type
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           full_name: editFullName,
           email: editEmail,
+          user_type: editUserType,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingUser.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Se mudou para admin, garantir que tem role admin
+      if (editUserType === 'admin' && editingUser.role !== 'admin') {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .update({ role: 'admin' })
+          .eq('user_id', editingUser.user_id);
+
+        if (roleError) throw roleError;
+      }
+      
+      // Se mudou de admin para outro tipo, remover role admin
+      if (editUserType !== 'admin' && editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .update({ role: 'user' })
+          .eq('user_id', editingUser.user_id);
+
+        if (roleError) throw roleError;
+      }
+
+      // Determinar o novo role baseado nas mudanças
+      let newRole: 'admin' | 'user' = editingUser.role;
+      if (editUserType === 'admin') {
+        newRole = 'admin';
+      } else if (editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
+        newRole = 'user';
+      }
 
       setUsers(prev => prev.map(u => {
         if (u.id !== editingUser.id) return u;
-        return { ...u, full_name: editFullName, email: editEmail };
+        return { 
+          ...u, 
+          full_name: editFullName, 
+          email: editEmail,
+          user_type: editUserType,
+          role: newRole
+        };
       }));
 
       toast.success('Usuário atualizado com sucesso!');
@@ -474,6 +511,7 @@ export default function Usuarios() {
     setEditingUser(user);
     setEditFullName(user.full_name || '');
     setEditEmail(user.email || '');
+    setEditUserType(user.user_type || 'operador');
     setShowEditModal(true);
   };
 
@@ -1115,12 +1153,84 @@ export default function Usuarios() {
 
         {/* Modal Editar Usuário */}
         <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
             </DialogHeader>
             
             <form onSubmit={handleEditUser} className="space-y-4">
+              {/* Tipo de Usuário */}
+              <div className="space-y-3">
+                <Label>Tipo de Usuário</Label>
+                <RadioGroup 
+                  value={editUserType} 
+                  onValueChange={(value) => setEditUserType(value as UserType)}
+                  className="grid grid-cols-3 gap-2"
+                >
+                  <div>
+                    <RadioGroupItem value="motorista" id="edit-type-motorista" className="peer sr-only" />
+                    <Label
+                      htmlFor="edit-type-motorista"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Car className="mb-1 h-4 w-4" />
+                      <span className="text-xs font-medium">Motorista</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="operador" id="edit-type-operador" className="peer sr-only" />
+                    <Label
+                      htmlFor="edit-type-operador"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Headset className="mb-1 h-4 w-4" />
+                      <span className="text-xs font-medium">Operador</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="supervisor" id="edit-type-supervisor" className="peer sr-only" />
+                    <Label
+                      htmlFor="edit-type-supervisor"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <UserCog className="mb-1 h-4 w-4" />
+                      <span className="text-xs font-medium">Supervisor</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem value="coordenador" id="edit-type-coordenador" className="peer sr-only" />
+                    <Label
+                      htmlFor="edit-type-coordenador"
+                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <MapPin className="mb-1 h-4 w-4" />
+                      <span className="text-xs font-medium">Coordenador</span>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem 
+                      value="admin" 
+                      id="edit-type-admin" 
+                      className="peer sr-only" 
+                      disabled={editingUser?.user_id === currentUser?.id}
+                    />
+                    <Label
+                      htmlFor="edit-type-admin"
+                      className={cn(
+                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer",
+                        editingUser?.user_id === currentUser?.id && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <Crown className="mb-1 h-4 w-4" />
+                      <span className="text-xs font-medium">Admin</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+                {editingUser?.user_id === currentUser?.id && editUserType === 'admin' && (
+                  <p className="text-xs text-muted-foreground">Você não pode alterar seu próprio tipo de admin</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="edit-fullname">Nome completo</Label>
                 <Input
