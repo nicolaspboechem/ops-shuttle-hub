@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
@@ -158,6 +158,12 @@ export default function AppHome() {
 
   const handleCCO = () => {
     navigate('/eventos');
+  };
+
+  const handleSupervisor = () => {
+    if (selectedEvento) {
+      navigate(`/app/${selectedEvento.id}/supervisor`);
+    }
   };
 
   const getDateRange = (evento: Evento) => {
@@ -448,6 +454,24 @@ export default function AppHome() {
                     <h4 className="font-semibold">Operador</h4>
                     <p className="text-sm text-muted-foreground">
                       Criar e controlar viagens
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="cursor-pointer hover:border-amber-500/50 hover:shadow-md transition-all"
+                onClick={handleSupervisor}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+                    <ShieldCheck className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Supervisor</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Vistoria e gestão de veículos
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
