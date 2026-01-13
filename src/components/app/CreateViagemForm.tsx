@@ -130,10 +130,22 @@ export function CreateViagemForm({
       const agora = getAgoraSync();
       const horaPickup = agora.toTimeString().slice(0, 8);
 
+      // Resolver IDs a partir dos nomes selecionados
+      const motoristaData = motoristas.find(m => m.nome === motorista);
+      const veiculoData = veiculos.find(v => v.placa === placa);
+      const pontoEmbarqueData = pontos.find(p => p.nome === pontoEmbarque);
+      const pontoDesembarqueData = pontos.find(p => p.nome === pontoDesembarque);
+
       const { error } = await supabase
         .from('viagens')
         .insert([{
           evento_id: eventoId,
+          // Campos FK normalizados
+          motorista_id: motoristaData?.id || null,
+          veiculo_id: veiculoData?.id || null,
+          ponto_embarque_id: pontoEmbarqueData?.id || null,
+          ponto_desembarque_id: pontoDesembarqueData?.id || null,
+          // Campos de texto (mantidos para compatibilidade)
           motorista,
           placa: placa || null,
           tipo_veiculo: tipoVeiculo,

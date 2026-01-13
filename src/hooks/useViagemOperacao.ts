@@ -4,8 +4,22 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { toast } from 'sonner';
 
-// Helper para atualizar status do motorista
-async function atualizarStatusMotorista(motoristaNome: string, eventoId: string, novoStatus: string) {
+// Helper para atualizar status do motorista - agora usa motorista_id quando disponível
+async function atualizarStatusMotorista(motoristaId: string | null | undefined, motoristaNome: string, eventoId: string, novoStatus: string) {
+  // Preferir usar motorista_id (FK normalizada)
+  if (motoristaId) {
+    const { error } = await supabase
+      .from('motoristas')
+      .update({ status: novoStatus } as any)
+      .eq('id', motoristaId);
+
+    if (error) {
+      console.error('Erro ao atualizar status do motorista por ID:', error);
+    }
+    return;
+  }
+
+  // Fallback: usar nome (para viagens antigas)
   const { error } = await supabase
     .from('motoristas')
     .update({ status: novoStatus } as any)
@@ -17,8 +31,25 @@ async function atualizarStatusMotorista(motoristaNome: string, eventoId: string,
   }
 }
 
-// Helper para atualizar localização do motorista
-async function atualizarLocalizacaoMotorista(motoristaNome: string, eventoId: string, localizacao: string | null) {
+// Helper para atualizar localização do motorista - agora usa motorista_id
+async function atualizarLocalizacaoMotorista(motoristaId: string | null | undefined, motoristaNome: string, eventoId: string, localizacao: string | null) {
+  // Preferir usar motorista_id (FK normalizada)
+  if (motoristaId) {
+    const { error } = await supabase
+      .from('motoristas')
+      .update({ 
+        ultima_localizacao: localizacao,
+        ultima_localizacao_at: new Date().toISOString()
+      } as any)
+      .eq('id', motoristaId);
+
+    if (error) {
+      console.error('Erro ao atualizar localização do motorista por ID:', error);
+    }
+    return;
+  }
+
+  // Fallback: usar nome (para viagens antigas)
   const { error } = await supabase
     .from('motoristas')
     .update({ 
@@ -33,14 +64,20 @@ async function atualizarLocalizacaoMotorista(motoristaNome: string, eventoId: st
   }
 }
 
-// Helper para verificar se motorista tem outras viagens ativas
-async function motoristaTemViagensAtivas(motoristaNome: string, eventoId: string, viagemIdExcluir?: string): Promise<boolean> {
+// Helper para verificar se motorista tem outras viagens ativas - usa motorista_id quando disponível
+async function motoristaTemViagensAtivas(motoristaId: string | null | undefined, motoristaNome: string, eventoId: string, viagemIdExcluir?: string): Promise<boolean> {
   let query = supabase
     .from('viagens')
     .select('id')
-    .eq('motorista', motoristaNome)
     .eq('evento_id', eventoId)
     .eq('encerrado', false);
+
+  // Preferir motorista_id
+  if (motoristaId) {
+    query = query.eq('motorista_id', motoristaId);
+  } else {
+    query = query.eq('motorista', motoristaNome);
+  }
 
   if (viagemIdExcluir) {
     query = query.neq('id', viagemIdExcluir);
@@ -101,9 +138,9 @@ export function useViagemOperacao() {
       placa: viagem.placa 
     });
 
-    // Sincronizar status do motorista para 'em_viagem'
-    if (viagem.motorista && viagem.evento_id) {
-      await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'em_viagem');
+    // Sincronizar status do motorista para 'em_viagem' usando motorista_id quando disponível
+    if (viagem.evento_id) {
+      await atualizarStatusMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, 'em_viagem');
     }
     
     toast.success('Viagem iniciada!');
@@ -145,15 +182,15 @@ export function useViagemOperacao() {
     });
 
     // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
-    if (viagem.motorista && viagem.evento_id) {
-      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista, viagem.evento_id, viagem.id);
+    if (viagem.evento_id) {
+      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.id);
       if (!temOutrasViagens) {
-        await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
+        await atualizarStatusMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, 'disponivel');
       }
       
       // Atualizar localização do motorista para o ponto de desembarque
       if (viagem.ponto_desembarque) {
-        await atualizarLocalizacaoMotorista(viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+        await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
       }
     }
     
@@ -187,15 +224,15 @@ export function useViagemOperacao() {
     await registrarLog(viagem.id, 'encerramento');
 
     // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
-    if (viagem.motorista && viagem.evento_id) {
-      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista, viagem.evento_id, viagem.id);
+    if (viagem.evento_id) {
+      const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.id);
       if (!temOutrasViagens) {
-        await atualizarStatusMotorista(viagem.motorista, viagem.evento_id, 'disponivel');
+        await atualizarStatusMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, 'disponivel');
       }
       
       // Atualizar localização do motorista para o ponto de desembarque
       if (viagem.ponto_desembarque) {
-        await atualizarLocalizacaoMotorista(viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+        await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
       }
     }
 

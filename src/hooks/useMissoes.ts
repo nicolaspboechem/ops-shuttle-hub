@@ -13,8 +13,12 @@ export interface Missao {
   motorista_nome?: string;
   titulo: string;
   descricao: string | null;
+  // Campos de texto (legacy)
   ponto_embarque: string | null;
   ponto_desembarque: string | null;
+  // Campos FK (normalizados)
+  ponto_embarque_id?: string | null;
+  ponto_desembarque_id?: string | null;
   horario_previsto: string | null;
   status: MissaoStatus;
   prioridade: MissaoPrioridade;
@@ -32,6 +36,8 @@ export interface MissaoInput {
   descricao?: string | null;
   ponto_embarque?: string | null;
   ponto_desembarque?: string | null;
+  ponto_embarque_id?: string | null;
+  ponto_desembarque_id?: string | null;
   horario_previsto?: string | null;
   prioridade?: MissaoPrioridade;
 }
@@ -121,8 +127,12 @@ export function useMissoes(eventoId: string | undefined) {
           motorista_id: input.motorista_id,
           titulo: input.titulo,
           descricao: input.descricao || null,
+          // Campos de texto
           ponto_embarque: input.ponto_embarque || null,
           ponto_desembarque: input.ponto_desembarque || null,
+          // Campos FK normalizados
+          ponto_embarque_id: input.ponto_embarque_id || null,
+          ponto_desembarque_id: input.ponto_desembarque_id || null,
           horario_previsto: input.horario_previsto || null,
           prioridade: input.prioridade || 'normal',
           status: 'pendente',
