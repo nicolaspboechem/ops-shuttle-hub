@@ -43,7 +43,7 @@ export default function AppOperador() {
   const { viagens, loading, refetch } = useViagens(eventoId);
   
   const { refetch: refetchMotoristas } = useMotoristas(eventoId);
-  const { refetch: refetchVeiculos } = useVeiculos(eventoId);
+  const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const [evento, setEvento] = useState<Evento | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showMotoristaForm, setShowMotoristaForm] = useState(false);
@@ -253,8 +253,26 @@ export default function AppOperador() {
       <CreateMotoristaWizard
         open={showMotoristaForm}
         onOpenChange={setShowMotoristaForm}
+        veiculos={veiculos}
         eventoId={eventoId!}
-        onCreated={() => refetchMotoristas()}
+        onSubmit={async (data) => {
+          const { data: motorista, error } = await supabase
+            .from('motoristas')
+            .insert([{
+              nome: data.nome,
+              telefone: data.telefone,
+              veiculo_id: data.veiculo_id,
+              evento_id: eventoId,
+              ativo: true,
+            }])
+            .select('id')
+            .single();
+          
+          if (error) throw error;
+          
+          await refetchMotoristas();
+          return motorista.id;
+        }}
       />
 
       {/* Wizard completo de cadastro de veículo */}
