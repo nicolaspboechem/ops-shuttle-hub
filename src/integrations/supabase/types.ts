@@ -185,7 +185,9 @@ export type Database = {
           evento_id: string
           id: string
           motorista_id: string
+          observacao_checkout: string | null
           updated_at: string
+          veiculo_id: string | null
         }
         Insert: {
           checkin_at?: string | null
@@ -195,7 +197,9 @@ export type Database = {
           evento_id: string
           id?: string
           motorista_id: string
+          observacao_checkout?: string | null
           updated_at?: string
+          veiculo_id?: string | null
         }
         Update: {
           checkin_at?: string | null
@@ -205,7 +209,9 @@ export type Database = {
           evento_id?: string
           id?: string
           motorista_id?: string
+          observacao_checkout?: string | null
           updated_at?: string
+          veiculo_id?: string | null
         }
         Relationships: [
           {
@@ -220,6 +226,13 @@ export type Database = {
             columns: ["motorista_id"]
             isOneToOne: false
             referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "motorista_presenca_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
             referencedColumns: ["id"]
           },
         ]

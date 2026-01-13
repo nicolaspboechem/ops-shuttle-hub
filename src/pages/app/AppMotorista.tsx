@@ -50,6 +50,7 @@ export default function AppMotorista() {
   const {
     presenca,
     checkinEnabled,
+    veiculoAtribuido,
     realizarCheckin,
     realizarCheckout,
     loading: loadingPresenca,

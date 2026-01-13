@@ -1,13 +1,25 @@
-import { useMemo, useState } from 'react';
-import { Users, Clock, TrendingUp, FileSpreadsheet, Car, Calendar, Filter, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
+import { 
+  Users, 
+  Clock, 
+  FileSpreadsheet, 
+  Calendar, 
+  Filter, 
+  X,
+  ChevronDown,
+  MessageSquare,
+  TrendingUp
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Viagem } from '@/lib/types/viagem';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
+import { useMotoristaPresencaHistorico } from '@/hooks/useMotoristaPresencaHistorico';
+import { MotoristaAuditoriaCard } from './MotoristaAuditoriaCard';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -18,54 +30,50 @@ interface MotoristasAuditoriaProps {
 }
 
 export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }: MotoristasAuditoriaProps) {
+  const { eventoId } = useParams<{ eventoId: string }>();
   const [filtroMotorista, setFiltroMotorista] = useState<string>('all');
   const [filtroTipoVeiculo, setFiltroTipoVeiculo] = useState<string>('all');
-  const [filtroFornecedor, setFiltroFornecedor] = useState<string>('all');
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
+  const [diasHistorico, setDiasHistorico] = useState<number>(7);
+
+  // Hook para buscar histórico de presença
+  const { 
+    motoristasAgregados, 
+    estatisticas, 
+    loading: loadingPresenca 
+  } = useMotoristaPresencaHistorico(eventoId, diasHistorico);
 
   // Listas para filtros
   const motoristasUnicos = useMemo(() => {
-    const nomes = new Set(viagens.map(v => v.motorista).filter(Boolean));
+    const nomes = new Set(motoristasCadastrados.map(m => m.nome).filter(Boolean));
     return Array.from(nomes).sort();
-  }, [viagens]);
+  }, [motoristasCadastrados]);
 
-  const fornecedoresUnicos = useMemo(() => {
-    const fornecedores = new Set(veiculos.map(v => v.fornecedor).filter(Boolean));
-    return Array.from(fornecedores).sort();
-  }, [veiculos]);
-
-  // Viagens filtradas
-  const viagensFiltradas = useMemo(() => {
-    let filtered = [...viagens];
+  // Motoristas filtrados
+  const motoristasFiltrados = useMemo(() => {
+    let filtered = [...motoristasAgregados];
 
     if (filtroMotorista !== 'all') {
-      filtered = filtered.filter(v => v.motorista === filtroMotorista);
+      filtered = filtered.filter(m => m.motorista_nome === filtroMotorista);
     }
 
     if (filtroTipoVeiculo !== 'all') {
-      filtered = filtered.filter(v => v.tipo_veiculo === filtroTipoVeiculo);
+      filtered = filtered.filter(m => {
+        const motoristaCadastrado = motoristasCadastrados.find(mc => mc.id === m.motorista_id);
+        if (motoristaCadastrado?.veiculo_id) {
+          const veiculo = veiculos.find(v => v.id === motoristaCadastrado.veiculo_id);
+          return veiculo?.tipo_veiculo === filtroTipoVeiculo;
+        }
+        return false;
+      });
     }
 
-    if (filtroFornecedor !== 'all') {
-      const placasFornecedor = veiculos
-        .filter(v => v.fornecedor === filtroFornecedor)
-        .map(v => v.placa);
-      filtered = filtered.filter(v => placasFornecedor.includes(v.placa));
-    }
+    return filtered.sort((a, b) => b.totalDias - a.totalDias);
+  }, [motoristasAgregados, filtroMotorista, filtroTipoVeiculo, motoristasCadastrados, veiculos]);
 
-    if (dataInicio) {
-      filtered = filtered.filter(v => v.data_criacao >= dataInicio);
-    }
-
-    if (dataFim) {
-      filtered = filtered.filter(v => v.data_criacao <= dataFim + 'T23:59:59');
-    }
-
-    return filtered;
-  }, [viagens, filtroMotorista, filtroTipoVeiculo, filtroFornecedor, dataInicio, dataFim, veiculos]);
-
-  // Métricas consolidadas por motorista
+  // Métricas consolidadas (mantém cálculo de viagens para compatibilidade)
   const metricasConsolidadas = useMemo(() => {
     const motoristasMap = new Map<string, {
       nome: string;
@@ -78,6 +86,21 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
       ultimaViagem: string | null;
       veiculoPrincipal: string | null;
     }>();
+
+    // Filtrar viagens por data
+    let viagensFiltradas = [...viagens];
+    if (dataInicio) {
+      viagensFiltradas = viagensFiltradas.filter(v => v.data_criacao >= dataInicio);
+    }
+    if (dataFim) {
+      viagensFiltradas = viagensFiltradas.filter(v => v.data_criacao <= dataFim + 'T23:59:59');
+    }
+    if (filtroMotorista !== 'all') {
+      viagensFiltradas = viagensFiltradas.filter(v => v.motorista === filtroMotorista);
+    }
+    if (filtroTipoVeiculo !== 'all') {
+      viagensFiltradas = viagensFiltradas.filter(v => v.tipo_veiculo === filtroTipoVeiculo);
+    }
 
     viagensFiltradas.forEach(v => {
       const nome = v.motorista;
@@ -115,56 +138,51 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
       motoristasMap.set(nome, current);
     });
 
-    // Calcular KM percorrido baseado nos veículos
-    motoristasMap.forEach((metricas, nome) => {
-      const motoristaCadastrado = motoristasCadastrados.find(m => m.nome === nome);
-      if (motoristaCadastrado?.veiculo_id) {
-        const veiculo = veiculos.find(v => v.id === motoristaCadastrado.veiculo_id);
-        if (veiculo?.km_inicial != null && veiculo?.km_final != null) {
-          metricas.kmPercorrido = veiculo.km_final - veiculo.km_inicial;
-        }
-      }
-    });
-
     return Array.from(motoristasMap.values())
       .sort((a, b) => b.totalViagens - a.totalViagens);
-  }, [viagensFiltradas, motoristasCadastrados, veiculos]);
+  }, [viagens, filtroMotorista, filtroTipoVeiculo, dataInicio, dataFim]);
 
   // Totais
   const totais = useMemo(() => ({
     viagens: metricasConsolidadas.reduce((sum, m) => sum + m.totalViagens, 0),
     pax: metricasConsolidadas.reduce((sum, m) => sum + m.totalPax, 0),
-    km: metricasConsolidadas.reduce((sum, m) => sum + m.kmPercorrido, 0),
-    motoristas: metricasConsolidadas.length
-  }), [metricasConsolidadas]);
+    motoristas: motoristasFiltrados.length,
+    diasTrabalhados: motoristasFiltrados.reduce((sum, m) => sum + m.totalDias, 0),
+    observacoes: motoristasFiltrados.reduce((sum, m) => sum + m.diasComObservacao, 0)
+  }), [metricasConsolidadas, motoristasFiltrados]);
 
-  const hasActiveFilters = filtroMotorista !== 'all' || filtroTipoVeiculo !== 'all' || 
-    filtroFornecedor !== 'all' || dataInicio || dataFim;
+  const hasActiveFilters = filtroMotorista !== 'all' || filtroTipoVeiculo !== 'all' || dataInicio || dataFim;
 
   const clearFilters = () => {
     setFiltroMotorista('all');
     setFiltroTipoVeiculo('all');
-    setFiltroFornecedor('all');
     setDataInicio('');
     setDataFim('');
   };
 
   // Exportar para Excel
   const handleExport = () => {
-    const data = metricasConsolidadas.map(m => ({
-      'Motorista': m.nome,
-      'Total Viagens': m.totalViagens,
-      'Viagens Encerradas': m.viagensEncerradas,
-      'Total PAX': m.totalPax,
-      'Tempo Médio (min)': m.viagensComTempo > 0 
-        ? Math.round(m.tempoTotal / m.viagensComTempo) 
-        : 0,
-      'KM Percorrido': m.kmPercorrido,
-      'Veículo Principal': m.veiculoPrincipal || '-',
-      'Última Viagem': m.ultimaViagem 
-        ? format(new Date(m.ultimaViagem), 'dd/MM/yyyy HH:mm')
-        : '-'
-    }));
+    const data = metricasConsolidadas.map(m => {
+      const presencaData = motoristasAgregados.find(p => p.motorista_nome === m.nome);
+      return {
+        'Motorista': m.nome,
+        'Dias Trabalhados': presencaData?.totalDias || 0,
+        'Total Viagens': m.totalViagens,
+        'Viagens Encerradas': m.viagensEncerradas,
+        'Total PAX': m.totalPax,
+        'Tempo Médio (min)': m.viagensComTempo > 0 
+          ? Math.round(m.tempoTotal / m.viagensComTempo) 
+          : 0,
+        'Horas Trabalhadas': presencaData 
+          ? Math.round(presencaData.tempoTotalTrabalhado / 60 * 10) / 10 
+          : 0,
+        'Observações': presencaData?.diasComObservacao || 0,
+        'Veículo Principal': m.veiculoPrincipal || '-',
+        'Última Viagem': m.ultimaViagem 
+          ? format(new Date(m.ultimaViagem), 'dd/MM/yyyy HH:mm')
+          : '-'
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -226,20 +244,24 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Van">Van</SelectItem>
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
+                  <SelectItem value="Sedan">Sedan</SelectItem>
+                  <SelectItem value="SUV">SUV</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Fornecedor</label>
-              <Select value={filtroFornecedor} onValueChange={setFiltroFornecedor}>
+              <label className="text-xs text-muted-foreground">Histórico</label>
+              <Select 
+                value={String(diasHistorico)} 
+                onValueChange={(v) => setDiasHistorico(Number(v))}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos" />
+                  <SelectValue placeholder="7 dias" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {fornecedoresUnicos.map(f => (
-                    <SelectItem key={f} value={f!}>{f}</SelectItem>
-                  ))}
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="15">Últimos 15 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -254,11 +276,34 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
       </Card>
 
       {/* Cards de Totais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de Viagens
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Users className="h-4 w-4" />
+              Motoristas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{totais.motoristas}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Calendar className="h-4 w-4" />
+              Dias Trabalhados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{totais.diasTrabalhados}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4" />
+              Total Viagens
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -268,7 +313,7 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de PAX
+              Total PAX
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -277,98 +322,88 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              KM Total
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <MessageSquare className="h-4 w-4" />
+              Observações
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totais.km.toLocaleString()} km</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Motoristas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totais.motoristas}</p>
+            <p className="text-3xl font-bold">{totais.observacoes}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabela de Auditoria */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Dados Consolidados por Motorista</CardTitle>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Exportar Excel
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead className="text-center">Viagens</TableHead>
-                <TableHead className="text-center">PAX</TableHead>
-                <TableHead className="text-center">Tempo Médio</TableHead>
-                <TableHead className="text-center">KM</TableHead>
-                <TableHead>Veículo</TableHead>
-                <TableHead>Última Viagem</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {metricasConsolidadas.map((m, idx) => (
-                <TableRow key={m.nome}>
-                  <TableCell>
-                    <Badge variant="outline">#{idx + 1}</Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{m.nome}</TableCell>
-                  <TableCell className="text-center">
-                    {m.totalViagens}
-                    {m.viagensEncerradas < m.totalViagens && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({m.viagensEncerradas} enc.)
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">{m.totalPax}</TableCell>
-                  <TableCell className="text-center">
-                    {m.viagensComTempo > 0 
-                      ? formatarMinutos(m.tempoTotal / m.viagensComTempo)
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {m.kmPercorrido > 0 
-                      ? <span className="font-medium text-primary">{m.kmPercorrido.toLocaleString()} km</span>
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {m.veiculoPrincipal ? (
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {m.veiculoPrincipal}
-                      </code>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {m.ultimaViagem 
-                      ? format(new Date(m.ultimaViagem), 'dd/MM/yyyy HH:mm')
-                      : '-'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {metricasConsolidadas.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground">
-              Nenhum dado encontrado com os filtros selecionados
+      {/* Estatísticas de Presença */}
+      {estatisticas.totalCheckins > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Estatísticas de Presença (Últimos {diasHistorico} dias)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Check-ins</p>
+                <p className="text-xl font-bold">{estatisticas.totalCheckins}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Check-outs</p>
+                <p className="text-xl font-bold">{estatisticas.totalCheckouts}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Média horas/dia</p>
+                <p className="text-xl font-bold">{estatisticas.mediaHorasPorDia}h</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Com observações</p>
+                <p className="text-xl font-bold">{estatisticas.comObservacoes}</p>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Header com Exportar */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Detalhes por Motorista</h2>
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Exportar Excel
+        </Button>
+      </div>
+
+      {/* Cards de Motoristas */}
+      {loadingPresenca ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-4">
+                <div className="h-20 bg-muted rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : motoristasFiltrados.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-4 opacity-30" />
+            <p>Nenhum motorista encontrado com os filtros selecionados</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {motoristasFiltrados.map((motorista) => (
+            <MotoristaAuditoriaCard
+              key={motorista.motorista_id}
+              motorista={motorista}
+              viagens={viagens}
+              isOpen={openCardId === motorista.motorista_id}
+              onToggle={() => setOpenCardId(
+                openCardId === motorista.motorista_id ? null : motorista.motorista_id
+              )}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
