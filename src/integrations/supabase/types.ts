@@ -53,6 +53,7 @@ export type Database = {
           data_inicio: string | null
           data_ultima_sync: string
           descricao: string | null
+          habilitar_checkin: boolean | null
           id: string
           imagem_banner: string | null
           imagem_logo: string | null
@@ -69,6 +70,7 @@ export type Database = {
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
+          habilitar_checkin?: boolean | null
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
@@ -85,6 +87,7 @@ export type Database = {
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
+          habilitar_checkin?: boolean | null
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
@@ -169,6 +172,54 @@ export type Database = {
             columns: ["viagem_id"]
             isOneToOne: false
             referencedRelation: "viagens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      motorista_presenca: {
+        Row: {
+          checkin_at: string | null
+          checkout_at: string | null
+          created_at: string
+          data: string
+          evento_id: string
+          id: string
+          motorista_id: string
+          updated_at: string
+        }
+        Insert: {
+          checkin_at?: string | null
+          checkout_at?: string | null
+          created_at?: string
+          data?: string
+          evento_id: string
+          id?: string
+          motorista_id: string
+          updated_at?: string
+        }
+        Update: {
+          checkin_at?: string | null
+          checkout_at?: string | null
+          created_at?: string
+          data?: string
+          evento_id?: string
+          id?: string
+          motorista_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motorista_presenca_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "motorista_presenca_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
             referencedColumns: ["id"]
           },
         ]

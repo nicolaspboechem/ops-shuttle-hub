@@ -5,6 +5,7 @@ import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
+import { useMotoristaPresenca } from '@/hooks/useMotoristaPresenca';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -17,6 +18,7 @@ import { useEventos } from '@/hooks/useEventos';
 import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
 import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
+import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +46,16 @@ export default function AppMotorista() {
     m.nome.toLowerCase() === busca.toLowerCase().trim()
   );
 
+  // Hook de presença (check-in/check-out)
+  const {
+    presenca,
+    checkinEnabled,
+    realizarCheckin,
+    realizarCheckout,
+    loading: loadingPresenca,
+    refetch: refetchPresenca
+  } = useMotoristaPresenca(eventoId, motoristaData?.id);
+
   // Filter missions for this driver
   const minhasMissoes = useMemo(() => {
     if (!motoristaData) return [];
@@ -54,7 +66,7 @@ export default function AppMotorista() {
   }, [missoes, motoristaData]);
 
   const handleRefresh = async () => {
-    await Promise.all([refetch(), refetchMissoes()]);
+    await Promise.all([refetch(), refetchMissoes(), refetchPresenca()]);
   };
 
   const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar' | 'finalizar') => {
@@ -290,6 +302,16 @@ export default function AppMotorista() {
               className="pl-9"
             />
           </div>
+
+          {/* Check-in/Check-out Card */}
+          {checkinEnabled && motoristaData && (
+            <CheckinCheckoutCard
+              presenca={presenca}
+              onCheckin={realizarCheckin}
+              onCheckout={realizarCheckout}
+              loading={loadingPresenca}
+            />
+          )}
 
           {/* Stats Card */}
           {busca && (
