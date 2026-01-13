@@ -35,7 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { QuickMotoristaForm } from './QuickMotoristaForm';
+import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { toast } from 'sonner';
 import { Plus, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -491,13 +491,29 @@ export function CreateViagemForm({
         </DrawerContent>
       </Drawer>
 
-      <QuickMotoristaForm
+      <CreateMotoristaWizard
         open={showQuickMotorista}
         onOpenChange={setShowQuickMotorista}
+        veiculos={veiculos}
         eventoId={eventoId}
-        onCreated={(nome) => {
+        onSubmit={async (data) => {
+          const { data: motorista, error } = await supabase
+            .from('motoristas')
+            .insert([{
+              nome: data.nome,
+              telefone: data.telefone,
+              veiculo_id: data.veiculo_id,
+              evento_id: eventoId,
+              ativo: true,
+            }])
+            .select('id, nome')
+            .single();
+          
+          if (error) throw error;
+          
           refetchMotoristas();
-          setMotorista(nome);
+          setMotorista(motorista.nome);
+          return motorista.id;
         }}
       />
     </>
