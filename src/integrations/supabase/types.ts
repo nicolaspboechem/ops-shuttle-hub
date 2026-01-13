@@ -113,6 +113,7 @@ export type Database = {
           prioridade: string | null
           status: string | null
           titulo: string
+          viagem_id: string | null
         }
         Insert: {
           atualizado_por?: string | null
@@ -129,6 +130,7 @@ export type Database = {
           prioridade?: string | null
           status?: string | null
           titulo: string
+          viagem_id?: string | null
         }
         Update: {
           atualizado_por?: string | null
@@ -145,6 +147,7 @@ export type Database = {
           prioridade?: string | null
           status?: string | null
           titulo?: string
+          viagem_id?: string | null
         }
         Relationships: [
           {
@@ -159,6 +162,13 @@ export type Database = {
             columns: ["motorista_id"]
             isOneToOne: false
             referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missoes_viagem_id_fkey"
+            columns: ["viagem_id"]
+            isOneToOne: false
+            referencedRelation: "viagens"
             referencedColumns: ["id"]
           },
         ]
@@ -661,6 +671,7 @@ export type Database = {
           iniciado_por: string | null
           motorista: string
           observacao: string | null
+          origem_missao_id: string | null
           placa: string | null
           ponto_desembarque: string | null
           ponto_embarque: string | null
@@ -689,6 +700,7 @@ export type Database = {
           iniciado_por?: string | null
           motorista: string
           observacao?: string | null
+          origem_missao_id?: string | null
           placa?: string | null
           ponto_desembarque?: string | null
           ponto_embarque?: string | null
@@ -717,6 +729,7 @@ export type Database = {
           iniciado_por?: string | null
           motorista?: string
           observacao?: string | null
+          origem_missao_id?: string | null
           placa?: string | null
           ponto_desembarque?: string | null
           ponto_embarque?: string | null
@@ -733,6 +746,13 @@ export type Database = {
             columns: ["evento_id"]
             isOneToOne: false
             referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_origem_missao_id_fkey"
+            columns: ["origem_missao_id"]
+            isOneToOne: false
+            referencedRelation: "missoes"
             referencedColumns: ["id"]
           },
           {

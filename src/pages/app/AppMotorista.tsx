@@ -92,6 +92,7 @@ export default function AppMotorista() {
             iniciado_por: user?.id,
             h_inicio_real: now.toISOString(),
             encerrado: false,
+            origem_missao_id: missaoId, // Vincular viagem à missão
           })
           .select()
           .single();
@@ -102,35 +103,35 @@ export default function AppMotorista() {
           return;
         }
 
+        // Atualizar missão com viagem_id e status
+        await supabase
+          .from('missoes')
+          .update({ 
+            viagem_id: novaViagem.id,
+            status: 'em_andamento',
+            atualizado_por: user?.id
+          })
+          .eq('id', missaoId);
+
         // Atualizar status do motorista para em_viagem
         await supabase
           .from('motoristas')
           .update({ status: 'em_viagem' })
           .eq('id', missao.motorista_id);
 
-        await updateMissao(missaoId, { status: 'em_andamento' });
+        refetchMissoes();
         refetch(); // Refetch viagens
       } else if (action === 'finalizar') {
-        // Encontrar a viagem correspondente à missão (mesma rota e motorista, em andamento)
+        // Usar viagem_id diretamente da missão
         const motorista = motoristas.find(m => m.id === missao.motorista_id);
         if (!motorista) {
           toast.error('Motorista não encontrado');
           return;
         }
 
-        // Buscar viagem em andamento deste motorista com a mesma rota
-        const { data: viagensAtivas } = await supabase
-          .from('viagens')
-          .select('*')
-          .eq('evento_id', eventoId)
-          .eq('motorista', motorista.nome)
-          .eq('status', 'em_andamento')
-          .eq('encerrado', false)
-          .order('data_criacao', { ascending: false })
-          .limit(1);
-
-        if (viagensAtivas && viagensAtivas.length > 0) {
-          const viagem = viagensAtivas[0];
+        const viagemId = missao.viagem_id;
+        
+        if (viagemId) {
           const now = new Date();
           const horaChegada = now.toTimeString().slice(0, 8);
 
@@ -144,23 +145,22 @@ export default function AppMotorista() {
               atualizado_por: user?.id,
               encerrado: true,
             })
-            .eq('id', viagem.id);
+            .eq('id', viagemId);
+        }
 
-          // Verificar se motorista tem outras viagens ativas
-          const { data: outrasViagens } = await supabase
-            .from('viagens')
-            .select('id')
-            .eq('motorista', motorista.nome)
-            .eq('evento_id', eventoId)
-            .eq('encerrado', false)
-            .neq('id', viagem.id);
+        // Verificar se motorista tem outras viagens ativas
+        const { data: outrasViagens } = await supabase
+          .from('viagens')
+          .select('id')
+          .eq('motorista', motorista.nome)
+          .eq('evento_id', eventoId)
+          .eq('encerrado', false);
 
-          if (!outrasViagens || outrasViagens.length === 0) {
-            await supabase
-              .from('motoristas')
-              .update({ status: 'disponivel' })
-              .eq('id', missao.motorista_id);
-          }
+        if (!outrasViagens || outrasViagens.length === 0) {
+          await supabase
+            .from('motoristas')
+            .update({ status: 'disponivel' })
+            .eq('id', missao.motorista_id);
         }
 
         await updateMissao(missaoId, { status: 'concluida' });
