@@ -115,8 +115,8 @@ export default function Motoristas() {
     veiculo_id: string | null; 
     ativo: boolean; 
     evento_id?: string 
-  }) => {
-    await createMotorista({
+  }): Promise<string | undefined> => {
+    const created = await createMotorista({
       nome: data.nome,
       telefone: data.telefone,
       veiculo_id: data.veiculo_id,
@@ -126,6 +126,7 @@ export default function Motoristas() {
     });
     refetchMotoristas();
     refetchVeiculos();
+    return created?.id;
   };
 
   const handleUpdateMotorista = async (motoristaId: string, motoristaData: any, oldNome: string) => {
@@ -434,14 +435,17 @@ export default function Motoristas() {
             open={showCreateWizard}
             onOpenChange={setShowCreateWizard}
             veiculos={veiculos}
+            eventoId={eventoId}
             onSubmit={async (data) => {
-              await handleSaveMotorista({
+              const motoristaId = await handleSaveMotorista({
                 nome: data.nome,
                 telefone: data.telefone || null,
                 veiculo_id: data.veiculo_id || null,
                 ativo: true,
               });
+              
               toast.success('Motorista criado com sucesso!');
+              return motoristaId;
             }}
           />
         </div>
