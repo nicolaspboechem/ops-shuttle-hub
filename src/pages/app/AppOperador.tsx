@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
-import { QuickMotoristaForm } from '@/components/app/QuickMotoristaForm';
-import { QuickVeiculoForm } from '@/components/app/QuickVeiculoForm';
+import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
+import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { 
@@ -249,16 +249,16 @@ export default function AppOperador() {
         onCreated={refetch}
       />
 
-      {/* Form de cadastro rápido de motorista */}
-      <QuickMotoristaForm
+      {/* Wizard completo de cadastro de motorista */}
+      <CreateMotoristaWizard
         open={showMotoristaForm}
         onOpenChange={setShowMotoristaForm}
         eventoId={eventoId!}
         onCreated={() => refetchMotoristas()}
       />
 
-      {/* Form de cadastro rápido de veículo */}
-      <QuickVeiculoForm
+      {/* Wizard completo de cadastro de veículo */}
+      <CreateVeiculoWizard
         open={showVeiculoForm}
         onOpenChange={setShowVeiculoForm}
         eventoId={eventoId!}
