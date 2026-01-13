@@ -112,7 +112,9 @@ export type Database = {
           id: string
           motorista_id: string
           ponto_desembarque: string | null
+          ponto_desembarque_id: string | null
           ponto_embarque: string | null
+          ponto_embarque_id: string | null
           prioridade: string | null
           status: string | null
           titulo: string
@@ -129,7 +131,9 @@ export type Database = {
           id?: string
           motorista_id: string
           ponto_desembarque?: string | null
+          ponto_desembarque_id?: string | null
           ponto_embarque?: string | null
+          ponto_embarque_id?: string | null
           prioridade?: string | null
           status?: string | null
           titulo: string
@@ -146,7 +150,9 @@ export type Database = {
           id?: string
           motorista_id?: string
           ponto_desembarque?: string | null
+          ponto_desembarque_id?: string | null
           ponto_embarque?: string | null
+          ponto_embarque_id?: string | null
           prioridade?: string | null
           status?: string | null
           titulo?: string
@@ -165,6 +171,20 @@ export type Database = {
             columns: ["motorista_id"]
             isOneToOne: false
             referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missoes_ponto_desembarque_id_fkey"
+            columns: ["ponto_desembarque_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missoes_ponto_embarque_id_fkey"
+            columns: ["ponto_embarque_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
             referencedColumns: ["id"]
           },
           {
@@ -752,16 +772,20 @@ export type Database = {
           id: string
           iniciado_por: string | null
           motorista: string
+          motorista_id: string | null
           observacao: string | null
           origem_missao_id: string | null
           placa: string | null
           ponto_desembarque: string | null
+          ponto_desembarque_id: string | null
           ponto_embarque: string | null
+          ponto_embarque_id: string | null
           qtd_pax: number | null
           qtd_pax_retorno: number | null
           status: string | null
           tipo_operacao: string
           tipo_veiculo: string | null
+          veiculo_id: string | null
           viagem_pai_id: string | null
         }
         Insert: {
@@ -781,16 +805,20 @@ export type Database = {
           id?: string
           iniciado_por?: string | null
           motorista: string
+          motorista_id?: string | null
           observacao?: string | null
           origem_missao_id?: string | null
           placa?: string | null
           ponto_desembarque?: string | null
+          ponto_desembarque_id?: string | null
           ponto_embarque?: string | null
+          ponto_embarque_id?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null
           status?: string | null
           tipo_operacao: string
           tipo_veiculo?: string | null
+          veiculo_id?: string | null
           viagem_pai_id?: string | null
         }
         Update: {
@@ -810,16 +838,20 @@ export type Database = {
           id?: string
           iniciado_por?: string | null
           motorista?: string
+          motorista_id?: string | null
           observacao?: string | null
           origem_missao_id?: string | null
           placa?: string | null
           ponto_desembarque?: string | null
+          ponto_desembarque_id?: string | null
           ponto_embarque?: string | null
+          ponto_embarque_id?: string | null
           qtd_pax?: number | null
           qtd_pax_retorno?: number | null
           status?: string | null
           tipo_operacao?: string
           tipo_veiculo?: string | null
+          veiculo_id?: string | null
           viagem_pai_id?: string | null
         }
         Relationships: [
@@ -831,10 +863,38 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "viagens_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "viagens_origem_missao_id_fkey"
             columns: ["origem_missao_id"]
             isOneToOne: false
             referencedRelation: "missoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_ponto_desembarque_id_fkey"
+            columns: ["ponto_desembarque_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_ponto_embarque_id_fkey"
+            columns: ["ponto_embarque_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viagens_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
             referencedColumns: ["id"]
           },
           {

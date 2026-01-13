@@ -34,10 +34,18 @@ export interface Viagem {
   evento_id: string | null;
   tipo_operacao: string;
   coordenador: string | null;
+  // Campos de texto (legacy - mantidos para compatibilidade)
   ponto_embarque: string | null;
+  ponto_desembarque?: string | null;
   motorista: string;
   tipo_veiculo: string | null;
   placa: string | null;
+  // Campos FK (novos - normalizados)
+  motorista_id?: string | null;
+  veiculo_id?: string | null;
+  ponto_embarque_id?: string | null;
+  ponto_desembarque_id?: string | null;
+  // Campos de horário
   h_pickup: string | null;
   h_chegada: string | null;
   h_retorno: string | null;
@@ -45,7 +53,6 @@ export interface Viagem {
   qtd_pax_retorno: number | null;
   encerrado: boolean | null;
   observacao: string | null;
-  ponto_desembarque?: string | null;
   data_criacao: string;
   data_atualizacao: string;
   // Campos de controle

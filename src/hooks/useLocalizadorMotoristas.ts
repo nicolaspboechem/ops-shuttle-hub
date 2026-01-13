@@ -42,22 +42,33 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
       const veiculosMap = new Map(veiculosData?.map(v => [v.id, v]) || []);
 
       // Fetch active trips to get destinations for drivers in transit
+      // Usar motorista_id quando disponível para melhor performance
       const { data: viagensAtivas } = await supabase
         .from('viagens')
-        .select('motorista, ponto_desembarque')
+        .select('motorista_id, motorista, ponto_desembarque')
         .eq('evento_id', eventoId)
         .eq('status', 'em_andamento')
         .eq('encerrado', false);
 
-      const destinosPorMotorista = new Map(
-        viagensAtivas?.map(v => [v.motorista, v.ponto_desembarque]) || []
-      );
+      // Criar mapa por motorista_id (prioridade) ou nome (fallback)
+      const destinosPorMotoristaId = new Map<string, string>();
+      const destinosPorMotorista = new Map<string, string>();
+      
+      viagensAtivas?.forEach(v => {
+        if (v.motorista_id) {
+          destinosPorMotoristaId.set(v.motorista_id, v.ponto_desembarque || '');
+        }
+        if (v.motorista) {
+          destinosPorMotorista.set(v.motorista, v.ponto_desembarque || '');
+        }
+      });
 
       // Combine data
       const motoristasComVeiculos: MotoristaComVeiculo[] = (motoristasData || []).map(m => ({
         ...m,
         veiculo: m.veiculo_id ? veiculosMap.get(m.veiculo_id) || null : null,
-        viagem_destino: destinosPorMotorista.get(m.nome) || null,
+        // Priorizar busca por ID, fallback por nome
+        viagem_destino: destinosPorMotoristaId.get(m.id) || destinosPorMotorista.get(m.nome) || null,
       }));
 
       setMotoristas(motoristasComVeiculos);
