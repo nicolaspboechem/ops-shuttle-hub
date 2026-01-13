@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Database, Bell, Clock, CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Database, Bell, Clock, CheckCircle, Eye, EyeOff, Loader2, UserCheck } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,13 +16,25 @@ export default function Configuracoes() {
   const evento = eventoId ? getEventoById(eventoId) : null;
   
   const [visivelPublico, setVisivelPublico] = useState(true);
+  const [habilitarCheckin, setHabilitarCheckin] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingCheckin, setSavingCheckin] = useState(false);
 
   useEffect(() => {
     if (evento) {
       setVisivelPublico(evento.visivel_publico ?? true);
+      // Fetch checkin setting separately since it might not be in the type yet
+      const fetchCheckinSetting = async () => {
+        const { data } = await supabase
+          .from('eventos')
+          .select('habilitar_checkin')
+          .eq('id', eventoId)
+          .single();
+        setHabilitarCheckin(data?.habilitar_checkin ?? false);
+      };
+      fetchCheckinSetting();
     }
-  }, [evento]);
+  }, [evento, eventoId]);
 
   const handleToggleVisibilidade = async (checked: boolean) => {
     if (!eventoId) return;
@@ -45,6 +57,29 @@ export default function Configuracoes() {
     }
     
     setSaving(false);
+  };
+
+  const handleToggleCheckin = async (checked: boolean) => {
+    if (!eventoId) return;
+    
+    setSavingCheckin(true);
+    setHabilitarCheckin(checked);
+
+    const { error } = await supabase
+      .from('eventos')
+      .update({ habilitar_checkin: checked })
+      .eq('id', eventoId);
+
+    if (error) {
+      console.error('Erro ao atualizar check-in:', error);
+      toast.error('Erro ao atualizar configuração');
+      setHabilitarCheckin(!checked);
+    } else {
+      toast.success(checked ? 'Check-in/check-out habilitado' : 'Check-in/check-out desabilitado');
+      refetch();
+    }
+    
+    setSavingCheckin(false);
   };
 
   return (
@@ -84,6 +119,40 @@ export default function Configuracoes() {
                   checked={visivelPublico}
                   onCheckedChange={handleToggleVisibilidade}
                   disabled={saving}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Check-in/Check-out de Motoristas */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <UserCheck className={`w-5 h-5 ${habilitarCheckin ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div>
+                <CardTitle className="text-base">Check-in/Check-out de Motoristas</CardTitle>
+                <CardDescription>Controle de presença diária dos motoristas</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="habilitar-checkin" className="text-sm font-medium">
+                  Habilitar controle de presença
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Motoristas deverão fazer check-in ao iniciar e check-out ao finalizar o dia
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {savingCheckin && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                <Switch
+                  id="habilitar-checkin"
+                  checked={habilitarCheckin}
+                  onCheckedChange={handleToggleCheckin}
+                  disabled={savingCheckin}
                 />
               </div>
             </div>
