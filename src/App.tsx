@@ -29,6 +29,7 @@ import AppMotorista from "./pages/app/AppMotorista";
 import AppOperador from "./pages/app/AppOperador";
 import AppSupervisor from "./pages/app/AppSupervisor";
 import PainelPublico from "./pages/PainelPublico";
+import PainelLocalizador from "./pages/PainelLocalizador";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             {/* Public routes - no auth required */}
             <Route path="/painel" element={<PainelPublico />} />
             <Route path="/painel/:eventoId" element={<PainelPublico />} />
+            <Route path="/localizador/:eventoId" element={<PainelLocalizador />} />
             
             {/* App Campo - Interface Mobile (role-based) */}
             <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
