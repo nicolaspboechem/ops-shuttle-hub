@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Filter, X, Plus, Truck, Download, FileBarChart, LayoutGrid, List } from 'lucide-react';
+import { Search, Filter, X, Plus, Truck, Download, FileBarChart, LayoutGrid, List, History } from 'lucide-react';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLayout } from '@/components/layout/EventLayout';
@@ -20,11 +20,13 @@ import { VeiculoKanbanColumnFull } from '@/components/veiculos/VeiculoKanbanColu
 import { VeiculoKanbanCardFull } from '@/components/veiculos/VeiculoKanbanCardFull';
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { VeiculosListView } from '@/components/veiculos/VeiculosListView';
+import { VeiculosUsoAuditoria } from '@/components/veiculos/VeiculosUsoAuditoria';
 import { toast } from 'sonner';
 
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Veículos', icon: Truck },
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
+  { id: 'historico-uso', label: 'Histórico de Uso', icon: History },
 ];
 
 export default function Veiculos() {
@@ -473,6 +475,7 @@ export default function Veiculos() {
           {activeSection === 'auditoria' && (
             <VeiculosAuditoria viagens={viagens} veiculosCadastrados={veiculos} motoristas={motoristas} />
           )}
+          {activeSection === 'historico-uso' && <VeiculosUsoAuditoria />}
           {activeSection === 'cadastro' && <CadastroContent />}
         </div>
       </div>
