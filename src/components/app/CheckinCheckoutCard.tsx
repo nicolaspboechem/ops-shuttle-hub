@@ -8,7 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { Veiculo } from '@/hooks/useCadastros';
 import { CheckoutModal } from './CheckoutModal';
-
+import { VistoriaConfirmModal } from './VistoriaConfirmModal';
 interface CheckinCheckoutCardProps {
   presenca: MotoristaPresencaComVeiculo | null;
   veiculoAtribuido: Veiculo | null;
@@ -27,6 +27,7 @@ export function CheckinCheckoutCard({
   viagensHoje = 0
 }: CheckinCheckoutCardProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showVistoriaModal, setShowVistoriaModal] = useState(false);
   const hoje = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const hasCheckin = !!presenca?.checkin_at;
@@ -54,6 +55,7 @@ export function CheckinCheckoutCard({
   // Estado ANTES do check-in: mostrar veículo atribuído
   if (!hasCheckin) {
     return (
+      <>
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
@@ -127,7 +129,7 @@ export function CheckinCheckoutCard({
 
           <Button 
             className="w-full gap-2" 
-            onClick={onCheckin}
+            onClick={() => setShowVistoriaModal(true)}
             disabled={loading || !veiculoAtribuido}
           >
             <LogIn className="h-4 w-4" />
@@ -135,6 +137,15 @@ export function CheckinCheckoutCard({
           </Button>
         </CardContent>
       </Card>
+
+      <VistoriaConfirmModal
+        open={showVistoriaModal}
+        onOpenChange={setShowVistoriaModal}
+        veiculo={veiculoAtribuido}
+        onConfirm={onCheckin}
+        loading={loading}
+      />
+    </>
     );
   }
 
