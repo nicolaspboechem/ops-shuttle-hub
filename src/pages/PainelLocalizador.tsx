@@ -100,27 +100,27 @@ export default function PainelLocalizador() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
         {/* Header */}
-        <header className="bg-card/80 backdrop-blur-md border-b border-border px-6 py-4">
+        <header className="bg-[#100014] px-6 py-4">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <div className="flex items-center gap-4">
               <img src={logoAS} alt="AS Brasil" className="h-10" />
               <div className="flex items-center gap-3">
-                <MapPin className="w-6 h-6 text-primary" />
+                <MapPin className="w-6 h-6 text-[#3F5AEC]" />
                 <div>
-                  <h1 className="text-xl font-bold text-foreground">LOCALIZADOR DE FROTA</h1>
-                  <p className="text-sm text-muted-foreground">Selecione um evento</p>
+                  <h1 className="text-xl font-bold text-white">LOCALIZADOR DE FROTA</h1>
+                  <p className="text-sm text-white/70">Selecione um evento</p>
                 </div>
               </div>
             </div>
 
             {/* Search */}
             <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
               <Input
                 placeholder="Buscar evento..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-muted/50"
+                className="pl-9 bg-white/10 border-white/20 text-white placeholder:text-white/50"
               />
             </div>
           </div>
@@ -170,7 +170,7 @@ export default function PainelLocalizador() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
       {/* Header */}
-      <header className="bg-card/80 backdrop-blur-md border-b border-border px-6 py-4">
+      <header className="bg-[#100014] px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Logo & Title */}
           <div className="flex items-center gap-4">
@@ -179,18 +179,18 @@ export default function PainelLocalizador() {
                 variant="ghost"
                 size="icon"
                 onClick={handleBack}
-                className="mr-2"
+                className="mr-2 text-white hover:bg-white/10"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
             <img src={logoAS} alt="AS Brasil" className="h-10" />
             <div className="flex items-center gap-3">
-              <MapPin className="w-6 h-6 text-primary" />
+              <MapPin className="w-6 h-6 text-[#3F5AEC]" />
               <div>
-                <h1 className="text-xl font-bold text-foreground">LOCALIZADOR DE FROTA</h1>
+                <h1 className="text-xl font-bold text-white">LOCALIZADOR DE FROTA</h1>
                 {eventoNome && (
-                  <p className="text-sm text-muted-foreground">{eventoNome}</p>
+                  <p className="text-sm text-white/70">{eventoNome}</p>
                 )}
               </div>
             </div>
@@ -199,25 +199,25 @@ export default function PainelLocalizador() {
           {/* Stats */}
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-foreground">{totalMotoristas}</div>
-              <div className="text-xs text-muted-foreground uppercase">Total</div>
+              <div className="text-2xl font-bold text-white">{totalMotoristas}</div>
+              <div className="text-xs text-white/60 uppercase">Total</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-500">{disponiveis}</div>
-              <div className="text-xs text-muted-foreground uppercase">Disponíveis</div>
+              <div className="text-2xl font-bold text-[#3F5AEC]">{disponiveis}</div>
+              <div className="text-xs text-white/60 uppercase">Disponíveis</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-500">{emTransito}</div>
-              <div className="text-xs text-muted-foreground uppercase">Em Trânsito</div>
+              <div className="text-2xl font-bold text-white">{emTransito}</div>
+              <div className="text-xs text-white/60 uppercase">Em Trânsito</div>
             </div>
           </div>
 
           {/* Clock */}
           <div className="text-right">
-            <div className="text-3xl font-mono font-bold text-foreground">
+            <div className="text-3xl font-mono font-bold text-white">
               {format(currentTime, 'HH:mm:ss')}
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-[#3F5AEC]">
               {format(currentTime, "EEEE, d 'de' MMMM", { locale: ptBR })}
             </div>
           </div>
