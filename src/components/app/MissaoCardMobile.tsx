@@ -95,15 +95,9 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
           <Badge variant="outline" className={config.className}>
             {config.label}
           </Badge>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
-              {statusLabels[missao.status] || missao.status}
-            </Badge>
-            {/* Swipe hint */}
-            {(swipeActions.leftAction || swipeActions.rightAction) && (
-              <span className="text-[10px] text-muted-foreground">← swipe →</span>
-            )}
-          </div>
+          <Badge variant="secondary" className="text-xs">
+            {statusLabels[missao.status] || missao.status}
+          </Badge>
         </div>
 
         {/* Título */}

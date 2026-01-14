@@ -130,10 +130,6 @@ export function VeiculoCardSupervisor({
                     {veiculo.placa}
                   </span>
                 )}
-                {/* Swipe hint */}
-                {hasSwipeActions && (
-                  <span className="text-[10px] text-muted-foreground ml-auto">← swipe →</span>
-                )}
               </div>
               
               <div className="flex items-center gap-3 text-xs text-muted-foreground">

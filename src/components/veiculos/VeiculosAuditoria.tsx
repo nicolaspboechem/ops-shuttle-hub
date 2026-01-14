@@ -498,6 +498,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
                   <TableHead className="text-center">Tempo Médio</TableHead>
                   <TableHead className="text-center">KM</TableHead>
                   <TableHead>Última Viagem</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -555,6 +556,19 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
                       {v.ultimaViagem 
                         ? format(new Date(v.ultimaViagem), 'dd/MM/yyyy HH:mm')
                         : '-'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVistoriaPlaca(v.placa);
+                        }}
+                      >
+                        <ClipboardCheck className="h-4 w-4 mr-1" />
+                        Vistorias
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
