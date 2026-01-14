@@ -48,6 +48,7 @@ const App = () => (
             {/* Public routes - no auth required */}
             <Route path="/painel" element={<PainelPublico />} />
             <Route path="/painel/:eventoId" element={<PainelPublico />} />
+            <Route path="/localizador" element={<PainelLocalizador />} />
             <Route path="/localizador/:eventoId" element={<PainelLocalizador />} />
             
             {/* App Campo - Interface Mobile (role-based) */}
