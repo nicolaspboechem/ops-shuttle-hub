@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon, Clock, UserCheck, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -24,16 +26,29 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // Form data
+  // Form data - Step 1
   const [nome, setNome] = useState('');
   const [local, setLocal] = useState('');
   const [tipoOperacao, setTipoOperacao] = useState<'transfer' | 'shuttle' | 'ambos'>('transfer');
+  
+  // Step 2 - Dates
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
-  const [descricao, setDescricao] = useState('');
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
+  
+  // Step 3 - Images
   const [imagemBanner, setImagemBanner] = useState<string | null>(null);
+  const [imagemLogo, setImagemLogo] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  
+  // Step 4 - Configurations
+  const [habilitarCheckin, setHabilitarCheckin] = useState(true);
+  const [visivelPublico, setVisivelPublico] = useState(true);
+  
+  // Step 5 - Description
+  const [descricao, setDescricao] = useState('');
 
   const resetForm = () => {
     setStep(1);
@@ -42,11 +57,18 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setTipoOperacao('transfer');
     setDataInicio(undefined);
     setDataFim(undefined);
+    setHorarioVirada('04:00');
     setDescricao('');
     setImagemBanner(null);
+    setImagemLogo(null);
+    setHabilitarCheckin(true);
+    setVisivelPublico(true);
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    type: 'banner' | 'logo'
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -64,7 +86,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
 
     try {
       const ext = file.name.split('.').pop();
-      const fileName = `temp/banner-${Date.now()}.${ext}`;
+      const fileName = `temp/${type}-${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('eventos')
@@ -76,7 +98,11 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         .from('eventos')
         .getPublicUrl(fileName);
 
-      setImagemBanner(publicUrl);
+      if (type === 'banner') {
+        setImagemBanner(publicUrl);
+      } else {
+        setImagemLogo(publicUrl);
+      }
       toast.success('Imagem enviada com sucesso');
     } catch (error: any) {
       console.error('Erro no upload:', error);
@@ -100,11 +126,14 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         tipo_operacao: tipoOperacao === 'ambos' ? 'transfer' : tipoOperacao,
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
+        horario_virada_dia: horarioVirada,
         descricao: descricao.trim() || null,
         imagem_banner: imagemBanner,
+        imagem_logo: imagemLogo,
+        habilitar_checkin: habilitarCheckin,
+        visivel_publico: visivelPublico,
         status: 'ativo',
         total_viagens: 0,
-        visivel_publico: true,
       } as any);
 
       if (error) throw error;
@@ -126,31 +155,32 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     return true;
   };
 
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
       <DialogTrigger asChild>
         {trigger || <Button>Criar Evento</Button>}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === 1 && 'Novo Evento - Informações Básicas'}
-            {step === 2 && 'Novo Evento - Datas'}
-            {step === 3 && 'Novo Evento - Imagem de Capa'}
-            {step === 4 && 'Novo Evento - Descrição'}
-            {step === 5 && 'Novo Evento - Confirmar'}
+            {step === 2 && 'Novo Evento - Período'}
+            {step === 3 && 'Novo Evento - Imagens'}
+            {step === 4 && 'Novo Evento - Configurações'}
+            {step === 5 && 'Novo Evento - Descrição'}
+            {step === 6 && 'Novo Evento - Confirmar'}
           </DialogTitle>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3, 4, 5].map((s) => (
+          {[1, 2, 3, 4, 5, 6].map((s) => (
             <div
               key={s}
               className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
+                'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors',
                 s === step
                   ? 'bg-primary text-primary-foreground'
                   : s < step
@@ -215,7 +245,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           </div>
         )}
 
-        {/* Step 2: Dates */}
+        {/* Step 2: Dates and Operational Day */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -278,72 +308,171 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 Duração: {Math.ceil((dataFim.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1} dias
               </p>
             )}
+
+            <div className="pt-4 border-t space-y-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <Label>Horário de Virada do Dia</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Atividades após meia-noite e antes deste horário contam como o dia anterior.
+                <br />
+                Ex: Se 04:00, uma viagem às 02:00 do dia 14 será registrada como dia 13.
+              </p>
+              <Input
+                type="time"
+                value={horarioVirada}
+                onChange={(e) => setHorarioVirada(e.target.value)}
+                className="w-32"
+              />
+            </div>
           </div>
         )}
 
-        {/* Step 3: Image */}
+        {/* Step 3: Images */}
         {step === 3 && (
           <div className="space-y-4">
             <input
-              ref={imageInputRef}
+              ref={bannerInputRef}
               type="file"
               accept="image/*"
-              onChange={handleImageUpload}
+              onChange={(e) => handleImageUpload(e, 'banner')}
+              className="hidden"
+            />
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleImageUpload(e, 'logo')}
               className="hidden"
             />
             
+            {/* Banner */}
             <div className="space-y-2">
-              <Label>Imagem de Capa</Label>
+              <Label>Imagem de Capa (Banner)</Label>
               <p className="text-xs text-muted-foreground">
-                Esta imagem será exibida como banner do evento no painel público
+                Exibida como banner do evento no painel público
               </p>
+
+              {imagemBanner ? (
+                <div className="relative aspect-[3/1] rounded-lg overflow-hidden border bg-muted">
+                  <img
+                    src={imagemBanner}
+                    alt="Banner do evento"
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-2 right-2 h-8 w-8"
+                    onClick={() => setImagemBanner(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => bannerInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="flex flex-col items-center justify-center w-full aspect-[3/1] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 hover:bg-muted hover:border-muted-foreground/50 transition-colors cursor-pointer"
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                      <span className="text-sm text-muted-foreground">
+                        Clique para enviar banner
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {imagemBanner ? (
-              <div className="relative aspect-[3/1] rounded-lg overflow-hidden border bg-muted">
-                <img
-                  src={imagemBanner}
-                  alt="Banner do evento"
-                  className="w-full h-full object-cover"
-                />
-                <Button
+            {/* Logo */}
+            <div className="space-y-2">
+              <Label>Logo do Evento (Opcional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Logomarca para identificação do evento
+              </p>
+
+              {imagemLogo ? (
+                <div className="relative w-24 h-24 rounded-lg overflow-hidden border bg-muted">
+                  <img
+                    src={imagemLogo}
+                    alt="Logo do evento"
+                    className="w-full h-full object-contain"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-1 right-1 h-6 w-6"
+                    onClick={() => setImagemLogo(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <button
                   type="button"
-                  size="icon"
-                  variant="destructive"
-                  className="absolute top-2 right-2 h-8 w-8"
-                  onClick={() => setImagemBanner(null)}
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="flex flex-col items-center justify-center w-24 h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 hover:bg-muted hover:border-muted-foreground/50 transition-colors cursor-pointer"
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={uploadingImage}
-                className="flex flex-col items-center justify-center w-full aspect-[3/1] rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 hover:bg-muted hover:border-muted-foreground/50 transition-colors cursor-pointer"
-              >
-                {uploadingImage ? (
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                ) : (
-                  <>
-                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      Clique para enviar uma imagem
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                </button>
+              )}
+            </div>
 
             <p className="text-xs text-muted-foreground">
-              💡 A imagem é opcional. Você pode adicionar ou alterar depois.
+              💡 As imagens são opcionais. Você pode adicionar ou alterar depois.
             </p>
           </div>
         )}
 
-        {/* Step 4: Description */}
+        {/* Step 4: Configurations */}
         {step === 4 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-start gap-3">
+                <UserCheck className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <Label className="font-medium">Controle de Presença</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Motoristas precisam fazer check-in/check-out diário para registro de jornada
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={habilitarCheckin}
+                onCheckedChange={setHabilitarCheckin}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-start gap-3">
+                <Eye className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <Label className="font-medium">Visível no Painel Público</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Passageiros poderão ver informações e rotas deste evento
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={visivelPublico}
+                onCheckedChange={setVisivelPublico}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Description */}
+        {step === 5 && (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="descricao">Descrição do Evento</Label>
@@ -365,8 +494,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
           </div>
         )}
 
-        {/* Step 5: Confirm */}
-        {step === 5 && (
+        {/* Step 6: Confirm */}
+        {step === 6 && (
           <div className="space-y-4">
             {imagemBanner && (
               <div className="aspect-[3/1] rounded-lg overflow-hidden border bg-muted">
@@ -398,6 +527,24 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                   {dataInicio && format(dataInicio, 'dd/MM/yyyy')} - {dataFim && format(dataFim, 'dd/MM/yyyy')}
                 </span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Virada do Dia:</span>
+                <span className="font-medium">{horarioVirada}</span>
+              </div>
+              
+              <div className="pt-2 border-t flex justify-between items-center">
+                <span className="text-muted-foreground">Check-in Motoristas:</span>
+                <Badge variant={habilitarCheckin ? 'default' : 'secondary'}>
+                  {habilitarCheckin ? 'Ativo' : 'Desativado'}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Painel Público:</span>
+                <Badge variant={visivelPublico ? 'default' : 'secondary'}>
+                  {visivelPublico ? 'Visível' : 'Oculto'}
+                </Badge>
+              </div>
+              
               {descricao && (
                 <div className="pt-2 border-t">
                   <span className="text-muted-foreground text-sm">Descrição:</span>
@@ -421,7 +568,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
 
           {step < totalSteps ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
-              {step === 4 ? 'Revisar' : 'Próximo'}
+              {step === 5 ? 'Revisar' : 'Próximo'}
               <ChevronRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
