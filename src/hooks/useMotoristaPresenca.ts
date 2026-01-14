@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { Veiculo } from '@/hooks/useCadastros';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
 export interface MotoristaPresenca {
   id: string;
@@ -26,9 +26,13 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
   const [loading, setLoading] = useState(true);
   const [checkinEnabled, setCheckinEnabled] = useState(false);
   const [veiculoAtribuido, setVeiculoAtribuido] = useState<Veiculo | null>(null);
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
   const { toast } = useToast();
 
-  const hoje = format(new Date(), 'yyyy-MM-dd');
+  // Data operacional considerando o horário de virada
+  const getDataHoje = useCallback(() => {
+    return getDataOperacional(new Date(), horarioVirada);
+  }, [horarioVirada]);
 
   const fetchPresenca = useCallback(async () => {
     if (!eventoId || !motoristaId) {
@@ -37,14 +41,21 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     }
 
     try {
-      // Check if event has checkin enabled
+      // Check if event has checkin enabled and get virada time
       const { data: evento } = await supabase
         .from('eventos')
-        .select('habilitar_checkin')
+        .select('habilitar_checkin, horario_virada_dia')
         .eq('id', eventoId)
         .single();
 
       setCheckinEnabled(evento?.habilitar_checkin || false);
+      
+      // Set horario virada from event settings
+      const virada = evento?.horario_virada_dia || '04:00:00';
+      setHorarioVirada(virada.substring(0, 5));
+      
+      // Calculate data operacional with the fetched virada time
+      const dataOperacional = getDataOperacional(new Date(), virada.substring(0, 5));
 
       if (!evento?.habilitar_checkin) {
         setLoading(false);
@@ -70,13 +81,13 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         setVeiculoAtribuido(null);
       }
 
-      // Fetch today's presence record
+      // Fetch today's presence record using operational date
       const { data, error } = await supabase
         .from('motorista_presenca')
         .select('*')
         .eq('motorista_id', motoristaId)
         .eq('evento_id', eventoId)
-        .eq('data', hoje)
+        .eq('data', dataOperacional)
         .maybeSingle();
 
       if (error) throw error;
@@ -98,7 +109,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     } finally {
       setLoading(false);
     }
-  }, [eventoId, motoristaId, hoje]);
+  }, [eventoId, motoristaId]);
 
   useEffect(() => {
     fetchPresenca();
@@ -117,6 +128,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
       const veiculoId = motorista?.veiculo_id || null;
       const now = new Date().toISOString();
+      const dataOperacional = getDataHoje();
 
       // Upsert presence record with vehicle_id
       const { data, error } = await supabase
@@ -124,7 +136,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         .upsert({
           motorista_id: motoristaId,
           evento_id: eventoId,
-          data: hoje,
+          data: dataOperacional,
           checkin_at: now,
           veiculo_id: veiculoId,
         }, {

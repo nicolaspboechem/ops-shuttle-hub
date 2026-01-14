@@ -11,10 +11,11 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  ExternalLink
+  Eye
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -181,8 +182,7 @@ export function MotoristaAuditoriaCard({
                   return (
                     <div 
                       key={presenca.id} 
-                      className="p-3 rounded-lg bg-muted/30 border space-y-2 cursor-pointer hover:bg-muted/50 hover:ring-1 hover:ring-primary/20 transition-all"
-                      onClick={() => setSelectedPresenca(presenca)}
+                      className="p-3 rounded-lg bg-muted/30 border space-y-2"
                     >
                       {/* Header do dia */}
                       <div className="flex items-center justify-between">
@@ -202,7 +202,6 @@ export function MotoristaAuditoriaCard({
                               {formatDuracao(duracao)}
                             </span>
                           )}
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground ml-1" />
                         </div>
                       </div>
 
@@ -244,6 +243,22 @@ export function MotoristaAuditoriaCard({
                           </p>
                         </div>
                       )}
+
+                      {/* Botão destacado para ver detalhes */}
+                      <div className="flex justify-end pt-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="gap-1.5 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setSelectedPresenca(presenca); 
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver Detalhes
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}

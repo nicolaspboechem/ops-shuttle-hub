@@ -54,6 +54,7 @@ export type Database = {
           data_ultima_sync: string
           descricao: string | null
           habilitar_checkin: boolean | null
+          horario_virada_dia: string | null
           id: string
           imagem_banner: string | null
           imagem_logo: string | null
@@ -71,6 +72,7 @@ export type Database = {
           data_ultima_sync?: string
           descricao?: string | null
           habilitar_checkin?: boolean | null
+          horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
@@ -88,6 +90,7 @@ export type Database = {
           data_ultima_sync?: string
           descricao?: string | null
           habilitar_checkin?: boolean | null
+          horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null
           imagem_logo?: string | null
