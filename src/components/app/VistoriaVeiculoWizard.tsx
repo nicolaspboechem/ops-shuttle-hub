@@ -157,7 +157,58 @@ export function VistoriaVeiculoWizard({
         observacoes: observacoesGerais
       };
 
+      // Buscar motorista atual vinculado ao veículo (se for edição)
+      let motoristaAtual: { id: string; nome: string } | null = null;
+      if (isEditing && veiculoExistente?.id) {
+        const { data: presenca } = await supabase
+          .from('motorista_presenca')
+          .select('motorista_id, motoristas!inner(nome)')
+          .eq('veiculo_id', veiculoExistente.id)
+          .is('checkout_at', null)
+          .order('data', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (presenca) {
+          const motoristaNome = (presenca.motoristas as any)?.nome;
+          motoristaAtual = {
+            id: presenca.motorista_id,
+            nome: motoristaNome || 'Desconhecido'
+          };
+        }
+      }
+
+      // Buscar nome do usuário atual
+      let realizadoPorNome: string | null = null;
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', user.id)
+          .single();
+        realizadoPorNome = profile?.full_name || null;
+      }
+
       if (isEditing && veiculoExistente) {
+        // Registrar no histórico ANTES de atualizar
+        await supabase.from('veiculo_vistoria_historico').insert({
+          veiculo_id: veiculoExistente.id,
+          evento_id: eventoId,
+          tipo_vistoria: 're-vistoria',
+          status_anterior: veiculoExistente.status || null,
+          status_novo: statusFinal,
+          possui_avarias: possuiAvarias,
+          inspecao_dados: inspecaoDados,
+          fotos_urls: fotosGerais,
+          nivel_combustivel: nivelCombustivel,
+          km_registrado: kmInicial ? parseInt(kmInicial) : null,
+          observacoes: observacoesGerais.trim() || null,
+          realizado_por: user?.id || null,
+          realizado_por_nome: realizadoPorNome,
+          motorista_id: motoristaAtual?.id || null,
+          motorista_nome: motoristaAtual?.nome || null
+        });
+
         // Atualizar veículo existente
         const { error } = await supabase
           .from('veiculos')
@@ -217,6 +268,25 @@ export function VistoriaVeiculoWizard({
           }
           return;
         }
+
+        // Registrar no histórico após criar o veículo
+        await supabase.from('veiculo_vistoria_historico').insert({
+          veiculo_id: veiculo.id,
+          evento_id: eventoId,
+          tipo_vistoria: 'inspecao',
+          status_anterior: null,
+          status_novo: statusFinal,
+          possui_avarias: possuiAvarias,
+          inspecao_dados: inspecaoDados,
+          fotos_urls: fotosGerais,
+          nivel_combustivel: nivelCombustivel,
+          km_registrado: kmInicial ? parseInt(kmInicial) : null,
+          observacoes: observacoesGerais.trim() || null,
+          realizado_por: user?.id || null,
+          realizado_por_nome: realizadoPorNome,
+          motorista_id: null,
+          motorista_nome: null
+        });
 
         // Salvar fotos
         const fotosToInsert: any[] = [];

@@ -614,6 +614,95 @@ export type Database = {
           },
         ]
       }
+      veiculo_vistoria_historico: {
+        Row: {
+          created_at: string
+          evento_id: string
+          fotos_urls: string[] | null
+          id: string
+          inspecao_dados: Json | null
+          km_registrado: number | null
+          motorista_id: string | null
+          motorista_nome: string | null
+          nivel_combustivel: string | null
+          observacoes: string | null
+          possui_avarias: boolean | null
+          realizado_por: string | null
+          realizado_por_nome: string | null
+          status_anterior: string | null
+          status_novo: string
+          tipo_vistoria: string
+          veiculo_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          fotos_urls?: string[] | null
+          id?: string
+          inspecao_dados?: Json | null
+          km_registrado?: number | null
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          nivel_combustivel?: string | null
+          observacoes?: string | null
+          possui_avarias?: boolean | null
+          realizado_por?: string | null
+          realizado_por_nome?: string | null
+          status_anterior?: string | null
+          status_novo: string
+          tipo_vistoria?: string
+          veiculo_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          fotos_urls?: string[] | null
+          id?: string
+          inspecao_dados?: Json | null
+          km_registrado?: number | null
+          motorista_id?: string | null
+          motorista_nome?: string | null
+          nivel_combustivel?: string | null
+          observacoes?: string | null
+          possui_avarias?: boolean | null
+          realizado_por?: string | null
+          realizado_por_nome?: string | null
+          status_anterior?: string | null
+          status_novo?: string
+          tipo_vistoria?: string
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veiculo_vistoria_historico_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veiculo_vistoria_historico_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veiculo_vistoria_historico_realizado_por_fkey"
+            columns: ["realizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "veiculo_vistoria_historico_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       veiculos: {
         Row: {
           ano: number | null
