@@ -217,16 +217,10 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
         <CardContent className="p-4">
           {/* Header: Status e Tipo */}
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={config.className}>
-                <StatusIcon className="h-3 w-3 mr-1" />
-                {config.label}
-              </Badge>
-              {/* Swipe hint */}
-              {hasSwipeActions && (
-                <span className="text-[10px] text-muted-foreground">← swipe →</span>
-              )}
-            </div>
+            <Badge variant="outline" className={config.className}>
+              <StatusIcon className="h-3 w-3 mr-1" />
+              {config.label}
+            </Badge>
             <Badge variant="secondary">
               {viagem.tipo_veiculo === 'Ônibus' ? '🚌' : '🚐'} {viagem.tipo_operacao}
             </Badge>

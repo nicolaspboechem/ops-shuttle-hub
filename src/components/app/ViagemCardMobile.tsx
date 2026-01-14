@@ -83,16 +83,10 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <div className="flex items-center gap-2">
-              <Badge className={cn("text-white", config.color)}>
-                {config.icon}
-                <span className="ml-1">{config.label}</span>
-              </Badge>
-              {/* Swipe hint */}
-              {hasSwipeActions && (
-                <span className="text-[10px] text-muted-foreground">swipe →</span>
-              )}
-            </div>
+            <Badge className={cn("text-white", config.color)}>
+              {config.icon}
+              <span className="ml-1">{config.label}</span>
+            </Badge>
             {viagem.origem_missao_id && (
               <MissaoBadge missaoId={viagem.origem_missao_id} compact />
             )}
