@@ -1,4 +1,4 @@
-export type TipoVeiculo = 'Ônibus' | 'Van';
+export type TipoVeiculo = 'Van' | 'Ônibus' | 'Sedan' | 'SUV' | 'Blindado';
 export type TipoOperacao = 'transfer' | 'shuttle' | 'missao';
 export type StatusViagem = 'ok' | 'alerta' | 'critico';
 export type StatusEvento = 'ativo' | 'finalizado' | 'processando';
