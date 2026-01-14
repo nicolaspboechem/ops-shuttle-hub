@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -10,7 +10,8 @@ import {
   Phone,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { MotoristaPresencaAgregado, PresencaHistorico } from '@/hooks/useMotoristaPresencaHistorico';
 import { Viagem } from '@/lib/types/viagem';
+import { PresencaDiaModal } from './PresencaDiaModal';
 
 interface MotoristaAuditoriaCardProps {
   motorista: MotoristaPresencaAgregado;
@@ -36,6 +38,7 @@ export function MotoristaAuditoriaCard({
   isOpen = false,
   onToggle
 }: MotoristaAuditoriaCardProps) {
+  const [selectedPresenca, setSelectedPresenca] = useState<PresencaHistorico | null>(null);
   
   const formatTime = (isoString: string | null) => {
     if (!isoString) return '--:--';
@@ -74,6 +77,11 @@ export function MotoristaAuditoriaCard({
     });
     return map;
   }, [viagensMotorista]);
+
+  // Viagens filtradas por dia específico
+  const getViagensDoDia = (data: string) => {
+    return viagensMotorista.filter(v => v.data_criacao.startsWith(data));
+  };
 
   const getStatusBadge = (status: string | null) => {
     const statusConfig = {
@@ -173,14 +181,15 @@ export function MotoristaAuditoriaCard({
                   return (
                     <div 
                       key={presenca.id} 
-                      className="p-3 rounded-lg bg-muted/30 border space-y-2"
+                      className="p-3 rounded-lg bg-muted/30 border space-y-2 cursor-pointer hover:bg-muted/50 hover:ring-1 hover:ring-primary/20 transition-all"
+                      onClick={() => setSelectedPresenca(presenca)}
                     >
                       {/* Header do dia */}
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">
                           {format(parseISO(presenca.data), "EEEE, dd/MM", { locale: ptBR })}
                         </span>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           {presenca.checkout_at ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                           ) : presenca.checkin_at ? (
@@ -193,6 +202,7 @@ export function MotoristaAuditoriaCard({
                               {formatDuracao(duracao)}
                             </span>
                           )}
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground ml-1" />
                         </div>
                       </div>
 
@@ -242,6 +252,15 @@ export function MotoristaAuditoriaCard({
           </div>
         </CollapsibleContent>
       </Card>
+
+      {/* Modal de detalhes do dia */}
+      <PresencaDiaModal
+        presenca={selectedPresenca}
+        viagens={selectedPresenca ? getViagensDoDia(selectedPresenca.data) : []}
+        motoristaNome={motorista.motorista_nome}
+        isOpen={!!selectedPresenca}
+        onClose={() => setSelectedPresenca(null)}
+      />
     </Collapsible>
   );
 }

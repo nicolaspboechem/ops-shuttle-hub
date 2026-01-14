@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck } from 'lucide-react';
+import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,24 @@ import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { VeiculoAuditoriaDiaModal } from './VeiculoAuditoriaDiaModal';
+
+interface VeiculoMetricas {
+  placa: string;
+  nome: string | null;
+  tipoVeiculo: string;
+  fornecedor: string | null;
+  totalViagens: number;
+  viagensEncerradas: number;
+  totalPax: number;
+  tempoTotal: number;
+  viagensComTempo: number;
+  kmInicial: number | null;
+  kmFinal: number | null;
+  kmPercorrido: number;
+  motorista: string | null;
+  ultimaViagem: string | null;
+}
 
 interface VeiculosAuditoriaProps {
   viagens: Viagem[];
@@ -24,6 +42,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
   const [viewMode, setViewMode] = useState<'card' | 'lista'>('lista');
+  const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null);
 
   // Fornecedores únicos
   const fornecedoresUnicos = useMemo(() => {
@@ -355,7 +374,11 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
               {metricasConsolidadas.map((v) => {
                 const TipoIcon = getTipoIcon(v.tipoVeiculo);
                 return (
-                  <Card key={v.placa} className="overflow-hidden">
+                  <Card 
+                    key={v.placa} 
+                    className="overflow-hidden cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all"
+                    onClick={() => setSelectedVeiculo(v.placa)}
+                  >
                     <CardContent className="p-4 space-y-3">
                       {/* Header */}
                       <div className="flex items-start justify-between gap-2">
@@ -451,7 +474,11 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
               </TableHeader>
               <TableBody>
                 {metricasConsolidadas.map((v) => (
-                  <TableRow key={v.placa}>
+                  <TableRow 
+                    key={v.placa} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedVeiculo(v.placa)}
+                  >
                     <TableCell>
                       <div>
                         <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">
@@ -513,6 +540,15 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de detalhes do veículo */}
+      <VeiculoAuditoriaDiaModal
+        veiculo={selectedVeiculo ? metricasConsolidadas.find(m => m.placa === selectedVeiculo) || null : null}
+        viagens={selectedVeiculo ? viagensFiltradas.filter(v => v.placa === selectedVeiculo) : []}
+        motoristas={motoristas}
+        isOpen={!!selectedVeiculo}
+        onClose={() => setSelectedVeiculo(null)}
+      />
     </div>
   );
 }
