@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Database, Bell, Clock, CheckCircle, Eye, EyeOff, Loader2, UserCheck } from 'lucide-react';
+import { Database, Bell, Clock, CheckCircle, Eye, EyeOff, Loader2, UserCheck, Sun } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useEventos } from '@/hooks/useEventos';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -17,23 +19,29 @@ export default function Configuracoes() {
   
   const [visivelPublico, setVisivelPublico] = useState(true);
   const [habilitarCheckin, setHabilitarCheckin] = useState(false);
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
   const [saving, setSaving] = useState(false);
   const [savingCheckin, setSavingCheckin] = useState(false);
+  const [savingHorario, setSavingHorario] = useState(false);
 
   useEffect(() => {
     if (evento) {
       setVisivelPublico(evento.visivel_publico ?? true);
-      // Fetch checkin setting separately since it might not be in the type yet
-      const fetchCheckinSetting = async () => {
-        const { data } = await supabase
-          .from('eventos')
-          .select('habilitar_checkin')
-          .eq('id', eventoId)
-          .single();
-        setHabilitarCheckin(data?.habilitar_checkin ?? false);
-      };
-      fetchCheckinSetting();
     }
+    // Fetch additional settings
+    const fetchSettings = async () => {
+      if (!eventoId) return;
+      const { data } = await supabase
+        .from('eventos')
+        .select('habilitar_checkin, horario_virada_dia')
+        .eq('id', eventoId)
+        .single();
+      setHabilitarCheckin(data?.habilitar_checkin ?? false);
+      // Format time from HH:mm:ss to HH:mm
+      const virada = data?.horario_virada_dia || '04:00:00';
+      setHorarioVirada(virada.substring(0, 5));
+    };
+    fetchSettings();
   }, [evento, eventoId]);
 
   const handleToggleVisibilidade = async (checked: boolean) => {
@@ -80,6 +88,27 @@ export default function Configuracoes() {
     }
     
     setSavingCheckin(false);
+  };
+
+  const handleSaveHorarioVirada = async () => {
+    if (!eventoId) return;
+    
+    setSavingHorario(true);
+
+    const { error } = await supabase
+      .from('eventos')
+      .update({ horario_virada_dia: horarioVirada + ':00' })
+      .eq('id', eventoId);
+
+    if (error) {
+      console.error('Erro ao atualizar horário de virada:', error);
+      toast.error('Erro ao salvar configuração');
+    } else {
+      toast.success(`Dia operacional agora encerra às ${horarioVirada}`);
+      refetch();
+    }
+    
+    setSavingHorario(false);
   };
 
   return (
@@ -156,6 +185,50 @@ export default function Configuracoes() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Dia Operacional */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Sun className="w-5 h-5 text-primary" />
+              <div>
+                <CardTitle className="text-base">Dia Operacional</CardTitle>
+                <CardDescription>
+                  Horário de "virada" do dia (atividades após meia-noite e antes deste horário contam como dia anterior)
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="horario-virada" className="text-sm font-medium whitespace-nowrap">
+                  Encerra às:
+                </Label>
+                <Input
+                  id="horario-virada"
+                  type="time"
+                  value={horarioVirada}
+                  onChange={(e) => setHorarioVirada(e.target.value)}
+                  className="w-28"
+                />
+              </div>
+              <Button 
+                onClick={handleSaveHorarioVirada} 
+                disabled={savingHorario}
+                size="sm"
+              >
+                {savingHorario && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                Salvar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <strong>Exemplo:</strong> Se configurado como 04:00, uma viagem feita às 02:00 do dia 14/01 
+              será registrada como pertencente ao dia operacional 13/01. Isso é útil para eventos que 
+              se estendem após a meia-noite.
+            </p>
           </CardContent>
         </Card>
 
