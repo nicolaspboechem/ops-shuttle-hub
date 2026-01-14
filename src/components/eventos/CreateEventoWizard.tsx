@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon, Clock, UserCheck, Eye } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon, Clock, UserCheck, Eye, Car, Bus, LayoutGrid, Radio } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -218,29 +218,60 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
 
             <div className="space-y-2">
               <Label>Tipo de Operação *</Label>
-              <RadioGroup value={tipoOperacao} onValueChange={(v) => setTipoOperacao(v as any)}>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="transfer" id="transfer" />
-                  <Label htmlFor="transfer" className="cursor-pointer flex-1">
-                    <span className="font-medium">Transfer</span>
-                    <p className="text-xs text-muted-foreground">Viagens ponto a ponto</p>
+              <RadioGroup value={tipoOperacao} onValueChange={(v) => setTipoOperacao(v as any)} className="space-y-2">
+                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-amber-400 hover:bg-amber-50/50 transition-colors cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
+                  <RadioGroupItem value="transfer" id="transfer" className="mt-1" />
+                  <Label htmlFor="transfer" className="flex-1 cursor-pointer">
+                    <span className="font-medium flex items-center gap-2">
+                      <Car className="h-4 w-4 text-amber-600" />
+                      Transfer Executivo
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Viagens privativas ponto a ponto. O horário é definido pelo cliente.
+                      Ideal para VIPs, diretores e convidados especiais.
+                    </p>
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="shuttle" id="shuttle" />
-                  <Label htmlFor="shuttle" className="cursor-pointer flex-1">
-                    <span className="font-medium">Shuttle</span>
-                    <p className="text-xs text-muted-foreground">Rotas circulares contínuas</p>
+                
+                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-green-400 hover:bg-green-50/50 transition-colors cursor-pointer has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
+                  <RadioGroupItem value="shuttle" id="shuttle" className="mt-1" />
+                  <Label htmlFor="shuttle" className="flex-1 cursor-pointer">
+                    <span className="font-medium flex items-center gap-2">
+                      <Bus className="h-4 w-4 text-green-600" />
+                      Shuttle (Circular)
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Rotas fixas com grade de horários. O passageiro se adapta ao veículo.
+                      Ideal para alto volume e transporte de funcionários.
+                    </p>
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
-                  <RadioGroupItem value="ambos" id="ambos" />
-                  <Label htmlFor="ambos" className="cursor-pointer flex-1">
-                    <span className="font-medium">Ambos</span>
-                    <p className="text-xs text-muted-foreground">Transfer e Shuttle</p>
+                
+                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                  <RadioGroupItem value="ambos" id="ambos" className="mt-1" />
+                  <Label htmlFor="ambos" className="flex-1 cursor-pointer">
+                    <span className="font-medium flex items-center gap-2">
+                      <LayoutGrid className="h-4 w-4 text-blue-600" />
+                      Transfer + Shuttle
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Evento que combina ambas as operações. Gerencie frota completa
+                      com viagens executivas e rotas circulares.
+                    </p>
                   </Label>
                 </div>
               </RadioGroup>
+              
+              <div className="p-3 rounded-lg bg-purple-50 border border-purple-200 text-sm mt-4">
+                <strong className="flex items-center gap-2 text-purple-700">
+                  <Radio className="h-4 w-4" />
+                  Sobre Missões:
+                </strong>
+                <p className="text-purple-600 mt-1">
+                  Designações internas para staff são criadas pelo CCO na aba 
+                  "Motoristas → Missões" durante a operação.
+                </p>
+              </div>
             </div>
           </div>
         )}
