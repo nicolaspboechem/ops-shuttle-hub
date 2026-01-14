@@ -77,7 +77,6 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
       title: 'Administração',
       items: [
         { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
-        { name: 'Painel Público', href: `/evento/${eventoId}/painel-config`, icon: Eye },
       ]
     },
   ];

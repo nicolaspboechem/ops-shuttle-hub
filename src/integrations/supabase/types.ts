@@ -48,11 +48,14 @@ export type Database = {
       }
       eventos: {
         Row: {
+          alerta_limiar_amarelo: number | null
+          alerta_limiar_vermelho: number | null
           data_criacao: string
           data_fim: string | null
           data_inicio: string | null
           data_ultima_sync: string
           descricao: string | null
+          habilitar_localizador: boolean | null
           habilitar_missoes: boolean | null
           horario_virada_dia: string | null
           id: string
@@ -66,11 +69,14 @@ export type Database = {
           visivel_publico: boolean | null
         }
         Insert: {
+          alerta_limiar_amarelo?: number | null
+          alerta_limiar_vermelho?: number | null
           data_criacao?: string
           data_fim?: string | null
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
+          habilitar_localizador?: boolean | null
           habilitar_missoes?: boolean | null
           horario_virada_dia?: string | null
           id?: string
@@ -84,11 +90,14 @@ export type Database = {
           visivel_publico?: boolean | null
         }
         Update: {
+          alerta_limiar_amarelo?: number | null
+          alerta_limiar_vermelho?: number | null
           data_criacao?: string
           data_fim?: string | null
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
+          habilitar_localizador?: boolean | null
           habilitar_missoes?: boolean | null
           horario_virada_dia?: string | null
           id?: string
