@@ -42,14 +42,22 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
       {/* Veículo */}
       <div className="flex items-center gap-2 mb-3 text-muted-foreground">
         <VeiculoIcon className="w-5 h-5" />
-        <span className="font-mono text-base">
-          {motorista.veiculo?.placa || '---'}
-        </span>
-        {motorista.veiculo?.tipo_veiculo && (
-          <span className="text-sm opacity-70">
-            ({motorista.veiculo.tipo_veiculo})
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground text-base">
+            {motorista.veiculo?.nome || motorista.veiculo?.placa || '---'}
           </span>
-        )}
+          {motorista.veiculo?.placa && motorista.veiculo?.nome && (
+            <span className="text-xs opacity-70">
+              {motorista.veiculo.placa}
+              {motorista.veiculo.tipo_veiculo && ` • ${motorista.veiculo.tipo_veiculo}`}
+            </span>
+          )}
+          {!motorista.veiculo?.nome && motorista.veiculo?.tipo_veiculo && (
+            <span className="text-xs opacity-70">
+              {motorista.veiculo.tipo_veiculo}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Status Badge */}
