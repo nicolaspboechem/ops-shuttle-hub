@@ -53,7 +53,7 @@ export type Database = {
           data_inicio: string | null
           data_ultima_sync: string
           descricao: string | null
-          habilitar_checkin: boolean | null
+          habilitar_missoes: boolean | null
           horario_virada_dia: string | null
           id: string
           imagem_banner: string | null
@@ -71,7 +71,7 @@ export type Database = {
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
-          habilitar_checkin?: boolean | null
+          habilitar_missoes?: boolean | null
           horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null
@@ -89,7 +89,7 @@ export type Database = {
           data_inicio?: string | null
           data_ultima_sync?: string
           descricao?: string | null
-          habilitar_checkin?: boolean | null
+          habilitar_missoes?: boolean | null
           horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null

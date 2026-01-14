@@ -47,7 +47,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Configurations
-  const [habilitarCheckin, setHabilitarCheckin] = useState((evento as any).habilitar_checkin ?? true);
+  const [habilitarMissoes, setHabilitarMissoes] = useState((evento as any).habilitar_missoes ?? false);
   const [visivelPublico, setVisivelPublico] = useState((evento as any).visivel_publico ?? true);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
         descricao: descricao.trim() || null,
         imagem_banner: imagemBanner,
         imagem_logo: imagemLogo,
-        habilitar_checkin: habilitarCheckin,
+        habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
         horario_virada_dia: horarioVirada,
       };
@@ -419,36 +419,43 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
 
           {/* Tab: Configurações */}
           <TabsContent value="config" className="space-y-4 mt-4">
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div className="flex items-start gap-3">
-                <UserCheck className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <Label className="font-medium">Controle de Presença</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Motoristas precisam fazer check-in/check-out diário
-                  </p>
+            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <UserCheck className="h-5 w-5 text-purple-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-purple-900">Módulo de Missões</Label>
+                    <p className="text-xs text-purple-700/80 mt-1">
+                      Permite designar tarefas para motoristas.
+                      Motoristas precisam fazer check-in/vistoria diária.
+                      Evento aparece no Localizador.
+                    </p>
+                  </div>
                 </div>
+                <Switch
+                  checked={habilitarMissoes}
+                  onCheckedChange={setHabilitarMissoes}
+                />
               </div>
-              <Switch
-                checked={habilitarCheckin}
-                onCheckedChange={setHabilitarCheckin}
-              />
             </div>
             
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div className="flex items-start gap-3">
-                <Eye className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <Label className="font-medium">Visível no Painel Público</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Passageiros podem ver informações e rotas
-                  </p>
+            <div className="p-4 rounded-lg border border-green-200 bg-green-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Eye className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-green-900">Visível no Painel Público</Label>
+                    <p className="text-xs text-green-700/80 mt-1">
+                      Exibe rotas Shuttle para passageiros em /painel.
+                      Não afeta operações Transfer.
+                    </p>
+                  </div>
                 </div>
+                <Switch
+                  checked={visivelPublico}
+                  onCheckedChange={setVisivelPublico}
+                />
               </div>
-              <Switch
-                checked={visivelPublico}
-                onCheckedChange={setVisivelPublico}
-              />
             </div>
           </TabsContent>
         </Tabs>

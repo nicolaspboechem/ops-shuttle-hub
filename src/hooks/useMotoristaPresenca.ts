@@ -41,14 +41,14 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     }
 
     try {
-      // Check if event has checkin enabled and get virada time
+      // Check if event has missoes (and thus check-in) enabled and get virada time
       const { data: evento } = await supabase
         .from('eventos')
-        .select('habilitar_checkin, horario_virada_dia')
+        .select('habilitar_missoes, horario_virada_dia')
         .eq('id', eventoId)
         .single();
 
-      setCheckinEnabled(evento?.habilitar_checkin || false);
+      setCheckinEnabled(evento?.habilitar_missoes || false);
       
       // Set horario virada from event settings
       const virada = evento?.horario_virada_dia || '04:00:00';
@@ -57,7 +57,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       // Calculate data operacional with the fetched virada time
       const dataOperacional = getDataOperacional(new Date(), virada.substring(0, 5));
 
-      if (!evento?.habilitar_checkin) {
+      if (!evento?.habilitar_missoes) {
         setLoading(false);
         return;
       }

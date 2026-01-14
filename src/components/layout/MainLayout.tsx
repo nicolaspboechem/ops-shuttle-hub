@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Users, LogOut, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -31,6 +31,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const navigation = [
     { name: 'Eventos', href: '/eventos', icon: Calendar },
     { name: 'Usuários', href: '/usuarios', icon: Users, adminOnly: true },
+    { name: 'Suporte', href: '/suporte', icon: HelpCircle },
   ];
 
   const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);

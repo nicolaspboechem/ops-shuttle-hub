@@ -30,6 +30,7 @@ import AppOperador from "./pages/app/AppOperador";
 import AppSupervisor from "./pages/app/AppSupervisor";
 import PainelPublico from "./pages/PainelPublico";
 import PainelLocalizador from "./pages/PainelLocalizador";
+import Suporte from "./pages/Suporte";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
             {/* Admin Routes (CCO - only for admins) */}
             <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />
             <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+            <Route path="/suporte" element={<AdminRoute><Suporte /></AdminRoute>} />
             <Route path="/evento/:eventoId" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="/evento/:eventoId/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="/evento/:eventoId/operacao" element={<AdminRoute><Operacao /></AdminRoute>} />
