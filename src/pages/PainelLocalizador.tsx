@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { MapPin, RefreshCw, Search, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
-import { useEventosPublicos } from '@/hooks/useEventosPublicos';
+import { useEventosMissoes } from '@/hooks/useEventosMissoes';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
 import { EventosGrid } from '@/components/public/EventosGrid';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -21,7 +21,7 @@ export default function PainelLocalizador() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [eventoNome, setEventoNome] = useState('');
   
-  const { eventos, loading: loadingEventos } = useEventosPublicos();
+  const { eventos, loading: loadingEventos } = useEventosMissoes();
   const { 
     motoristasPorLocalizacao, 
     localizacoes, 

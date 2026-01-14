@@ -44,7 +44,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const logoInputRef = useRef<HTMLInputElement>(null);
   
   // Step 4 - Configurations
-  const [habilitarCheckin, setHabilitarCheckin] = useState(true);
+  const [habilitarMissoes, setHabilitarMissoes] = useState(false);
   const [visivelPublico, setVisivelPublico] = useState(true);
   
   // Step 5 - Description
@@ -61,7 +61,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setDescricao('');
     setImagemBanner(null);
     setImagemLogo(null);
-    setHabilitarCheckin(true);
+    setHabilitarMissoes(false);
     setVisivelPublico(true);
   };
 
@@ -130,7 +130,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         descricao: descricao.trim() || null,
         imagem_banner: imagemBanner,
         imagem_logo: imagemLogo,
-        habilitar_checkin: habilitarCheckin,
+        habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
         status: 'ativo',
         total_viagens: 0,
@@ -468,36 +468,50 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         {/* Step 4: Configurations */}
         {step === 4 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div className="flex items-start gap-3">
-                <UserCheck className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <Label className="font-medium">Controle de Presença</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Motoristas precisam fazer check-in/check-out diário para registro de jornada
-                  </p>
+            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Radio className="h-5 w-5 text-purple-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-purple-900">Habilitar Módulo de Missões</Label>
+                    <p className="text-xs text-purple-700/80 mt-1">
+                      Quando ativo:
+                    </p>
+                    <ul className="text-xs text-purple-700/80 mt-1 space-y-0.5 list-disc list-inside">
+                      <li>CCO pode designar tarefas para motoristas</li>
+                      <li>Motoristas precisam fazer check-in/vistoria diária</li>
+                      <li>Motoristas aceitam ou recusam missões designadas</li>
+                      <li>Evento aparece no Painel Localizador</li>
+                    </ul>
+                  </div>
                 </div>
+                <Switch
+                  checked={habilitarMissoes}
+                  onCheckedChange={setHabilitarMissoes}
+                />
               </div>
-              <Switch
-                checked={habilitarCheckin}
-                onCheckedChange={setHabilitarCheckin}
-              />
             </div>
             
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div className="flex items-start gap-3">
-                <Eye className="h-5 w-5 text-primary mt-0.5" />
-                <div>
-                  <Label className="font-medium">Visível no Painel Público</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Passageiros poderão ver informações e rotas deste evento
-                  </p>
+            <div className="p-4 rounded-lg border border-green-200 bg-green-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Eye className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-green-900">Visível no Painel Público</Label>
+                    <p className="text-xs text-green-700/80 mt-1">
+                      Quando ativo (apenas para operações Shuttle):
+                    </p>
+                    <ul className="text-xs text-green-700/80 mt-1 space-y-0.5 list-disc list-inside">
+                      <li>Passageiros podem ver rotas de transporte</li>
+                      <li>Grade de horários visível em /painel</li>
+                    </ul>
+                  </div>
                 </div>
+                <Switch
+                  checked={visivelPublico}
+                  onCheckedChange={setVisivelPublico}
+                />
               </div>
-              <Switch
-                checked={visivelPublico}
-                onCheckedChange={setVisivelPublico}
-              />
             </div>
           </div>
         )}
@@ -564,9 +578,9 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
               </div>
               
               <div className="pt-2 border-t flex justify-between items-center">
-                <span className="text-muted-foreground">Check-in Motoristas:</span>
-                <Badge variant={habilitarCheckin ? 'default' : 'secondary'}>
-                  {habilitarCheckin ? 'Ativo' : 'Desativado'}
+                <span className="text-muted-foreground">Módulo de Missões:</span>
+                <Badge variant={habilitarMissoes ? 'default' : 'secondary'} className={habilitarMissoes ? 'bg-purple-600' : ''}>
+                  {habilitarMissoes ? 'Ativo' : 'Desativado'}
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
