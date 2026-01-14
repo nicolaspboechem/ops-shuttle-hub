@@ -22,6 +22,7 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SwipeableCard } from './SwipeableCard';
 
 interface VeiculoCardSupervisorProps {
   veiculo: Veiculo;
@@ -78,97 +79,132 @@ export function VeiculoCardSupervisor({
 
   const VehicleIcon = veiculo.tipo_veiculo === 'Ônibus' || veiculo.tipo_veiculo === 'Van' ? Bus : Car;
 
+  // Swipe actions based on current status
+  const getSwipeActions = () => {
+    // Swipe right to liberate (if not already liberado)
+    const rightAction = veiculo.status !== 'liberado' ? {
+      icon: <CheckCircle2 className="h-6 w-6" />,
+      label: 'Liberar',
+      color: 'text-white',
+      bgColor: 'bg-emerald-600',
+      action: () => onStatusChange(veiculo.id, 'liberado'),
+    } : undefined;
+
+    // Swipe left to mark pending (if not already pendente)
+    const leftAction = veiculo.status !== 'pendente' ? {
+      icon: <AlertTriangle className="h-6 w-6" />,
+      label: 'Pendente',
+      color: 'text-white',
+      bgColor: 'bg-destructive',
+      action: () => onStatusChange(veiculo.id, 'pendente'),
+    } : undefined;
+
+    return { leftAction, rightAction };
+  };
+
+  const swipeActions = getSwipeActions();
+  const hasSwipeActions = !!swipeActions.leftAction || !!swipeActions.rightAction;
+
   return (
-    <Card className={cn('transition-all', status.border, status.bg)}>
-      <CardContent className="p-3">
-        <div className="flex items-start gap-3">
-          {/* Vehicle Icon */}
-          <div className={cn(
-            'flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center',
-            status.bg
-          )}>
-            <VehicleIcon className={cn('h-6 w-6', status.color)} />
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-base">{veiculo.nome || veiculo.placa}</span>
-              {veiculo.nome && (
-                <span className="text-xs text-muted-foreground">
-                  {veiculo.placa}
-                </span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span>{veiculo.tipo_veiculo}</span>
-              {veiculo.capacidade && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  {veiculo.capacidade}
-                </span>
-              )}
-              {veiculo.nivel_combustivel && (
-                <span className="flex items-center gap-1">
-                  <Fuel className="h-3 w-3" />
-                  {fuelLabels[veiculo.nivel_combustivel] || veiculo.nivel_combustivel}
-                </span>
-              )}
+    <SwipeableCard
+      leftAction={swipeActions.leftAction}
+      rightAction={swipeActions.rightAction}
+    >
+      <Card className={cn('transition-all', status.border, status.bg)}>
+        <CardContent className="p-3">
+          <div className="flex items-start gap-3">
+            {/* Vehicle Icon */}
+            <div className={cn(
+              'flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center',
+              status.bg
+            )}>
+              <VehicleIcon className={cn('h-6 w-6', status.color)} />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant="outline" 
-                className={cn('text-xs gap-1', status.color, status.border)}
-              >
-                <StatusIcon className="h-3 w-3" />
-                {status.label}
-              </Badge>
-              {veiculo.possui_avarias && (
-                <Badge variant="destructive" className="text-xs gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Avarias
+            {/* Info */}
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-base">{veiculo.nome || veiculo.placa}</span>
+                {veiculo.nome && (
+                  <span className="text-xs text-muted-foreground">
+                    {veiculo.placa}
+                  </span>
+                )}
+                {/* Swipe hint */}
+                {hasSwipeActions && (
+                  <span className="text-[10px] text-muted-foreground ml-auto">← swipe →</span>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{veiculo.tipo_veiculo}</span>
+                {veiculo.capacidade && (
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    {veiculo.capacidade}
+                  </span>
+                )}
+                {veiculo.nivel_combustivel && (
+                  <span className="flex items-center gap-1">
+                    <Fuel className="h-3 w-3" />
+                    {fuelLabels[veiculo.nivel_combustivel] || veiculo.nivel_combustivel}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant="outline" 
+                  className={cn('text-xs gap-1', status.color, status.border)}
+                >
+                  <StatusIcon className="h-3 w-3" />
+                  {status.label}
                 </Badge>
-              )}
+                {veiculo.possui_avarias && (
+                  <Badge variant="destructive" className="text-xs gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Avarias
+                  </Badge>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onReInspecao(veiculo)}>
-                <Camera className="h-4 w-4 mr-2" />
-                Re-vistoriar
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {veiculo.status !== 'liberado' && (
-                <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'liberado')}>
-                  <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600" />
-                  Liberar
+            {/* Actions dropdown (alternative to swipe) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onReInspecao(veiculo)}>
+                  <Camera className="h-4 w-4 mr-2" />
+                  Re-vistoriar
                 </DropdownMenuItem>
-              )}
-              {veiculo.status !== 'pendente' && (
-                <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'pendente')}>
-                  <AlertTriangle className="h-4 w-4 mr-2 text-destructive" />
-                  Marcar Pendente
-                </DropdownMenuItem>
-              )}
-              {veiculo.status !== 'manutencao' && (
-                <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'manutencao')}>
-                  <Wrench className="h-4 w-4 mr-2" />
-                  Enviar Manutenção
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardContent>
-    </Card>
+                <DropdownMenuSeparator />
+                {veiculo.status !== 'liberado' && (
+                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'liberado')}>
+                    <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600" />
+                    Liberar
+                  </DropdownMenuItem>
+                )}
+                {veiculo.status !== 'pendente' && (
+                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'pendente')}>
+                    <AlertTriangle className="h-4 w-4 mr-2 text-destructive" />
+                    Marcar Pendente
+                  </DropdownMenuItem>
+                )}
+                {veiculo.status !== 'manutencao' && (
+                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'manutencao')}>
+                    <Wrench className="h-4 w-4 mr-2" />
+                    Enviar Manutenção
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardContent>
+      </Card>
+    </SwipeableCard>
   );
 }

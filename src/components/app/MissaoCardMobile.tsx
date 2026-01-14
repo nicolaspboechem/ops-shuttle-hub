@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MapPin, Clock, Loader2, CheckCircle, XCircle, Play, Flag } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SwipeableCard } from './SwipeableCard';
 
 interface MissaoCardMobileProps {
   missao: Missao;
@@ -30,19 +31,57 @@ const statusLabels: Record<string, string> = {
 export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
   const config = prioridadeConfig[missao.prioridade];
 
-  const handleAceitar = () => {
-    if (onAceitar) onAceitar();
+  // Swipe actions based on status
+  const getSwipeActions = () => {
+    if (missao.status === 'pendente') {
+      return {
+        leftAction: onRecusar ? {
+          icon: <XCircle className="h-6 w-6" />,
+          label: 'Recusar',
+          color: 'text-white',
+          bgColor: 'bg-destructive',
+          action: onRecusar,
+        } : undefined,
+        rightAction: onAceitar ? {
+          icon: <CheckCircle className="h-6 w-6" />,
+          label: 'Aceitar',
+          color: 'text-white',
+          bgColor: 'bg-emerald-600',
+          action: onAceitar,
+        } : undefined,
+      };
+    }
+    
+    if (missao.status === 'aceita') {
+      return {
+        rightAction: onIniciar ? {
+          icon: <Play className="h-6 w-6" />,
+          label: 'Iniciar',
+          color: 'text-white',
+          bgColor: 'bg-blue-600',
+          action: onIniciar,
+        } : undefined,
+      };
+    }
+    
+    if (missao.status === 'em_andamento') {
+      return {
+        rightAction: onFinalizar ? {
+          icon: <Flag className="h-6 w-6" />,
+          label: 'Finalizar',
+          color: 'text-white',
+          bgColor: 'bg-emerald-600',
+          action: onFinalizar,
+        } : undefined,
+      };
+    }
+    
+    return {};
   };
 
-  const handleRecusar = () => {
-    if (onRecusar) onRecusar();
-  };
+  const swipeActions = getSwipeActions();
 
-  const handleFinalizar = () => {
-    if (onFinalizar) onFinalizar();
-  };
-
-  return (
+  const cardContent = (
     <Card className={cn(
       "transition-all",
       config.cardBorder,
@@ -56,9 +95,15 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
           <Badge variant="outline" className={config.className}>
             {config.label}
           </Badge>
-          <Badge variant="secondary" className="text-xs">
-            {statusLabels[missao.status] || missao.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {statusLabels[missao.status] || missao.status}
+            </Badge>
+            {/* Swipe hint */}
+            {(swipeActions.leftAction || swipeActions.rightAction) && (
+              <span className="text-[10px] text-muted-foreground">← swipe →</span>
+            )}
+          </div>
         </div>
 
         {/* Título */}
@@ -92,14 +137,14 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
           </div>
         )}
 
-        {/* Ações */}
+        {/* Ações (botões como fallback/alternativa ao swipe) */}
         <div className="flex gap-2">
           {missao.status === 'pendente' && (
             <>
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={handleRecusar}
+                onClick={onRecusar}
                 disabled={loading}
               >
                 {loading ? (
@@ -113,7 +158,7 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
               </Button>
               <Button
                 className="flex-1"
-                onClick={handleAceitar}
+                onClick={onAceitar}
                 disabled={loading}
               >
                 {loading ? (
@@ -138,7 +183,7 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
           {missao.status === 'em_andamento' && onFinalizar && (
             <Button 
               className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-              onClick={handleFinalizar}
+              onClick={onFinalizar}
               disabled={loading}
             >
               {loading ? (
@@ -154,5 +199,15 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
         </div>
       </CardContent>
     </Card>
+  );
+
+  return (
+    <SwipeableCard
+      leftAction={swipeActions.leftAction}
+      rightAction={swipeActions.rightAction}
+      disabled={loading}
+    >
+      {cardContent}
+    </SwipeableCard>
   );
 }
