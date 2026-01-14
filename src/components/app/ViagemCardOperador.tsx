@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -24,12 +25,13 @@ import {
   Loader2,
   XCircle,
   PauseCircle,
-  UserPlus
+  UserPlus,
+  RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ViagemCardOperadorProps {
-  viagem: Viagem;
+  viagem: Viagem & { veiculo?: { nome: string | null; placa: string; tipo_veiculo: string } | null };
   onUpdate: () => void;
 }
 
@@ -62,17 +64,21 @@ const statusConfig: Record<StatusViagemOperacao, { label: string; className: str
 };
 
 export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps) {
-  const { iniciarViagem, registrarChegada, cancelarViagem } = useViagemOperacao();
+  const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem } = useViagemOperacao();
   
   const [loading, setLoading] = useState(false);
   const [showPaxDialog, setShowPaxDialog] = useState(false);
   const [paxInput, setPaxInput] = useState('');
+  const [aguardarRetorno, setAguardarRetorno] = useState(false);
 
   const status = (viagem.status || 'agendado') as StatusViagemOperacao;
   const config = statusConfig[status];
   const StatusIcon = config.icon;
 
   const { getName } = useUserNames([viagem.criado_por, viagem.iniciado_por, viagem.finalizado_por]);
+
+  // Nome do veículo (prioriza nome, fallback para placa)
+  const nomeVeiculo = viagem.veiculo?.nome || viagem.placa;
 
   const handleIniciar = async () => {
     setLoading(true);
@@ -83,6 +89,7 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
 
   const handleChegada = () => {
     setPaxInput(viagem.qtd_pax?.toString() || '');
+    setAguardarRetorno(viagem.tipo_operacao === 'shuttle'); // Shuttle default to aguardar
     setShowPaxDialog(true);
   };
 
@@ -91,8 +98,24 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
     setShowPaxDialog(false);
     
     const pax = paxInput ? parseInt(paxInput) : undefined;
-    await registrarChegada(viagem, pax);
+    // Apenas shuttle pode aguardar retorno
+    const deveAguardar = viagem.tipo_operacao === 'shuttle' && aguardarRetorno;
+    await registrarChegada(viagem, pax, deveAguardar);
     
+    onUpdate();
+    setLoading(false);
+  };
+
+  const handleIniciarRetorno = async () => {
+    setLoading(true);
+    await iniciarRetorno(viagem);
+    onUpdate();
+    setLoading(false);
+  };
+
+  const handleEncerrar = async () => {
+    setLoading(true);
+    await encerrarViagem(viagem);
     onUpdate();
     setLoading(false);
   };
@@ -125,12 +148,12 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
             </Badge>
           </div>
 
-          {/* Motorista e Placa */}
+          {/* Motorista e Veículo */}
           <div className="flex items-center gap-2 mb-2">
             <Bus className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{viagem.motorista}</span>
-            {viagem.placa && (
-              <span className="text-muted-foreground">• {viagem.placa}</span>
+            {nomeVeiculo && (
+              <span className="text-muted-foreground">• {nomeVeiculo}</span>
             )}
           </div>
 
@@ -246,6 +269,52 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
               </Button>
             )}
 
+            {/* Shuttle em standby: pode iniciar retorno ou encerrar */}
+            {status === 'aguardando_retorno' && viagem.tipo_operacao === 'shuttle' && (
+              <div className="flex gap-2 w-full">
+                <Button 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700" 
+                  onClick={handleIniciarRetorno}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Iniciar Retorno
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={handleEncerrar}
+                  disabled={loading}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {/* Outros tipos em standby (missão/transfer): apenas encerrar */}
+            {status === 'aguardando_retorno' && viagem.tipo_operacao !== 'shuttle' && (
+              <Button 
+                variant="outline"
+                className="flex-1" 
+                onClick={handleEncerrar}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Encerrar
+                  </>
+                )}
+              </Button>
+            )}
+
             {status === 'encerrado' && (
               <div className="flex-1 text-center text-sm text-muted-foreground py-2">
                 {viagem.h_chegada && <>Chegada: {viagem.h_chegada?.slice(0, 5)}</>}
@@ -282,6 +351,20 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
                 autoFocus
               />
             </div>
+
+            {/* Opção de aguardar retorno apenas para Shuttle */}
+            {viagem.tipo_operacao === 'shuttle' && (
+              <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50">
+                <Checkbox 
+                  id="aguardarRetorno" 
+                  checked={aguardarRetorno}
+                  onCheckedChange={(checked) => setAguardarRetorno(checked === true)}
+                />
+                <label htmlFor="aguardarRetorno" className="text-sm cursor-pointer">
+                  Aguardar retorno (veículo fica em standby)
+                </label>
+              </div>
+            )}
             
             <div className="flex gap-3">
               <Button
@@ -292,7 +375,7 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
                 Cancelar
               </Button>
               <Button onClick={confirmChegada} className="flex-1">
-                Confirmar
+                {aguardarRetorno && viagem.tipo_operacao === 'shuttle' ? 'Aguardar Retorno' : 'Encerrar Viagem'}
               </Button>
             </div>
           </div>

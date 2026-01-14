@@ -40,7 +40,10 @@ export function useViagens(eventoId?: string) {
 
     let query = supabase
       .from('viagens')
-      .select('*')
+      .select(`
+        *,
+        veiculo:veiculos!veiculo_id (nome, placa, tipo_veiculo)
+      `)
       .order('h_pickup', { ascending: true });
 
     if (eventoId && isValidUUID) {
