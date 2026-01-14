@@ -199,7 +199,6 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
   };
 
   const swipeActions = getSwipeActions();
-  const hasSwipeActions = !!swipeActions.leftAction || !!swipeActions.rightAction;
 
   return (
     <>

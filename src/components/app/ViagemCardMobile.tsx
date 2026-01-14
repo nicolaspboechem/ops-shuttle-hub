@@ -64,7 +64,6 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
   };
 
   const swipeActions = getSwipeActions();
-  const hasSwipeActions = !!swipeActions.rightAction || !!swipeActions.leftAction;
 
   const cardContent = (
     <Card className={cn(

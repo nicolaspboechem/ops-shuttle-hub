@@ -103,7 +103,6 @@ export function VeiculoCardSupervisor({
   };
 
   const swipeActions = getSwipeActions();
-  const hasSwipeActions = !!swipeActions.leftAction || !!swipeActions.rightAction;
 
   return (
     <SwipeableCard
