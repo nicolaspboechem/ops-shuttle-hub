@@ -48,9 +48,10 @@ export function useEquipe(eventoId?: string) {
       }
 
       // Fetch motoristas for this event
+      // Especificar FK explícita para evitar ambiguidade no relacionamento bidirecional
       const { data: motoristas, error: motError } = await supabase
         .from('motoristas')
-        .select('*, veiculos(placa)')
+        .select('*, veiculos!veiculo_id(placa)')
         .eq('evento_id', eventoId);
 
       if (motError) throw motError;
