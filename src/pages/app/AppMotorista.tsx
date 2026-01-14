@@ -21,8 +21,7 @@ import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotorist
 import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ArrowLeft, Loader2, Search, CheckCircle2, Bus, Plus, MoreVertical, LogOut, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, Plus, MoreVertical, LogOut, ClipboardList, Car } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
@@ -35,16 +34,20 @@ export default function AppMotorista() {
   const { motoristas } = useMotoristas(eventoId);
   const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
   
-  const [busca, setBusca] = useState<string>('');
   const [operando, setOperando] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const evento = eventos.find(e => e.id === eventoId);
   
-  // Find motorista ID from name
-  const motoristaData = motoristas.find(m => 
-    m.nome.toLowerCase() === busca.toLowerCase().trim()
-  );
+  // Find motorista by user profile name (auto-identification)
+  const nomeMotorista = profile?.full_name || '';
+  
+  const motoristaData = useMemo(() => {
+    if (!nomeMotorista) return null;
+    return motoristas.find(m => 
+      m.nome.toLowerCase() === nomeMotorista.toLowerCase().trim()
+    );
+  }, [motoristas, nomeMotorista]);
 
   // Hook de presença (check-in/check-out)
   const {
@@ -57,7 +60,7 @@ export default function AppMotorista() {
     refetch: refetchPresenca
   } = useMotoristaPresenca(eventoId, motoristaData?.id);
 
-  // Filter missions for this driver
+  // Filter missions for this driver (only active)
   const minhasMissoes = useMemo(() => {
     if (!motoristaData) return [];
     return missoes.filter(m => 
@@ -65,6 +68,27 @@ export default function AppMotorista() {
       ['pendente', 'aceita', 'em_andamento'].includes(m.status)
     );
   }, [missoes, motoristaData]);
+
+  // Filter trips - only ACTIVE (no completed/cancelled)
+  const minhasViagensAtivas = useMemo(() => {
+    if (!motoristaData) return [];
+    return viagens
+      .filter(v => 
+        v.motorista_id === motoristaData.id && 
+        v.status !== 'encerrado' && 
+        v.status !== 'cancelado'
+      )
+      .sort((a, b) => {
+        const ordem: Record<string, number> = {
+          'em_andamento': 0,
+          'aguardando_retorno': 1,
+          'agendado': 2
+        };
+        const statusA = a.status || 'agendado';
+        const statusB = b.status || 'agendado';
+        return (ordem[statusA] || 5) - (ordem[statusB] || 5);
+      });
+  }, [viagens, motoristaData]);
 
   const handleRefresh = async () => {
     await Promise.all([refetch(), refetchMissoes(), refetchPresenca()]);
@@ -194,43 +218,6 @@ export default function AppMotorista() {
     }
   };
 
-  useEffect(() => {
-    if (profile?.full_name && !busca) {
-      setBusca(profile.full_name);
-    }
-  }, [profile]);
-
-  const minhasViagens = useMemo(() => {
-    if (!busca.trim()) return [];
-    
-    const termo = busca.toLowerCase();
-    return viagens
-      .filter(v => 
-        v.motorista.toLowerCase().includes(termo) || 
-        v.placa?.toLowerCase().includes(termo)
-      )
-      .sort((a, b) => {
-        const ordem: Record<string, number> = {
-          'em_andamento': 0,
-          'aguardando_retorno': 1,
-          'agendado': 2,
-          'encerrado': 3,
-          'cancelado': 4
-        };
-        const statusA = a.status || 'agendado';
-        const statusB = b.status || 'agendado';
-        return (ordem[statusA] || 5) - (ordem[statusB] || 5);
-      });
-  }, [viagens, busca]);
-
-  const stats = useMemo(() => {
-    const ativas = minhasViagens.filter(v => 
-      v.status !== 'encerrado' && v.status !== 'cancelado'
-    ).length;
-    const concluidas = minhasViagens.filter(v => v.status === 'encerrado').length;
-    return { ativas, concluidas, total: minhasViagens.length };
-  }, [minhasViagens]);
-
   const handleAction = async (viagemId: string, action: 'iniciar' | 'chegada') => {
     const viagem = viagens.find(v => v.id === viagemId);
     if (!viagem) return;
@@ -244,6 +231,10 @@ export default function AppMotorista() {
       setOperando(null);
     }
   };
+
+  // Check if there's anything to show (missions or active trips)
+  const hasContent = minhasMissoes.length > 0 || minhasViagensAtivas.length > 0;
+  const isIdentified = !!motoristaData;
 
   if (loading) {
     return (
@@ -269,8 +260,8 @@ export default function AppMotorista() {
                 className="h-10 w-10 rounded-lg object-contain"
               />
               <div>
-                <h1 className="text-lg font-semibold">Motorista</h1>
-                <p className="text-xs text-muted-foreground">{evento?.nome_planilha} - AS Brasil</p>
+                <h1 className="text-lg font-semibold">{nomeMotorista || 'Motorista'}</h1>
+                <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
               </div>
             </div>
 
@@ -302,17 +293,6 @@ export default function AppMotorista() {
       {/* Main content com Pull-to-Refresh */}
       <PullToRefresh onRefresh={handleRefresh}>
         <main className="container mx-auto px-4 py-4 space-y-4 pb-24">
-          {/* Busca por nome/placa */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome ou placa..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
           {/* Check-in/Check-out Card */}
           {checkinEnabled && motoristaData && (
             <CheckinCheckoutCard
@@ -322,24 +302,6 @@ export default function AppMotorista() {
               onCheckout={realizarCheckout}
               loading={loadingPresenca}
             />
-          )}
-
-          {/* Stats Card */}
-          {busca && (
-            <div className="grid grid-cols-3 gap-2">
-              <div className="text-center p-3 rounded-lg bg-primary/10">
-                <p className="text-2xl font-bold text-primary">{stats.ativas}</p>
-                <p className="text-xs text-muted-foreground">Ativas</p>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-emerald-500/10">
-                <p className="text-2xl font-bold text-emerald-600">{stats.concluidas}</p>
-                <p className="text-xs text-muted-foreground">Concluídas</p>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-muted/50">
-                <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </div>
-            </div>
           )}
 
           {/* Missões designadas */}
@@ -363,60 +325,47 @@ export default function AppMotorista() {
             </div>
           )}
 
-          {/* Lista de Viagens */}
-          {!busca.trim() ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Search className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Busque suas viagens</p>
-              <p className="text-sm">Digite seu nome ou placa para ver suas viagens</p>
-            </div>
-          ) : minhasViagens.length === 0 && minhasMissoes.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Nenhuma viagem encontrada</p>
-              <p className="text-sm mb-4">Nenhuma viagem para "{busca}"</p>
-            </div>
-          ) : minhasViagens.length > 0 && (
+          {/* Viagens Ativas */}
+          {minhasViagensAtivas.length > 0 && (
             <div className="space-y-3">
-              {/* Viagens ativas primeiro */}
-              {minhasViagens
-                .filter(v => v.status !== 'encerrado' && v.status !== 'cancelado')
-                .map(viagem => (
-                  <ViagemCardMobile
-                    key={viagem.id}
-                    viagem={viagem}
-                    loading={operando === viagem.id}
-                    onIniciar={() => handleAction(viagem.id, 'iniciar')}
-                    onChegada={() => handleAction(viagem.id, 'chegada')}
-                  />
-                ))
-              }
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Car className="h-4 w-4 text-primary" />
+                <span>Viagens Ativas ({minhasViagensAtivas.length})</span>
+              </div>
+              {minhasViagensAtivas.map(viagem => (
+                <ViagemCardMobile
+                  key={viagem.id}
+                  viagem={viagem}
+                  loading={operando === viagem.id}
+                  onIniciar={() => handleAction(viagem.id, 'iniciar')}
+                  onChegada={() => handleAction(viagem.id, 'chegada')}
+                />
+              ))}
+            </div>
+          )}
 
-              {/* Viagens concluídas */}
-              {minhasViagens.filter(v => v.status === 'encerrado').length > 0 && (
-                <div className="pt-4 space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>Viagens concluídas ({minhasViagens.filter(v => v.status === 'encerrado').length})</span>
-                  </div>
-                  {minhasViagens
-                    .filter(v => v.status === 'encerrado')
-                    .map(viagem => (
-                      <ViagemCardMobile
-                        key={viagem.id}
-                        viagem={viagem}
-                      />
-                    ))
-                  }
-                </div>
-              )}
+          {/* Empty State - Tudo certo */}
+          {!hasContent && isIdentified && (
+            <div className="text-center py-16 text-muted-foreground">
+              <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-emerald-500 opacity-50" />
+              <p className="text-lg font-medium">Tudo certo por aqui!</p>
+              <p className="text-sm">Nenhuma viagem ou missão pendente</p>
+            </div>
+          )}
+
+          {/* Empty State - Motorista não identificado */}
+          {!isIdentified && (
+            <div className="text-center py-16 text-muted-foreground">
+              <Car className="h-16 w-16 mx-auto mb-4 opacity-30" />
+              <p className="text-lg font-medium">Motorista não identificado</p>
+              <p className="text-sm">Seu perfil não está vinculado a um motorista cadastrado</p>
             </div>
           )}
         </main>
       </PullToRefresh>
 
       {/* FAB Fixo - Nova Viagem */}
-      {busca.trim() && (
+      {isIdentified && (
         <Button
           size="lg"
           onClick={() => setShowForm(true)}
@@ -427,12 +376,12 @@ export default function AppMotorista() {
       )}
 
       {/* Form de criação para motorista */}
-      {busca.trim() && (
+      {isIdentified && (
         <CreateViagemMotoristaForm
           open={showForm}
           onOpenChange={setShowForm}
           eventoId={eventoId!}
-          motoristaName={busca.trim()}
+          motoristaName={nomeMotorista}
           onCreated={refetch}
         />
       )}
