@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink, ClipboardCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,9 @@ import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { VeiculoAuditoriaDiaModal } from './VeiculoAuditoriaDiaModal';
+import { VistoriaHistoricoCard } from './VistoriaHistoricoCard';
+import { VistoriaDetalheModal } from './VistoriaDetalheModal';
+import { useVistoriaHistoricoByPlaca, type VistoriaHistorico } from '@/hooks/useVistoriaHistorico';
 
 interface VeiculoMetricas {
   placa: string;
@@ -37,12 +41,22 @@ interface VeiculosAuditoriaProps {
 }
 
 export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: VeiculosAuditoriaProps) {
+  const { eventoId } = useParams<{ eventoId: string }>();
   const [filtroTipoVeiculo, setFiltroTipoVeiculo] = useState<string>('all');
   const [filtroFornecedor, setFiltroFornecedor] = useState<string>('all');
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
   const [viewMode, setViewMode] = useState<'card' | 'lista'>('lista');
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'uso' | 'vistorias'>('uso');
+  const [selectedVistoriaPlaca, setSelectedVistoriaPlaca] = useState<string | null>(null);
+  const [selectedVistoriaDetalhe, setSelectedVistoriaDetalhe] = useState<VistoriaHistorico | null>(null);
+
+  // Buscar histórico de vistorias quando seleciona um veículo para ver vistorias
+  const { data: vistoriasHistorico, isLoading: vistoriasLoading } = useVistoriaHistoricoByPlaca(
+    selectedVistoriaPlaca,
+    eventoId || ''
+  );
 
   // Fornecedores únicos
   const fornecedoresUnicos = useMemo(() => {
@@ -452,6 +466,20 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
                           Fornecedor: <span className="font-medium">{v.fornecedor}</span>
                         </p>
                       )}
+
+                      {/* Botão para ver vistorias */}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full mt-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedVistoriaPlaca(v.placa);
+                        }}
+                      >
+                        <ClipboardCheck className="h-4 w-4 mr-2" />
+                        Ver Vistorias
+                      </Button>
                     </CardContent>
                   </Card>
                 );
@@ -548,6 +576,55 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: 
         motoristas={motoristas}
         isOpen={!!selectedVeiculo}
         onClose={() => setSelectedVeiculo(null)}
+      />
+
+      {/* Modal de histórico de vistorias */}
+      {selectedVistoriaPlaca && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <CardHeader className="flex-shrink-0 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5" />
+                  Histórico de Vistorias
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Veículo: <code className="font-mono bg-muted px-1.5 py-0.5 rounded">{selectedVistoriaPlaca}</code>
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedVistoriaPlaca(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto space-y-3">
+              {vistoriasLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Carregando histórico...
+                </div>
+              ) : vistoriasHistorico && vistoriasHistorico.length > 0 ? (
+                vistoriasHistorico.map(vistoria => (
+                  <VistoriaHistoricoCard
+                    key={vistoria.id}
+                    vistoria={vistoria}
+                    onVerFotos={setSelectedVistoriaDetalhe}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ClipboardCheck className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                  <p>Nenhuma vistoria registrada para este veículo</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de detalhe da vistoria com fotos */}
+      <VistoriaDetalheModal
+        vistoria={selectedVistoriaDetalhe}
+        open={!!selectedVistoriaDetalhe}
+        onClose={() => setSelectedVistoriaDetalhe(null)}
       />
     </div>
   );

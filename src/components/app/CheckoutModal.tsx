@@ -15,6 +15,8 @@ import { LogOut, Clock, Car, Route, Loader2 } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -23,6 +25,8 @@ interface CheckoutModalProps {
   viagensHoje?: number;
   onConfirm: (observacao?: string) => Promise<boolean>;
   loading?: boolean;
+  eventoId?: string;
+  motoristaNome?: string;
 }
 
 export function CheckoutModal({
@@ -31,13 +35,42 @@ export function CheckoutModal({
   presenca,
   viagensHoje = 0,
   onConfirm,
-  loading
+  loading,
+  eventoId,
+  motoristaNome
 }: CheckoutModalProps) {
+  const { user, profile } = useAuth();
   const [observacao, setObservacao] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     setSubmitting(true);
+    
+    // Se tem observação e veículo, registrar no histórico de vistorias
+    if (observacao.trim() && presenca?.veiculo_id && eventoId) {
+      try {
+        await supabase.from('veiculo_vistoria_historico').insert({
+          veiculo_id: presenca.veiculo_id,
+          evento_id: eventoId,
+          tipo_vistoria: 'checkout',
+          status_anterior: 'liberado',
+          status_novo: 'liberado', // Mantém liberado, mas registra a observação
+          possui_avarias: true, // Assume que observação indica problema
+          inspecao_dados: null,
+          fotos_urls: null,
+          nivel_combustivel: null,
+          km_registrado: null,
+          observacoes: observacao.trim(),
+          realizado_por: user?.id || null,
+          realizado_por_nome: profile?.full_name || null,
+          motorista_id: presenca.motorista_id,
+          motorista_nome: motoristaNome || null
+        });
+      } catch (err) {
+        console.error('Erro ao registrar histórico de checkout:', err);
+      }
+    }
+    
     const success = await onConfirm(observacao.trim() || undefined);
     setSubmitting(false);
     
