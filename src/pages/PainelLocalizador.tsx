@@ -152,12 +152,11 @@ export default function PainelLocalizador() {
   }
 
   // KANBAN VIEW (existing functionality)
-  const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
+  const allMotoristas = Object.values(motoristasPorLocalizacao).flat();
+  const totalMotoristas = allMotoristas.length;
   const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
-  const disponiveis = Object.entries(motoristasPorLocalizacao)
-    .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
-    .flatMap(([, arr]) => arr)
-    .filter(m => m.status === 'disponivel').length;
+  // Contar TODOS os motoristas com status 'disponivel', independente da localização
+  const disponiveis = allMotoristas.filter(m => m.status === 'disponivel').length;
 
   if (loading) {
     return (
