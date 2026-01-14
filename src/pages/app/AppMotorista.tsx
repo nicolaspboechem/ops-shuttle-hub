@@ -236,6 +236,24 @@ export default function AppMotorista() {
   const hasContent = minhasMissoes.length > 0 || minhasViagensAtivas.length > 0;
   const isIdentified = !!motoristaData;
 
+  // Driver status indicator
+  const getStatusInfo = () => {
+    if (!motoristaData) return { label: 'Offline', color: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' };
+    
+    const status = motoristaData.status;
+    
+    if (status === 'em_viagem') {
+      return { label: 'Em Viagem', color: 'bg-amber-500/15 text-amber-600', dot: 'bg-amber-500' };
+    }
+    if (status === 'disponivel') {
+      return { label: 'Online', color: 'bg-emerald-500/15 text-emerald-600', dot: 'bg-emerald-500' };
+    }
+    // indisponivel or any other
+    return { label: 'Offline', color: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' };
+  };
+  
+  const statusInfo = getStatusInfo();
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -260,7 +278,13 @@ export default function AppMotorista() {
                 className="h-10 w-10 rounded-lg object-contain"
               />
               <div>
-                <h1 className="text-lg font-semibold">{nomeMotorista || 'Motorista'}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-semibold">{nomeMotorista || 'Motorista'}</h1>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot} animate-pulse`} />
+                    {statusInfo.label}
+                  </span>
+                </div>
                 <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
               </div>
             </div>
