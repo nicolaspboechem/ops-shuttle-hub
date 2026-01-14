@@ -6,6 +6,7 @@ import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus, ClipboardL
 import { cn } from '@/lib/utils';
 import { useUserNames } from '@/hooks/useUserNames';
 import { MissaoBadge } from '@/components/viagens/MissaoBadge';
+import { SwipeableCard } from './SwipeableCard';
 
 interface ViagemCardMobileProps {
   viagem: Viagem;
@@ -31,7 +32,41 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
   // Buscar nomes dos usuários envolvidos
   const { getName } = useUserNames([viagem.criado_por, viagem.iniciado_por, viagem.finalizado_por]);
 
-  return (
+  // Swipe actions based on status
+  const getSwipeActions = () => {
+    if (status === 'agendado' && onIniciar) {
+      return {
+        leftAction: undefined,
+        rightAction: {
+          icon: <Play className="h-6 w-6" />,
+          label: 'Iniciar',
+          color: 'text-white',
+          bgColor: 'bg-blue-600',
+          action: onIniciar,
+        },
+      };
+    }
+    
+    if (status === 'em_andamento' && onChegada) {
+      return {
+        leftAction: undefined,
+        rightAction: {
+          icon: <MapPin className="h-6 w-6" />,
+          label: 'Chegou',
+          color: 'text-white',
+          bgColor: 'bg-amber-600',
+          action: onChegada,
+        },
+      };
+    }
+    
+    return { leftAction: undefined, rightAction: undefined };
+  };
+
+  const swipeActions = getSwipeActions();
+  const hasSwipeActions = !!swipeActions.rightAction || !!swipeActions.leftAction;
+
+  const cardContent = (
     <Card className={cn(
       "overflow-hidden transition-all",
       status === 'em_andamento' && "ring-2 ring-blue-500 shadow-lg"
@@ -48,10 +83,16 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Badge className={cn("text-white", config.color)}>
-              {config.icon}
-              <span className="ml-1">{config.label}</span>
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className={cn("text-white", config.color)}>
+                {config.icon}
+                <span className="ml-1">{config.label}</span>
+              </Badge>
+              {/* Swipe hint */}
+              {hasSwipeActions && (
+                <span className="text-[10px] text-muted-foreground">swipe →</span>
+              )}
+            </div>
             {viagem.origem_missao_id && (
               <MissaoBadge missaoId={viagem.origem_missao_id} compact />
             )}
@@ -115,7 +156,7 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
           </div>
         )}
 
-        {/* Action Buttons - Motorista só pode Iniciar e Chegou */}
+        {/* Action Buttons - Motorista só pode Iniciar e Chegou (fallback para swipe) */}
         <div className="flex gap-2 pt-2">
           {status === 'agendado' && onIniciar && (
             <Button 
@@ -154,5 +195,15 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
         </div>
       </CardContent>
     </Card>
+  );
+
+  return (
+    <SwipeableCard
+      leftAction={swipeActions.leftAction}
+      rightAction={swipeActions.rightAction}
+      disabled={loading}
+    >
+      {cardContent}
+    </SwipeableCard>
   );
 }

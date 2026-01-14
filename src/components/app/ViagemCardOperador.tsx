@@ -29,6 +29,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SwipeableCard } from './SwipeableCard';
 
 interface ViagemCardOperadorProps {
   viagem: Viagem & { veiculo?: { nome: string | null; placa: string; tipo_veiculo: string } | null };
@@ -128,21 +129,104 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
     setLoading(false);
   };
 
+  // Swipe actions based on status
+  const getSwipeActions = () => {
+    if (status === 'agendado') {
+      return {
+        leftAction: {
+          icon: <XCircle className="h-6 w-6" />,
+          label: 'Cancelar',
+          color: 'text-white',
+          bgColor: 'bg-destructive',
+          action: handleCancelar,
+        },
+        rightAction: {
+          icon: <Play className="h-6 w-6" />,
+          label: 'Iniciar',
+          color: 'text-white',
+          bgColor: 'bg-blue-600',
+          action: handleIniciar,
+        },
+      };
+    }
+    
+    if (status === 'em_andamento') {
+      return {
+        leftAction: undefined,
+        rightAction: {
+          icon: <CheckCircle className="h-6 w-6" />,
+          label: 'Chegou',
+          color: 'text-white',
+          bgColor: 'bg-amber-600',
+          action: handleChegada,
+        },
+      };
+    }
+    
+    if (status === 'aguardando_retorno' && viagem.tipo_operacao === 'shuttle') {
+      return {
+        leftAction: {
+          icon: <CheckCircle className="h-6 w-6" />,
+          label: 'Encerrar',
+          color: 'text-white',
+          bgColor: 'bg-muted',
+          action: handleEncerrar,
+        },
+        rightAction: {
+          icon: <RotateCcw className="h-6 w-6" />,
+          label: 'Retorno',
+          color: 'text-white',
+          bgColor: 'bg-blue-600',
+          action: handleIniciarRetorno,
+        },
+      };
+    }
+    
+    if (status === 'aguardando_retorno') {
+      return {
+        leftAction: undefined,
+        rightAction: {
+          icon: <CheckCircle className="h-6 w-6" />,
+          label: 'Encerrar',
+          color: 'text-white',
+          bgColor: 'bg-emerald-600',
+          action: handleEncerrar,
+        },
+      };
+    }
+    
+    return { leftAction: undefined, rightAction: undefined };
+  };
+
+  const swipeActions = getSwipeActions();
+  const hasSwipeActions = !!swipeActions.leftAction || !!swipeActions.rightAction;
+
   return (
     <>
-      <Card className={cn(
-        "transition-all",
-        status === 'em_andamento' && "border-blue-500/50 bg-blue-500/5",
-        status === 'encerrado' && "opacity-70",
-        status === 'cancelado' && "opacity-50"
-      )}>
+      <SwipeableCard
+        leftAction={swipeActions.leftAction}
+        rightAction={swipeActions.rightAction}
+        disabled={loading || status === 'encerrado' || status === 'cancelado'}
+      >
+        <Card className={cn(
+          "transition-all",
+          status === 'em_andamento' && "border-blue-500/50 bg-blue-500/5",
+          status === 'encerrado' && "opacity-70",
+          status === 'cancelado' && "opacity-50"
+        )}>
         <CardContent className="p-4">
           {/* Header: Status e Tipo */}
           <div className="flex items-center justify-between mb-3">
-            <Badge variant="outline" className={config.className}>
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {config.label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={config.className}>
+                <StatusIcon className="h-3 w-3 mr-1" />
+                {config.label}
+              </Badge>
+              {/* Swipe hint */}
+              {hasSwipeActions && (
+                <span className="text-[10px] text-muted-foreground">← swipe →</span>
+              )}
+            </div>
             <Badge variant="secondary">
               {viagem.tipo_veiculo === 'Ônibus' ? '🚌' : '🚐'} {viagem.tipo_operacao}
             </Badge>
@@ -329,9 +413,10 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
           </div>
         </CardContent>
       </Card>
+    </SwipeableCard>
 
-      {/* Dialog para confirmar PAX na chegada */}
-      <Dialog open={showPaxDialog} onOpenChange={setShowPaxDialog}>
+    {/* Dialog para confirmar PAX na chegada */}
+    <Dialog open={showPaxDialog} onOpenChange={setShowPaxDialog}>
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
             <DialogTitle>Confirmar Chegada</DialogTitle>
