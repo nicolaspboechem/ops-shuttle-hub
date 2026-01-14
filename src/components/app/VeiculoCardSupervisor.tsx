@@ -93,10 +93,10 @@ export function VeiculoCardSupervisor({
           {/* Info */}
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-base">{veiculo.placa}</span>
+              <span className="font-bold text-base">{veiculo.nome || veiculo.placa}</span>
               {veiculo.nome && (
-                <span className="text-sm text-muted-foreground truncate">
-                  ({veiculo.nome})
+                <span className="text-xs text-muted-foreground">
+                  {veiculo.placa}
                 </span>
               )}
             </div>

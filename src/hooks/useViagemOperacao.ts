@@ -147,8 +147,8 @@ export function useViagemOperacao() {
     return true;
   }, [user, registrarLog]);
 
-  // Registrar chegada agora ENCERRA a viagem (cada viagem = 1 rota)
-  const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number) => {
+  // Registrar chegada - pode encerrar ou aguardar retorno (apenas Shuttle)
+  const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean) => {
     if (!user) {
       toast.error('Você precisa estar logado');
       return false;
@@ -156,16 +156,21 @@ export function useViagemOperacao() {
 
     const now = new Date();
     const horaChegada = now.toTimeString().slice(0, 8);
+    
+    // Shuttle pode aguardar retorno, outros tipos encerram diretamente
+    const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle') 
+      ? 'aguardando_retorno' 
+      : 'encerrado';
 
     const { error } = await supabase
       .from('viagens')
       .update({
-        status: 'encerrado' as StatusViagemOperacao,
+        status: novoStatus as StatusViagemOperacao,
         h_chegada: horaChegada,
-        h_fim_real: now.toISOString(),
-        finalizado_por: user.id,
+        h_fim_real: novoStatus === 'encerrado' ? now.toISOString() : null,
+        finalizado_por: novoStatus === 'encerrado' ? user.id : null,
         atualizado_por: user.id,
-        encerrado: true,
+        encerrado: novoStatus === 'encerrado',
         qtd_pax: qtdPax ?? viagem.qtd_pax
       })
       .eq('id', viagem.id);
@@ -178,23 +183,24 @@ export function useViagemOperacao() {
 
     await registrarLog(viagem.id, 'chegada', { 
       h_chegada: horaChegada,
-      qtd_pax: qtdPax ?? viagem.qtd_pax
+      qtd_pax: qtdPax ?? viagem.qtd_pax,
+      aguardando_retorno: aguardarRetorno
     });
 
-    // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
-    if (viagem.evento_id) {
+    // Apenas atualizar status do motorista se encerrou (não está em standby)
+    if (viagem.evento_id && novoStatus === 'encerrado') {
       const temOutrasViagens = await motoristaTemViagensAtivas(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.id);
       if (!temOutrasViagens) {
         await atualizarStatusMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, 'disponivel');
       }
-      
-      // Atualizar localização do motorista para o ponto de desembarque
-      if (viagem.ponto_desembarque) {
-        await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
-      }
     }
     
-    toast.success('Rota concluída!');
+    // Atualizar localização do motorista para o ponto de desembarque
+    if (viagem.evento_id && viagem.ponto_desembarque) {
+      await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+    }
+    
+    toast.success(aguardarRetorno ? 'Aguardando retorno...' : 'Rota concluída!');
     return true;
   }, [user, registrarLog]);
 
@@ -267,10 +273,82 @@ export function useViagemOperacao() {
     return true;
   }, [user, registrarLog]);
 
+  // Iniciar viagem de retorno (cria nova viagem com origem/destino invertidos)
+  const iniciarRetorno = useCallback(async (viagemOriginal: Viagem) => {
+    if (!user) {
+      toast.error('Você precisa estar logado');
+      return null;
+    }
+
+    const now = new Date();
+
+    // 1. Criar nova viagem com origem/destino invertidos
+    const { data: novaViagem, error: insertError } = await supabase
+      .from('viagens')
+      .insert([{
+        evento_id: viagemOriginal.evento_id,
+        tipo_operacao: viagemOriginal.tipo_operacao,
+        motorista: viagemOriginal.motorista,
+        motorista_id: viagemOriginal.motorista_id,
+        veiculo_id: viagemOriginal.veiculo_id,
+        placa: viagemOriginal.placa,
+        tipo_veiculo: viagemOriginal.tipo_veiculo,
+        ponto_embarque: viagemOriginal.ponto_desembarque, // Invertido
+        ponto_embarque_id: viagemOriginal.ponto_desembarque_id,
+        ponto_desembarque: viagemOriginal.ponto_embarque, // Invertido  
+        ponto_desembarque_id: viagemOriginal.ponto_embarque_id,
+        status: 'em_andamento',
+        iniciado_por: user.id,
+        criado_por: user.id,
+        atualizado_por: user.id,
+        viagem_pai_id: viagemOriginal.id,
+        h_inicio_real: now.toISOString(),
+        h_pickup: now.toTimeString().slice(0, 8),
+        qtd_pax: 0
+      }])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Erro ao criar viagem de retorno:', insertError);
+      toast.error('Erro ao iniciar retorno');
+      return null;
+    }
+
+    // 2. Encerrar viagem original
+    await supabase
+      .from('viagens')
+      .update({ 
+        status: 'encerrado' as StatusViagemOperacao, 
+        encerrado: true,
+        finalizado_por: user.id,
+        atualizado_por: user.id,
+        h_fim_real: now.toISOString()
+      })
+      .eq('id', viagemOriginal.id);
+
+    // 3. Registrar logs
+    await registrarLog(viagemOriginal.id, 'encerramento', { motivo: 'Iniciou retorno' });
+    await registrarLog(novaViagem.id, 'inicio', { 
+      motorista: viagemOriginal.motorista,
+      placa: viagemOriginal.placa,
+      viagem_origem: viagemOriginal.id
+    });
+
+    // 4. Manter motorista em 'em_viagem'
+    if (viagemOriginal.evento_id) {
+      await atualizarStatusMotorista(viagemOriginal.motorista_id, viagemOriginal.motorista, viagemOriginal.evento_id, 'em_viagem');
+    }
+
+    toast.success('Retorno iniciado!');
+    return novaViagem;
+  }, [user, registrarLog]);
+
   return {
     iniciarViagem,
     registrarChegada,
     encerrarViagem,
-    cancelarViagem
+    cancelarViagem,
+    iniciarRetorno
   };
 }
