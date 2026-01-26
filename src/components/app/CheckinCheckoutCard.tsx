@@ -18,6 +18,7 @@ interface CheckinCheckoutCardProps {
   onCheckout: (observacao?: string) => Promise<boolean>;
   loading?: boolean;
   viagensHoje?: number;
+  hideCheckout?: boolean; // Ocultar botão de checkout (usado quando está na aba de histórico)
 }
 
 export function CheckinCheckoutCard({ 
@@ -26,7 +27,8 @@ export function CheckinCheckoutCard({
   onCheckin, 
   onCheckout, 
   loading,
-  viagensHoje = 0
+  viagensHoje = 0,
+  hideCheckout = false
 }: CheckinCheckoutCardProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showVistoriaModal, setShowVistoriaModal] = useState(false);
@@ -215,15 +217,18 @@ export function CheckinCheckoutCard({
               </div>
             </div>
 
-            <Button 
-              variant="destructive" 
-              className="w-full gap-2" 
-              onClick={() => setShowCheckoutModal(true)}
-              disabled={loading}
-            >
-              <LogOut className="h-4 w-4" />
-              Encerrar Expediente
-            </Button>
+            {/* Botão de checkout - só mostra se hideCheckout for false */}
+            {!hideCheckout && (
+              <Button 
+                variant="destructive" 
+                className="w-full gap-2" 
+                onClick={() => setShowCheckoutModal(true)}
+                disabled={loading}
+              >
+                <LogOut className="h-4 w-4" />
+                Encerrar Expediente
+              </Button>
+            )}
           </CardContent>
         </Card>
 

@@ -45,6 +45,7 @@ interface CreateViagemMotoristaFormProps {
   eventoId: string;
   motoristaName: string;
   onCreated: () => void;
+  embedded?: boolean; // Renderizar inline ao invés de drawer
 }
 
 export function CreateViagemMotoristaForm({
@@ -52,7 +53,8 @@ export function CreateViagemMotoristaForm({
   onOpenChange,
   eventoId,
   motoristaName,
-  onCreated
+  onCreated,
+  embedded = false
 }: CreateViagemMotoristaFormProps) {
   const { user } = useAuth();
   const { motoristas } = useMotoristas(eventoId);
@@ -186,216 +188,243 @@ export function CreateViagemMotoristaForm({
 
   const VeiculoIcon = veiculoVinculado?.tipo_veiculo === 'Ônibus' ? Bus : Car;
 
+  const formContent = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Motorista (readonly) */}
+      <div className="space-y-2">
+        <Label>Motorista</Label>
+        <div className="p-3 rounded-md bg-muted text-sm font-medium">
+          {motoristaName}
+        </div>
+      </div>
+
+      {/* Veículo (readonly se vinculado) */}
+      <div className="space-y-2">
+        <Label>Veículo</Label>
+        {veiculoVinculado ? (
+          <div className="p-3 rounded-md bg-muted text-sm flex items-center gap-2">
+            <VeiculoIcon className="h-4 w-4" />
+            <span>{veiculoVinculado.placa} - {veiculoVinculado.tipo_veiculo}</span>
+          </div>
+        ) : (
+          <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
+            Nenhum veículo vinculado
+          </div>
+        )}
+      </div>
+
+      {/* Ponto de Embarque */}
+      <div className="space-y-2">
+        <Label>Ponto de Embarque *</Label>
+        <Popover open={pontoEmbarqueOpen} onOpenChange={setPontoEmbarqueOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={pontoEmbarqueOpen}
+              className="w-full justify-between font-normal"
+            >
+              {pontoEmbarque || "Selecionar ponto..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar ou digitar..." />
+              <CommandList>
+                <CommandEmpty>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+                      if (input?.value) {
+                        setPontoEmbarque(input.value);
+                        setPontoEmbarqueOpen(false);
+                      }
+                    }}
+                  >
+                    Usar texto digitado
+                  </Button>
+                </CommandEmpty>
+                <CommandGroup>
+                  {activePontos.map((p) => (
+                    <CommandItem
+                      key={p.id}
+                      value={p.nome}
+                      onSelect={() => {
+                        setPontoEmbarque(p.nome);
+                        setPontoEmbarqueOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          pontoEmbarque === p.nome ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {p.nome}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Ponto de Desembarque */}
+      <div className="space-y-2">
+        <Label>Ponto de Desembarque *</Label>
+        <Popover open={pontoDesembarqueOpen} onOpenChange={setPontoDesembarqueOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={pontoDesembarqueOpen}
+              className="w-full justify-between font-normal"
+            >
+              {pontoDesembarque || "Selecionar ponto..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar ou digitar..." />
+              <CommandList>
+                <CommandEmpty>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
+                      if (input?.value) {
+                        setPontoDesembarque(input.value);
+                        setPontoDesembarqueOpen(false);
+                      }
+                    }}
+                  >
+                    Usar texto digitado
+                  </Button>
+                </CommandEmpty>
+                <CommandGroup>
+                  {activePontos.map((p) => (
+                    <CommandItem
+                      key={p.id}
+                      value={p.nome}
+                      onSelect={() => {
+                        setPontoDesembarque(p.nome);
+                        setPontoDesembarqueOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          pontoDesembarque === p.nome ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {p.nome}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Quantidade de PAX e Tipo de Operação */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Qtd PAX *</Label>
+          <Input
+            type="number"
+            value={qtdPax}
+            onChange={e => setQtdPax(e.target.value)}
+            placeholder="0"
+            min="1"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Tipo *</Label>
+          <Select value={tipoOperacao} onValueChange={setTipoOperacao}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="transfer">Transfer</SelectItem>
+              <SelectItem value="shuttle">Shuttle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Observação */}
+      <div className="space-y-2">
+        <Label>Observação</Label>
+        <Textarea
+          value={observacao}
+          onChange={e => setObservacao(e.target.value)}
+          placeholder="Informações adicionais..."
+          rows={2}
+        />
+      </div>
+
+      {/* Botões */}
+      <div className="flex gap-3 pt-4">
+        {embedded ? (
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+        ) : (
+          <DrawerClose asChild>
+            <Button type="button" variant="outline" className="flex-1">
+              Cancelar
+            </Button>
+          </DrawerClose>
+        )}
+        <Button type="submit" disabled={saving} className="flex-1">
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Criando...
+            </>
+          ) : (
+            'Criar e Iniciar'
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+
+  // Se embedded, renderizar diretamente
+  if (embedded) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">Nova Viagem</h2>
+        {formContent}
+      </div>
+    );
+  }
+
+  // Senão, renderizar no Drawer
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[90vh]">
         <DrawerHeader className="border-b pb-4">
           <DrawerTitle>Nova Viagem</DrawerTitle>
         </DrawerHeader>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
-          {/* Motorista (readonly) */}
-          <div className="space-y-2">
-            <Label>Motorista</Label>
-            <div className="p-3 rounded-md bg-muted text-sm font-medium">
-              {motoristaName}
-            </div>
-          </div>
-
-          {/* Veículo (readonly se vinculado) */}
-          <div className="space-y-2">
-            <Label>Veículo</Label>
-            {veiculoVinculado ? (
-              <div className="p-3 rounded-md bg-muted text-sm flex items-center gap-2">
-                <VeiculoIcon className="h-4 w-4" />
-                <span>{veiculoVinculado.placa} - {veiculoVinculado.tipo_veiculo}</span>
-              </div>
-            ) : (
-              <div className="p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
-                Nenhum veículo vinculado
-              </div>
-            )}
-          </div>
-
-          {/* Ponto de Embarque */}
-          <div className="space-y-2">
-            <Label>Ponto de Embarque *</Label>
-            <Popover open={pontoEmbarqueOpen} onOpenChange={setPontoEmbarqueOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={pontoEmbarqueOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  {pontoEmbarque || "Selecionar ponto..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Buscar ou digitar..." />
-                  <CommandList>
-                    <CommandEmpty>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
-                          if (input?.value) {
-                            setPontoEmbarque(input.value);
-                            setPontoEmbarqueOpen(false);
-                          }
-                        }}
-                      >
-                        Usar texto digitado
-                      </Button>
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {activePontos.map((p) => (
-                        <CommandItem
-                          key={p.id}
-                          value={p.nome}
-                          onSelect={() => {
-                            setPontoEmbarque(p.nome);
-                            setPontoEmbarqueOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              pontoEmbarque === p.nome ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {p.nome}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Ponto de Desembarque */}
-          <div className="space-y-2">
-            <Label>Ponto de Desembarque *</Label>
-            <Popover open={pontoDesembarqueOpen} onOpenChange={setPontoDesembarqueOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={pontoDesembarqueOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  {pontoDesembarque || "Selecionar ponto..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Buscar ou digitar..." />
-                  <CommandList>
-                    <CommandEmpty>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          const input = document.querySelector('[cmdk-input]') as HTMLInputElement;
-                          if (input?.value) {
-                            setPontoDesembarque(input.value);
-                            setPontoDesembarqueOpen(false);
-                          }
-                        }}
-                      >
-                        Usar texto digitado
-                      </Button>
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {activePontos.map((p) => (
-                        <CommandItem
-                          key={p.id}
-                          value={p.nome}
-                          onSelect={() => {
-                            setPontoDesembarque(p.nome);
-                            setPontoDesembarqueOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              pontoDesembarque === p.nome ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {p.nome}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Quantidade de PAX e Tipo de Operação */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Qtd PAX *</Label>
-              <Input
-                type="number"
-                value={qtdPax}
-                onChange={e => setQtdPax(e.target.value)}
-                placeholder="0"
-                min="1"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo *</Label>
-              <Select value={tipoOperacao} onValueChange={setTipoOperacao}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="transfer">Transfer</SelectItem>
-                  <SelectItem value="shuttle">Shuttle</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Observação */}
-          <div className="space-y-2">
-            <Label>Observação</Label>
-            <Textarea
-              value={observacao}
-              onChange={e => setObservacao(e.target.value)}
-              placeholder="Informações adicionais..."
-              rows={2}
-            />
-          </div>
-
-          {/* Botões */}
-          <div className="flex gap-3 pt-4">
-            <DrawerClose asChild>
-              <Button type="button" variant="outline" className="flex-1">
-                Cancelar
-              </Button>
-            </DrawerClose>
-            <Button type="submit" disabled={saving} className="flex-1">
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Criando...
-                </>
-              ) : (
-                'Criar e Iniciar'
-              )}
-            </Button>
-          </div>
-        </form>
+        <div className="p-4 overflow-y-auto">
+          {formContent}
+        </div>
       </DrawerContent>
     </Drawer>
   );
