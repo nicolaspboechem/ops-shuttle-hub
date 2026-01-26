@@ -44,7 +44,7 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
 
       const response = await supabase.functions.invoke('create-user', {
         body: {
-          telefone: telefone.trim(),
+          telefone: telefone.replace(/\D/g, ''),
           login_type: 'phone',
           password: senha.trim(),
           full_name: nome.trim(),
