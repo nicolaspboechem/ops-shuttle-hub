@@ -1,172 +1,229 @@
 
-# Plano: Redesign da Página Inicial - CCO AS Brasil
 
-## Objetivo
-Transformar a página inicial de "TransControl" para "CCO - AS Brasil", exibindo diretamente o painel de eventos públicos com opção de login.
+# Plano: Login Customizado para Motoristas (Tabela Separada)
 
----
+## Resumo da Solução
 
-## Mudanças Visuais
-
-### ANTES (Atual)
-- Ícone de ônibus genérico
-- Título "TransControl"
-- Dois botões centralizados
-- Layout minimalista sem conteúdo
-
-### DEPOIS (Proposto)
-- Logo oficial AS Brasil (horizontal)
-- Título "CCO - AS Brasil" com subtítulo "Centro de Controle Operacional"
-- Grid de eventos públicos diretamente visível
-- Botão de login discreto no header
-- Visual alinhado com o PainelPublico existente
+Criar um sistema de autenticação **separado e simplificado** para motoristas, usando uma tabela própria para armazenar credenciais (telefone + senha com hash). Admins continuam usando Supabase Auth via `/auth`, enquanto motoristas usarão `/login/motorista`.
 
 ---
 
-## Estrutura da Nova Página
+## Arquitetura
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│  HEADER                                              │
-│  ┌─────────┐                              ┌───────┐ │
-│  │ AS Logo │  CCO - AS Brasil             │ LOGIN │ │
-│  └─────────┘  Centro de Controle          └───────┘ │
-│               Operacional                           │
-├─────────────────────────────────────────────────────┤
-│  CONTEÚDO PRINCIPAL                                 │
-│                                                     │
-│  ┌─────────────────────────────────────────────────┐│
-│  │     Eventos Disponíveis                         ││
-│  │     Selecione um evento para ver as rotas       ││
-│  └─────────────────────────────────────────────────┘│
-│                                                     │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐       │
-│  │  Evento 1 │  │  Evento 2 │  │  Evento 3 │       │
-│  │  (Card)   │  │  (Card)   │  │  (Card)   │       │
-│  └───────────┘  └───────────┘  └───────────┘       │
-│                                                     │
-│  (Se não houver eventos: mensagem informativa)     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      FLUXOS DE LOGIN                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ADMIN/OPERADOR                    MOTORISTA                    │
+│  ┌─────────────┐                   ┌─────────────┐              │
+│  │  /auth      │                   │  /login/    │              │
+│  │  (email)    │                   │  motorista  │              │
+│  └──────┬──────┘                   │  (celular)  │              │
+│         │                          └──────┬──────┘              │
+│         ▼                                 ▼                     │
+│  ┌─────────────┐                   ┌─────────────────────┐      │
+│  │ Supabase    │                   │ driver-login        │      │
+│  │ Auth        │                   │ (Edge Function)     │      │
+│  └──────┬──────┘                   └──────┬──────────────┘      │
+│         │                                 │                     │
+│         ▼                                 ▼                     │
+│  ┌─────────────┐                   ┌─────────────────────┐      │
+│  │ auth.users  │                   │ motorista_credenciais│     │
+│  │ (Supabase)  │                   │ (tabela customizada) │     │
+│  └─────────────┘                   └─────────────────────┘      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Componentes da Solução
+
+### 1. Nova Tabela: `motorista_credenciais`
+
+Armazena as credenciais de login dos motoristas de forma segura:
+
+```sql
+CREATE TABLE motorista_credenciais (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  motorista_id UUID NOT NULL REFERENCES motoristas(id) ON DELETE CASCADE,
+  telefone VARCHAR(20) NOT NULL UNIQUE,
+  senha_hash VARCHAR(255) NOT NULL,
+  ativo BOOLEAN DEFAULT true,
+  ultimo_login TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Índice para busca rápida por telefone
+CREATE INDEX idx_motorista_credenciais_telefone ON motorista_credenciais(telefone);
+```
+
+---
+
+### 2. Edge Function: `driver-login`
+
+Valida credenciais e retorna um token JWT customizado:
+
+**Fluxo:**
+1. Recebe `telefone` + `senha`
+2. Busca na tabela `motorista_credenciais` pelo telefone
+3. Verifica se o hash da senha confere (usando bcrypt)
+4. Se válido, gera um JWT customizado com claims do motorista
+5. Retorna token para o cliente
+
+**Segurança:**
+- Senhas armazenadas com bcrypt (hash seguro)
+- JWT com expiração configurável (ex: 24h)
+- Rate limiting recomendado
+
+---
+
+### 3. Edge Function: `driver-register`
+
+Cria credenciais para um motorista existente:
+
+**Fluxo:**
+1. Recebe `motorista_id` + `telefone` + `senha`
+2. Verifica se o admin está autenticado
+3. Gera hash bcrypt da senha
+4. Insere registro em `motorista_credenciais`
+
+---
+
+### 4. Nova Página: `/login/motorista`
+
+Interface de login simplificada para motoristas:
+
+- Campo: Telefone (com máscara)
+- Campo: Senha
+- Botão: Entrar
+- Link: "Sou administrador" → `/auth`
+
+**Visual:** Similar ao `/auth` atual, mas com foco em celular
+
+---
+
+### 5. Contexto de Autenticação: `DriverAuthContext`
+
+Contexto separado para motoristas:
+
+```tsx
+interface DriverSession {
+  motorista_id: string;
+  motorista_nome: string;
+  evento_id: string;
+  token: string;
+  expires_at: number;
+}
+
+// Armazena sessão em localStorage
+// Valida token em cada request
+```
+
+---
+
+### 6. Modificações na Página `/auth`
+
+- Remover toggle Celular/Email
+- Manter apenas login por Email
+- Adicionar link: "Sou motorista? Entre aqui"
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `supabase/migrations/xxx_create_motorista_credenciais.sql` | CRIAR | Tabela de credenciais |
+| `supabase/functions/driver-login/index.ts` | CRIAR | Validação de login |
+| `supabase/functions/driver-register/index.ts` | CRIAR | Cadastro de credenciais |
+| `src/pages/LoginMotorista.tsx` | CRIAR | Página de login para motoristas |
+| `src/lib/auth/DriverAuthContext.tsx` | CRIAR | Contexto de auth para motoristas |
+| `src/pages/Auth.tsx` | MODIFICAR | Remover opção de celular, adicionar link |
+| `src/App.tsx` | MODIFICAR | Adicionar rota `/login/motorista` |
+| `supabase/config.toml` | MODIFICAR | Registrar novas funções |
+
+---
+
+## Fluxo de Uso
+
+### Criação de Credencial (Admin):
+1. Admin acessa página de Equipe do evento
+2. Clica em "Gerenciar Login" no card do motorista
+3. Define telefone e senha
+4. Sistema salva hash da senha em `motorista_credenciais`
+
+### Login do Motorista:
+1. Motorista acessa `/login/motorista`
+2. Digita telefone: `(11) 99999-9999`
+3. Digita senha: `1234`
+4. Sistema valida via Edge Function
+5. Token JWT retornado e armazenado
+6. Redireciona para `/app`
+
+---
+
+## Segurança
+
+| Aspecto | Implementação |
+|---------|---------------|
+| Senhas | Hash bcrypt (custo 10) |
+| Tokens | JWT com HMAC-SHA256, expiração 24h |
+| Transporte | HTTPS obrigatório |
+| Tentativas | Considerar rate limiting futuro |
+| Sessão | Token em localStorage, validado a cada request |
+
+---
+
+## Vantagens
+
+1. **Sem dependência de SMS** - Não precisa Twilio/Vonage
+2. **Controle total** - Você define as regras de senha
+3. **Telefones fictícios** - Pode usar qualquer número para testes
+4. **Separação clara** - Admins e motoristas em fluxos distintos
+5. **Simples** - Sem configuração extra no Supabase
 
 ---
 
 ## Detalhes Técnicos
 
-### Arquivo: `src/pages/Index.tsx`
+### Hash de Senha (Edge Function)
 
-**Alterações:**
+```typescript
+import { hash, compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
-1. **Imports adicionais:**
-   - `useEventosPublicos` para buscar eventos públicos
-   - `EventosGrid` para exibir os cards
-   - `Input` e `Search` para busca (quando múltiplos eventos)
-   - `logoASHorizontal` para o header
-   - `useNavigate` para navegação
+// Ao registrar
+const senhaHash = await hash(senha, 10);
 
-2. **Comportamento:**
-   - Se usuário logado → redireciona para `/eventos` (admin) ou `/app` (staff)
-   - Se não logado → exibe landing com eventos públicos
-   - Clique no evento → navega para `/painel/:eventoId`
-   - Clique em "Entrar" → navega para `/auth`
+// Ao validar login
+const valid = await compare(senhaFornecida, senhaHash);
+```
 
-3. **Layout:**
-   - Header sticky com logo AS Brasil e botão "Entrar"
-   - Seção de busca (se houver mais de 1 evento)
-   - Grid de eventos usando componente existente `EventosGrid`
-   - Estado vazio estilizado quando não há eventos
+### JWT Customizado
 
-4. **Branding:**
-   - Título: "CCO - AS Brasil"
-   - Subtítulo: "Centro de Controle Operacional"
-   - Logo horizontal da AS Brasil no header
-   - Cores consistentes com o restante do sistema
+```typescript
+import { create } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
----
-
-## Código Proposto
-
-```tsx
-// src/pages/Index.tsx - Estrutura principal
-
-import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { Loader2, LogIn, Search, Bus } from 'lucide-react';
-import { useAuth } from '@/lib/auth/AuthContext';
-import { useEventosPublicos } from '@/hooks/useEventosPublicos';
-import { EventosGrid } from '@/components/public/EventosGrid';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import logoASHorizontal from '@/assets/logo_as_horizontal.png';
-
-const Index = () => {
-  const { user, loading: authLoading, isAdmin, eventRoles } = useAuth();
-  const { eventos, loading: eventosLoading } = useEventosPublicos();
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Redireciona usuários logados
-  if (user && !authLoading) {
-    if (isAdmin) return <Navigate to="/eventos" replace />;
-    if (eventRoles.length > 0) return <Navigate to="/app" replace />;
-  }
-
-  // Filtra eventos pela busca
-  const filteredEventos = eventos.filter(e =>
-    e.nome_planilha.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Loading state
-  if (authLoading || eventosLoading) {
-    return <LoadingSpinner />;
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header com logo e botão login */}
-      <Header onLogin={() => navigate('/auth')} />
-
-      {/* Conteúdo principal */}
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        {eventos.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <>
-            <TitleSection />
-            {eventos.length > 1 && (
-              <SearchBar value={searchQuery} onChange={setSearchQuery} />
-            )}
-            <EventosGrid
-              eventos={filteredEventos}
-              onSelect={(id) => navigate(`/painel/${id}`)}
-            />
-          </>
-        )}
-      </main>
-    </div>
-  );
-};
+const jwt = await create(
+  { alg: "HS256", typ: "JWT" },
+  { 
+    motorista_id: motorista.id,
+    motorista_nome: motorista.nome,
+    evento_id: motorista.evento_id,
+    exp: Date.now() / 1000 + 86400 // 24h
+  },
+  Deno.env.get("JWT_SECRET")!
+);
 ```
 
 ---
 
-## Resumo de Alterações
+## Migração de Motoristas Existentes
 
-| Componente | Alteração |
-|------------|-----------|
-| `src/pages/Index.tsx` | Reescrever completamente com nova estrutura |
-| Branding | "TransControl" → "CCO - AS Brasil" |
-| Layout | Cards centralizados → Grid de eventos com header |
-| Funcionalidade | Eventos públicos carregados diretamente |
-| Navegação | Evento clicado → `/painel/:id` |
-| Login | Botão discreto no header → `/auth` |
+Motoristas que já foram criados com login Supabase Auth:
+- Podem continuar usando o sistema antigo (se phone auth for habilitado no futuro)
+- Ou podem ter credenciais criadas na nova tabela
+- Recomendação: criar credenciais novas para todos na nova tabela
 
----
-
-## Benefícios
-
-1. **Conteúdo imediato** - Visitante vê eventos disponíveis sem cliques extras
-2. **Identidade visual** - Marca AS Brasil em destaque
-3. **Experiência fluida** - Mesma estrutura do PainelPublico, evitando página intermediária desnecessária
-4. **Reutilização** - Usa componentes existentes (EventosGrid, EventoCard)
-5. **Consistência** - Visual alinhado com Auth.tsx e PainelPublico.tsx
