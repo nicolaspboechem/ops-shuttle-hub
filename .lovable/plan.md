@@ -1,74 +1,8 @@
 
-# Plano: Transformar App do Motorista em Hub com Menu Inferior Fixo
+# Plano: Edição Manual de Localização do Motorista no CCO
 
 ## Objetivo
-
-Reestruturar a interface do motorista (`AppMotorista`) para funcionar como um **hub central** com navegação por abas fixas na parte inferior, oferecendo acesso fácil e intuitivo a:
-
-- **Início**: Missões e viagens ativas (tela atual simplificada)
-- **Veículo**: Dados do veículo, fotos, avarias, KM, registrar nova avaria
-- **Nova Corrida**: Iniciar uma nova corrida rapidamente
-- **Histórico**: Viagens finalizadas + botão de encerrar expediente
-
----
-
-## Situação Atual
-
-```text
-┌──────────────────────────────────────┐
-│  Header (Nome + Status + Evento)     │
-├──────────────────────────────────────┤
-│  CheckinCheckoutCard                 │
-│  - Veículo atribuído                 │
-│  - Botão Check-in / Check-out        │  ← Check-out visível
-├──────────────────────────────────────┤
-│  Missões Designadas                  │
-│  - MissaoCardMobile                  │
-├──────────────────────────────────────┤
-│  Viagens Ativas                      │
-│  - ViagemCardMobile                  │
-├──────────────────────────────────────┤
-│                                      │
-│        [FAB +] Nova Viagem           │  ← FAB flutuante
-│                                      │
-└──────────────────────────────────────┘
-```
-
-**Problemas:**
-- Tudo em uma única tela com scroll
-- Acesso ao veículo limitado (só ver fotos)
-- Não há histórico de viagens do dia
-- Checkout muito visível (deveria ser secundário)
-
----
-
-## Nova Arquitetura - Hub com Abas
-
-```text
-┌──────────────────────────────────────┐
-│  Header (Nome + Status + Evento)     │
-├──────────────────────────────────────┤
-│                                      │
-│         CONTEÚDO DA ABA              │
-│                                      │
-│  (varia conforme aba selecionada)    │
-│                                      │
-│                                      │
-├──────────────────────────────────────┤
-│  🏠    🚗    ➕    📋    ⚙️         │  ← Menu inferior fixo
-│ Início Veículo Corrida Histórico Mais│
-└──────────────────────────────────────┘
-```
-
-### Abas Propostas
-
-| Aba | Ícone | Descrição |
-|-----|-------|-----------|
-| **Início** | Home | Missões + Viagens ativas (hub principal) |
-| **Veículo** | Car | Dados do veículo, fotos, avarias, registrar nova avaria |
-| **Corrida** | Plus | Criar nova viagem (formulário) |
-| **Histórico** | ClipboardList | Viagens finalizadas do dia + Encerrar Expediente |
-| **Mais** | MoreHorizontal | Logout, configurações futuras |
+Adicionar funcionalidade para que administradores possam editar manualmente a localização de um motorista diretamente no card do Kanban, através de um botão de edição ao lado da última localização.
 
 ---
 
@@ -76,244 +10,170 @@ Reestruturar a interface do motorista (`AppMotorista`) para funcionar como um **
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/app/MotoristaBottomNav.tsx` | **CRIAR** | Menu inferior específico do motorista |
-| `src/components/app/MotoristaVeiculoTab.tsx` | **CRIAR** | Aba de informações do veículo |
-| `src/components/app/MotoristaHistoricoTab.tsx` | **CRIAR** | Aba de histórico + checkout |
-| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Integrar sistema de abas |
-| `src/components/app/CheckinCheckoutCard.tsx` | MODIFICAR | Remover botão de checkout (mover para histórico) |
+| `src/components/motoristas/EditarLocalizacaoModal.tsx` | **CRIAR** | Modal para selecionar nova localização |
+| `src/components/motoristas/MotoristaKanbanCard.tsx` | MODIFICAR | Adicionar botão de editar localização |
+| `src/components/motoristas/MotoristaKanbanColumn.tsx` | MODIFICAR | Passar handler de edição de localização |
+| `src/pages/Motoristas.tsx` | MODIFICAR | Adicionar estado e lógica para o modal |
 
 ---
 
 ## Detalhes de Implementação
 
-### 1. MotoristaBottomNav (Novo Componente)
+### 1. Criar `EditarLocalizacaoModal.tsx`
 
-Menu de navegação inferior estilo nativo:
+Modal com:
+- Título "Editar Localização"
+- Nome do motorista (readonly)
+- Localização atual exibida
+- Select dropdown com:
+  - Opção "Base" (sempre disponível)
+  - Todos os pontos de embarque ativos do evento
+- Botões Cancelar/Salvar
 
 ```tsx
-interface NavTab {
-  id: 'inicio' | 'veiculo' | 'corrida' | 'historico' | 'mais';
-  label: string;
-  icon: LucideIcon;
+interface EditarLocalizacaoModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  motorista: { id: string; nome: string };
+  pontosEmbarque: Array<{ id: string; nome: string }>;
+  localizacaoAtual: string | null;
+  onSave: (motoristaId: string, novaLocalizacao: string) => Promise<void>;
 }
-
-const tabs: NavTab[] = [
-  { id: 'inicio', label: 'Início', icon: Home },
-  { id: 'veiculo', label: 'Veículo', icon: Car },
-  { id: 'corrida', label: 'Corrida', icon: Plus },
-  { id: 'historico', label: 'Histórico', icon: ClipboardList },
-  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
-];
 ```
 
-Visual:
-```text
-┌─────────────────────────────────────────────────┐
-│  🏠      🚗       ➕        📋       ⚙️        │
-│ Início  Veículo  Corrida  Histórico  Mais      │
-│  ───                                           │  ← indicador ativo
-└─────────────────────────────────────────────────┘
-```
+### 2. Modificar `MotoristaKanbanCard.tsx`
 
----
-
-### 2. MotoristaVeiculoTab (Novo Componente)
-
-Aba dedicada ao veículo vinculado:
-
-```text
-┌─────────────────────────────────────┐
-│  🚗 Meu Veículo                     │
-├─────────────────────────────────────┤
-│  ┌───────────────────────────────┐  │
-│  │  ABC-1234 • Van Prata         │  │
-│  │  Tipo: Van • 15 lugares       │  │
-│  │                               │  │
-│  │  ⛽ Combustível: 3/4          │  │
-│  │  📏 KM Inicial: 45.230        │  │
-│  │  📅 Vistoria: 26/01 08:30     │  │
-│  └───────────────────────────────┘  │
-├─────────────────────────────────────┤
-│  📸 Fotos do Veículo (6)           │
-│  ┌────┐ ┌────┐ ┌────┐              │
-│  │    │ │    │ │    │              │
-│  └────┘ └────┘ └────┘              │
-├─────────────────────────────────────┤
-│  ⚠️ Avarias Registradas (2)        │
-│  • Frente: Arranhão no para-choque │
-│  • Interior: Banco rasgado         │
-├─────────────────────────────────────┤
-│  [📝 Registrar Nova Avaria]        │  ← Abre modal
-└─────────────────────────────────────┘
-```
-
-**Funcionalidades:**
-- Ver todas as fotos do veículo (já temos VeiculoFotosModal)
-- Listar avarias existentes
-- Botão para registrar nova avaria (abre modal com foto + descrição)
-
----
-
-### 3. MotoristaHistoricoTab (Novo Componente)
-
-Aba de histórico com checkout escondido:
-
-```text
-┌─────────────────────────────────────┐
-│  📋 Histórico de Hoje              │
-├─────────────────────────────────────┤
-│  ┌───────────────────────────────┐  │
-│  │  ✅ SDU → Hotel Barra         │  │
-│  │  09:30 - 10:15 • 45min        │  │
-│  │  PAX: 8                       │  │
-│  └───────────────────────────────┘  │
-│  ┌───────────────────────────────┐  │
-│  │  ✅ Hotel → Aeroporto         │  │
-│  │  11:00 - 11:45 • 45min        │  │
-│  │  PAX: 5                       │  │
-│  └───────────────────────────────┘  │
-├─────────────────────────────────────┤
-│  📊 Resumo do Dia                  │
-│  • 2 viagens finalizadas           │
-│  • Total PAX: 13                   │
-│  • Tempo em rota: 1h30min          │
-├─────────────────────────────────────┤
-│  [🚪 Encerrar Expediente]          │  ← Botão secundário
-└─────────────────────────────────────┘
-```
-
-**Funcionalidades:**
-- Lista viagens encerradas do motorista (hoje)
-- Resumo com estatísticas do dia
-- Botão "Encerrar Expediente" (checkout) - posição secundária
-
----
-
-### 4. AppMotorista (Modificações)
-
-Transformar em controlador de abas:
+Adicionar prop `onEditLocalizacao` e botão de editar:
 
 ```tsx
-const [activeTab, setActiveTab] = useState<TabId>('inicio');
+interface MotoristaKanbanCardProps {
+  // ... props existentes
+  onEditLocalizacao?: () => void;
+}
+```
 
-// Renderização condicional por aba
-const renderTabContent = () => {
-  switch (activeTab) {
-    case 'inicio':
-      return <InicioContent />;  // Missões + Viagens ativas
-    case 'veiculo':
-      return <MotoristaVeiculoTab veiculo={veiculoExibir} />;
-    case 'corrida':
-      return <CreateViagemMotoristaForm ... />;  // Direto no conteúdo
-    case 'historico':
-      return <MotoristaHistoricoTab ... />;
-    case 'mais':
-      return <MaisContent />;  // Logout, etc
+Na seção de última localização, adicionar botão:
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ 📍 Última loc: Hotel Barra  [✏️]  ← Novo botão      │
+└─────────────────────────────────────────────────────┘
+```
+
+Se não houver localização, mostrar:
+```text
+┌─────────────────────────────────────────────────────┐
+│ 📍 Sem localização  [✏️]  ← Permite definir         │
+└─────────────────────────────────────────────────────┘
+```
+
+### 3. Modificar `MotoristaKanbanColumn.tsx`
+
+Adicionar prop `onEditLocalizacao` e passar para os cards:
+
+```tsx
+interface MotoristaKanbanColumnProps {
+  // ... props existentes
+  onEditLocalizacao: (motorista: Motorista) => void;
+}
+```
+
+### 4. Modificar `Motoristas.tsx`
+
+Adicionar:
+- Estado `editLocMotorista` para controlar qual motorista está sendo editado
+- Função `handleUpdateLocalizacao` para salvar no Supabase
+- Renderização do `EditarLocalizacaoModal`
+
+```tsx
+const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
+
+const handleUpdateLocalizacao = async (motoristaId: string, novaLocalizacao: string) => {
+  const { error } = await supabase
+    .from('motoristas')
+    .update({ 
+      ultima_localizacao: novaLocalizacao,
+      ultima_localizacao_at: new Date().toISOString(),
+      atualizado_por: user?.id
+    })
+    .eq('id', motoristaId);
+  
+  if (error) {
+    toast.error('Erro ao atualizar localização');
+    return;
   }
+  
+  toast.success('Localização atualizada');
+  refetchMotoristas();
 };
 ```
 
 ---
 
-### 5. CheckinCheckoutCard (Modificações)
+## Fluxo de Uso
 
-Remover botão de checkout da tela principal:
-
-- Manter: Card de status (entrada/saída registradas)
-- Manter: Botão de Check-in
-- Remover: Botão "Encerrar Expediente"
-
-O checkout será acessível apenas pela aba "Histórico".
-
----
-
-## Fluxo de Uso Atualizado
-
-1. **Motorista abre o app** → Aba "Início" ativa
-   - Vê card de presença (check-in ou status)
-   - Vê missões designadas
-   - Vê viagens ativas
-
-2. **Quer ver dados do veículo** → Toca em "Veículo"
-   - Vê fotos, avarias, KM, combustível
-   - Pode registrar nova avaria
-
-3. **Quer iniciar nova corrida** → Toca em "Corrida"
-   - Formulário de criação de viagem
-
-4. **Quer ver histórico ou encerrar dia** → Toca em "Histórico"
-   - Vê viagens finalizadas
-   - Resumo do dia
-   - Botão de checkout (secundário)
-
-5. **Quer sair** → Toca em "Mais"
-   - Opção de logout
+1. Admin visualiza Kanban de Motoristas
+2. No card, vê "Última loc: Hotel Barra [✏️]"
+3. Clica no botão de editar (ícone lápis)
+4. Modal abre com:
+   - Nome do motorista
+   - Localização atual
+   - Dropdown com "Base" + pontos de embarque cadastrados
+5. Seleciona nova localização
+6. Clica em "Salvar"
+7. `motoristas.ultima_localizacao` e `ultima_localizacao_at` são atualizados
+8. Card reflete nova localização
+9. Localizador de Frota atualiza automaticamente via Realtime
 
 ---
 
-## Estados Especiais
+## Visual do Modal
 
-### Sem Veículo Atribuído (Aba Veículo)
 ```text
-┌─────────────────────────────────────┐
-│  🚗 Meu Veículo                     │
-├─────────────────────────────────────┤
-│                                     │
-│       🚗 (ícone grande opaco)       │
-│                                     │
-│   Nenhum veículo atribuído          │
-│   Aguarde a atribuição pela         │
-│   coordenação                       │
-│                                     │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  Editar Localização                    [X]  │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Motorista: João Silva                      │
+│                                             │
+│  Localização Atual: Hotel Barra             │
+│                                             │
+│  Nova Localização:                          │
+│  ┌─────────────────────────────────────┐   │
+│  │ Selecione...                      ▼ │   │
+│  └─────────────────────────────────────┘   │
+│    • Base                                   │
+│    • Aeroporto SDU                          │
+│    • Hotel Copacabana                       │
+│    • Centro de Convenções                   │
+│                                             │
+├─────────────────────────────────────────────┤
+│           [Cancelar]    [Salvar]            │
+└─────────────────────────────────────────────┘
 ```
-
-### Sem Check-in (Aba Início)
-- CheckinCheckoutCard exibe botão de check-in
-- Outras funcionalidades podem ser limitadas
 
 ---
 
-## Benefícios
+## Seção Técnica
 
-1. **Navegação clara**: Menu fixo sempre visível
-2. **Acesso rápido ao veículo**: Aba dedicada com todas as informações
-3. **Checkout escondido**: Evita cliques acidentais, ação secundária
-4. **Histórico acessível**: Motorista pode ver suas viagens do dia
-5. **UX nativa**: Padrão de navegação familiar (apps mobile)
-6. **Escalável**: Fácil adicionar novas abas no futuro
+### Atualização no Banco
 
----
-
-## Detalhes Técnicos
-
-### Estado Compartilhado
-O `AppMotorista` mantém o estado centralizado e passa props para as abas:
-- `veiculoExibir`: Veículo vinculado (do check-in ou atribuído)
-- `presenca`: Dados de presença do dia
-- `minhasViagensAtivas`: Viagens em andamento
-- `minhasViagensFinalizadas`: Viagens encerradas (novo cálculo)
-- `minhasMissoes`: Missões designadas
-
-### Viagens Finalizadas (Novo filtro)
-```tsx
-const minhasViagensFinalizadas = useMemo(() => {
-  if (!motoristaData) return [];
-  return viagens
-    .filter(v => 
-      v.motorista_id === motoristaData.id && 
-      (v.status === 'encerrado' || v.status === 'cancelado')
-    )
-    .sort((a, b) => {
-      // Ordenar por hora de chegada (mais recente primeiro)
-      return (b.h_chegada || '').localeCompare(a.h_chegada || '');
-    });
-}, [viagens, motoristaData]);
+```sql
+UPDATE motoristas 
+SET 
+  ultima_localizacao = 'Base',
+  ultima_localizacao_at = NOW(),
+  atualizado_por = '{user-uuid}'
+WHERE id = '{motorista-uuid}';
 ```
 
-### Registrar Avaria (Nova funcionalidade)
-Modal simples para registrar avaria durante o expediente:
-- Seleção de área do veículo
-- Descrição do problema
-- Foto opcional (usando câmera do dispositivo)
-- Salva em `veiculo_fotos` e atualiza `inspecao_dados`
+### Integração com Realtime
+
+O Localizador de Frota já possui subscription na tabela `motoristas`, então alterações serão refletidas automaticamente no painel TV sem necessidade de refresh.
+
+### Observações
+
+- O fluxo principal de localização continua automático (check-in → "Base", finalização → ponto_desembarque)
+- Edição manual é para casos excepcionais/correções
+- "Base" sempre disponível como opção (localização padrão)
+- Botão de editar aparece sempre, mesmo sem localização definida (permite definir manualmente)
