@@ -1,132 +1,74 @@
 
-# Plano: Evolução do Localizador de Frota com Foco em Veículos
+# Plano: Transformar App do Motorista em Hub com Menu Inferior Fixo
 
 ## Objetivo
 
-Transformar o Painel Localizador de Frota para mostrar **veículos** como entidade principal (não apenas motoristas), exibindo:
-- Rota atual (de onde → para onde)
-- Localização atual (onde está parado)
-- Motorista vinculado ao veículo
-- Status em tempo real (Em Rota, Disponível, Sem Motorista)
+Reestruturar a interface do motorista (`AppMotorista`) para funcionar como um **hub central** com navegação por abas fixas na parte inferior, oferecendo acesso fácil e intuitivo a:
+
+- **Início**: Missões e viagens ativas (tela atual simplificada)
+- **Veículo**: Dados do veículo, fotos, avarias, KM, registrar nova avaria
+- **Nova Corrida**: Iniciar uma nova corrida rapidamente
+- **Histórico**: Viagens finalizadas + botão de encerrar expediente
 
 ---
 
 ## Situação Atual
 
-O localizador exibe **motoristas** agrupados por localização:
-- Cards mostram: nome do motorista, veículo vinculado, status, destino
-- Colunas: localizações fixas + "Em Trânsito" + "Sem Localização"
-- Foco no motorista, veículo é informação secundária
+```text
+┌──────────────────────────────────────┐
+│  Header (Nome + Status + Evento)     │
+├──────────────────────────────────────┤
+│  CheckinCheckoutCard                 │
+│  - Veículo atribuído                 │
+│  - Botão Check-in / Check-out        │  ← Check-out visível
+├──────────────────────────────────────┤
+│  Missões Designadas                  │
+│  - MissaoCardMobile                  │
+├──────────────────────────────────────┤
+│  Viagens Ativas                      │
+│  - ViagemCardMobile                  │
+├──────────────────────────────────────┤
+│                                      │
+│        [FAB +] Nova Viagem           │  ← FAB flutuante
+│                                      │
+└──────────────────────────────────────┘
+```
+
+**Problemas:**
+- Tudo em uma única tela com scroll
+- Acesso ao veículo limitado (só ver fotos)
+- Não há histórico de viagens do dia
+- Checkout muito visível (deveria ser secundário)
 
 ---
 
-## Nova Visão - Foco em Veículos
+## Nova Arquitetura - Hub com Abas
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    LOCALIZADOR DE FROTA                                 │
-│  [Toggle: Motoristas | Veículos]                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   │
-│  │  📍 BASE     │ │ 📍 HOTEL A   │ │ 🚗 EM ROTA   │ │ ⚠️ S/ MOTOR. │   │
-│  │     (5)      │ │     (3)      │ │     (2)      │ │     (1)      │   │
-│  ├──────────────┤ ├──────────────┤ ├──────────────┤ ├──────────────┤   │
-│  │              │ │              │ │              │ │              │   │
-│  │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │   │
-│  │ │ 🚐 VAN-01│ │ │ │ 🚌 BUS-02│ │ │ │ 🚐 VAN-03│ │ │ │ 🚐 VAN-04│ │   │
-│  │ │ ABC-1234 │ │ │ │ DEF-5678 │ │ │ │ GHI-9012 │ │ │ │ JKL-3456 │ │   │
-│  │ │          │ │ │ │          │ │ │ │          │ │ │ │          │   │
-│  │ │ 👤 João  │ │ │ │ 👤 Pedro │ │ │ │ 👤 Maria │ │ │ │ 👤 ---   │   │
-│  │ │ ⏱ 15min  │ │ │ │ ⏱ 5min   │ │ │ │ SDU→Hotel│ │ │ │ ⚠️ Livre │   │
-│  │ └──────────┘ │ │ └──────────┘ │ │ └──────────┘ │ │ └──────────┘ │   │
-│  │              │ │              │ │              │ │              │   │
-│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘   │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│  Header (Nome + Status + Evento)     │
+├──────────────────────────────────────┤
+│                                      │
+│         CONTEÚDO DA ABA              │
+│                                      │
+│  (varia conforme aba selecionada)    │
+│                                      │
+│                                      │
+├──────────────────────────────────────┤
+│  🏠    🚗    ➕    📋    ⚙️         │  ← Menu inferior fixo
+│ Início Veículo Corrida Histórico Mais│
+└──────────────────────────────────────┘
 ```
 
----
+### Abas Propostas
 
-## Mudanças Necessárias
-
-### 1. Criar Hook `useLocalizadorVeiculos`
-
-**Arquivo:** `src/hooks/useLocalizadorVeiculos.ts`
-
-Novo hook que:
-- Busca todos os veículos do evento
-- Busca motoristas vinculados a cada veículo
-- Busca viagens ativas para determinar rota
-- Agrupa veículos por localização (derivada do motorista ou última viagem)
-
-**Interface:**
-```typescript
-interface VeiculoComRota {
-  // Dados do veículo
-  id: string;
-  placa: string;
-  nome: string | null;
-  tipo_veiculo: string;
-  status: string;
-  
-  // Motorista vinculado
-  motorista: Motorista | null;
-  
-  // Dados de rota (se em viagem)
-  em_rota: boolean;
-  origem?: string;
-  destino?: string;
-  h_inicio?: string;
-  
-  // Localização
-  ultima_localizacao: string | null;
-  ultima_localizacao_at: string | null;
-}
-```
-
----
-
-### 2. Criar Componente `LocalizadorVeiculoCard`
-
-**Arquivo:** `src/components/localizador/LocalizadorVeiculoCard.tsx`
-
-Card focado no veículo:
-- **Header**: Nome/Apelido do veículo + ícone por tipo
-- **Placa**: Destaque visual
-- **Motorista**: Nome do motorista vinculado ou "Sem motorista"
-- **Status**:
-  - Em Rota: "SDU → Hotel Barra" com seta animada
-  - Disponível: "há X minutos"
-  - Sem motorista: Badge de alerta
-- **Indicador visual**: Cor do card baseada no status
-
----
-
-### 3. Atualizar Componentes Existentes
-
-**Arquivo:** `src/pages/PainelLocalizador.tsx`
-
-Adicionar:
-- Toggle para alternar entre visualização "Motoristas" e "Veículos"
-- Integração com novo hook `useLocalizadorVeiculos`
-- Lógica de agrupamento por localização do veículo
-
-**Arquivo:** `src/components/localizador/LocalizadorColumn.tsx`
-
-- Suportar renderização de cards de veículos
-- Prop adicional para tipo de visualização
-
----
-
-### 4. Lógica de Localização do Veículo
-
-A localização do veículo será derivada de:
-
-1. **Em viagem**: Se motorista tem status `em_viagem` → veículo vai para coluna "Em Rota"
-2. **Com motorista parado**: Usa `motorista.ultima_localizacao`
-3. **Sem motorista**: Usa última viagem encerrada do veículo (ponto_desembarque)
-4. **Desconhecida**: Coluna "Sem Localização"
+| Aba | Ícone | Descrição |
+|-----|-------|-----------|
+| **Início** | Home | Missões + Viagens ativas (hub principal) |
+| **Veículo** | Car | Dados do veículo, fotos, avarias, registrar nova avaria |
+| **Corrida** | Plus | Criar nova viagem (formulário) |
+| **Histórico** | ClipboardList | Viagens finalizadas do dia + Encerrar Expediente |
+| **Mais** | MoreHorizontal | Logout, configurações futuras |
 
 ---
 
@@ -134,123 +76,244 @@ A localização do veículo será derivada de:
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/hooks/useLocalizadorVeiculos.ts` | **CRIAR** | Hook para buscar veículos com rotas |
-| `src/components/localizador/LocalizadorVeiculoCard.tsx` | **CRIAR** | Card de veículo com info de rota |
-| `src/pages/PainelLocalizador.tsx` | MODIFICAR | Adicionar toggle e view de veículos |
-| `src/components/localizador/LocalizadorColumn.tsx` | MODIFICAR | Suportar cards de veículos |
-| `src/hooks/useLocalizadorMotoristas.ts` | MODIFICAR | Adicionar info de origem da viagem |
+| `src/components/app/MotoristaBottomNav.tsx` | **CRIAR** | Menu inferior específico do motorista |
+| `src/components/app/MotoristaVeiculoTab.tsx` | **CRIAR** | Aba de informações do veículo |
+| `src/components/app/MotoristaHistoricoTab.tsx` | **CRIAR** | Aba de histórico + checkout |
+| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Integrar sistema de abas |
+| `src/components/app/CheckinCheckoutCard.tsx` | MODIFICAR | Remover botão de checkout (mover para histórico) |
 
 ---
 
 ## Detalhes de Implementação
 
-### VeiculoComRota Interface Completa
+### 1. MotoristaBottomNav (Novo Componente)
 
-```typescript
-interface VeiculoComRota {
-  id: string;
-  placa: string;
-  nome: string | null;
-  tipo_veiculo: string;
-  capacidade: number | null;
-  status: string; // liberado, pendente, etc
-  
-  // Motorista vinculado (via motoristas.veiculo_id ou veiculos.motorista_id)
-  motorista: {
-    id: string;
-    nome: string;
-    status: string; // disponivel, em_viagem, etc
-  } | null;
-  
-  // Rota atual (se motorista em viagem)
-  em_rota: boolean;
-  viagem?: {
-    id: string;
-    origem: string;
-    destino: string;
-    h_inicio_real: string;
-    tempo_em_rota: number; // minutos
-  };
-  
-  // Localização quando parado
-  ultima_localizacao: string | null;
-  ultima_localizacao_at: string | null;
+Menu de navegação inferior estilo nativo:
+
+```tsx
+interface NavTab {
+  id: 'inicio' | 'veiculo' | 'corrida' | 'historico' | 'mais';
+  label: string;
+  icon: LucideIcon;
 }
+
+const tabs: NavTab[] = [
+  { id: 'inicio', label: 'Início', icon: Home },
+  { id: 'veiculo', label: 'Veículo', icon: Car },
+  { id: 'corrida', label: 'Corrida', icon: Plus },
+  { id: 'historico', label: 'Histórico', icon: ClipboardList },
+  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
+];
 ```
 
-### LocalizadorVeiculoCard - Visual
-
+Visual:
 ```text
-┌─────────────────────────────────────┐
-│  🚐  VAN PRATA-01                   │  ← Nome/Apelido
-│      ABC-1234 • Van                 │  ← Placa + Tipo
-├─────────────────────────────────────┤
-│                                     │
-│  👤 João Silva                      │  ← Motorista
-│     Disponível                      │  ← Status motorista
-│                                     │
-├─────────────────────────────────────┤
-│                                     │
-│  [🟢 Disponível]        há 15min    │  ← Status + tempo
-│                                     │
-└─────────────────────────────────────┘
-
---- OU para veículo em rota: ---
-
-┌─────────────────────────────────────┐
-│  🚌  ÔNIBUS AZUL                    │
-│      DEF-5678 • Ônibus              │
-├─────────────────────────────────────┤
-│                                     │
-│  👤 Maria Santos                    │
-│     Em viagem                       │
-│                                     │
-├─────────────────────────────────────┤
-│  SDU  ─────────→  Hotel Barra       │  ← Rota visual
-│  [🔵 Em Rota]            ⏱ 23min    │  ← Status + duração
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  🏠      🚗       ➕        📋       ⚙️        │
+│ Início  Veículo  Corrida  Histórico  Mais      │
+│  ───                                           │  ← indicador ativo
+└─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo de Dados
+### 2. MotoristaVeiculoTab (Novo Componente)
 
-1. **Fetch Inicial**:
-   - Busca veículos do evento
-   - Busca motoristas do evento
-   - Busca viagens ativas (status = 'em_andamento')
+Aba dedicada ao veículo vinculado:
 
-2. **Montagem dos Cards**:
-   - Para cada veículo, encontra motorista vinculado
-   - Se motorista em viagem, busca dados da viagem (origem, destino)
-   - Calcula localização baseada nas regras
+```text
+┌─────────────────────────────────────┐
+│  🚗 Meu Veículo                     │
+├─────────────────────────────────────┤
+│  ┌───────────────────────────────┐  │
+│  │  ABC-1234 • Van Prata         │  │
+│  │  Tipo: Van • 15 lugares       │  │
+│  │                               │  │
+│  │  ⛽ Combustível: 3/4          │  │
+│  │  📏 KM Inicial: 45.230        │  │
+│  │  📅 Vistoria: 26/01 08:30     │  │
+│  └───────────────────────────────┘  │
+├─────────────────────────────────────┤
+│  📸 Fotos do Veículo (6)           │
+│  ┌────┐ ┌────┐ ┌────┐              │
+│  │    │ │    │ │    │              │
+│  └────┘ └────┘ └────┘              │
+├─────────────────────────────────────┤
+│  ⚠️ Avarias Registradas (2)        │
+│  • Frente: Arranhão no para-choque │
+│  • Interior: Banco rasgado         │
+├─────────────────────────────────────┤
+│  [📝 Registrar Nova Avaria]        │  ← Abre modal
+└─────────────────────────────────────┘
+```
 
-3. **Agrupamento**:
-   - "Em Rota": veículos cujo motorista tem viagem ativa
-   - Localizações: usa ultima_localizacao do motorista
-   - "Sem Motorista": veículos sem motorista vinculado
-   - "Sem Localização": resto
+**Funcionalidades:**
+- Ver todas as fotos do veículo (já temos VeiculoFotosModal)
+- Listar avarias existentes
+- Botão para registrar nova avaria (abre modal com foto + descrição)
 
-4. **Realtime**:
-   - Subscribe em: motoristas, veiculos, viagens
-   - Re-fetch automático em mudanças
+---
+
+### 3. MotoristaHistoricoTab (Novo Componente)
+
+Aba de histórico com checkout escondido:
+
+```text
+┌─────────────────────────────────────┐
+│  📋 Histórico de Hoje              │
+├─────────────────────────────────────┤
+│  ┌───────────────────────────────┐  │
+│  │  ✅ SDU → Hotel Barra         │  │
+│  │  09:30 - 10:15 • 45min        │  │
+│  │  PAX: 8                       │  │
+│  └───────────────────────────────┘  │
+│  ┌───────────────────────────────┐  │
+│  │  ✅ Hotel → Aeroporto         │  │
+│  │  11:00 - 11:45 • 45min        │  │
+│  │  PAX: 5                       │  │
+│  └───────────────────────────────┘  │
+├─────────────────────────────────────┤
+│  📊 Resumo do Dia                  │
+│  • 2 viagens finalizadas           │
+│  • Total PAX: 13                   │
+│  • Tempo em rota: 1h30min          │
+├─────────────────────────────────────┤
+│  [🚪 Encerrar Expediente]          │  ← Botão secundário
+└─────────────────────────────────────┘
+```
+
+**Funcionalidades:**
+- Lista viagens encerradas do motorista (hoje)
+- Resumo com estatísticas do dia
+- Botão "Encerrar Expediente" (checkout) - posição secundária
+
+---
+
+### 4. AppMotorista (Modificações)
+
+Transformar em controlador de abas:
+
+```tsx
+const [activeTab, setActiveTab] = useState<TabId>('inicio');
+
+// Renderização condicional por aba
+const renderTabContent = () => {
+  switch (activeTab) {
+    case 'inicio':
+      return <InicioContent />;  // Missões + Viagens ativas
+    case 'veiculo':
+      return <MotoristaVeiculoTab veiculo={veiculoExibir} />;
+    case 'corrida':
+      return <CreateViagemMotoristaForm ... />;  // Direto no conteúdo
+    case 'historico':
+      return <MotoristaHistoricoTab ... />;
+    case 'mais':
+      return <MaisContent />;  // Logout, etc
+  }
+};
+```
+
+---
+
+### 5. CheckinCheckoutCard (Modificações)
+
+Remover botão de checkout da tela principal:
+
+- Manter: Card de status (entrada/saída registradas)
+- Manter: Botão de Check-in
+- Remover: Botão "Encerrar Expediente"
+
+O checkout será acessível apenas pela aba "Histórico".
+
+---
+
+## Fluxo de Uso Atualizado
+
+1. **Motorista abre o app** → Aba "Início" ativa
+   - Vê card de presença (check-in ou status)
+   - Vê missões designadas
+   - Vê viagens ativas
+
+2. **Quer ver dados do veículo** → Toca em "Veículo"
+   - Vê fotos, avarias, KM, combustível
+   - Pode registrar nova avaria
+
+3. **Quer iniciar nova corrida** → Toca em "Corrida"
+   - Formulário de criação de viagem
+
+4. **Quer ver histórico ou encerrar dia** → Toca em "Histórico"
+   - Vê viagens finalizadas
+   - Resumo do dia
+   - Botão de checkout (secundário)
+
+5. **Quer sair** → Toca em "Mais"
+   - Opção de logout
+
+---
+
+## Estados Especiais
+
+### Sem Veículo Atribuído (Aba Veículo)
+```text
+┌─────────────────────────────────────┐
+│  🚗 Meu Veículo                     │
+├─────────────────────────────────────┤
+│                                     │
+│       🚗 (ícone grande opaco)       │
+│                                     │
+│   Nenhum veículo atribuído          │
+│   Aguarde a atribuição pela         │
+│   coordenação                       │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Sem Check-in (Aba Início)
+- CheckinCheckoutCard exibe botão de check-in
+- Outras funcionalidades podem ser limitadas
 
 ---
 
 ## Benefícios
 
-1. **Visão centrada em ativos**: Veículos são os ativos monitorados
-2. **Informação de rota**: Saber de onde para onde cada veículo está indo
-3. **Rastreabilidade**: Qual motorista está com qual veículo
-4. **Alertas visuais**: Veículos sem motorista destacados
-5. **Flexibilidade**: Toggle permite alternar entre visualizações
+1. **Navegação clara**: Menu fixo sempre visível
+2. **Acesso rápido ao veículo**: Aba dedicada com todas as informações
+3. **Checkout escondido**: Evita cliques acidentais, ação secundária
+4. **Histórico acessível**: Motorista pode ver suas viagens do dia
+5. **UX nativa**: Padrão de navegação familiar (apps mobile)
+6. **Escalável**: Fácil adicionar novas abas no futuro
 
 ---
 
-## Toggle de Visualização
+## Detalhes Técnicos
 
-O painel terá um toggle para alternar:
-- **Motoristas**: Visualização atual (cards de motoristas)
-- **Veículos**: Nova visualização (cards de veículos com rotas)
+### Estado Compartilhado
+O `AppMotorista` mantém o estado centralizado e passa props para as abas:
+- `veiculoExibir`: Veículo vinculado (do check-in ou atribuído)
+- `presenca`: Dados de presença do dia
+- `minhasViagensAtivas`: Viagens em andamento
+- `minhasViagensFinalizadas`: Viagens encerradas (novo cálculo)
+- `minhasMissoes`: Missões designadas
 
-Isso permite que o CCO escolha a perspectiva mais útil para cada situação.
+### Viagens Finalizadas (Novo filtro)
+```tsx
+const minhasViagensFinalizadas = useMemo(() => {
+  if (!motoristaData) return [];
+  return viagens
+    .filter(v => 
+      v.motorista_id === motoristaData.id && 
+      (v.status === 'encerrado' || v.status === 'cancelado')
+    )
+    .sort((a, b) => {
+      // Ordenar por hora de chegada (mais recente primeiro)
+      return (b.h_chegada || '').localeCompare(a.h_chegada || '');
+    });
+}, [viagens, motoristaData]);
+```
+
+### Registrar Avaria (Nova funcionalidade)
+Modal simples para registrar avaria durante o expediente:
+- Seleção de área do veículo
+- Descrição do problema
+- Foto opcional (usando câmera do dispositivo)
+- Salva em `veiculo_fotos` e atualiza `inspecao_dados`
