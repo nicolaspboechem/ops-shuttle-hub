@@ -208,6 +208,47 @@ export type Database = {
           },
         ]
       }
+      motorista_credenciais: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          motorista_id: string
+          senha_hash: string
+          telefone: string
+          ultimo_login: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          motorista_id: string
+          senha_hash: string
+          telefone: string
+          ultimo_login?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          motorista_id?: string
+          senha_hash?: string
+          telefone?: string
+          ultimo_login?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motorista_credenciais_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       motorista_presenca: {
         Row: {
           checkin_at: string | null
