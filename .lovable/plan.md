@@ -1,229 +1,202 @@
 
+# Plano: Integrar Sistema de Login Customizado de Motoristas
 
-# Plano: Login Customizado para Motoristas (Tabela Separada)
+## Resumo
 
-## Resumo da Solução
-
-Criar um sistema de autenticação **separado e simplificado** para motoristas, usando uma tabela própria para armazenar credenciais (telefone + senha com hash). Admins continuam usando Supabase Auth via `/auth`, enquanto motoristas usarão `/login/motorista`.
+Completar a integração do sistema de login customizado para motoristas, garantindo que:
+- Motoristas usem **exclusivamente** o sistema de credenciais customizado (`motorista_credenciais`)
+- A página de motorista (`AppMotorista`) seja protegida pelo `DriverAuthContext`
+- A página de Equipe gerencie credenciais na tabela `motorista_credenciais`
 
 ---
 
-## Arquitetura
+## Arquitetura Final
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                      FLUXOS DE LOGIN                            │
+│                    FLUXOS DE AUTENTICAÇÃO                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ADMIN/OPERADOR                    MOTORISTA                    │
-│  ┌─────────────┐                   ┌─────────────┐              │
-│  │  /auth      │                   │  /login/    │              │
-│  │  (email)    │                   │  motorista  │              │
-│  └──────┬──────┘                   │  (celular)  │              │
-│         │                          └──────┬──────┘              │
-│         ▼                                 ▼                     │
-│  ┌─────────────┐                   ┌─────────────────────┐      │
-│  │ Supabase    │                   │ driver-login        │      │
-│  │ Auth        │                   │ (Edge Function)     │      │
-│  └──────┬──────┘                   └──────┬──────────────┘      │
-│         │                                 │                     │
-│         ▼                                 ▼                     │
-│  ┌─────────────┐                   ┌─────────────────────┐      │
-│  │ auth.users  │                   │ motorista_credenciais│     │
-│  │ (Supabase)  │                   │ (tabela customizada) │     │
-│  └─────────────┘                   └─────────────────────┘      │
+│  ADMIN/OPERADOR/SUPERVISOR              MOTORISTA               │
+│  ┌──────────────────────┐               ┌──────────────────┐    │
+│  │  /auth (email)       │               │  /login/motorista│    │
+│  └──────────┬───────────┘               │  (celular)       │    │
+│             │                           └────────┬─────────┘    │
+│             ▼                                    ▼              │
+│  ┌──────────────────────┐               ┌──────────────────┐    │
+│  │  Supabase Auth       │               │  driver-login    │    │
+│  │  (AuthContext)       │               │  Edge Function   │    │
+│  └──────────┬───────────┘               └────────┬─────────┘    │
+│             │                                    │              │
+│             ▼                                    ▼              │
+│  ┌──────────────────────┐               ┌──────────────────┐    │
+│  │  auth.users          │               │motorista_        │    │
+│  │  evento_usuarios     │               │credenciais       │    │
+│  └──────────────────────┘               └──────────────────┘    │
+│             │                                    │              │
+│             ▼                                    ▼              │
+│  ┌──────────────────────┐               ┌──────────────────┐    │
+│  │  /app/:id/operador   │               │  /app/:id/       │    │
+│  │  /app/:id/supervisor │               │  motorista       │    │
+│  │  /evento/... (CCO)   │               │                  │    │
+│  └──────────────────────┘               └──────────────────┘    │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Componentes da Solução
+## Mudanças Necessárias
 
-### 1. Nova Tabela: `motorista_credenciais`
+### 1. Criar Componente de Proteção de Rota para Motoristas
 
-Armazena as credenciais de login dos motoristas de forma segura:
+**Arquivo:** `src/components/auth/DriverRoute.tsx`
 
-```sql
-CREATE TABLE motorista_credenciais (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  motorista_id UUID NOT NULL REFERENCES motoristas(id) ON DELETE CASCADE,
-  telefone VARCHAR(20) NOT NULL UNIQUE,
-  senha_hash VARCHAR(255) NOT NULL,
-  ativo BOOLEAN DEFAULT true,
-  ultimo_login TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+Componente que protege rotas de motoristas usando `DriverAuthContext`:
 
--- Índice para busca rápida por telefone
-CREATE INDEX idx_motorista_credenciais_telefone ON motorista_credenciais(telefone);
-```
+- Se não autenticado via driver login, redireciona para `/login/motorista`
+- Valida se o `evento_id` da sessão corresponde ao da rota
+- Permite acesso apenas se token for válido e não expirado
 
 ---
 
-### 2. Edge Function: `driver-login`
+### 2. Atualizar AppMotorista para usar DriverAuthContext
 
-Valida credenciais e retorna um token JWT customizado:
+**Arquivo:** `src/pages/app/AppMotorista.tsx`
 
-**Fluxo:**
-1. Recebe `telefone` + `senha`
-2. Busca na tabela `motorista_credenciais` pelo telefone
-3. Verifica se o hash da senha confere (usando bcrypt)
-4. Se válido, gera um JWT customizado com claims do motorista
-5. Retorna token para o cliente
-
-**Segurança:**
-- Senhas armazenadas com bcrypt (hash seguro)
-- JWT com expiração configurável (ex: 24h)
-- Rate limiting recomendado
+Mudanças:
+- Usar `useDriverAuth()` ao invés de `useAuth()`
+- Obter `motorista_id` diretamente da sessão do motorista (não mais por comparação de nome)
+- Atualizar função de logout para usar `signOut` do `DriverAuthContext`
+- Redirecionar para `/login/motorista` ao sair
 
 ---
 
-### 3. Edge Function: `driver-register`
+### 3. Atualizar Rotas no App.tsx
 
-Cria credenciais para um motorista existente:
+**Arquivo:** `src/App.tsx`
 
-**Fluxo:**
-1. Recebe `motorista_id` + `telefone` + `senha`
-2. Verifica se o admin está autenticado
-3. Gera hash bcrypt da senha
-4. Insere registro em `motorista_credenciais`
+Mudanças:
+- Substituir `EventRoleRoute` por `DriverRoute` na rota `/app/:eventoId/motorista`
+- Manter `EventRoleRoute` para operadores e supervisores
 
 ---
 
-### 4. Nova Página: `/login/motorista`
+### 4. Atualizar Modal de Login do Motorista (Equipe)
 
-Interface de login simplificada para motoristas:
+**Arquivo:** `src/components/equipe/EditMotoristaLoginModal.tsx`
 
-- Campo: Telefone (com máscara)
-- Campo: Senha
-- Botão: Entrar
-- Link: "Sou administrador" → `/auth`
-
-**Visual:** Similar ao `/auth` atual, mas com foco em celular
+Mudanças:
+- **Criar login**: Chamar `driver-register` Edge Function (tabela `motorista_credenciais`)
+- **Resetar senha**: Atualizar hash na tabela `motorista_credenciais`
+- Remover integração com `create-user` do Supabase Auth
 
 ---
 
-### 5. Contexto de Autenticação: `DriverAuthContext`
+### 5. Atualizar Hook useEquipe para verificar credenciais
 
-Contexto separado para motoristas:
+**Arquivo:** `src/hooks/useEquipe.ts`
 
-```tsx
-interface DriverSession {
-  motorista_id: string;
-  motorista_nome: string;
-  evento_id: string;
-  token: string;
-  expires_at: number;
-}
-
-// Armazena sessão em localStorage
-// Valida token em cada request
-```
+Mudanças:
+- Verificar se motorista tem login na tabela `motorista_credenciais` (não mais `user_id`)
+- Atualizar propriedade `has_login` baseada na nova tabela
 
 ---
 
-### 6. Modificações na Página `/auth`
+### 6. Criar/Atualizar Edge Functions
 
-- Remover toggle Celular/Email
-- Manter apenas login por Email
-- Adicionar link: "Sou motorista? Entre aqui"
+#### 6.1 Atualizar `driver-register` para suportar reset de senha
+
+Adicionar funcionalidade de atualizar senha existente (não apenas criar nova)
+
+#### 6.2 Garantir que `driver-login` retorna dados corretos
+
+Já implementado, apenas validar que retorna `evento_id` do motorista
 
 ---
 
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `supabase/migrations/xxx_create_motorista_credenciais.sql` | CRIAR | Tabela de credenciais |
-| `supabase/functions/driver-login/index.ts` | CRIAR | Validação de login |
-| `supabase/functions/driver-register/index.ts` | CRIAR | Cadastro de credenciais |
-| `src/pages/LoginMotorista.tsx` | CRIAR | Página de login para motoristas |
-| `src/lib/auth/DriverAuthContext.tsx` | CRIAR | Contexto de auth para motoristas |
-| `src/pages/Auth.tsx` | MODIFICAR | Remover opção de celular, adicionar link |
-| `src/App.tsx` | MODIFICAR | Adicionar rota `/login/motorista` |
-| `supabase/config.toml` | MODIFICAR | Registrar novas funções |
-
----
-
-## Fluxo de Uso
-
-### Criação de Credencial (Admin):
-1. Admin acessa página de Equipe do evento
-2. Clica em "Gerenciar Login" no card do motorista
-3. Define telefone e senha
-4. Sistema salva hash da senha em `motorista_credenciais`
-
-### Login do Motorista:
-1. Motorista acessa `/login/motorista`
-2. Digita telefone: `(11) 99999-9999`
-3. Digita senha: `1234`
-4. Sistema valida via Edge Function
-5. Token JWT retornado e armazenado
-6. Redireciona para `/app`
-
----
-
-## Segurança
-
-| Aspecto | Implementação |
-|---------|---------------|
-| Senhas | Hash bcrypt (custo 10) |
-| Tokens | JWT com HMAC-SHA256, expiração 24h |
-| Transporte | HTTPS obrigatório |
-| Tentativas | Considerar rate limiting futuro |
-| Sessão | Token em localStorage, validado a cada request |
-
----
-
-## Vantagens
-
-1. **Sem dependência de SMS** - Não precisa Twilio/Vonage
-2. **Controle total** - Você define as regras de senha
-3. **Telefones fictícios** - Pode usar qualquer número para testes
-4. **Separação clara** - Admins e motoristas em fluxos distintos
-5. **Simples** - Sem configuração extra no Supabase
+| `src/components/auth/DriverRoute.tsx` | **CRIAR** | Proteção de rota usando DriverAuthContext |
+| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Usar DriverAuthContext, obter motorista_id da sessão |
+| `src/App.tsx` | MODIFICAR | Usar DriverRoute para rota de motorista |
+| `src/components/equipe/EditMotoristaLoginModal.tsx` | MODIFICAR | Usar driver-register ao invés de create-user |
+| `src/hooks/useEquipe.ts` | MODIFICAR | Verificar has_login na tabela motorista_credenciais |
+| `supabase/functions/driver-register/index.ts` | MODIFICAR | Adicionar suporte a reset de senha |
 
 ---
 
 ## Detalhes Técnicos
 
-### Hash de Senha (Edge Function)
+### DriverRoute Component
 
 ```typescript
-import { hash, compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
-
-// Ao registrar
-const senhaHash = await hash(senha, 10);
-
-// Ao validar login
-const valid = await compare(senhaFornecida, senhaHash);
+// Verifica se motorista está autenticado via DriverAuthContext
+// Redireciona para /login/motorista se não autenticado
+// Valida que evento_id da sessão = evento_id da rota
 ```
 
-### JWT Customizado
+### AppMotorista - Mudanças Principais
 
 ```typescript
-import { create } from "https://deno.land/x/djwt@v2.8/mod.ts";
+// ANTES (usa Supabase Auth)
+const { profile, signOut, user } = useAuth();
+const nomeMotorista = profile?.full_name || '';
+const motoristaData = motoristas.find(m => m.nome === nomeMotorista);
 
-const jwt = await create(
-  { alg: "HS256", typ: "JWT" },
-  { 
+// DEPOIS (usa Driver Auth)
+const { driverSession, signOut } = useDriverAuth();
+const motoristaData = motoristas.find(m => m.id === driverSession?.motorista_id);
+```
+
+### useEquipe - Verificação de Login
+
+```typescript
+// ANTES
+has_login: !!m.user_id
+
+// DEPOIS
+// Fazer join com motorista_credenciais para verificar se existe registro
+has_login: !!credenciais.find(c => c.motorista_id === m.id)
+```
+
+### EditMotoristaLoginModal - Criar Login
+
+```typescript
+// ANTES (usa Supabase Auth)
+await supabase.functions.invoke('create-user', { ... });
+
+// DEPOIS (usa driver-register)
+await supabase.functions.invoke('driver-register', {
+  body: {
     motorista_id: motorista.id,
-    motorista_nome: motorista.nome,
-    evento_id: motorista.evento_id,
-    exp: Date.now() / 1000 + 86400 // 24h
-  },
-  Deno.env.get("JWT_SECRET")!
-);
+    telefone: telefoneDigits,
+    senha: senha.trim(),
+  }
+});
 ```
 
 ---
 
-## Migração de Motoristas Existentes
+## Fluxo Final do Motorista
 
-Motoristas que já foram criados com login Supabase Auth:
-- Podem continuar usando o sistema antigo (se phone auth for habilitado no futuro)
-- Ou podem ter credenciais criadas na nova tabela
-- Recomendação: criar credenciais novas para todos na nova tabela
+1. Admin acessa página de Equipe
+2. Clica em "Criar Login" no card do motorista
+3. Sistema salva credenciais em `motorista_credenciais` via `driver-register`
+4. Motorista acessa `/login/motorista`
+5. Digita celular + senha
+6. `driver-login` valida e retorna JWT com `motorista_id`, `evento_id`
+7. `DriverRoute` permite acesso a `/app/:eventoId/motorista`
+8. `AppMotorista` usa dados da sessão para mostrar viagens/missões
 
+---
+
+## Benefícios
+
+1. **Separação clara**: Motoristas usam sistema próprio, sem conflito com Supabase Auth
+2. **Simplicidade**: Sem SMS, sem Twilio, telefones fictícios funcionam
+3. **Segurança**: Senhas com bcrypt, JWT com expiração
+4. **Consistência**: Toda lógica de motorista usa mesma tabela `motorista_credenciais`
+5. **Funcionamento**: Sistema completo e integrado com funcionalidades existentes
