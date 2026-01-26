@@ -1,179 +1,259 @@
 
-# Plano: Edição Manual de Localização do Motorista no CCO
+# Plano: Simplificar Painel Localizador - Foco em Motoristas por Localização
 
 ## Objetivo
-Adicionar funcionalidade para que administradores possam editar manualmente a localização de um motorista diretamente no card do Kanban, através de um botão de edição ao lado da última localização.
+
+Refatorar o Painel Localizador de Frota para exibir apenas motoristas (sem toggle veículos), organizados em colunas por localização. Cada card mostra o motorista como informação principal, com veículo e status como informações secundárias.
 
 ---
 
-## Arquivos a Criar/Modificar
+## Situação Atual
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  Header: Logo + Toggle [Motoristas | Veículos] + Stats + Relógio   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
+│  │ Base     │  │ Hotel X  │  │ Aeroporto│  │EM TRÂNS. │            │
+│  ├──────────┤  ├──────────┤  ├──────────┤  ├──────────┤            │
+│  │ Card 1   │  │ Card 1   │  │ Card 1   │  │ Card 1   │            │
+│  │ Card 2   │  │          │  │          │  │          │            │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘            │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Problemas:**
+- Toggle entre motoristas/veículos adiciona complexidade desnecessária
+- Informações do veículo são vinculadas ao motorista, então a visão de veículos é redundante
+- Foco deve ser no motorista (quem está onde)
+
+---
+
+## Nova Arquitetura - Apenas Motoristas
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  Header: Logo + Título + Stats (Simplificado) + Relógio            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────┐ │
+│  │📍 Base   │  │📍 Hotel X│  │📍 Aero.  │  │🔄 TRÂNS. │  │❓ S/L │ │
+│  │   (5)    │  │   (2)    │  │   (1)    │  │   (3)    │  │  (1)  │ │
+│  ├──────────┤  ├──────────┤  ├──────────┤  ├──────────┤  ├───────┤ │
+│  │┌────────┐│  │┌────────┐│  │┌────────┐│  │┌────────┐│  │       │ │
+│  ││ João   ││  ││ Pedro  ││  ││ Carlos ││  ││ Maria  ││  │       │ │
+│  ││🚗 ABC12││  ││🚐 XYZ34││  ││🚌 MNO56││  ││→ Destino│  │       │ │
+│  ││🟢 Disp.││  ││🟢 Disp.││  ││🟢 Disp.││  ││🔵 Em Via│  │       │ │
+│  │└────────┘│  │└────────┘│  │└────────┘│  │└────────┘│  │       │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └───────┘ │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/motoristas/EditarLocalizacaoModal.tsx` | **CRIAR** | Modal para selecionar nova localização |
-| `src/components/motoristas/MotoristaKanbanCard.tsx` | MODIFICAR | Adicionar botão de editar localização |
-| `src/components/motoristas/MotoristaKanbanColumn.tsx` | MODIFICAR | Passar handler de edição de localização |
-| `src/pages/Motoristas.tsx` | MODIFICAR | Adicionar estado e lógica para o modal |
+| `src/pages/PainelLocalizador.tsx` | MODIFICAR | Remover toggle e lógica de veículos |
+| `src/components/localizador/LocalizadorColumn.tsx` | MODIFICAR | Simplificar para apenas motoristas |
+| `src/components/localizador/LocalizadorCard.tsx` | MODIFICAR | Ajustar layout do card |
 
 ---
 
 ## Detalhes de Implementação
 
-### 1. Criar `EditarLocalizacaoModal.tsx`
+### 1. PainelLocalizador.tsx (Modificações)
 
-Modal com:
-- Título "Editar Localização"
-- Nome do motorista (readonly)
-- Localização atual exibida
-- Select dropdown com:
-  - Opção "Base" (sempre disponível)
-  - Todos os pontos de embarque ativos do evento
-- Botões Cancelar/Salvar
+**Remover:**
+- Toggle entre motoristas/veículos
+- Hook `useLocalizadorVeiculos`
+- Lógica de veículos
+- Stats de veículos
 
-```tsx
-interface EditarLocalizacaoModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  motorista: { id: string; nome: string };
-  pontosEmbarque: Array<{ id: string; nome: string }>;
-  localizacaoAtual: string | null;
-  onSave: (motoristaId: string, novaLocalizacao: string) => Promise<void>;
-}
-```
-
-### 2. Modificar `MotoristaKanbanCard.tsx`
-
-Adicionar prop `onEditLocalizacao` e botão de editar:
+**Simplificar:**
+- Header mais limpo
+- Stats apenas para motoristas (Total, Disponíveis, Em Trânsito)
+- Colunas apenas de motoristas
 
 ```tsx
-interface MotoristaKanbanCardProps {
-  // ... props existentes
-  onEditLocalizacao?: () => void;
-}
+// REMOVER
+const [viewMode, setViewMode] = useState<ViewMode>('veiculos');
+const { veiculosPorLocalizacao, ... } = useLocalizadorVeiculos(...);
+
+// MANTER
+const { 
+  motoristasPorLocalizacao, 
+  localizacoes, 
+  loading, 
+  refetch 
+} = useLocalizadorMotoristas(selectedEvento || undefined);
 ```
 
-Na seção de última localização, adicionar botão:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ 📍 Última loc: Hotel Barra  [✏️]  ← Novo botão      │
-└─────────────────────────────────────────────────────┘
-```
-
-Se não houver localização, mostrar:
-```text
-┌─────────────────────────────────────────────────────┐
-│ 📍 Sem localização  [✏️]  ← Permite definir         │
-└─────────────────────────────────────────────────────┘
-```
-
-### 3. Modificar `MotoristaKanbanColumn.tsx`
-
-Adicionar prop `onEditLocalizacao` e passar para os cards:
-
+**Novo cálculo de stats:**
 ```tsx
-interface MotoristaKanbanColumnProps {
-  // ... props existentes
-  onEditLocalizacao: (motorista: Motorista) => void;
-}
-```
-
-### 4. Modificar `Motoristas.tsx`
-
-Adicionar:
-- Estado `editLocMotorista` para controlar qual motorista está sendo editado
-- Função `handleUpdateLocalizacao` para salvar no Supabase
-- Renderização do `EditarLocalizacaoModal`
-
-```tsx
-const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
-
-const handleUpdateLocalizacao = async (motoristaId: string, novaLocalizacao: string) => {
-  const { error } = await supabase
-    .from('motoristas')
-    .update({ 
-      ultima_localizacao: novaLocalizacao,
-      ultima_localizacao_at: new Date().toISOString(),
-      atualizado_por: user?.id
-    })
-    .eq('id', motoristaId);
+const stats = useMemo(() => {
+  const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
+  const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
+  const disponiveis = Object.entries(motoristasPorLocalizacao)
+    .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
+    .flatMap(([, arr]) => arr)
+    .filter(m => m.status === 'disponivel').length;
   
-  if (error) {
-    toast.error('Erro ao atualizar localização');
-    return;
-  }
-  
-  toast.success('Localização atualizada');
-  refetchMotoristas();
+  return { total: totalMotoristas, emTransito, disponiveis };
+}, [motoristasPorLocalizacao]);
+```
+
+---
+
+### 2. LocalizadorColumn.tsx (Modificações)
+
+**Simplificar:**
+- Remover props de veículos e viewMode
+- Focar apenas em motoristas
+- Remover condicionais de veículos
+
+```tsx
+interface LocalizadorColumnProps {
+  titulo: string;
+  motoristas: MotoristaComVeiculo[];
+  tipo: 'local' | 'em_transito' | 'sem_local';
+}
+```
+
+**Configuração visual simplificada:**
+```tsx
+const columnConfig = {
+  local: {
+    icon: MapPin,
+    headerClass: 'bg-primary/20 border-primary/30',
+    iconClass: 'text-primary',
+    badgeClass: 'bg-primary text-primary-foreground',
+  },
+  em_transito: {
+    icon: Navigation,
+    headerClass: 'bg-blue-500/20 border-blue-500/30',
+    iconClass: 'text-blue-500',
+    badgeClass: 'bg-blue-500 text-white',
+  },
+  sem_local: {
+    icon: MapPinOff,
+    headerClass: 'bg-muted/50 border-border',
+    iconClass: 'text-muted-foreground',
+    badgeClass: 'bg-muted text-muted-foreground',
+  },
 };
 ```
 
 ---
 
-## Fluxo de Uso
+### 3. LocalizadorCard.tsx (Ajustes no Layout)
 
-1. Admin visualiza Kanban de Motoristas
-2. No card, vê "Última loc: Hotel Barra [✏️]"
-3. Clica no botão de editar (ícone lápis)
-4. Modal abre com:
-   - Nome do motorista
-   - Localização atual
-   - Dropdown com "Base" + pontos de embarque cadastrados
-5. Seleciona nova localização
-6. Clica em "Salvar"
-7. `motoristas.ultima_localizacao` e `ultima_localizacao_at` são atualizados
-8. Card reflete nova localização
-9. Localizador de Frota atualiza automaticamente via Realtime
+O card atual já está bom, mas vamos fazer pequenos ajustes para enfatizar a hierarquia:
+
+**Estrutura do Card:**
+```text
+┌─────────────────────────────────────┐
+│  🧑 JOÃO SILVA                  🟢  │  ← Nome grande + indicador status
+├─────────────────────────────────────┤
+│  🚗 Van Prata • ABC-1234            │  ← Veículo + placa
+│      Van • 15 lugares               │  ← Tipo + capacidade
+├─────────────────────────────────────┤
+│  🟢 Disponível        há 15min      │  ← Status badge + tempo no local
+└─────────────────────────────────────┘
+
+// Ou se em trânsito:
+┌─────────────────────────────────────┐
+│  🧑 MARIA SANTOS                🔵  │
+├─────────────────────────────────────┤
+│  🚐 Sprinter • XYZ-5678             │
+│      Van • 12 lugares               │
+├─────────────────────────────────────┤
+│  🔵 Em Viagem     Base → Hotel X    │  ← Status + rota
+└─────────────────────────────────────┘
+```
+
+**Ajustes:**
+- Nome do motorista em destaque (font-bold text-lg)
+- Veículo como informação secundária
+- Status badge com cor correspondente
+- Tempo no local ou rota conforme status
 
 ---
 
-## Visual do Modal
+## Fluxo Visual Final
 
-```text
-┌─────────────────────────────────────────────┐
-│  Editar Localização                    [X]  │
-├─────────────────────────────────────────────┤
-│                                             │
-│  Motorista: João Silva                      │
-│                                             │
-│  Localização Atual: Hotel Barra             │
-│                                             │
-│  Nova Localização:                          │
-│  ┌─────────────────────────────────────┐   │
-│  │ Selecione...                      ▼ │   │
-│  └─────────────────────────────────────┘   │
-│    • Base                                   │
-│    • Aeroporto SDU                          │
-│    • Hotel Copacabana                       │
-│    • Centro de Convenções                   │
-│                                             │
-├─────────────────────────────────────────────┤
-│           [Cancelar]    [Salvar]            │
-└─────────────────────────────────────────────┘
-```
+**Colunas exibidas:**
+
+1. **Base** - Motoristas que fizeram check-in e estão na base do evento
+2. **[Pontos de Embarque]** - Colunas dinâmicas baseadas em `ultima_localizacao`
+3. **Em Trânsito** - Motoristas com status `em_viagem` (mostra rota)
+4. **Sem Localização** - Motoristas sem `ultima_localizacao` definida
+
+---
+
+## Informações no Card
+
+| Elemento | Origem | Descrição |
+|----------|--------|-----------|
+| Nome do motorista | `motorista.nome` | Destaque principal |
+| Indicador de status | `motorista.status` | Bolinha colorida |
+| Veículo (nome/placa) | `motorista.veiculo.nome` ou `placa` | Se vinculado |
+| Tipo do veículo | `motorista.veiculo.tipo_veiculo` | Van, Ônibus, etc |
+| Status badge | `motorista.status` | "Disponível", "Em Viagem", etc |
+| Tempo no local | `motorista.ultima_localizacao_at` | "há 15min" |
+| Rota (se em viagem) | `viagem_origem` → `viagem_destino` | Exibido quando status = em_viagem |
 
 ---
 
 ## Seção Técnica
 
-### Atualização no Banco
+### Remoções no PainelLocalizador
 
-```sql
-UPDATE motoristas 
-SET 
-  ultima_localizacao = 'Base',
-  ultima_localizacao_at = NOW(),
-  atualizado_por = '{user-uuid}'
-WHERE id = '{motorista-uuid}';
+```tsx
+// REMOVER estas linhas:
+import { useLocalizadorVeiculos } from '@/hooks/useLocalizadorVeiculos';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+
+type ViewMode = 'motoristas' | 'veiculos';
+const [viewMode, setViewMode] = useState<ViewMode>('veiculos');
+
+const {
+  veiculosPorLocalizacao,
+  localizacoes: localizacoesVeiculos,
+  loading: loadingVeiculos,
+  refetch: refetchVeiculos
+} = useLocalizadorVeiculos(selectedEvento || undefined);
+
+// Todo o bloco do ToggleGroup no header
+// Toda lógica condicional de viewMode
 ```
 
-### Integração com Realtime
+### Nova Interface LocalizadorColumn
 
-O Localizador de Frota já possui subscription na tabela `motoristas`, então alterações serão refletidas automaticamente no painel TV sem necessidade de refresh.
+```tsx
+interface LocalizadorColumnProps {
+  titulo: string;
+  motoristas: MotoristaComVeiculo[];
+  tipo: 'local' | 'em_transito' | 'sem_local';
+}
+
+export function LocalizadorColumn({ 
+  titulo, 
+  motoristas,
+  tipo
+}: LocalizadorColumnProps) {
+  // Implementação simplificada sem viewMode
+}
+```
 
 ### Observações
 
-- O fluxo principal de localização continua automático (check-in → "Base", finalização → ponto_desembarque)
-- Edição manual é para casos excepcionais/correções
-- "Base" sempre disponível como opção (localização padrão)
-- Botão de editar aparece sempre, mesmo sem localização definida (permite definir manualmente)
+- O hook `useLocalizadorMotoristas` já agrupa motoristas por `ultima_localizacao`
+- Motoristas com `status === 'em_viagem'` vão para coluna "Em Trânsito"
+- Motoristas sem `ultima_localizacao` vão para coluna "Sem Localização"
+- Realtime subscription já está configurada e continuará funcionando
+- O arquivo `LocalizadorVeiculoCard.tsx` pode ser removido ou mantido para uso futuro
