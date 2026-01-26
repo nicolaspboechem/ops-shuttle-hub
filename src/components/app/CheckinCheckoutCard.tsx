@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LogIn, LogOut, Clock, CheckCircle2, Car, AlertTriangle, Fuel, Eye } from 'lucide-react';
+import { LogIn, LogOut, Clock, CheckCircle2, Car, AlertTriangle, Fuel, Eye, Camera } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { Veiculo } from '@/hooks/useCadastros';
 import { CheckoutModal } from './CheckoutModal';
 import { VistoriaConfirmModal } from './VistoriaConfirmModal';
+import { VeiculoFotosModal } from './VeiculoFotosModal';
+
 interface CheckinCheckoutCardProps {
   presenca: MotoristaPresencaComVeiculo | null;
   veiculoAtribuido: Veiculo | null;
@@ -28,6 +30,7 @@ export function CheckinCheckoutCard({
 }: CheckinCheckoutCardProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showVistoriaModal, setShowVistoriaModal] = useState(false);
+  const [showFotosModal, setShowFotosModal] = useState(false);
   const hoje = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const hasCheckin = !!presenca?.checkin_at;
@@ -168,7 +171,7 @@ export function CheckinCheckoutCard({
 
             {/* Veículo em uso */}
             {veiculoExibir && (
-              <div className="p-3 rounded-lg bg-background/80 border mb-4">
+              <div className="p-3 rounded-lg bg-background/80 border mb-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Car className="h-4 w-4 text-primary" />
@@ -183,6 +186,17 @@ export function CheckinCheckoutCard({
                     )}
                   </div>
                 </div>
+                
+                {/* Botão Ver Fotos */}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowFotosModal(true)}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Ver Fotos do Veículo
+                </Button>
               </div>
             )}
 
@@ -221,6 +235,12 @@ export function CheckinCheckoutCard({
           onConfirm={onCheckout}
           loading={loading}
         />
+
+        <VeiculoFotosModal
+          open={showFotosModal}
+          onOpenChange={setShowFotosModal}
+          veiculo={veiculoExibir}
+        />
       </>
     );
   }
@@ -242,12 +262,23 @@ export function CheckinCheckoutCard({
 
         {/* Veículo utilizado */}
         {presenca?.veiculo && (
-          <div className="p-3 rounded-lg bg-background/50 border mb-4">
+          <div className="p-3 rounded-lg bg-background/50 border mb-4 space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <Car className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">Veículo utilizado:</span>
               <code className="font-medium">{presenca.veiculo.placa}</code>
             </div>
+            
+            {/* Botão Ver Fotos */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full"
+              onClick={() => setShowFotosModal(true)}
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Ver Fotos
+            </Button>
           </div>
         )}
 
@@ -281,6 +312,12 @@ export function CheckinCheckoutCard({
           </p>
         )}
       </CardContent>
+
+      <VeiculoFotosModal
+        open={showFotosModal}
+        onOpenChange={setShowFotosModal}
+        veiculo={presenca?.veiculo || null}
+      />
     </Card>
   );
 }
