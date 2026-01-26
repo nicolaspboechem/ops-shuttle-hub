@@ -192,9 +192,17 @@ export function useViagemOperacaoMotorista() {
     }
     
     if (isShuttle) {
-      toast.success('Chegou ao destino! Aguardando retorno...');
+      toast.success('Chegou ao destino!', {
+        description: '🔄 Aguardando instruções da coordenação para retorno.',
+        duration: 5000,
+      });
     } else {
-      toast.success('Rota concluída!');
+      toast.success('Rota concluída! ✅', {
+        description: viagem.tipo_operacao === 'missao' 
+          ? 'Missão finalizada com sucesso.' 
+          : 'Transfer encerrado com sucesso.',
+        duration: 4000,
+      });
     }
     
     return true;
