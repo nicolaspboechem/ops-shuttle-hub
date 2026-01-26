@@ -1,188 +1,256 @@
 
-
-# Plano: Permitir Visualização de Fotos do Veículo pelo Motorista
+# Plano: Evolução do Localizador de Frota com Foco em Veículos
 
 ## Objetivo
 
-Adicionar um botão de "Ver Fotos" no card de veículo do motorista (durante e após o check-in), permitindo que ele visualize as fotos principais do veículo a qualquer momento. Isso aumenta a segurança e permite comprovação de que o motorista verificou o estado do veículo.
+Transformar o Painel Localizador de Frota para mostrar **veículos** como entidade principal (não apenas motoristas), exibindo:
+- Rota atual (de onde → para onde)
+- Localização atual (onde está parado)
+- Motorista vinculado ao veículo
+- Status em tempo real (Em Rota, Disponível, Sem Motorista)
 
 ---
 
 ## Situação Atual
 
-- **VistoriaConfirmModal**: Já exibe fotos do veículo, mas **apenas durante o check-in**
-- **CheckinCheckoutCard (durante expediente)**: Mostra apenas placa/nome do veículo, **sem acesso às fotos**
-- **CheckinCheckoutCard (após checkout)**: Mostra veículo utilizado, **sem acesso às fotos**
+O localizador exibe **motoristas** agrupados por localização:
+- Cards mostram: nome do motorista, veículo vinculado, status, destino
+- Colunas: localizações fixas + "Em Trânsito" + "Sem Localização"
+- Foco no motorista, veículo é informação secundária
 
 ---
 
-## Solução
-
-Criar um modal reutilizável para visualização de fotos do veículo (`VeiculoFotosModal`) e adicioná-lo aos cards de veículo.
-
----
-
-## Arquitetura
+## Nova Visão - Foco em Veículos
 
 ```text
-┌─────────────────────────────────────────────────┐
-│              AppMotorista                       │
-│  ┌─────────────────────────────────────────┐    │
-│  │         CheckinCheckoutCard             │    │
-│  │  ┌───────────────────────────────────┐  │    │
-│  │  │  Veículo em uso: ABC-1234         │  │    │
-│  │  │                                   │  │    │
-│  │  │  [📷 Ver Fotos] [ℹ️ Detalhes]     │◄──────── NOVO BOTÃO
-│  │  └───────────────────────────────────┘  │    │
-│  └─────────────────────────────────────────┘    │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │    VeiculoFotosModal (novo)             │◄────── NOVO MODAL
-│  │  ┌───────────────────────────────────┐  │    │
-│  │  │  🚗 Fotos do Veículo ABC-1234     │  │    │
-│  │  │                                   │  │    │
-│  │  │  [📷][📷][📷][📷]                 │  │    │
-│  │  │  Frente | Lateral | Traseira      │  │    │
-│  │  │                                   │  │    │
-│  │  │  Avarias: Arranhão lateral esq.   │  │    │
-│  │  │                                   │  │    │
-│  │  │  ☑ Confirmo que vi as fotos       │  │    │
-│  │  └───────────────────────────────────┘  │    │
-│  └─────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    LOCALIZADOR DE FROTA                                 │
+│  [Toggle: Motoristas | Veículos]                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   │
+│  │  📍 BASE     │ │ 📍 HOTEL A   │ │ 🚗 EM ROTA   │ │ ⚠️ S/ MOTOR. │   │
+│  │     (5)      │ │     (3)      │ │     (2)      │ │     (1)      │   │
+│  ├──────────────┤ ├──────────────┤ ├──────────────┤ ├──────────────┤   │
+│  │              │ │              │ │              │ │              │   │
+│  │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │ │ ┌──────────┐ │   │
+│  │ │ 🚐 VAN-01│ │ │ │ 🚌 BUS-02│ │ │ │ 🚐 VAN-03│ │ │ │ 🚐 VAN-04│ │   │
+│  │ │ ABC-1234 │ │ │ │ DEF-5678 │ │ │ │ GHI-9012 │ │ │ │ JKL-3456 │ │   │
+│  │ │          │ │ │ │          │ │ │ │          │ │ │ │          │   │
+│  │ │ 👤 João  │ │ │ │ 👤 Pedro │ │ │ │ 👤 Maria │ │ │ │ 👤 ---   │   │
+│  │ │ ⏱ 15min  │ │ │ │ ⏱ 5min   │ │ │ │ SDU→Hotel│ │ │ │ ⚠️ Livre │   │
+│  │ └──────────┘ │ │ └──────────┘ │ │ └──────────┘ │ │ └──────────┘ │   │
+│  │              │ │              │ │              │ │              │   │
+│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Mudanças Necessárias
 
-### 1. Criar Modal de Visualização de Fotos (NOVO)
+### 1. Criar Hook `useLocalizadorVeiculos`
 
-**Arquivo:** `src/components/app/VeiculoFotosModal.tsx`
+**Arquivo:** `src/hooks/useLocalizadorVeiculos.ts`
 
-Modal dedicado para visualização de fotos do veículo com:
-- Grid de fotos clicáveis (abre em nova aba)
-- Informações de avarias do veículo
-- Dados básicos (placa, tipo, combustível, KM)
-- Última data de vistoria
-- Checkbox opcional de confirmação de visualização
+Novo hook que:
+- Busca todos os veículos do evento
+- Busca motoristas vinculados a cada veículo
+- Busca viagens ativas para determinar rota
+- Agrupa veículos por localização (derivada do motorista ou última viagem)
+
+**Interface:**
+```typescript
+interface VeiculoComRota {
+  // Dados do veículo
+  id: string;
+  placa: string;
+  nome: string | null;
+  tipo_veiculo: string;
+  status: string;
+  
+  // Motorista vinculado
+  motorista: Motorista | null;
+  
+  // Dados de rota (se em viagem)
+  em_rota: boolean;
+  origem?: string;
+  destino?: string;
+  h_inicio?: string;
+  
+  // Localização
+  ultima_localizacao: string | null;
+  ultima_localizacao_at: string | null;
+}
+```
 
 ---
 
-### 2. Atualizar CheckinCheckoutCard
+### 2. Criar Componente `LocalizadorVeiculoCard`
 
-**Arquivo:** `src/components/app/CheckinCheckoutCard.tsx`
+**Arquivo:** `src/components/localizador/LocalizadorVeiculoCard.tsx`
 
-Adicionar botão "Ver Fotos" em três locais:
-- **Antes do check-in**: No card do veículo atribuído (já existe o modal de vistoria, mas adicionar botão extra)
-- **Durante o expediente**: No card de "Veículo em uso"
-- **Após check-out**: No card de "Veículo utilizado"
+Card focado no veículo:
+- **Header**: Nome/Apelido do veículo + ícone por tipo
+- **Placa**: Destaque visual
+- **Motorista**: Nome do motorista vinculado ou "Sem motorista"
+- **Status**:
+  - Em Rota: "SDU → Hotel Barra" com seta animada
+  - Disponível: "há X minutos"
+  - Sem motorista: Badge de alerta
+- **Indicador visual**: Cor do card baseada no status
 
 ---
 
-## Arquivos a Modificar
+### 3. Atualizar Componentes Existentes
+
+**Arquivo:** `src/pages/PainelLocalizador.tsx`
+
+Adicionar:
+- Toggle para alternar entre visualização "Motoristas" e "Veículos"
+- Integração com novo hook `useLocalizadorVeiculos`
+- Lógica de agrupamento por localização do veículo
+
+**Arquivo:** `src/components/localizador/LocalizadorColumn.tsx`
+
+- Suportar renderização de cards de veículos
+- Prop adicional para tipo de visualização
+
+---
+
+### 4. Lógica de Localização do Veículo
+
+A localização do veículo será derivada de:
+
+1. **Em viagem**: Se motorista tem status `em_viagem` → veículo vai para coluna "Em Rota"
+2. **Com motorista parado**: Usa `motorista.ultima_localizacao`
+3. **Sem motorista**: Usa última viagem encerrada do veículo (ponto_desembarque)
+4. **Desconhecida**: Coluna "Sem Localização"
+
+---
+
+## Arquivos a Criar/Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/app/VeiculoFotosModal.tsx` | **CRIAR** | Modal de visualização de fotos do veículo |
-| `src/components/app/CheckinCheckoutCard.tsx` | MODIFICAR | Adicionar botões "Ver Fotos" |
+| `src/hooks/useLocalizadorVeiculos.ts` | **CRIAR** | Hook para buscar veículos com rotas |
+| `src/components/localizador/LocalizadorVeiculoCard.tsx` | **CRIAR** | Card de veículo com info de rota |
+| `src/pages/PainelLocalizador.tsx` | MODIFICAR | Adicionar toggle e view de veículos |
+| `src/components/localizador/LocalizadorColumn.tsx` | MODIFICAR | Suportar cards de veículos |
+| `src/hooks/useLocalizadorMotoristas.ts` | MODIFICAR | Adicionar info de origem da viagem |
 
 ---
 
 ## Detalhes de Implementação
 
-### VeiculoFotosModal - Novo Componente
+### VeiculoComRota Interface Completa
 
-```tsx
-interface VeiculoFotosModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  veiculo: Veiculo | null;
-  showConfirmation?: boolean; // Opcional: exibir checkbox de confirmação
-  onConfirm?: () => void;     // Callback quando confirmar
+```typescript
+interface VeiculoComRota {
+  id: string;
+  placa: string;
+  nome: string | null;
+  tipo_veiculo: string;
+  capacidade: number | null;
+  status: string; // liberado, pendente, etc
+  
+  // Motorista vinculado (via motoristas.veiculo_id ou veiculos.motorista_id)
+  motorista: {
+    id: string;
+    nome: string;
+    status: string; // disponivel, em_viagem, etc
+  } | null;
+  
+  // Rota atual (se motorista em viagem)
+  em_rota: boolean;
+  viagem?: {
+    id: string;
+    origem: string;
+    destino: string;
+    h_inicio_real: string;
+    tempo_em_rota: number; // minutos
+  };
+  
+  // Localização quando parado
+  ultima_localizacao: string | null;
+  ultima_localizacao_at: string | null;
 }
 ```
 
-**Funcionalidades:**
-- Busca fotos da tabela `veiculo_fotos` ao abrir
-- Exibe grid de fotos (3 colunas, clicáveis)
-- Mostra avarias se existirem (parseia `inspecao_dados`)
-- Exibe dados básicos do veículo
-- Checkbox opcional para confirmação
+### LocalizadorVeiculoCard - Visual
 
----
+```text
+┌─────────────────────────────────────┐
+│  🚐  VAN PRATA-01                   │  ← Nome/Apelido
+│      ABC-1234 • Van                 │  ← Placa + Tipo
+├─────────────────────────────────────┤
+│                                     │
+│  👤 João Silva                      │  ← Motorista
+│     Disponível                      │  ← Status motorista
+│                                     │
+├─────────────────────────────────────┤
+│                                     │
+│  [🟢 Disponível]        há 15min    │  ← Status + tempo
+│                                     │
+└─────────────────────────────────────┘
 
-### CheckinCheckoutCard - Modificações
+--- OU para veículo em rota: ---
 
-**Estado DURANTE expediente (após check-in):**
-```tsx
-{veiculoExibir && (
-  <div className="p-3 rounded-lg bg-background/80 border mb-4">
-    <div className="flex items-center justify-between">
-      {/* ... info do veículo ... */}
-    </div>
-    
-    {/* NOVO: Botão Ver Fotos */}
-    <Button 
-      variant="outline" 
-      size="sm" 
-      className="w-full mt-2"
-      onClick={() => setShowFotosModal(true)}
-    >
-      <Camera className="h-4 w-4 mr-2" />
-      Ver Fotos do Veículo
-    </Button>
-  </div>
-)}
-
-{/* NOVO: Modal de Fotos */}
-<VeiculoFotosModal
-  open={showFotosModal}
-  onOpenChange={setShowFotosModal}
-  veiculo={veiculoExibir}
-/>
-```
-
-**Estado APÓS check-out:**
-```tsx
-{presenca?.veiculo && (
-  <div className="p-3 rounded-lg bg-background/50 border mb-4">
-    {/* ... info do veículo ... */}
-    
-    {/* NOVO: Botão Ver Fotos */}
-    <Button 
-      variant="ghost" 
-      size="sm" 
-      className="w-full mt-2"
-      onClick={() => setShowFotosModal(true)}
-    >
-      <Camera className="h-4 w-4 mr-2" />
-      Ver Fotos
-    </Button>
-  </div>
-)}
+┌─────────────────────────────────────┐
+│  🚌  ÔNIBUS AZUL                    │
+│      DEF-5678 • Ônibus              │
+├─────────────────────────────────────┤
+│                                     │
+│  👤 Maria Santos                    │
+│     Em viagem                       │
+│                                     │
+├─────────────────────────────────────┤
+│  SDU  ─────────→  Hotel Barra       │  ← Rota visual
+│  [🔵 Em Rota]            ⏱ 23min    │  ← Status + duração
+└─────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo de Uso
+## Fluxo de Dados
 
-1. Motorista faz check-in (já vê fotos no VistoriaConfirmModal)
-2. Durante o expediente, pode clicar em "Ver Fotos do Veículo" no card
-3. Modal abre mostrando:
-   - Fotos do veículo organizadas por área
-   - Avarias registradas com descrições
-   - Dados atuais do veículo (combustível, KM)
-4. Motorista pode abrir foto em tela cheia clicando nela
-5. Após check-out, ainda pode consultar fotos do veículo utilizado
+1. **Fetch Inicial**:
+   - Busca veículos do evento
+   - Busca motoristas do evento
+   - Busca viagens ativas (status = 'em_andamento')
+
+2. **Montagem dos Cards**:
+   - Para cada veículo, encontra motorista vinculado
+   - Se motorista em viagem, busca dados da viagem (origem, destino)
+   - Calcula localização baseada nas regras
+
+3. **Agrupamento**:
+   - "Em Rota": veículos cujo motorista tem viagem ativa
+   - Localizações: usa ultima_localizacao do motorista
+   - "Sem Motorista": veículos sem motorista vinculado
+   - "Sem Localização": resto
+
+4. **Realtime**:
+   - Subscribe em: motoristas, veiculos, viagens
+   - Re-fetch automático em mudanças
 
 ---
 
 ## Benefícios
 
-1. **Segurança**: Motorista pode comprovar que verificou o veículo
-2. **Transparência**: Acesso às fotos a qualquer momento do expediente
-3. **Documentação**: Registro visual do estado do veículo recebido
-4. **Responsabilidade**: Motorista ciente das condições do veículo
-5. **Reutilização**: Modal pode ser usado em outros contextos no futuro
+1. **Visão centrada em ativos**: Veículos são os ativos monitorados
+2. **Informação de rota**: Saber de onde para onde cada veículo está indo
+3. **Rastreabilidade**: Qual motorista está com qual veículo
+4. **Alertas visuais**: Veículos sem motorista destacados
+5. **Flexibilidade**: Toggle permite alternar entre visualizações
 
+---
+
+## Toggle de Visualização
+
+O painel terá um toggle para alternar:
+- **Motoristas**: Visualização atual (cards de motoristas)
+- **Veículos**: Nova visualização (cards de veículos com rotas)
+
+Isso permite que o CCO escolha a perspectiva mais útil para cada situação.
