@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
 import { useViagens } from '@/hooks/useViagens';
-import { useViagemOperacao } from '@/hooks/useViagemOperacao';
+import { useViagemOperacaoMotorista } from '@/hooks/useViagemOperacaoMotorista';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { useMotoristaPresenca } from '@/hooks/useMotoristaPresenca';
@@ -36,7 +36,7 @@ export default function AppMotorista() {
   
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
-  const { iniciarViagem, registrarChegada } = useViagemOperacao();
+  const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
   const { motoristas } = useMotoristas(eventoId);
   const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
   
