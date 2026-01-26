@@ -4,11 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth/AuthContext";
+import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { EventRoleRoute } from "@/components/auth/EventRoleRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import LoginMotorista from "./pages/LoginMotorista";
 import Eventos from "./pages/Eventos";
 import EventoUsuarios from "./pages/EventoUsuarios";
 import EventoPainelConfig from "./pages/EventoPainelConfig";
@@ -38,13 +40,15 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
+      <DriverAuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/login/motorista" element={<LoginMotorista />} />
             
             {/* Public routes - no auth required */}
             <Route path="/painel" element={<PainelPublico />} />
@@ -89,10 +93,11 @@ const App = () => (
             <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
             <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
             
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </DriverAuthProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
