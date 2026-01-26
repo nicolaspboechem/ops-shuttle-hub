@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, KeyRound, Clock, LogIn, LogOut, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle } from 'lucide-react';
+import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, KeyRound, Clock, LogIn, LogOut, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle, Lock } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { useEquipe, EquipeMembro } from '@/hooks/useEquipe';
 import { useVeiculos } from '@/hooks/useCadastros';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { AddStaffWizard } from '@/components/equipe/AddStaffWizard';
+import { EditMotoristaLoginModal } from '@/components/equipe/EditMotoristaLoginModal';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EventoUsuarios() {
@@ -28,6 +29,7 @@ export default function EventoUsuarios() {
   const [filterRole, setFilterRole] = useState<string>('all');
   const [showMotoristaWizard, setShowMotoristaWizard] = useState(false);
   const [showStaffWizard, setShowStaffWizard] = useState(false);
+  const [loginModalMembro, setLoginModalMembro] = useState<EquipeMembro | null>(null);
 
   const filteredMembros = useMemo(() => {
     let filtered = [...membros];
@@ -167,6 +169,12 @@ export default function EventoUsuarios() {
                   }}>
                     <MessageCircle className="w-4 h-4 mr-2" />
                     WhatsApp
+                  </DropdownMenuItem>
+                )}
+                {isMotorista && (
+                  <DropdownMenuItem onClick={() => setLoginModalMembro(membro)}>
+                    <KeyRound className="w-4 h-4 mr-2" />
+                    {membro.has_login ? "Gerenciar Login" : "Criar Login"}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -461,6 +469,22 @@ export default function EventoUsuarios() {
           eventoId={eventoId}
           onSuccess={refetch}
         />
+
+        {loginModalMembro && (
+          <EditMotoristaLoginModal
+            open={!!loginModalMembro}
+            onOpenChange={(open) => !open && setLoginModalMembro(null)}
+            motorista={{
+              id: loginModalMembro.id,
+              nome: loginModalMembro.nome,
+              telefone: loginModalMembro.telefone,
+              user_id: loginModalMembro.user_id,
+              has_login: loginModalMembro.has_login,
+            }}
+            eventoId={eventoId}
+            onSuccess={refetch}
+          />
+        )}
       </div>
     </EventLayout>
   );

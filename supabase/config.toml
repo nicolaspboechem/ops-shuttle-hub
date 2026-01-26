@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.import-all-vehicles]
 verify_jwt = false
+
+[functions.update-user-phone]
+verify_jwt = false

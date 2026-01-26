@@ -86,11 +86,11 @@ serve(async (req) => {
         );
       }
       
-      // Validar formato do telefone (deve ter entre 10-11 dígitos)
+      // Validar formato do telefone (mínimo 4 dígitos para evitar erros acidentais)
       const phoneDigits = telefone.replace(/\D/g, '');
-      if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      if (phoneDigits.length < 4) {
         return new Response(
-          JSON.stringify({ error: "Telefone deve ter 10 ou 11 dígitos" }),
+          JSON.stringify({ error: "Telefone inválido" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
