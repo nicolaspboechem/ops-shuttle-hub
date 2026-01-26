@@ -84,15 +84,18 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
       if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
         const { data: sessionData } = await supabase.auth.getSession();
         
+        // Limpar telefone - apenas dígitos (10-11 dígitos, sem código de país)
+        const telefoneDigits = telefone.replace(/\D/g, '');
+        
         const response = await supabase.functions.invoke('create-user', {
           body: {
-            telefone: telefone.trim(),
+            telefone: telefoneDigits,
             login_type: 'phone',
             password: senha.trim(),
             full_name: nome.trim(),
             user_type: 'motorista',
             evento_id: eventoId,
-            motorista_id: motoristaId, // Vincular usuário ao motorista
+            motorista_id: motoristaId,
           },
           headers: {
             Authorization: `Bearer ${sessionData.session?.access_token}`,
