@@ -1,222 +1,270 @@
 
-# Plano: Corrigir Permissões de Viagem para Motoristas
+# Plano: Modal de Detalhes de Veículo no CCO + Exibição de Nome no Localizador
 
-## Problema Identificado
+## Objetivo
 
-O hook `useViagemOperacao` usa `useAuth()` (Supabase Auth) para verificar se o usuário está logado:
+Implementar um modal de detalhes completo para veículos no painel CCO (similar ao modal de motoristas), exibindo:
+- Resumo e dados cadastrais do veículo
+- Histórico de uso (quem usou, quando, por quanto tempo)
+- Histórico de avarias e vistorias
+- Nome/apelido do veículo em destaque
 
-```typescript
-const { user } = useAuth(); // ← Sempre null para motoristas!
-
-const iniciarViagem = useCallback(async (viagem: Viagem) => {
-  if (!user) {
-    toast.error('Você precisa estar logado'); // ← Este erro aparece
-    return false;
-  }
-  // ...
-```
-
-Motoristas usam um sistema de autenticação **customizado** (`useDriverAuth()`) com JWT próprio, então o `user` do Supabase Auth é sempre `null`.
+Também atualizar o Localizador para exibir **Nome do Veículo + Placa** ao invés de apenas placa.
 
 ---
 
-## Solução Proposta
+## Situação Atual
 
-Criar um hook alternativo `useViagemOperacaoMotorista` que:
-
-1. Usa `useDriverAuth()` para obter `motorista_id` e `motorista_nome`
-2. Permite operações baseadas nas regras de negócio:
-   - **Transfer/Missão**: Motorista pode iniciar e encerrar
-   - **Shuttle**: Motorista pode iniciar, mas só registra chegada (não encerra)
-3. Registra logs com identificador do motorista (não UUID de user_id)
+| Componente | Situação |
+|------------|----------|
+| Campo `nome` na tabela `veiculos` | Já existe no banco e no código |
+| `VeiculoModal` (edição) | Já possui campo para nome/apelido |
+| `LocalizadorVeiculoCard` | Já exibe nome quando existe (linha 48-56) |
+| `LocalizadorCard` (motoristas) | Exibe nome do veículo se disponível |
+| Modal de detalhes de veículo | **NÃO EXISTE** - precisa criar |
 
 ---
 
-## Arquivos a Modificar/Criar
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/veiculos/VeiculoDetalheModal.tsx` | Modal completo de detalhes do veículo |
+
+---
+
+## Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/hooks/useViagemOperacaoMotorista.ts` | CRIAR | Hook específico para operações de motorista |
-| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Usar o novo hook |
+| `src/components/veiculos/VeiculoKanbanCardFull.tsx` | MODIFICAR | Adicionar onClick para abrir modal de detalhes |
+| `src/components/veiculos/VeiculosListView.tsx` | MODIFICAR | Adicionar botão de detalhes na tabela |
+| `src/components/veiculos/VeiculosAuditoria.tsx` | MODIFICAR | Adicionar botão de detalhes nos cards e tabela |
+| `src/pages/Veiculos.tsx` | MODIFICAR | Integrar modal de detalhes |
 
 ---
 
-## Novo Hook: `useViagemOperacaoMotorista.ts`
-
-```typescript
-import { useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
-import { useServerTime } from '@/hooks/useServerTime';
-import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
-import { toast } from 'sonner';
-
-export function useViagemOperacaoMotorista() {
-  const { driverSession } = useDriverAuth();
-  const { getAgoraSync } = useServerTime();
-
-  // Funções com validação baseada em driverSession
-  // em vez de user do Supabase Auth
-}
-```
-
----
-
-## Diferenças Principais
-
-### useViagemOperacao (Admin/Operador)
-- Usa `useAuth()` → Supabase Auth
-- Valida `user.id` para registrar logs
-- Acesso total a todas as operações
-
-### useViagemOperacaoMotorista (Motorista)
-- Usa `useDriverAuth()` → JWT customizado
-- Usa `driverSession.motorista_id` para identificação
-- Restrições:
-  - **Shuttle**: Não pode encerrar diretamente (apenas registrar chegada com standby)
-  - **Transfer/Missão**: Pode encerrar normalmente
-
----
-
-## Fluxo de Permissões
+## Estrutura do Modal de Detalhes
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         TIPO DE OPERAÇÃO                                │
-├───────────────┬───────────────────────┬─────────────────────────────────┤
-│               │      MOTORISTA        │        OPERADOR/ADMIN          │
-├───────────────┼───────────────────────┼─────────────────────────────────┤
-│   Transfer    │  ✅ Iniciar           │  ✅ Iniciar                     │
-│               │  ✅ Encerrar          │  ✅ Encerrar                    │
-│               │                       │  ✅ Iniciar Retorno             │
-├───────────────┼───────────────────────┼─────────────────────────────────┤
-│   Missão      │  ✅ Iniciar           │  ✅ Iniciar                     │
-│               │  ✅ Encerrar          │  ✅ Encerrar                    │
-│               │                       │  ✅ Iniciar Retorno             │
-├───────────────┼───────────────────────┼─────────────────────────────────┤
-│   Shuttle     │  ✅ Iniciar           │  ✅ Iniciar                     │
-│               │  ⚠️ Chegou (standby)  │  ✅ Encerrar                    │
-│               │  ❌ Encerrar          │  ✅ Iniciar Retorno             │
-└───────────────┴───────────────────────┴─────────────────────────────────┘
+│  🚐 Viatura 01 - ABC-1234                                    [X]        │
+│  Van • Fornecedor ABC                                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌───────────┐│
+│  │ 📊 24          │ │ 👥 156         │ │ 🔧 2 Avarias   │ │ ⛽ 3/4    ││
+│  │ Viagens       │ │ PAX Total     │ │                │ │          ││
+│  └────────────────┘ └────────────────┘ └────────────────┘ └───────────┘│
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │  [Resumo]  [Histórico de Uso]  [Vistorias]                         ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+│  ═══════════════════════════════════════════════════════════════════════│
+│                                                                         │
+│  ABA: RESUMO                                                            │
+│  ├─ Status: Liberado ✅                                                 │
+│  ├─ Motorista Vinculado: João Silva                                     │
+│  ├─ Capacidade: 15 lugares                                              │
+│  ├─ KM: 45.230 → 47.890 (2.660 km)                                      │
+│  ├─ Última Vistoria: 25/01/2026 às 08:30                               │
+│  └─ Observações: Veículo em bom estado                                  │
+│                                                                         │
+│  ═══════════════════════════════════════════════════════════════════════│
+│                                                                         │
+│  ABA: HISTÓRICO DE USO                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ Data       │ Motorista      │ Check-in │ Check-out │ Duração │ Obs ││
+│  │────────────│────────────────│──────────│───────────│─────────│─────││
+│  │ 25/01/2026 │ João Silva     │ 06:30    │ 18:45     │ 12h15   │     ││
+│  │ 24/01/2026 │ Maria Santos   │ 07:00    │ 19:00     │ 12h     │  ⚠️ ││
+│  │ 23/01/2026 │ João Silva     │ 06:15    │ 18:30     │ 12h15   │     ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+│  ═══════════════════════════════════════════════════════════════════════│
+│                                                                         │
+│  ABA: VISTORIAS                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ 📋 Vistoria Inicial - 22/01/2026 08:30                             ││
+│  │    Status: Liberado | Combustível: Cheio | KM: 45.230              ││
+│  │    Realizado por: Admin                                            ││
+│  │    ✅ Sem avarias                                                  ││
+│  │    [Ver Fotos]                                                     ││
+│  ├─────────────────────────────────────────────────────────────────────┤│
+│  │ ⚠️ Re-vistoria - 24/01/2026 19:00                                 ││
+│  │    Status: Pendente | Combustível: 1/2 | KM: 46.500                ││
+│  │    Motorista: Maria Santos                                         ││
+│  │    ❌ AVARIAS: Frente (arranhão no para-choque)                    ││
+│  │    [Ver Fotos]                                                     ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Detalhes da Implementação
+## Componente: VeiculoDetalheModal
 
-### 1. Criar `useViagemOperacaoMotorista.ts`
+### Dados exibidos
 
-```typescript
-export function useViagemOperacaoMotorista() {
-  const { driverSession } = useDriverAuth();
-  const { getAgoraSync } = useServerTime();
+**Header:**
+- Nome do veículo (destaque) + Placa
+- Tipo de veículo + Fornecedor
 
-  const iniciarViagem = useCallback(async (viagem: Viagem) => {
-    if (!driverSession) {
-      toast.error('Sessão expirada. Faça login novamente.');
-      return false;
-    }
-    // ... lógica de iniciar
-  }, [driverSession, getAgoraSync]);
+**Cards de métricas:**
+- Total de viagens
+- Total de PAX transportados
+- Quantidade de avarias registradas
+- Nível de combustível atual
 
-  const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number) => {
-    if (!driverSession) {
-      toast.error('Sessão expirada. Faça login novamente.');
-      return false;
-    }
+**Aba Resumo:**
+- Status atual (Liberado/Pendente/Em Inspeção/Manutenção)
+- Motorista vinculado (se houver)
+- Capacidade
+- KM inicial → KM final (diferença)
+- Data da última vistoria
+- Observações gerais
 
-    // Para Shuttle: sempre aguarda retorno (motorista não encerra)
-    // Para Transfer/Missão: encerra diretamente
-    const aguardarRetorno = viagem.tipo_operacao === 'shuttle';
-    
-    // ... lógica de registrar chegada
-  }, [driverSession, getAgoraSync]);
+**Aba Histórico de Uso:**
+- Tabela com registros de `motorista_presenca`
+- Colunas: Data, Motorista, Check-in, Check-out, Duração, Observações
+- Ícone de alerta se houver observação de checkout
 
-  // Motorista NÃO pode usar:
-  // - encerrarViagem (para shuttle - só operador)
-  // - iniciarRetorno (só operador)
-  // - cancelarViagem (só operador)
+**Aba Vistorias:**
+- Lista de vistorias do `veiculo_vistoria_historico`
+- Cards colapsáveis com detalhes de cada vistoria
+- Indicador de avarias encontradas
+- Botão para abrir `VistoriaDetalheModal` com fotos
 
-  return {
-    iniciarViagem,
-    registrarChegada,
-    // Não exportar: encerrarViagem, cancelarViagem, iniciarRetorno
-  };
+---
+
+## Hooks utilizados
+
+| Hook | Uso |
+|------|-----|
+| `useVistoriaHistorico(veiculoId)` | Buscar histórico de vistorias |
+| `useVeiculoPresencaHistorico` | Buscar histórico de uso (já filtra por veículo) |
+| Novo: query inline para métricas de viagens | Contar viagens/PAX por placa |
+
+---
+
+## Integração nos Componentes
+
+### VeiculoKanbanCardFull.tsx
+
+Adicionar prop `onViewDetails` e tornar o card clicável:
+
+```tsx
+interface VeiculoKanbanCardFullProps {
+  // ... props existentes
+  onViewDetails?: (veiculoId: string) => void;
 }
+
+// No card, adicionar onClick ou botão "Ver detalhes"
+<Button variant="ghost" size="sm" onClick={() => onViewDetails?.(veiculo.id)}>
+  <Eye className="w-4 h-4 mr-1" />
+  Detalhes
+</Button>
 ```
 
-### 2. Modificar `AppMotorista.tsx`
+### Veiculos.tsx
 
-```typescript
-// DE:
-import { useViagemOperacao } from '@/hooks/useViagemOperacao';
-const { iniciarViagem, registrarChegada } = useViagemOperacao();
+Adicionar state e handler para o modal:
 
-// PARA:
-import { useViagemOperacaoMotorista } from '@/hooks/useViagemOperacaoMotorista';
-const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
+```tsx
+const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
+const selectedVeiculo = veiculos.find(v => v.id === selectedVeiculoId);
+
+// Render modal
+<VeiculoDetalheModal
+  veiculo={selectedVeiculo}
+  open={!!selectedVeiculoId}
+  onClose={() => setSelectedVeiculoId(null)}
+  viagens={viagens}
+  motoristas={motoristas}
+  eventoId={eventoId}
+/>
 ```
 
 ---
 
-## Tabela de Mudanças
+## Verificação do Localizador
 
-### Antes (Problema)
+O `LocalizadorVeiculoCard` já exibe nome + placa corretamente:
 
-| Ação | useAuth().user | Resultado |
-|------|----------------|-----------|
-| Motorista clica "Iniciar" | null | ❌ "Precisa estar logado" |
-| Motorista clica "Chegou" | null | ❌ "Precisa estar logado" |
-
-### Depois (Solução)
-
-| Ação | useDriverAuth().driverSession | Resultado |
-|------|-------------------------------|-----------|
-| Motorista clica "Iniciar" | válido | ✅ Viagem iniciada |
-| Motorista clica "Chegou" (Transfer/Missão) | válido | ✅ Viagem encerrada |
-| Motorista clica "Chegou" (Shuttle) | válido | ✅ Aguardando retorno |
-
----
-
-## Registro de Logs
-
-Como motoristas não têm `user_id` (UUID do Supabase Auth), os logs serão registrados de forma diferente:
-
-```typescript
-// Para logs de viagem, usar detalhes com motorista_id
-await supabase.from('viagem_logs').insert([{
-  viagem_id: viagem.id,
-  user_id: driverSession.motorista_id, // UUID do motorista
-  acao: 'inicio',
-  detalhes: { 
-    via: 'app_motorista',
-    motorista_nome: driverSession.motorista_nome 
-  }
-}]);
+```tsx
+// Linha 48-56 do LocalizadorVeiculoCard.tsx
+<span className="font-bold text-lg text-foreground block truncate">
+  {veiculo.nome || veiculo.placa}  // Prioriza nome
+</span>
+<span className="text-xs text-muted-foreground">
+  {veiculo.nome ? veiculo.placa : ''}  // Mostra placa se nome existe
+  {veiculo.nome && veiculo.tipo_veiculo && ' • '}
+  {veiculo.tipo_veiculo}
+</span>
 ```
 
-**Nota**: A tabela `viagem_logs` tem `user_id` como UUID, e o `motorista_id` também é UUID, então isso funciona. No entanto, para distinguir logs de motoristas vs operadores, adicionamos o campo `via: 'app_motorista'` nos detalhes.
+Isso já está funcionando. Apenas garantir que o campo `nome` seja preenchido durante o cadastro.
 
 ---
 
 ## Seção Técnica
 
-### Validação de Sessão
-
-O hook verificará se a sessão do motorista ainda é válida antes de cada operação:
+### Query para métricas de viagens por veículo
 
 ```typescript
-if (!driverSession || driverSession.expires_at < Date.now()) {
-  toast.error('Sessão expirada. Faça login novamente.');
-  return false;
-}
+const viagensDoVeiculo = viagens.filter(v => v.placa === veiculo.placa);
+const totalViagens = viagensDoVeiculo.length;
+const totalPax = viagensDoVeiculo.reduce((sum, v) => 
+  sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
 ```
 
-### Atualização de Status do Motorista
+### Query para histórico de uso (presença)
 
-Ao iniciar uma viagem, o status do motorista deve mudar para `em_viagem`. Ao encerrar (Transfer/Missão) ou registrar chegada com standby (Shuttle), verificar se há outras viagens ativas antes de mudar status.
+```typescript
+const { data: presencas } = await supabase
+  .from('motorista_presenca')
+  .select(`
+    *,
+    motorista:motoristas(nome, telefone)
+  `)
+  .eq('veiculo_id', veiculoId)
+  .order('data', { ascending: false })
+  .limit(50);
+```
 
-### Compatibilidade com AppOperador
+### Estrutura do hook useVistoriaHistorico (já existe)
 
-O `AppOperador` continuará usando `useViagemOperacao` (que usa `useAuth()`), pois operadores fazem login via Supabase Auth. Não há conflito.
+O hook já busca o histórico completo com profile do realizador:
 
+```typescript
+const { data, error } = await supabase
+  .from('veiculo_vistoria_historico')
+  .select(`
+    *,
+    profile:profiles!realizado_por(full_name)
+  `)
+  .eq('veiculo_id', veiculoId)
+  .order('created_at', { ascending: false });
+```
+
+---
+
+## Ordem de Implementação
+
+1. Criar `VeiculoDetalheModal.tsx` com as 3 abas
+2. Integrar no `Veiculos.tsx` (página principal)
+3. Adicionar botão "Detalhes" no `VeiculoKanbanCardFull.tsx`
+4. Adicionar botão "Detalhes" na `VeiculosListView.tsx`
+5. Adicionar botão "Detalhes" no `VeiculosAuditoria.tsx`
+
+---
+
+## Benefícios
+
+- Visão completa do veículo em um único lugar
+- Rastreabilidade de uso (quem usou, quando)
+- Histórico de avarias com fotos
+- Identificação visual rápida com nome/apelido
+- Consistência com o padrão existente de detalhes de motorista
