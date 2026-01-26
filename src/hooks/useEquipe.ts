@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
 export interface EquipeMembro {
   id: string;
@@ -22,12 +24,28 @@ export interface EquipeMembro {
 export function useEquipe(eventoId?: string) {
   const [membros, setMembros] = useState<EquipeMembro[]>([]);
   const [loading, setLoading] = useState(true);
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
+  const { getAgoraSync } = useServerTime();
 
-  const fetchEquipe = async () => {
+  const fetchEquipe = useCallback(async () => {
     if (!eventoId) return;
     
     setLoading(true);
     try {
+      // Fetch event settings for horario virada
+      const { data: evento } = await supabase
+        .from('eventos')
+        .select('horario_virada_dia')
+        .eq('id', eventoId)
+        .single();
+
+      const virada = evento?.horario_virada_dia || '04:00:00';
+      setHorarioVirada(virada.substring(0, 5));
+
+      // Calculate data operacional with synced time
+      const agora = getAgoraSync();
+      const today = getDataOperacional(agora, virada.substring(0, 5));
+
       // Fetch evento_usuarios (staff: operadores, supervisores)
       const { data: eventUsuarios, error: euError } = await supabase
         .from('evento_usuarios')
@@ -68,8 +86,7 @@ export function useEquipe(eventoId?: string) {
         credenciais = credenciaisData || [];
       }
 
-      // Fetch today's presença
-      const today = new Date().toISOString().split('T')[0];
+      // Fetch today's presença using synced date
       let presencas: any[] = [];
       if (motoristaIds.length > 0) {
         const { data: presencaData } = await supabase
@@ -125,18 +142,19 @@ export function useEquipe(eventoId?: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventoId, getAgoraSync]);
 
   useEffect(() => {
     fetchEquipe();
-  }, [eventoId]);
+  }, [fetchEquipe]);
 
   // Handlers for check-in/check-out
   const handleCheckin = async (motoristaId: string) => {
     if (!eventoId) return;
     
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date().toISOString();
+    const agora = getAgoraSync();
+    const today = getDataOperacional(agora, horarioVirada);
+    const now = agora.toISOString();
 
     try {
       // Check if there's already a record for today
@@ -182,8 +200,9 @@ export function useEquipe(eventoId?: string) {
   const handleCheckout = async (motoristaId: string) => {
     if (!eventoId) return;
     
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date().toISOString();
+    const agora = getAgoraSync();
+    const today = getDataOperacional(agora, horarioVirada);
+    const now = agora.toISOString();
 
     try {
       const { data: existing } = await supabase

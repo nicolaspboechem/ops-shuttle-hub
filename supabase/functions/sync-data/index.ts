@@ -17,9 +17,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Obter hora atual em São Paulo
-    const now = new Date();
-    const spTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    // Obter hora atual sincronizada do banco de dados
+    const { data: serverTimeData, error: timeError } = await supabase.rpc('get_server_time');
+    if (timeError) {
+      console.warn('[sync-data] Erro ao obter hora do servidor, usando fallback:', timeError);
+    }
+    const spTime = serverTimeData ? new Date(serverTimeData) : new Date();
     
     console.log(`[sync-data] Executando sincronização às ${spTime.toISOString()}`);
 

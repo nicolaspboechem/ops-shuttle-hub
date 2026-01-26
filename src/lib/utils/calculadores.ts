@@ -84,9 +84,14 @@ export function calcularMetricasMotorista(
 /**
  * Calcula status de alerta de uma viagem
  */
+/**
+ * Calcula status de alerta de uma viagem
+ * @param agoraSincronizado - Data sincronizada com servidor (opcional, usa new Date() como fallback)
+ */
 export function calcularStatusViagem(
   viagem: Viagem,
-  tempoMedioMotorista: number
+  tempoMedioMotorista: number,
+  agoraSincronizado?: Date
 ): AlertaViagem {
   // Se não tem h_pickup válido, retorna status ok
   if (!viagem.h_pickup) {
@@ -103,7 +108,7 @@ export function calcularStatusViagem(
 
   if (!viagem.h_chegada) {
     // Viagem em andamento - calcular tempo decorrido
-    const now = new Date();
+    const now = agoraSincronizado || new Date();
     const [h, m] = viagem.h_pickup.split(':').map(Number);
     const pickupTime = new Date();
     pickupTime.setHours(h, m, 0, 0);
@@ -197,8 +202,9 @@ export function calcularMetricasPorHora(viagens: Viagem[]): MetricasPorHora[] {
 
 /**
  * Calcula todos os KPIs do dashboard
+ * @param agoraSincronizado - Data sincronizada com servidor (opcional)
  */
-export function calcularKPIsDashboard(viagens: Viagem[]): KPIsDashboard {
+export function calcularKPIsDashboard(viagens: Viagem[], agoraSincronizado?: Date): KPIsDashboard {
   const viagensValidas = viagens.filter(isViagemValida);
   
   const viagensComChegada = viagensValidas.filter(v => v.h_pickup && v.h_chegada);
@@ -221,7 +227,7 @@ export function calcularKPIsDashboard(viagens: Viagem[]): KPIsDashboard {
       m => m.motorista === viagem.motorista
     );
     const tempoMedio = metricaMotorista?.tempoMedio || 30;
-    alertas.push(calcularStatusViagem(viagem, tempoMedio));
+    alertas.push(calcularStatusViagem(viagem, tempoMedio, agoraSincronizado));
   });
 
   // Calcular total de passageiros (ida + retorno)
