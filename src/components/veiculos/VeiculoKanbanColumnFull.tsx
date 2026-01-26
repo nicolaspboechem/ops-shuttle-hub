@@ -37,6 +37,7 @@ interface VeiculoKanbanColumnFullProps {
   onUpdate: (id: string, data: any, oldPlaca: string) => Promise<void>;
   onDelete: (id: string) => void;
   getName?: (id: string) => string;
+  onViewDetails?: (veiculoId: string) => void;
 }
 
 const statusConfig = {
@@ -83,7 +84,8 @@ export function VeiculoKanbanColumnFull({
   onSave,
   onUpdate,
   onDelete,
-  getName
+  getName,
+  onViewDetails
 }: VeiculoKanbanColumnFullProps) {
   const config = statusConfig[status];
   const Icon = config.icon;
@@ -156,6 +158,7 @@ export function VeiculoKanbanColumnFull({
                     onUpdate={onUpdate}
                     onDelete={onDelete}
                     getName={getName}
+                    onViewDetails={onViewDetails}
                   />
                 );
               })
