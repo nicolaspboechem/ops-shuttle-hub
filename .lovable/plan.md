@@ -1,96 +1,188 @@
 
 
-# Plano: Adicionar Botão "Criar Login" Visível no Card do Motorista
+# Plano: Permitir Visualização de Fotos do Veículo pelo Motorista
 
 ## Objetivo
 
-Adicionar um botão "Criar Login" diretamente visível no card do motorista na página de Equipe, caso o motorista ainda não possua credenciais de acesso. Isso torna a ação mais acessível sem precisar abrir o menu dropdown.
+Adicionar um botão de "Ver Fotos" no card de veículo do motorista (durante e após o check-in), permitindo que ele visualize as fotos principais do veículo a qualquer momento. Isso aumenta a segurança e permite comprovação de que o motorista verificou o estado do veículo.
 
 ---
 
 ## Situação Atual
 
-- O card do motorista (`MembroCard`) já exibe controles de Check-in/Check-out
-- A opção "Criar Login" existe **apenas** no menu dropdown (3 pontinhos)
-- A propriedade `has_login` já está disponível no objeto `membro`
+- **VistoriaConfirmModal**: Já exibe fotos do veículo, mas **apenas durante o check-in**
+- **CheckinCheckoutCard (durante expediente)**: Mostra apenas placa/nome do veículo, **sem acesso às fotos**
+- **CheckinCheckoutCard (após checkout)**: Mostra veículo utilizado, **sem acesso às fotos**
 
 ---
 
-## Mudança Proposta
+## Solução
 
-Adicionar um botão "Criar Login" na seção de informações adicionais do motorista, visível apenas quando `!membro.has_login`.
-
----
-
-## Arquivo a Modificar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/EventoUsuarios.tsx` | Adicionar botão "Criar Login" no MembroCard |
+Criar um modal reutilizável para visualização de fotos do veículo (`VeiculoFotosModal`) e adicioná-lo aos cards de veículo.
 
 ---
 
-## Detalhes da Implementação
+## Arquitetura
 
-### Local da Mudança
+```text
+┌─────────────────────────────────────────────────┐
+│              AppMotorista                       │
+│  ┌─────────────────────────────────────────┐    │
+│  │         CheckinCheckoutCard             │    │
+│  │  ┌───────────────────────────────────┐  │    │
+│  │  │  Veículo em uso: ABC-1234         │  │    │
+│  │  │                                   │  │    │
+│  │  │  [📷 Ver Fotos] [ℹ️ Detalhes]     │◄──────── NOVO BOTÃO
+│  │  └───────────────────────────────────┘  │    │
+│  └─────────────────────────────────────────┘    │
+│                                                 │
+│  ┌─────────────────────────────────────────┐    │
+│  │    VeiculoFotosModal (novo)             │◄────── NOVO MODAL
+│  │  ┌───────────────────────────────────┐  │    │
+│  │  │  🚗 Fotos do Veículo ABC-1234     │  │    │
+│  │  │                                   │  │    │
+│  │  │  [📷][📷][📷][📷]                 │  │    │
+│  │  │  Frente | Lateral | Traseira      │  │    │
+│  │  │                                   │  │    │
+│  │  │  Avarias: Arranhão lateral esq.   │  │    │
+│  │  │                                   │  │    │
+│  │  │  ☑ Confirmo que vi as fotos       │  │    │
+│  │  └───────────────────────────────────┘  │    │
+│  └─────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────┘
+```
 
-Dentro do componente `MembroCard`, na seção `{isMotorista && (...)}` (linhas 214-268), após os controles de Check-in/Check-out.
+---
 
-### Novo Botão
+## Mudanças Necessárias
+
+### 1. Criar Modal de Visualização de Fotos (NOVO)
+
+**Arquivo:** `src/components/app/VeiculoFotosModal.tsx`
+
+Modal dedicado para visualização de fotos do veículo com:
+- Grid de fotos clicáveis (abre em nova aba)
+- Informações de avarias do veículo
+- Dados básicos (placa, tipo, combustível, KM)
+- Última data de vistoria
+- Checkbox opcional de confirmação de visualização
+
+---
+
+### 2. Atualizar CheckinCheckoutCard
+
+**Arquivo:** `src/components/app/CheckinCheckoutCard.tsx`
+
+Adicionar botão "Ver Fotos" em três locais:
+- **Antes do check-in**: No card do veículo atribuído (já existe o modal de vistoria, mas adicionar botão extra)
+- **Durante o expediente**: No card de "Veículo em uso"
+- **Após check-out**: No card de "Veículo utilizado"
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/components/app/VeiculoFotosModal.tsx` | **CRIAR** | Modal de visualização de fotos do veículo |
+| `src/components/app/CheckinCheckoutCard.tsx` | MODIFICAR | Adicionar botões "Ver Fotos" |
+
+---
+
+## Detalhes de Implementação
+
+### VeiculoFotosModal - Novo Componente
 
 ```tsx
-{/* Botão Criar Login - visível apenas se motorista não tem login */}
-{isMotorista && !membro.has_login && (
-  <Button 
-    size="sm" 
-    variant="outline"
-    className="w-full mt-2 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-    onClick={() => setLoginModalMembro(membro)}
-  >
-    <KeyRound className="w-3.5 h-3.5 mr-1.5" />
-    Criar Login de Acesso
-  </Button>
+interface VeiculoFotosModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  veiculo: Veiculo | null;
+  showConfirmation?: boolean; // Opcional: exibir checkbox de confirmação
+  onConfirm?: () => void;     // Callback quando confirmar
+}
+```
+
+**Funcionalidades:**
+- Busca fotos da tabela `veiculo_fotos` ao abrir
+- Exibe grid de fotos (3 colunas, clicáveis)
+- Mostra avarias se existirem (parseia `inspecao_dados`)
+- Exibe dados básicos do veículo
+- Checkbox opcional para confirmação
+
+---
+
+### CheckinCheckoutCard - Modificações
+
+**Estado DURANTE expediente (após check-in):**
+```tsx
+{veiculoExibir && (
+  <div className="p-3 rounded-lg bg-background/80 border mb-4">
+    <div className="flex items-center justify-between">
+      {/* ... info do veículo ... */}
+    </div>
+    
+    {/* NOVO: Botão Ver Fotos */}
+    <Button 
+      variant="outline" 
+      size="sm" 
+      className="w-full mt-2"
+      onClick={() => setShowFotosModal(true)}
+    >
+      <Camera className="h-4 w-4 mr-2" />
+      Ver Fotos do Veículo
+    </Button>
+  </div>
+)}
+
+{/* NOVO: Modal de Fotos */}
+<VeiculoFotosModal
+  open={showFotosModal}
+  onOpenChange={setShowFotosModal}
+  veiculo={veiculoExibir}
+/>
+```
+
+**Estado APÓS check-out:**
+```tsx
+{presenca?.veiculo && (
+  <div className="p-3 rounded-lg bg-background/50 border mb-4">
+    {/* ... info do veículo ... */}
+    
+    {/* NOVO: Botão Ver Fotos */}
+    <Button 
+      variant="ghost" 
+      size="sm" 
+      className="w-full mt-2"
+      onClick={() => setShowFotosModal(true)}
+    >
+      <Camera className="h-4 w-4 mr-2" />
+      Ver Fotos
+    </Button>
+  </div>
 )}
 ```
 
-### Resultado Visual
+---
 
-Para motoristas **sem login**:
-```text
-┌────────────────────────────────────┐
-│ [J] João Silva    🔑              │
-│     Motorista | Disponível         │
-├────────────────────────────────────┤
-│ 📞 (11) 99999-9999                 │
-│ 🚗 ABC-1234                        │
-│                                    │
-│ [✓ Check-in]                       │
-│                                    │
-│ [🔑 Criar Login de Acesso]  ← NOVO │
-└────────────────────────────────────┘
-```
+## Fluxo de Uso
 
-Para motoristas **com login**:
-```text
-┌────────────────────────────────────┐
-│ [J] João Silva    🔑 ✓            │
-│     Motorista | Disponível         │
-├────────────────────────────────────┤
-│ 📞 (11) 99999-9999                 │
-│ 🚗 ABC-1234                        │
-│                                    │
-│ [✓ Check-in]                       │
-│                                    │
-│ (sem botão - login já existe)      │
-└────────────────────────────────────┘
-```
+1. Motorista faz check-in (já vê fotos no VistoriaConfirmModal)
+2. Durante o expediente, pode clicar em "Ver Fotos do Veículo" no card
+3. Modal abre mostrando:
+   - Fotos do veículo organizadas por área
+   - Avarias registradas com descrições
+   - Dados atuais do veículo (combustível, KM)
+4. Motorista pode abrir foto em tela cheia clicando nela
+5. Após check-out, ainda pode consultar fotos do veículo utilizado
 
 ---
 
 ## Benefícios
 
-1. **Visibilidade**: Ação de criar login fica óbvia sem precisar procurar no menu
-2. **UX Melhorada**: Menos cliques para executar a ação mais comum
-3. **Feedback Visual**: Destaque em cor âmbar chama atenção para motoristas pendentes
-4. **Consistência**: Usa o mesmo modal `EditMotoristaLoginModal` já existente
+1. **Segurança**: Motorista pode comprovar que verificou o veículo
+2. **Transparência**: Acesso às fotos a qualquer momento do expediente
+3. **Documentação**: Registro visual do estado do veículo recebido
+4. **Responsabilidade**: Motorista ciente das condições do veículo
+5. **Reutilização**: Modal pode ser usado em outros contextos no futuro
 
