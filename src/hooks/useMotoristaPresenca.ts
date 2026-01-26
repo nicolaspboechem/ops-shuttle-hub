@@ -5,6 +5,18 @@ import { useServerTime } from '@/hooks/useServerTime';
 import { Veiculo } from '@/hooks/useCadastros';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
+// Helper function to fetch the base point name for an event
+async function fetchBaseName(eventoId: string): Promise<string> {
+  const { data } = await supabase
+    .from('pontos_embarque')
+    .select('nome')
+    .eq('evento_id', eventoId)
+    .eq('eh_base', true)
+    .maybeSingle();
+  
+  return data?.nome || 'Base';
+}
+
 export interface MotoristaPresenca {
   id: string;
   motorista_id: string;
@@ -149,12 +161,15 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
       if (error) throw error;
 
-      // Update driver status to 'disponivel' and set initial location to 'Base'
+      // Fetch the dynamic base name for this event
+      const baseName = await fetchBaseName(eventoId);
+
+      // Update driver status to 'disponivel' and set initial location to Base
       await supabase
         .from('motoristas')
         .update({ 
           status: 'disponivel',
-          ultima_localizacao: 'Base',
+          ultima_localizacao: baseName,
           ultima_localizacao_at: now
         } as any)
         .eq('id', motoristaId);
