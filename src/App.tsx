@@ -8,6 +8,7 @@ import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { EventRoleRoute } from "@/components/auth/EventRoleRoute";
+import { DriverRoute } from "@/components/auth/DriverRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import LoginMotorista from "./pages/LoginMotorista";
@@ -58,11 +59,15 @@ const App = () => (
             
             {/* App Campo - Interface Mobile (role-based) */}
             <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
+            
+            {/* Motorista uses custom driver auth */}
             <Route path="/app/:eventoId/motorista" element={
-              <EventRoleRoute allowedRoles={['motorista', 'operador']}>
+              <DriverRoute>
                 <AppMotorista />
-              </EventRoleRoute>
+              </DriverRoute>
             } />
+            
+            {/* Operador/Supervisor use Supabase auth */}
             <Route path="/app/:eventoId/operador" element={
               <EventRoleRoute allowedRoles={['operador']}>
                 <AppOperador />

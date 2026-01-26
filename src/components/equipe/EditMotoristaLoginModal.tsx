@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { KeyRound, Phone, Copy, Eye, EyeOff, Check, RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -16,7 +15,6 @@ interface EditMotoristaLoginModalProps {
     id: string;
     nome: string;
     telefone?: string;
-    user_id?: string;
     has_login: boolean;
   };
   eventoId?: string;
@@ -38,15 +36,13 @@ export function EditMotoristaLoginModal({
   const [telefone, setTelefone] = useState(motorista.telefone || "");
   const [senha, setSenha] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
-  const [novoTelefone, setNovoTelefone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [wantToChangePhone, setWantToChangePhone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
   
-  const hasLogin = motorista.has_login && motorista.user_id;
+  const hasLogin = motorista.has_login;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -59,29 +55,22 @@ export function EditMotoristaLoginModal({
       return;
     }
     
-    if (senha.trim().length < 6) {
-      toast.error("Senha deve ter pelo menos 6 caracteres");
+    if (senha.trim().length < 4) {
+      toast.error("Senha deve ter pelo menos 4 caracteres");
       return;
     }
     
     setIsSubmitting(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
       const telefoneDigits = telefone.replace(/\D/g, '');
 
-      const response = await supabase.functions.invoke('create-user', {
+      // Use driver-register Edge Function (custom credentials table)
+      const response = await supabase.functions.invoke('driver-register', {
         body: {
-          telefone: telefoneDigits,
-          login_type: 'phone',
-          password: senha.trim(),
-          full_name: motorista.nome,
-          user_type: 'motorista',
-          evento_id: eventoId,
           motorista_id: motorista.id,
-        },
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
+          telefone: telefoneDigits,
+          senha: senha.trim(),
         },
       });
 
@@ -90,10 +79,21 @@ export function EditMotoristaLoginModal({
         return;
       }
 
-      const phoneFormatted = response.data?.phone || `+55${telefoneDigits}`;
+      if (response.data?.error) {
+        toast.error(response.data.error);
+        return;
+      }
+
+      // Update motorista telefone if different
+      if (telefoneDigits !== (motorista.telefone?.replace(/\D/g, '') || '')) {
+        await supabase
+          .from('motoristas')
+          .update({ telefone: telefoneDigits })
+          .eq('id', motorista.id);
+      }
       
       setCreatedCredentials({
-        login: phoneFormatted,
+        login: telefoneDigits,
         password: senha.trim(),
       });
       
@@ -108,33 +108,30 @@ export function EditMotoristaLoginModal({
   };
 
   const handleResetPassword = async () => {
-    if (!novaSenha.trim() || novaSenha.trim().length < 6) {
-      toast.error("Senha deve ter pelo menos 6 caracteres");
-      return;
-    }
-    
-    if (!motorista.user_id) {
-      toast.error("Usuário não encontrado");
+    if (!novaSenha.trim() || novaSenha.trim().length < 4) {
+      toast.error("Senha deve ter pelo menos 4 caracteres");
       return;
     }
     
     setIsSubmitting(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await supabase.functions.invoke('reset-password', {
+      // Use driver-register Edge Function to update password
+      const response = await supabase.functions.invoke('driver-register', {
         body: {
-          user_id: motorista.user_id,
-          new_password: novaSenha.trim(),
-        },
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
+          motorista_id: motorista.id,
+          telefone: motorista.telefone?.replace(/\D/g, '') || '',
+          senha: novaSenha.trim(),
         },
       });
 
       if (response.error) {
         toast.error(`Erro ao resetar senha: ${response.error.message}`);
+        return;
+      }
+
+      if (response.data?.error) {
+        toast.error(response.data.error);
         return;
       }
 
@@ -154,65 +151,12 @@ export function EditMotoristaLoginModal({
     }
   };
 
-  const handleChangePhone = async () => {
-    if (!novoTelefone.trim()) {
-      toast.error("Novo telefone é obrigatório");
-      return;
-    }
-    
-    const telefoneDigits = novoTelefone.replace(/\D/g, '');
-    if (telefoneDigits.length < 4) {
-      toast.error("Telefone inválido");
-      return;
-    }
-    
-    if (!motorista.user_id) {
-      toast.error("Usuário não encontrado");
-      return;
-    }
-    
-    setIsSubmitting(true);
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      const response = await supabase.functions.invoke('update-user-phone', {
-        body: {
-          user_id: motorista.user_id,
-          new_phone: telefoneDigits,
-        },
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
-        },
-      });
-
-      if (response.error) {
-        toast.error(`Erro ao alterar telefone: ${response.error.message}`);
-        return;
-      }
-
-      const phoneFormatted = response.data?.phone || `+55${telefoneDigits}`;
-      
-      toast.success(`Telefone alterado para ${phoneFormatted}`);
-      setWantToChangePhone(false);
-      onSuccess?.();
-      onOpenChange(false);
-    } catch (err: any) {
-      console.error("Erro ao alterar telefone:", err);
-      toast.error("Erro ao alterar telefone");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleClose = () => {
     setTelefone(motorista.telefone || "");
     setSenha("");
     setNovaSenha("");
-    setNovoTelefone("");
     setCreatedCredentials(null);
     setShowResetPassword(false);
-    setWantToChangePhone(false);
     onOpenChange(false);
   };
 
@@ -301,25 +245,15 @@ export function EditMotoristaLoginModal({
               <p className="font-mono font-medium">{motorista.telefone || 'Não definido'}</p>
             </div>
 
-            {!showResetPassword && !wantToChangePhone && (
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setShowResetPassword(true)}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Resetar Senha
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => setWantToChangePhone(true)}
-                >
-                  <Phone className="h-4 w-4 mr-2" />
-                  Alterar Telefone
-                </Button>
-              </div>
+            {!showResetPassword && (
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setShowResetPassword(true)}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Resetar Senha
+              </Button>
             )}
 
             {showResetPassword && (
@@ -333,7 +267,7 @@ export function EditMotoristaLoginModal({
                         type={showNewPassword ? "text" : "password"}
                         value={novaSenha}
                         onChange={(e) => setNovaSenha(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
+                        placeholder="Mínimo 4 caracteres"
                         className="pl-10 pr-10"
                       />
                       <Button
@@ -358,47 +292,7 @@ export function EditMotoristaLoginModal({
                     </Button>
                     <Button 
                       onClick={handleResetPassword} 
-                      disabled={isSubmitting || novaSenha.length < 6}
-                      className="flex-1"
-                    >
-                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Confirmar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {wantToChangePhone && (
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <div className="space-y-2">
-                    <Label>Novo Telefone *</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={novoTelefone}
-                        onChange={(e) => setNovoTelefone(e.target.value)}
-                        placeholder="(11) 99999-9999"
-                        className="pl-10"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      O motorista fará login com este novo número
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setWantToChangePhone(false)}
-                      className="flex-1"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button 
-                      onClick={handleChangePhone} 
-                      disabled={isSubmitting || novoTelefone.replace(/\D/g, '').length < 4}
+                      disabled={isSubmitting || novaSenha.length < 4}
                       className="flex-1"
                     >
                       {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -440,7 +334,7 @@ export function EditMotoristaLoginModal({
                     type={showPassword ? "text" : "password"}
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 4 caracteres"
                     className="pl-10 pr-10"
                   />
                   <Button
@@ -453,8 +347,8 @@ export function EditMotoristaLoginModal({
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                {senha.length > 0 && senha.length < 6 && (
-                  <p className="text-xs text-destructive">Senha deve ter pelo menos 6 caracteres</p>
+                {senha.length > 0 && senha.length < 4 && (
+                  <p className="text-xs text-destructive">Senha deve ter pelo menos 4 caracteres</p>
                 )}
               </div>
             </div>
@@ -465,7 +359,7 @@ export function EditMotoristaLoginModal({
               </Button>
               <Button 
                 onClick={handleCreateLogin} 
-                disabled={isSubmitting || telefone.replace(/\D/g, '').length < 4 || senha.length < 6}
+                disabled={isSubmitting || telefone.replace(/\D/g, '').length < 4 || senha.length < 4}
                 className="flex-1"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
