@@ -1,35 +1,54 @@
 
-# Plano: Modal de Detalhes de Veículo no CCO + Exibição de Nome no Localizador
+# Plano: Correção de Erros em Viagens de Motorista e Funcionalidade de "Base"
 
-## Objetivo
+## Problemas Identificados
 
-Implementar um modal de detalhes completo para veículos no painel CCO (similar ao modal de motoristas), exibindo:
-- Resumo e dados cadastrais do veículo
-- Histórico de uso (quem usou, quando, por quanto tempo)
-- Histórico de avarias e vistorias
-- Nome/apelido do veículo em destaque
+### Problema 1: Erro ao Finalizar Viagem Iniciada pelo App do Motorista
 
-Também atualizar o Localizador para exibir **Nome do Veículo + Placa** ao invés de apenas placa.
+**Causa raiz**: O formulário `CreateViagemMotoristaForm.tsx` usa `useAuth()` (linha 59) para obter o `user.id` e definir `iniciado_por`. Porém, motoristas usam autenticação customizada (`useDriverAuth()`), então `user` é **null**.
 
----
+**Trecho problemático (linha 143)**:
+```typescript
+iniciado_por: user?.id  // user é null para motoristas!
+```
 
-## Situação Atual
-
-| Componente | Situação |
-|------------|----------|
-| Campo `nome` na tabela `veiculos` | Já existe no banco e no código |
-| `VeiculoModal` (edição) | Já possui campo para nome/apelido |
-| `LocalizadorVeiculoCard` | Já exibe nome quando existe (linha 48-56) |
-| `LocalizadorCard` (motoristas) | Exibe nome do veículo se disponível |
-| Modal de detalhes de veículo | **NÃO EXISTE** - precisa criar |
+Quando a viagem é criada com `iniciado_por: null`, o hook `useViagemOperacaoMotorista` funciona para iniciar e registrar chegada, mas pode haver problemas de log ou validações inconsistentes.
 
 ---
 
-## Arquivos a Criar
+### Problema 2: Localização do Motorista Incorreta ao Encerrar Viagem
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/veiculos/VeiculoDetalheModal.tsx` | Modal completo de detalhes do veículo |
+**Observação**: Ao analisar o código, verifiquei que o hook `useViagemOperacaoMotorista.ts` **já está correto**:
+
+```typescript
+// Linhas 185-192 do useViagemOperacaoMotorista.ts
+// Atualizar localização do motorista para o ponto de desembarque
+if (viagem.ponto_desembarque) {
+  await atualizarLocalizacaoMotorista(
+    driverSession.motorista_id, 
+    viagem.ponto_desembarque,  // ← Atualiza para o destino, não para base
+    now.toISOString()
+  );
+}
+```
+
+**Possível causa**: O problema pode estar em outro lugar:
+1. O `ponto_desembarque` pode estar vindo como `null` em viagens criadas manualmente
+2. A lógica de check-in define `ultima_localizacao` como 'Base' e sobrescreve
+
+Vou verificar e corrigir o formulário de criação para garantir que o `ponto_desembarque` seja sempre preenchido corretamente com o nome do ponto selecionado.
+
+---
+
+### Problema 3: Badge de "Base" nos Pontos de Embarque
+
+**Requisito**: Permitir marcar UM ponto de embarque como "Base" por evento, com indicação visual.
+
+**Solução**:
+1. Adicionar coluna `eh_base` (boolean) na tabela `pontos_embarque`
+2. Adicionar badge visual na lista de pontos
+3. Adicionar switch/toggle no modal de edição
+4. Garantir que apenas um ponto seja "base" por evento (desmarcar outros ao marcar novo)
 
 ---
 
@@ -37,234 +56,180 @@ Também atualizar o Localizador para exibir **Nome do Veículo + Placa** ao inv�
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/veiculos/VeiculoKanbanCardFull.tsx` | MODIFICAR | Adicionar onClick para abrir modal de detalhes |
-| `src/components/veiculos/VeiculosListView.tsx` | MODIFICAR | Adicionar botão de detalhes na tabela |
-| `src/components/veiculos/VeiculosAuditoria.tsx` | MODIFICAR | Adicionar botão de detalhes nos cards e tabela |
-| `src/pages/Veiculos.tsx` | MODIFICAR | Integrar modal de detalhes |
+| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Usar `driverSession` ao invés de `user` para registro de auditoria |
+| `src/hooks/usePontosEmbarque.ts` | MODIFICAR | Adicionar campo `eh_base` na interface e função `setBase` |
+| `src/components/rotas/PontoEmbarqueModal.tsx` | MODIFICAR | Adicionar toggle para marcar como base |
+| `src/pages/RotasShuttle.tsx` | MODIFICAR | Exibir badge "Base" na lista de pontos |
 
 ---
 
-## Estrutura do Modal de Detalhes
+## Migração de Banco de Dados
+
+Adicionar coluna `eh_base` na tabela `pontos_embarque`:
+
+```sql
+ALTER TABLE pontos_embarque 
+ADD COLUMN eh_base BOOLEAN DEFAULT false;
+
+-- Índice para garantir performance na busca por base
+CREATE INDEX idx_pontos_embarque_base 
+ON pontos_embarque(evento_id, eh_base) 
+WHERE eh_base = true;
+```
+
+---
+
+## Detalhes da Implementação
+
+### 1. Correção do CreateViagemMotoristaForm
+
+```typescript
+// ANTES (problemático)
+import { useAuth } from '@/lib/auth/AuthContext';
+const { user } = useAuth();
+
+// DEPOIS (corrigido)
+import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+const { driverSession } = useDriverAuth();
+
+// Na criação da viagem:
+iniciado_por: driverSession?.motorista_id || null,
+criado_por: driverSession?.motorista_id || null,
+```
+
+### 2. Adicionar eh_base no Hook e Interface
+
+**usePontosEmbarque.ts**:
+```typescript
+export interface PontoEmbarque {
+  // ... campos existentes
+  eh_base: boolean;  // novo campo
+}
+
+// Nova função para marcar como base
+const setBase = async (pontoId: string) => {
+  if (!eventoId) return;
+  
+  // 1. Desmarcar todos os outros pontos do evento
+  await supabase
+    .from('pontos_embarque')
+    .update({ eh_base: false })
+    .eq('evento_id', eventoId);
+  
+  // 2. Marcar o ponto selecionado
+  await supabase
+    .from('pontos_embarque')
+    .update({ eh_base: true })
+    .eq('id', pontoId);
+  
+  toast.success('Base definida');
+  fetchPontos();
+};
+```
+
+### 3. Interface Visual na Lista de Pontos
+
+**RotasShuttle.tsx** - Badge de base:
+```tsx
+<div className="flex items-center gap-2 mb-1">
+  <span className="font-medium">{ponto.nome}</span>
+  {ponto.eh_base && (
+    <Badge variant="default" className="text-xs bg-primary">
+      🏠 Base
+    </Badge>
+  )}
+  {!ponto.ativo && (
+    <Badge variant="secondary" className="text-xs">Inativo</Badge>
+  )}
+</div>
+```
+
+### 4. Toggle no Modal de Edição
+
+**PontoEmbarqueModal.tsx**:
+```tsx
+<div className="flex items-center justify-between">
+  <div className="space-y-0.5">
+    <Label htmlFor="ehBase">Marcar como Base</Label>
+    <p className="text-xs text-muted-foreground">
+      Define este ponto como local de base/retorno
+    </p>
+  </div>
+  <Switch
+    id="ehBase"
+    checked={ehBase}
+    onCheckedChange={setEhBase}
+  />
+</div>
+```
+
+---
+
+## Fluxo de Localização do Motorista (Verificação)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  🚐 Viatura 01 - ABC-1234                                    [X]        │
-│  Van • Fornecedor ABC                                                   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐ ┌───────────┐│
-│  │ 📊 24          │ │ 👥 156         │ │ 🔧 2 Avarias   │ │ ⛽ 3/4    ││
-│  │ Viagens       │ │ PAX Total     │ │                │ │          ││
-│  └────────────────┘ └────────────────┘ └────────────────┘ └───────────┘│
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │  [Resumo]  [Histórico de Uso]  [Vistorias]                         ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-│                                                                         │
-│  ═══════════════════════════════════════════════════════════════════════│
-│                                                                         │
-│  ABA: RESUMO                                                            │
-│  ├─ Status: Liberado ✅                                                 │
-│  ├─ Motorista Vinculado: João Silva                                     │
-│  ├─ Capacidade: 15 lugares                                              │
-│  ├─ KM: 45.230 → 47.890 (2.660 km)                                      │
-│  ├─ Última Vistoria: 25/01/2026 às 08:30                               │
-│  └─ Observações: Veículo em bom estado                                  │
-│                                                                         │
-│  ═══════════════════════════════════════════════════════════════════════│
-│                                                                         │
-│  ABA: HISTÓRICO DE USO                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │ Data       │ Motorista      │ Check-in │ Check-out │ Duração │ Obs ││
-│  │────────────│────────────────│──────────│───────────│─────────│─────││
-│  │ 25/01/2026 │ João Silva     │ 06:30    │ 18:45     │ 12h15   │     ││
-│  │ 24/01/2026 │ Maria Santos   │ 07:00    │ 19:00     │ 12h     │  ⚠️ ││
-│  │ 23/01/2026 │ João Silva     │ 06:15    │ 18:30     │ 12h15   │     ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-│                                                                         │
-│  ═══════════════════════════════════════════════════════════════════════│
-│                                                                         │
-│  ABA: VISTORIAS                                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │ 📋 Vistoria Inicial - 22/01/2026 08:30                             ││
-│  │    Status: Liberado | Combustível: Cheio | KM: 45.230              ││
-│  │    Realizado por: Admin                                            ││
-│  │    ✅ Sem avarias                                                  ││
-│  │    [Ver Fotos]                                                     ││
-│  ├─────────────────────────────────────────────────────────────────────┤│
-│  │ ⚠️ Re-vistoria - 24/01/2026 19:00                                 ││
-│  │    Status: Pendente | Combustível: 1/2 | KM: 46.500                ││
-│  │    Motorista: Maria Santos                                         ││
-│  │    ❌ AVARIAS: Frente (arranhão no para-choque)                    ││
-│  │    [Ver Fotos]                                                     ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+│                    FLUXO DE LOCALIZAÇÃO                                 │
+├───────────────┬─────────────────────────────────────────────────────────┤
+│ AÇÃO          │ LOCALIZAÇÃO APÓS                                        │
+├───────────────┼─────────────────────────────────────────────────────────┤
+│ Check-in      │ "Base" (definido no check-in)                           │
+│ Iniciar Trip  │ Mantém localização anterior                             │
+│ Encerrar Trip │ ponto_desembarque (destino da viagem)                   │
+│ Check-out     │ Mantém localização atual                                │
+└───────────────┴─────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Componente: VeiculoDetalheModal
-
-### Dados exibidos
-
-**Header:**
-- Nome do veículo (destaque) + Placa
-- Tipo de veículo + Fornecedor
-
-**Cards de métricas:**
-- Total de viagens
-- Total de PAX transportados
-- Quantidade de avarias registradas
-- Nível de combustível atual
-
-**Aba Resumo:**
-- Status atual (Liberado/Pendente/Em Inspeção/Manutenção)
-- Motorista vinculado (se houver)
-- Capacidade
-- KM inicial → KM final (diferença)
-- Data da última vistoria
-- Observações gerais
-
-**Aba Histórico de Uso:**
-- Tabela com registros de `motorista_presenca`
-- Colunas: Data, Motorista, Check-in, Check-out, Duração, Observações
-- Ícone de alerta se houver observação de checkout
-
-**Aba Vistorias:**
-- Lista de vistorias do `veiculo_vistoria_historico`
-- Cards colapsáveis com detalhes de cada vistoria
-- Indicador de avarias encontradas
-- Botão para abrir `VistoriaDetalheModal` com fotos
-
----
-
-## Hooks utilizados
-
-| Hook | Uso |
-|------|-----|
-| `useVistoriaHistorico(veiculoId)` | Buscar histórico de vistorias |
-| `useVeiculoPresencaHistorico` | Buscar histórico de uso (já filtra por veículo) |
-| Novo: query inline para métricas de viagens | Contar viagens/PAX por placa |
-
----
-
-## Integração nos Componentes
-
-### VeiculoKanbanCardFull.tsx
-
-Adicionar prop `onViewDetails` e tornar o card clicável:
-
-```tsx
-interface VeiculoKanbanCardFullProps {
-  // ... props existentes
-  onViewDetails?: (veiculoId: string) => void;
-}
-
-// No card, adicionar onClick ou botão "Ver detalhes"
-<Button variant="ghost" size="sm" onClick={() => onViewDetails?.(veiculo.id)}>
-  <Eye className="w-4 h-4 mr-1" />
-  Detalhes
-</Button>
-```
-
-### Veiculos.tsx
-
-Adicionar state e handler para o modal:
-
-```tsx
-const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
-const selectedVeiculo = veiculos.find(v => v.id === selectedVeiculoId);
-
-// Render modal
-<VeiculoDetalheModal
-  veiculo={selectedVeiculo}
-  open={!!selectedVeiculoId}
-  onClose={() => setSelectedVeiculoId(null)}
-  viagens={viagens}
-  motoristas={motoristas}
-  eventoId={eventoId}
-/>
-```
-
----
-
-## Verificação do Localizador
-
-O `LocalizadorVeiculoCard` já exibe nome + placa corretamente:
-
-```tsx
-// Linha 48-56 do LocalizadorVeiculoCard.tsx
-<span className="font-bold text-lg text-foreground block truncate">
-  {veiculo.nome || veiculo.placa}  // Prioriza nome
-</span>
-<span className="text-xs text-muted-foreground">
-  {veiculo.nome ? veiculo.placa : ''}  // Mostra placa se nome existe
-  {veiculo.nome && veiculo.tipo_veiculo && ' • '}
-  {veiculo.tipo_veiculo}
-</span>
-```
-
-Isso já está funcionando. Apenas garantir que o campo `nome` seja preenchido durante o cadastro.
-
----
-
-## Seção Técnica
-
-### Query para métricas de viagens por veículo
-
-```typescript
-const viagensDoVeiculo = viagens.filter(v => v.placa === veiculo.placa);
-const totalViagens = viagensDoVeiculo.length;
-const totalPax = viagensDoVeiculo.reduce((sum, v) => 
-  sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
-```
-
-### Query para histórico de uso (presença)
-
-```typescript
-const { data: presencas } = await supabase
-  .from('motorista_presenca')
-  .select(`
-    *,
-    motorista:motoristas(nome, telefone)
-  `)
-  .eq('veiculo_id', veiculoId)
-  .order('data', { ascending: false })
-  .limit(50);
-```
-
-### Estrutura do hook useVistoriaHistorico (já existe)
-
-O hook já busca o histórico completo com profile do realizador:
-
-```typescript
-const { data, error } = await supabase
-  .from('veiculo_vistoria_historico')
-  .select(`
-    *,
-    profile:profiles!realizado_por(full_name)
-  `)
-  .eq('veiculo_id', veiculoId)
-  .order('created_at', { ascending: false });
-```
+O código já está correto para definir localização como `ponto_desembarque`. Se não está funcionando, o problema pode ser que `viagem.ponto_desembarque` está vindo como `null`. Vou garantir que o formulário de criação manual sempre preencha esse campo.
 
 ---
 
 ## Ordem de Implementação
 
-1. Criar `VeiculoDetalheModal.tsx` com as 3 abas
-2. Integrar no `Veiculos.tsx` (página principal)
-3. Adicionar botão "Detalhes" no `VeiculoKanbanCardFull.tsx`
-4. Adicionar botão "Detalhes" na `VeiculosListView.tsx`
-5. Adicionar botão "Detalhes" no `VeiculosAuditoria.tsx`
+1. **Migração SQL**: Adicionar coluna `eh_base` na tabela
+2. **Atualizar tipos**: `PontoEmbarque` interface e `PontoEmbarqueInput`
+3. **Hook**: Adicionar função `setBase` e `pontoBase` getter
+4. **Modal**: Adicionar toggle para marcar como base
+5. **Lista**: Adicionar badge visual
+6. **Formulário motorista**: Corrigir uso de `driverSession` ao invés de `user`
 
 ---
 
-## Benefícios
+## Seção Técnica
 
-- Visão completa do veículo em um único lugar
-- Rastreabilidade de uso (quem usou, quando)
-- Histórico de avarias com fotos
-- Identificação visual rápida com nome/apelido
-- Consistência com o padrão existente de detalhes de motorista
+### Garantia de Unicidade da Base
+
+Ao marcar um ponto como base, primeiro desmarcamos TODOS os outros pontos do mesmo evento:
+
+```typescript
+// Transação lógica (não é ACID, mas funcional)
+await supabase
+  .from('pontos_embarque')
+  .update({ eh_base: false })
+  .eq('evento_id', eventoId)
+  .neq('id', pontoId);  // Excluir o ponto que será marcado
+
+await supabase
+  .from('pontos_embarque')
+  .update({ eh_base: true })
+  .eq('id', pontoId);
+```
+
+### Uso da Base no Localizador
+
+O painel localizador pode usar o ponto marcado como base para exibir uma coluna especial ou filtrar motoristas que estão na base:
+
+```typescript
+const pontoBase = pontos.find(p => p.eh_base);
+```
+
+### Correção do ponto_desembarque Vazio
+
+No formulário de criação, garantir que o campo seja sempre preenchido mesmo que o ponto seja digitado manualmente (não selecionado do cadastro):
+
+```typescript
+ponto_desembarque: pontoDesembarque, // Sempre usa o texto selecionado/digitado
+ponto_desembarque_id: pontoDesembarqueData?.id || null, // ID pode ser null para texto livre
+```
+
+Isso já está correto no código atual (linhas 130-136). O problema pode ser na **recuperação** da viagem quando `registrarChegada` é chamado - a viagem pode não ter `ponto_desembarque` populado se veio de uma query antiga.
