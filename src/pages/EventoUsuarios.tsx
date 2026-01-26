@@ -264,6 +264,19 @@ export default function EventoUsuarios() {
                   </>
                 )}
               </div>
+
+              {/* Botão Criar Login - visível apenas se motorista não tem login */}
+              {!membro.has_login && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="w-full mt-2 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                  onClick={() => setLoginModalMembro(membro)}
+                >
+                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                  Criar Login de Acesso
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
