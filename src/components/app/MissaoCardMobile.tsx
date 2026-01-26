@@ -35,13 +35,6 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
   const getSwipeActions = () => {
     if (missao.status === 'pendente') {
       return {
-        leftAction: onRecusar ? {
-          icon: <XCircle className="h-6 w-6" />,
-          label: 'Recusar',
-          color: 'text-white',
-          bgColor: 'bg-destructive',
-          action: onRecusar,
-        } : undefined,
         rightAction: onAceitar ? {
           icon: <CheckCircle className="h-6 w-6" />,
           label: 'Aceitar',
@@ -134,37 +127,20 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
         {/* Ações (botões como fallback/alternativa ao swipe) */}
         <div className="flex gap-2">
           {missao.status === 'pendente' && (
-            <>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={onRecusar}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Recusar
-                  </>
-                )}
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={onAceitar}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Aceitar
-                  </>
-                )}
-              </Button>
-            </>
+            <Button
+              className="flex-1"
+              onClick={onAceitar}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Aceitar Missão
+                </>
+              )}
+            </Button>
           )}
 
           {missao.status === 'aceita' && onIniciar && (
@@ -197,7 +173,6 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
 
   return (
     <SwipeableCard
-      leftAction={swipeActions.leftAction}
       rightAction={swipeActions.rightAction}
       disabled={loading}
     >
