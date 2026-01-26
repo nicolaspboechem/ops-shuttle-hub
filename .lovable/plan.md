@@ -1,56 +1,29 @@
 
-# Plano: Simplificar Painel Localizador - Foco em Motoristas por Localização
+
+# Plano: Adicionar Opção "Missão" no Formulário de Criação de Corrida do Motorista
 
 ## Objetivo
 
-Refatorar o Painel Localizador de Frota para exibir apenas motoristas (sem toggle veículos), organizados em colunas por localização. Cada card mostra o motorista como informação principal, com veículo e status como informações secundárias.
+Adicionar a opção "Missão" no dropdown de tipo de operação no formulário `CreateViagemMotoristaForm`, permitindo que motoristas criem viagens do tipo missão manualmente. A diferença principal é que **missões encerram diretamente ao registrar chegada**, sem passar pelo estado "aguardando_retorno" que o Shuttle utiliza.
 
 ---
 
-## Situação Atual
+## Contexto e Diferença entre Tipos
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Header: Logo + Toggle [Motoristas | Veículos] + Stats + Relógio   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │ Base     │  │ Hotel X  │  │ Aeroporto│  │EM TRÂNS. │            │
-│  ├──────────┤  ├──────────┤  ├──────────┤  ├──────────┤            │
-│  │ Card 1   │  │ Card 1   │  │ Card 1   │  │ Card 1   │            │
-│  │ Card 2   │  │          │  │          │  │          │            │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+| Tipo | Fluxo ao Registrar Chegada |
+|------|----------------------------|
+| **Transfer** | Encerra diretamente |
+| **Shuttle** | Pode aguardar retorno (standby na base) |
+| **Missão** | Encerra diretamente (igual Transfer) |
+
+A lógica atual em `useViagemOperacao.ts` (linha 161-163) já trata isso:
+```typescript
+const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle') 
+  ? 'aguardando_retorno' 
+  : 'encerrado';
 ```
 
-**Problemas:**
-- Toggle entre motoristas/veículos adiciona complexidade desnecessária
-- Informações do veículo são vinculadas ao motorista, então a visão de veículos é redundante
-- Foco deve ser no motorista (quem está onde)
-
----
-
-## Nova Arquitetura - Apenas Motoristas
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Header: Logo + Título + Stats (Simplificado) + Relógio            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────┐ │
-│  │📍 Base   │  │📍 Hotel X│  │📍 Aero.  │  │🔄 TRÂNS. │  │❓ S/L │ │
-│  │   (5)    │  │   (2)    │  │   (1)    │  │   (3)    │  │  (1)  │ │
-│  ├──────────┤  ├──────────┤  ├──────────┤  ├──────────┤  ├───────┤ │
-│  │┌────────┐│  │┌────────┐│  │┌────────┐│  │┌────────┐│  │       │ │
-│  ││ João   ││  ││ Pedro  ││  ││ Carlos ││  ││ Maria  ││  │       │ │
-│  ││🚗 ABC12││  ││🚐 XYZ34││  ││🚌 MNO56││  ││→ Destino│  │       │ │
-│  ││🟢 Disp.││  ││🟢 Disp.││  ││🟢 Disp.││  ││🔵 Em Via│  │       │ │
-│  │└────────┘│  │└────────┘│  │└────────┘│  │└────────┘│  │       │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └───────┘ │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+Ou seja, apenas Shuttle pode entrar em "aguardando_retorno". Transfer e Missão encerram direto.
 
 ---
 
@@ -58,202 +31,130 @@ Refatorar o Painel Localizador de Frota para exibir apenas motoristas (sem toggl
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/PainelLocalizador.tsx` | MODIFICAR | Remover toggle e lógica de veículos |
-| `src/components/localizador/LocalizadorColumn.tsx` | MODIFICAR | Simplificar para apenas motoristas |
-| `src/components/localizador/LocalizadorCard.tsx` | MODIFICAR | Ajustar layout do card |
+| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Adicionar opção "Missão" no dropdown |
 
 ---
 
-## Detalhes de Implementação
+## Detalhes da Implementação
 
-### 1. PainelLocalizador.tsx (Modificações)
+### Modificar o Select de Tipo de Operação
 
-**Remover:**
-- Toggle entre motoristas/veículos
-- Hook `useLocalizadorVeiculos`
-- Lógica de veículos
-- Stats de veículos
-
-**Simplificar:**
-- Header mais limpo
-- Stats apenas para motoristas (Total, Disponíveis, Em Trânsito)
-- Colunas apenas de motoristas
-
+**Antes (linhas 360-370):**
 ```tsx
-// REMOVER
-const [viewMode, setViewMode] = useState<ViewMode>('veiculos');
-const { veiculosPorLocalizacao, ... } = useLocalizadorVeiculos(...);
-
-// MANTER
-const { 
-  motoristasPorLocalizacao, 
-  localizacoes, 
-  loading, 
-  refetch 
-} = useLocalizadorMotoristas(selectedEvento || undefined);
+<Select value={tipoOperacao} onValueChange={setTipoOperacao}>
+  <SelectTrigger>
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="transfer">Transfer</SelectItem>
+    <SelectItem value="shuttle">Shuttle</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
-**Novo cálculo de stats:**
+**Depois:**
 ```tsx
-const stats = useMemo(() => {
-  const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
-  const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
-  const disponiveis = Object.entries(motoristasPorLocalizacao)
-    .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
-    .flatMap(([, arr]) => arr)
-    .filter(m => m.status === 'disponivel').length;
-  
-  return { total: totalMotoristas, emTransito, disponiveis };
-}, [motoristasPorLocalizacao]);
+<Select value={tipoOperacao} onValueChange={setTipoOperacao}>
+  <SelectTrigger>
+    <SelectValue />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="transfer">Transfer</SelectItem>
+    <SelectItem value="shuttle">Shuttle</SelectItem>
+    <SelectItem value="missao">Missão</SelectItem>
+  </SelectContent>
+</Select>
 ```
 
 ---
 
-### 2. LocalizadorColumn.tsx (Modificações)
+## Fluxo Esperado
 
-**Simplificar:**
-- Remover props de veículos e viewMode
-- Focar apenas em motoristas
-- Remover condicionais de veículos
-
-```tsx
-interface LocalizadorColumnProps {
-  titulo: string;
-  motoristas: MotoristaComVeiculo[];
-  tipo: 'local' | 'em_transito' | 'sem_local';
-}
-```
-
-**Configuração visual simplificada:**
-```tsx
-const columnConfig = {
-  local: {
-    icon: MapPin,
-    headerClass: 'bg-primary/20 border-primary/30',
-    iconClass: 'text-primary',
-    badgeClass: 'bg-primary text-primary-foreground',
-  },
-  em_transito: {
-    icon: Navigation,
-    headerClass: 'bg-blue-500/20 border-blue-500/30',
-    iconClass: 'text-blue-500',
-    badgeClass: 'bg-blue-500 text-white',
-  },
-  sem_local: {
-    icon: MapPinOff,
-    headerClass: 'bg-muted/50 border-border',
-    iconClass: 'text-muted-foreground',
-    badgeClass: 'bg-muted text-muted-foreground',
-  },
-};
-```
+1. Motorista abre formulário de "Nova Viagem" no app
+2. Seleciona tipo **"Missão"** no dropdown
+3. Preenche pontos de embarque/desembarque e PAX
+4. Clica em "Criar e Iniciar"
+5. Viagem é criada com `tipo_operacao: 'missao'` e `status: 'em_andamento'`
+6. Motorista aparece no Localizador como "Em Trânsito"
+7. Ao clicar em "CHEGOU":
+   - Viagem encerra diretamente (`status: 'encerrado'`)
+   - **SEM** estado intermediário "aguardando_retorno"
+   - Localização do motorista atualiza para ponto de desembarque
 
 ---
 
-### 3. LocalizadorCard.tsx (Ajustes no Layout)
+## Visual no App
 
-O card atual já está bom, mas vamos fazer pequenos ajustes para enfatizar a hierarquia:
-
-**Estrutura do Card:**
 ```text
-┌─────────────────────────────────────┐
-│  🧑 JOÃO SILVA                  🟢  │  ← Nome grande + indicador status
-├─────────────────────────────────────┤
-│  🚗 Van Prata • ABC-1234            │  ← Veículo + placa
-│      Van • 15 lugares               │  ← Tipo + capacidade
-├─────────────────────────────────────┤
-│  🟢 Disponível        há 15min      │  ← Status badge + tempo no local
-└─────────────────────────────────────┘
-
-// Ou se em trânsito:
-┌─────────────────────────────────────┐
-│  🧑 MARIA SANTOS                🔵  │
-├─────────────────────────────────────┤
-│  🚐 Sprinter • XYZ-5678             │
-│      Van • 12 lugares               │
-├─────────────────────────────────────┤
-│  🔵 Em Viagem     Base → Hotel X    │  ← Status + rota
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│            Nova Viagem                   │
+├──────────────────────────────────────────┤
+│                                          │
+│  Motorista: João Silva                   │
+│  Veículo: ABC-1234 - Van                 │
+│                                          │
+│  Ponto de Embarque *                     │
+│  ┌──────────────────────────────────┐   │
+│  │ Base                           ▼ │   │
+│  └──────────────────────────────────┘   │
+│                                          │
+│  Ponto de Desembarque *                  │
+│  ┌──────────────────────────────────┐   │
+│  │ Hotel Copacabana               ▼ │   │
+│  └──────────────────────────────────┘   │
+│                                          │
+│  ┌────────────┐  ┌───────────────────┐   │
+│  │  Qtd PAX * │  │  Tipo *           │   │
+│  │    3       │  │  Missão      ▼    │   │  ← Nova opção
+│  └────────────┘  │  • Transfer       │   │
+│                  │  • Shuttle        │   │
+│                  │  • Missão  ✓      │   │
+│                  └───────────────────┘   │
+│                                          │
+│  Observação                              │
+│  ┌──────────────────────────────────┐   │
+│  │                                  │   │
+│  └──────────────────────────────────┘   │
+│                                          │
+│  [Cancelar]      [Criar e Iniciar]       │
+└──────────────────────────────────────────┘
 ```
-
-**Ajustes:**
-- Nome do motorista em destaque (font-bold text-lg)
-- Veículo como informação secundária
-- Status badge com cor correspondente
-- Tempo no local ou rota conforme status
-
----
-
-## Fluxo Visual Final
-
-**Colunas exibidas:**
-
-1. **Base** - Motoristas que fizeram check-in e estão na base do evento
-2. **[Pontos de Embarque]** - Colunas dinâmicas baseadas em `ultima_localizacao`
-3. **Em Trânsito** - Motoristas com status `em_viagem` (mostra rota)
-4. **Sem Localização** - Motoristas sem `ultima_localizacao` definida
-
----
-
-## Informações no Card
-
-| Elemento | Origem | Descrição |
-|----------|--------|-----------|
-| Nome do motorista | `motorista.nome` | Destaque principal |
-| Indicador de status | `motorista.status` | Bolinha colorida |
-| Veículo (nome/placa) | `motorista.veiculo.nome` ou `placa` | Se vinculado |
-| Tipo do veículo | `motorista.veiculo.tipo_veiculo` | Van, Ônibus, etc |
-| Status badge | `motorista.status` | "Disponível", "Em Viagem", etc |
-| Tempo no local | `motorista.ultima_localizacao_at` | "há 15min" |
-| Rota (se em viagem) | `viagem_origem` → `viagem_destino` | Exibido quando status = em_viagem |
 
 ---
 
 ## Seção Técnica
 
-### Remoções no PainelLocalizador
+### Alteração no Componente
+
+Apenas uma linha adicionada no Select:
 
 ```tsx
-// REMOVER estas linhas:
-import { useLocalizadorVeiculos } from '@/hooks/useLocalizadorVeiculos';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-
-type ViewMode = 'motoristas' | 'veiculos';
-const [viewMode, setViewMode] = useState<ViewMode>('veiculos');
-
-const {
-  veiculosPorLocalizacao,
-  localizacoes: localizacoesVeiculos,
-  loading: loadingVeiculos,
-  refetch: refetchVeiculos
-} = useLocalizadorVeiculos(selectedEvento || undefined);
-
-// Todo o bloco do ToggleGroup no header
-// Toda lógica condicional de viewMode
+<SelectItem value="missao">Missão</SelectItem>
 ```
 
-### Nova Interface LocalizadorColumn
+### Por que funciona automaticamente?
 
-```tsx
-interface LocalizadorColumnProps {
-  titulo: string;
-  motoristas: MotoristaComVeiculo[];
-  tipo: 'local' | 'em_transito' | 'sem_local';
-}
+A lógica de encerramento já está pronta em `useViagemOperacao.ts`:
 
-export function LocalizadorColumn({ 
-  titulo, 
-  motoristas,
-  tipo
-}: LocalizadorColumnProps) {
-  // Implementação simplificada sem viewMode
-}
+```typescript
+// Shuttle pode aguardar retorno, outros tipos encerram diretamente
+const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle') 
+  ? 'aguardando_retorno' 
+  : 'encerrado';
 ```
+
+Como `tipo_operacao !== 'shuttle'` para missão, a viagem encerra diretamente.
+
+### Comportamento no Localizador
+
+Ao criar viagem tipo missão:
+1. Motorista aparece na coluna "Em Trânsito"
+2. Ao encerrar, motorista move para coluna do ponto de desembarque
 
 ### Observações
 
-- O hook `useLocalizadorMotoristas` já agrupa motoristas por `ultima_localizacao`
-- Motoristas com `status === 'em_viagem'` vão para coluna "Em Trânsito"
-- Motoristas sem `ultima_localizacao` vão para coluna "Sem Localização"
-- Realtime subscription já está configurada e continuará funcionando
-- O arquivo `LocalizadorVeiculoCard.tsx` pode ser removido ou mantido para uso futuro
+- Não é necessário modificar `useViagemOperacao.ts` - a lógica já trata corretamente
+- Não é necessário modificar `ViagemCardMobile.tsx` - o botão "CHEGOU" funciona igual
+- A viagem criada com tipo "missao" será exibida com badge de Missão automaticamente nas tabelas do CCO
+- Compatível com todo o sistema de auditoria existente
+
