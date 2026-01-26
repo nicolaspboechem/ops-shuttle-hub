@@ -30,6 +30,7 @@ export function PontoEmbarqueModal({
   const [endereco, setEndereco] = useState('');
   const [observacao, setObservacao] = useState('');
   const [ativo, setAtivo] = useState(true);
+  const [ehBase, setEhBase] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -39,11 +40,13 @@ export function PontoEmbarqueModal({
         setEndereco(ponto.endereco || '');
         setObservacao(ponto.observacao || '');
         setAtivo(ponto.ativo);
+        setEhBase(ponto.eh_base || false);
       } else {
         setNome('');
         setEndereco('');
         setObservacao('');
         setAtivo(true);
+        setEhBase(false);
       }
     }
   }, [open, ponto]);
@@ -59,6 +62,7 @@ export function PontoEmbarqueModal({
       endereco: endereco.trim() || null,
       observacao: observacao.trim() || null,
       ativo,
+      eh_base: ehBase,
     });
     setSaving(false);
     onOpenChange(false);
@@ -112,6 +116,20 @@ export function PontoEmbarqueModal({
               id="ativo"
               checked={ativo}
               onCheckedChange={setAtivo}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="ehBase">Marcar como Base</Label>
+              <p className="text-xs text-muted-foreground">
+                Define este ponto como local de retorno/espera
+              </p>
+            </div>
+            <Switch
+              id="ehBase"
+              checked={ehBase}
+              onCheckedChange={setEhBase}
             />
           </div>
 

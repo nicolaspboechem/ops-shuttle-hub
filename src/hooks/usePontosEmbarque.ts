@@ -10,6 +10,7 @@ export interface PontoEmbarque {
   endereco: string | null;
   observacao: string | null;
   ativo: boolean;
+  eh_base: boolean;
   criado_por: string | null;
   atualizado_por: string | null;
   created_at: string;
@@ -21,6 +22,7 @@ export interface PontoEmbarqueInput {
   endereco?: string | null;
   observacao?: string | null;
   ativo?: boolean;
+  eh_base?: boolean;
 }
 
 export function usePontosEmbarque(eventoId: string | undefined) {
@@ -130,16 +132,44 @@ export function usePontosEmbarque(eventoId: string | undefined) {
     return updatePonto(id, { ativo });
   };
 
+  const setBase = async (pontoId: string) => {
+    if (!eventoId) return;
+
+    // 1. Desmarcar todos os outros pontos do evento
+    await supabase
+      .from('pontos_embarque')
+      .update({ eh_base: false, atualizado_por: user?.id })
+      .eq('evento_id', eventoId);
+
+    // 2. Marcar o ponto selecionado como base
+    const { error } = await supabase
+      .from('pontos_embarque')
+      .update({ eh_base: true, atualizado_por: user?.id })
+      .eq('id', pontoId);
+
+    if (error) {
+      console.error('Erro ao definir base:', error);
+      toast.error('Erro ao definir base');
+      return;
+    }
+
+    toast.success('Base definida');
+    fetchPontos();
+  };
+
   const pontosAtivos = pontos.filter(p => p.ativo);
+  const pontoBase = pontos.find(p => p.eh_base);
 
   return {
     pontos,
     pontosAtivos,
+    pontoBase,
     loading,
     refetch: fetchPontos,
     createPonto,
     updatePonto,
     deletePonto,
     toggleAtivo,
+    setBase,
   };
 }

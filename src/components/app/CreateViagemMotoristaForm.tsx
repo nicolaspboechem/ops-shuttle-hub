@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useServerTime } from '@/hooks/useServerTime';
@@ -56,7 +56,7 @@ export function CreateViagemMotoristaForm({
   onCreated,
   embedded = false
 }: CreateViagemMotoristaFormProps) {
-  const { user } = useAuth();
+  const { driverSession } = useDriverAuth();
   const { motoristas } = useMotoristas(eventoId);
   const { veiculos } = useVeiculos(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
@@ -140,7 +140,8 @@ export function CreateViagemMotoristaForm({
           status: 'em_andamento',
           h_pickup: horaPickup,
           h_inicio_real: agora.toISOString(),
-          iniciado_por: user?.id
+          iniciado_por: driverSession?.motorista_id || null,
+          criado_por: driverSession?.motorista_id || null
         }]);
 
       if (error) {
@@ -168,10 +169,10 @@ export function CreateViagemMotoristaForm({
         .limit(1)
         .single();
 
-      if (viagemData) {
+      if (viagemData && driverSession?.motorista_id) {
         await supabase.from('viagem_logs').insert([{
           viagem_id: viagemData.id,
-          user_id: user?.id,
+          user_id: driverSession.motorista_id,
           acao: 'inicio',
           detalhes: { 
             motorista: motoristaName, 

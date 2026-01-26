@@ -38,7 +38,7 @@ export default function RotasShuttle() {
   const [deletingRota, setDeletingRota] = useState<RotaShuttle | null>(null);
 
   // Pontos
-  const { pontos, loading: loadingPontos, createPonto, updatePonto, deletePonto, toggleAtivo } = usePontosEmbarque(eventoId);
+  const { pontos, loading: loadingPontos, createPonto, updatePonto, deletePonto, toggleAtivo, setBase } = usePontosEmbarque(eventoId);
   const [pontoModalOpen, setPontoModalOpen] = useState(false);
   const [editingPonto, setEditingPonto] = useState<PontoEmbarque | null>(null);
   const [deletingPonto, setDeletingPonto] = useState<PontoEmbarque | null>(null);
@@ -74,8 +74,16 @@ export default function RotasShuttle() {
   const handlePontoSave = async (data: PontoEmbarqueInput) => {
     if (editingPonto) {
       await updatePonto(editingPonto.id, data);
+      // Se marcou como base, aplicar exclusividade
+      if (data.eh_base) {
+        await setBase(editingPonto.id);
+      }
     } else {
-      await createPonto(data);
+      const newPonto = await createPonto(data);
+      // Se marcou como base no novo ponto
+      if (data.eh_base && newPonto?.id) {
+        await setBase(newPonto.id);
+      }
     }
     setEditingPonto(null);
   };
@@ -139,7 +147,7 @@ export default function RotasShuttle() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+                <div className="space-y-3">
               {pontos.map((ponto) => (
                 <div
                   key={ponto.id}
@@ -148,6 +156,11 @@ export default function RotasShuttle() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{ponto.nome}</span>
+                      {ponto.eh_base && (
+                        <Badge variant="default" className="text-xs">
+                          🏠 Base
+                        </Badge>
+                      )}
                       {!ponto.ativo && (
                         <Badge variant="secondary" className="text-xs">Inativo</Badge>
                       )}
