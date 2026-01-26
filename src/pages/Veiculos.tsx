@@ -21,6 +21,7 @@ import { VeiculoKanbanCardFull } from '@/components/veiculos/VeiculoKanbanCardFu
 import { VeiculosAuditoria } from '@/components/veiculos/VeiculosAuditoria';
 import { VeiculosListView } from '@/components/veiculos/VeiculosListView';
 import { VeiculosUsoAuditoria } from '@/components/veiculos/VeiculosUsoAuditoria';
+import { VeiculoDetalheModal } from '@/components/veiculos/VeiculoDetalheModal';
 import { toast } from 'sonner';
 
 const sections: InnerSidebarSection[] = [
@@ -36,12 +37,17 @@ export default function Veiculos() {
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'kanban' | 'lista'>('kanban');
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
   const { veiculos, loading: loadingVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const [activeVeiculoId, setActiveVeiculoId] = useState<string | null>(null);
+  
+  const selectedVeiculo = useMemo(() => 
+    selectedVeiculoId ? veiculos.find(v => v.id === selectedVeiculoId) : null,
+  [selectedVeiculoId, veiculos]);
   
   // Drag and drop sensors
   const sensors = useSensors(
@@ -390,6 +396,7 @@ export default function Veiculos() {
           onSave={handleSaveVeiculo}
           onUpdate={handleUpdateVeiculo}
           onDelete={handleDeleteVeiculo}
+          onViewDetails={setSelectedVeiculoId}
         />
       ) : (
         <DndContext
@@ -409,6 +416,7 @@ export default function Veiculos() {
               onUpdate={handleUpdateVeiculo}
               onDelete={handleDeleteVeiculo}
               getName={getName}
+              onViewDetails={setSelectedVeiculoId}
             />
             <VeiculoKanbanColumnFull
               status="pendente"
@@ -420,6 +428,7 @@ export default function Veiculos() {
               onUpdate={handleUpdateVeiculo}
               onDelete={handleDeleteVeiculo}
               getName={getName}
+              onViewDetails={setSelectedVeiculoId}
             />
             <VeiculoKanbanColumnFull
               status="em_inspecao"
@@ -431,6 +440,7 @@ export default function Veiculos() {
               onUpdate={handleUpdateVeiculo}
               onDelete={handleDeleteVeiculo}
               getName={getName}
+              onViewDetails={setSelectedVeiculoId}
             />
             <VeiculoKanbanColumnFull
               status="manutencao"
@@ -442,6 +452,7 @@ export default function Veiculos() {
               onUpdate={handleUpdateVeiculo}
               onDelete={handleDeleteVeiculo}
               getName={getName}
+              onViewDetails={setSelectedVeiculoId}
             />
           </div>
           <DragOverlay>
@@ -473,12 +484,27 @@ export default function Veiculos() {
         />
         <div className="flex-1 p-6 overflow-auto">
           {activeSection === 'auditoria' && (
-            <VeiculosAuditoria viagens={viagens} veiculosCadastrados={veiculos} motoristas={motoristas} />
+            <VeiculosAuditoria 
+              viagens={viagens} 
+              veiculosCadastrados={veiculos} 
+              motoristas={motoristas}
+              onViewDetails={setSelectedVeiculoId}
+            />
           )}
           {activeSection === 'historico-uso' && <VeiculosUsoAuditoria />}
           {activeSection === 'cadastro' && <CadastroContent />}
         </div>
       </div>
+
+      {/* Modal de detalhes do veículo */}
+      <VeiculoDetalheModal
+        veiculo={selectedVeiculo}
+        open={!!selectedVeiculoId}
+        onClose={() => setSelectedVeiculoId(null)}
+        viagens={viagens}
+        motoristas={motoristas}
+        eventoId={eventoId}
+      />
     </EventLayout>
   );
 }

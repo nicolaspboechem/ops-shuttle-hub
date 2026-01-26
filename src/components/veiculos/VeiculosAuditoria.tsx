@@ -38,9 +38,10 @@ interface VeiculosAuditoriaProps {
   viagens: Viagem[];
   veiculosCadastrados: any[];
   motoristas: any[];
+  onViewDetails?: (veiculoId: string) => void;
 }
 
-export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas }: VeiculosAuditoriaProps) {
+export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, onViewDetails }: VeiculosAuditoriaProps) {
   const { eventoId } = useParams<{ eventoId: string }>();
   const [filtroTipoVeiculo, setFiltroTipoVeiculo] = useState<string>('all');
   const [filtroFornecedor, setFiltroFornecedor] = useState<string>('all');

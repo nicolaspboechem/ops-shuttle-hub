@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck, GripVertical } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck, GripVertical, Eye } from "lucide-react";
 import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from "./VeiculoStatusBadge";
 import { VeiculoModal } from "@/components/cadastros/CadastroModals";
 import { formatarMinutos } from "@/lib/utils/calculadores";
@@ -47,6 +47,7 @@ interface VeiculoKanbanCardFullProps {
   onDelete: (id: string) => void;
   getName?: (id: string) => string;
   isDragOverlay?: boolean;
+  onViewDetails?: (veiculoId: string) => void;
 }
 
 export function VeiculoKanbanCardFull({ 
@@ -58,7 +59,8 @@ export function VeiculoKanbanCardFull({
   onUpdate,
   onDelete,
   getName,
-  isDragOverlay = false
+  isDragOverlay = false,
+  onViewDetails
 }: VeiculoKanbanCardFullProps) {
   const TipoIcon = (veiculo.tipo_veiculo?.toLowerCase().includes('van') || veiculo.tipo_veiculo === 'Sedan' || veiculo.tipo_veiculo === 'SUV') ? Car : Bus;
 
@@ -152,12 +154,18 @@ export function VeiculoKanbanCardFull({
               )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="w-4 h-4" />
+          <div className="flex items-center gap-1">
+            {onViewDetails && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onViewDetails(veiculo.id)}>
+                <Eye className="w-4 h-4" />
               </Button>
-            </DropdownMenuTrigger>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <VeiculoModal
                 veiculo={veiculo as any}
@@ -195,6 +203,7 @@ export function VeiculoKanbanCardFull({
               </AlertDialog>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
 
         {/* Indicadores de Status */}

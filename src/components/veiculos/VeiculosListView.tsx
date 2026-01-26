@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bus, Car, MoreVertical, Pencil, Trash2, UserCheck, Gauge, Fuel } from 'lucide-react';
+import { Bus, Car, MoreVertical, Pencil, Trash2, UserCheck, Gauge, Fuel, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +17,7 @@ interface VeiculosListViewProps {
   onSave: (data: any) => Promise<void>;
   onUpdate: (id: string, data: any, oldPlaca: string) => Promise<void>;
   onDelete: (id: string) => void;
+  onViewDetails?: (veiculoId: string) => void;
 }
 
 export function VeiculosListView({
@@ -25,7 +26,8 @@ export function VeiculosListView({
   eventoId,
   onSave,
   onUpdate,
-  onDelete
+  onDelete,
+  onViewDetails
 }: VeiculosListViewProps) {
 
   const getMotoristaVinculado = (veiculoId: string) => {
@@ -120,49 +122,61 @@ export function VeiculosListView({
                   )}
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4" />
+                  <div className="flex items-center gap-1">
+                    {onViewDetails && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => onViewDetails(veiculo.id)}
+                      >
+                        <Eye className="w-4 h-4" />
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <VeiculoModal
-                        veiculo={veiculo}
-                        eventoId={eventoId}
-                        onSave={onSave}
-                        onUpdate={onUpdate}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                        }
-                      />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir veículo?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta ação não pode ser desfeita. O veículo {veiculo.placa} será removido permanentemente.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => onDelete(veiculo.id)}>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <VeiculoModal
+                          veiculo={veiculo}
+                          eventoId={eventoId}
+                          onSave={onSave}
+                          onUpdate={onUpdate}
+                          trigger={
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                          }
+                        />
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                              <Trash2 className="w-4 h-4 mr-2" />
                               Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir veículo?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. O veículo {veiculo.placa} será removido permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => onDelete(veiculo.id)}>
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             );
