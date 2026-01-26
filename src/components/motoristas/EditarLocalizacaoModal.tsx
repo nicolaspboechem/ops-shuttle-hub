@@ -21,6 +21,7 @@ import { MapPin, Loader2 } from 'lucide-react';
 interface PontoEmbarque {
   id: string;
   nome: string;
+  eh_base?: boolean;
 }
 
 interface EditarLocalizacaoModalProps {
@@ -98,19 +99,15 @@ export function EditarLocalizacaoModal({
                 <SelectValue placeholder="Selecione a localização..." />
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
-                <SelectItem value="Base">
-                  <span className="flex items-center gap-2">
-                    <MapPin className="w-3 h-3" />
-                    Base
-                  </span>
-                </SelectItem>
-                {pontosEmbarque
-                  .filter(p => p.nome !== 'Base')
-                  .map((ponto) => (
-                    <SelectItem key={ponto.id} value={ponto.nome}>
+                {pontosEmbarque.map((ponto) => (
+                  <SelectItem key={ponto.id} value={ponto.nome}>
+                    <span className="flex items-center gap-2">
+                      {ponto.eh_base && <MapPin className="w-3 h-3 text-primary" />}
                       {ponto.nome}
-                    </SelectItem>
-                  ))}
+                      {ponto.eh_base && <span className="text-xs text-muted-foreground">(Base)</span>}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
