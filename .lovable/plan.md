@@ -1,183 +1,172 @@
 
-## Plano: Edição de Login de Motoristas + Simplificação do Login por Telefone
+# Plano: Redesign da Página Inicial - CCO AS Brasil
 
-### Problema Identificado
-
-1. **Não é possível editar credenciais de login de motoristas existentes** - Atualmente só existe:
-   - Resetar senha (para admins na página /usuarios)
-   - Criar novo login durante cadastro do motorista
-   
-2. **Validação de telefone muito restritiva** - O Edge Function `create-user` rejeita telefones que não têm exatamente 10-11 dígitos, causando erros:
-   - `"Telefone deve ter 10 ou 11 dígitos"`
-   
-3. **Falta opção de editar login na página de Equipe** - Os cards de membros da equipe não permitem:
-   - Editar telefone de login
-   - Resetar senha
-   - Criar login para motorista que não tem
-
-4. **AddStaffWizard não limpa telefone antes de enviar** - O telefone é enviado com máscara para o Edge Function
+## Objetivo
+Transformar a página inicial de "TransControl" para "CCO - AS Brasil", exibindo diretamente o painel de eventos públicos com opção de login.
 
 ---
 
-### Solução Proposta
+## Mudanças Visuais
 
-#### PARTE 1: Remover Validação Restritiva de Telefone (Edge Function)
+### ANTES (Atual)
+- Ícone de ônibus genérico
+- Título "TransControl"
+- Dois botões centralizados
+- Layout minimalista sem conteúdo
 
-**Arquivo: `supabase/functions/create-user/index.ts`**
+### DEPOIS (Proposto)
+- Logo oficial AS Brasil (horizontal)
+- Título "CCO - AS Brasil" com subtítulo "Centro de Controle Operacional"
+- Grid de eventos públicos diretamente visível
+- Botão de login discreto no header
+- Visual alinhado com o PainelPublico existente
 
-Remover a validação de 10-11 dígitos e aceitar qualquer formato de telefone:
+---
 
-```typescript
-// ANTES (linhas 89-96):
-const phoneDigits = telefone.replace(/\D/g, '');
-if (phoneDigits.length < 10 || phoneDigits.length > 11) {
-  return new Response(
-    JSON.stringify({ error: "Telefone deve ter 10 ou 11 dígitos" }),
-    { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
+## Estrutura da Nova Página
 
-// DEPOIS:
-const phoneDigits = telefone.replace(/\D/g, '');
-// Aceita qualquer telefone - mínimo 4 dígitos para evitar erros acidentais
-if (phoneDigits.length < 4) {
-  return new Response(
-    JSON.stringify({ error: "Telefone inválido" }),
-    { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
+```text
+┌─────────────────────────────────────────────────────┐
+│  HEADER                                              │
+│  ┌─────────┐                              ┌───────┐ │
+│  │ AS Logo │  CCO - AS Brasil             │ LOGIN │ │
+│  └─────────┘  Centro de Controle          └───────┘ │
+│               Operacional                           │
+├─────────────────────────────────────────────────────┤
+│  CONTEÚDO PRINCIPAL                                 │
+│                                                     │
+│  ┌─────────────────────────────────────────────────┐│
+│  │     Eventos Disponíveis                         ││
+│  │     Selecione um evento para ver as rotas       ││
+│  └─────────────────────────────────────────────────┘│
+│                                                     │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐       │
+│  │  Evento 1 │  │  Evento 2 │  │  Evento 3 │       │
+│  │  (Card)   │  │  (Card)   │  │  (Card)   │       │
+│  └───────────┘  └───────────┘  └───────────┘       │
+│                                                     │
+│  (Se não houver eventos: mensagem informativa)     │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-#### PARTE 2: Corrigir AddStaffWizard (Limpar Máscara)
+## Detalhes Técnicos
 
-**Arquivo: `src/components/equipe/AddStaffWizard.tsx`**
+### Arquivo: `src/pages/Index.tsx`
 
-Linha 47: Limpar telefone antes de enviar:
+**Alterações:**
 
-```typescript
-// ANTES:
-telefone: telefone.trim(),
+1. **Imports adicionais:**
+   - `useEventosPublicos` para buscar eventos públicos
+   - `EventosGrid` para exibir os cards
+   - `Input` e `Search` para busca (quando múltiplos eventos)
+   - `logoASHorizontal` para o header
+   - `useNavigate` para navegação
 
-// DEPOIS:
-telefone: telefone.replace(/\D/g, ''),
-```
+2. **Comportamento:**
+   - Se usuário logado → redireciona para `/eventos` (admin) ou `/app` (staff)
+   - Se não logado → exibe landing com eventos públicos
+   - Clique no evento → navega para `/painel/:eventoId`
+   - Clique em "Entrar" → navega para `/auth`
+
+3. **Layout:**
+   - Header sticky com logo AS Brasil e botão "Entrar"
+   - Seção de busca (se houver mais de 1 evento)
+   - Grid de eventos usando componente existente `EventosGrid`
+   - Estado vazio estilizado quando não há eventos
+
+4. **Branding:**
+   - Título: "CCO - AS Brasil"
+   - Subtítulo: "Centro de Controle Operacional"
+   - Logo horizontal da AS Brasil no header
+   - Cores consistentes com o restante do sistema
 
 ---
 
-#### PARTE 3: Adicionar Modal de Edição de Login para Motoristas
-
-**Novo componente:** `src/components/equipe/EditMotoristaLoginModal.tsx`
-
-Modal que permite:
-- Visualizar telefone atual de login
-- Alterar telefone de login
-- Resetar senha
-- Criar login para motorista que não tem
+## Código Proposto
 
 ```tsx
-// Estrutura do modal:
-- Título: "Gerenciar Acesso - {Nome do Motorista}"
-- Se TEM login:
-  - Input: Telefone atual (readonly, exibe telefone formatado)
-  - Botão: "Resetar Senha" -> abre sub-modal para definir nova senha
-  - Checkbox: "Alterar telefone de login"
-    - Se marcado: Input para novo telefone + confirmação
-- Se NÃO TEM login:
-  - Form para criar login:
-    - Input: Telefone
-    - Input: Senha (mínimo 6 caracteres)
-    - Botão: "Criar Login"
-- Exibe credenciais após criação/alteração
+// src/pages/Index.tsx - Estrutura principal
+
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { Loader2, LogIn, Search, Bus } from 'lucide-react';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { useEventosPublicos } from '@/hooks/useEventosPublicos';
+import { EventosGrid } from '@/components/public/EventosGrid';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import logoASHorizontal from '@/assets/logo_as_horizontal.png';
+
+const Index = () => {
+  const { user, loading: authLoading, isAdmin, eventRoles } = useAuth();
+  const { eventos, loading: eventosLoading } = useEventosPublicos();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Redireciona usuários logados
+  if (user && !authLoading) {
+    if (isAdmin) return <Navigate to="/eventos" replace />;
+    if (eventRoles.length > 0) return <Navigate to="/app" replace />;
+  }
+
+  // Filtra eventos pela busca
+  const filteredEventos = eventos.filter(e =>
+    e.nome_planilha.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Loading state
+  if (authLoading || eventosLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header com logo e botão login */}
+      <Header onLogin={() => navigate('/auth')} />
+
+      {/* Conteúdo principal */}
+      <main className="container mx-auto px-4 py-6 space-y-6">
+        {eventos.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <>
+            <TitleSection />
+            {eventos.length > 1 && (
+              <SearchBar value={searchQuery} onChange={setSearchQuery} />
+            )}
+            <EventosGrid
+              eventos={filteredEventos}
+              onSelect={(id) => navigate(`/painel/${id}`)}
+            />
+          </>
+        )}
+      </main>
+    </div>
+  );
+};
 ```
 
 ---
 
-#### PARTE 4: Criar Edge Function para Alterar Telefone de Login
+## Resumo de Alterações
 
-**Novo arquivo:** `supabase/functions/update-user-phone/index.ts`
-
-Função para administradores alterarem o telefone de login de um usuário:
-
-```typescript
-// Recebe: user_id, new_phone
-// Verifica: caller é admin
-// Atualiza: auth.users (phone) via Admin API
-// Atualiza: profiles (telefone)
-// Retorna: novo telefone formatado
-```
+| Componente | Alteração |
+|------------|-----------|
+| `src/pages/Index.tsx` | Reescrever completamente com nova estrutura |
+| Branding | "TransControl" → "CCO - AS Brasil" |
+| Layout | Cards centralizados → Grid de eventos com header |
+| Funcionalidade | Eventos públicos carregados diretamente |
+| Navegação | Evento clicado → `/painel/:id` |
+| Login | Botão discreto no header → `/auth` |
 
 ---
 
-#### PARTE 5: Integrar Modal na Página de Equipe
+## Benefícios
 
-**Arquivo: `src/pages/EventoUsuarios.tsx`**
-
-No `MembroCard`, adicionar opções no DropdownMenu:
-
-```tsx
-// Para motoristas:
-<DropdownMenuItem onClick={() => openLoginModal(membro)}>
-  <KeyRound className="w-4 h-4 mr-2" />
-  {membro.has_login ? "Gerenciar Login" : "Criar Login"}
-</DropdownMenuItem>
-
-{membro.has_login && (
-  <DropdownMenuItem onClick={() => openResetPasswordModal(membro)}>
-    <Lock className="w-4 h-4 mr-2" />
-    Resetar Senha
-  </DropdownMenuItem>
-)}
-```
-
----
-
-### Resumo de Arquivos
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `supabase/functions/create-user/index.ts` | MODIFICAR | Remover validação restritiva de telefone |
-| `src/components/equipe/AddStaffWizard.tsx` | MODIFICAR | Limpar máscara do telefone antes de enviar |
-| `src/components/equipe/EditMotoristaLoginModal.tsx` | CRIAR | Modal para editar/criar login de motorista |
-| `supabase/functions/update-user-phone/index.ts` | CRIAR | Edge Function para alterar telefone de login |
-| `src/pages/EventoUsuarios.tsx` | MODIFICAR | Integrar modais no card de membro |
-
----
-
-### Detalhes Técnicos
-
-**Fluxo de "Criar Login" para motorista existente:**
-1. Admin clica em "Criar Login" no card do motorista
-2. Modal abre com campos: Telefone + Senha
-3. Ao confirmar, chama `create-user` com `motorista_id` para vincular
-4. Exibe credenciais geradas para copiar
-
-**Fluxo de "Resetar Senha":**
-1. Admin clica em "Resetar Senha"
-2. Modal abre com campo de nova senha
-3. Chama `reset-password` com `user_id` do motorista
-4. Exibe confirmação com nova senha para copiar
-
-**Fluxo de "Alterar Telefone":**
-1. Admin clica em "Gerenciar Login"
-2. Marca checkbox "Alterar telefone"
-3. Digita novo telefone
-4. Chama `update-user-phone` com novo telefone
-5. Atualiza profiles e auth.users
-
----
-
-### Simplificação do Login de Motorista
-
-Com essas mudanças:
-- Telefone pode ter qualquer formato (mínimo 4 dígitos)
-- Senhas simples são permitidas (mínimo 6 caracteres)
-- Admin pode criar/editar/resetar logins facilmente
-- Motoristas fazem login com: `+55XXXXXXXXXX` + senha
-
-**Exemplos de telefones aceitos:**
-- `11999999999` ✓
-- `999999999` ✓
-- `1234` ✓
-- `123` ✗ (menos de 4 dígitos)
+1. **Conteúdo imediato** - Visitante vê eventos disponíveis sem cliques extras
+2. **Identidade visual** - Marca AS Brasil em destaque
+3. **Experiência fluida** - Mesma estrutura do PainelPublico, evitando página intermediária desnecessária
+4. **Reutilização** - Usa componentes existentes (EventosGrid, EventoCard)
+5. **Consistência** - Visual alinhado com Auth.tsx e PainelPublico.tsx
