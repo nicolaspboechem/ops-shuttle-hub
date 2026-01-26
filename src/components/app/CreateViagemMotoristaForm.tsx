@@ -149,6 +149,14 @@ export function CreateViagemMotoristaForm({
         return;
       }
 
+      // Atualizar status do motorista para 'em_viagem' (para aparecer no localizador)
+      if (motoristaData?.id) {
+        await supabase
+          .from('motoristas')
+          .update({ status: 'em_viagem' })
+          .eq('id', motoristaData.id);
+      }
+
       // Registrar log
       const { data: viagemData } = await supabase
         .from('viagens')
