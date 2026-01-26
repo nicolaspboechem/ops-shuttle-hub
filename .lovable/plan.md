@@ -1,29 +1,33 @@
 
+# Plano: Sincronização Total de Timestamps com Fuso Horário de São Paulo
 
-# Plano: Adicionar Opção "Missão" no Formulário de Criação de Corrida do Motorista
+## Problema Identificado
 
-## Objetivo
+Existe uma **inconsistência crítica** na forma como timestamps são gerados e usados no sistema:
 
-Adicionar a opção "Missão" no dropdown de tipo de operação no formulário `CreateViagemMotoristaForm`, permitindo que motoristas criem viagens do tipo missão manualmente. A diferença principal é que **missões encerram diretamente ao registrar chegada**, sem passar pelo estado "aguardando_retorno" que o Shuttle utiliza.
+### Situação Atual
 
----
+| Componente | Método Usado | Problema |
+|------------|--------------|----------|
+| `CreateViagemMotoristaForm` | `useServerTime().getAgoraSync()` | Correto - sincronizado |
+| `CreateViagemForm` | `useServerTime().getAgoraSync()` | Correto - sincronizado |
+| `RetornoViagemForm` | `useServerTime().getAgoraSync()` | Correto - sincronizado |
+| `useViagemOperacao` (iniciar/chegada/encerrar) | `new Date()` | **ERRADO** - hora local do dispositivo |
+| `useMotoristaPresenca` (check-in/checkout) | `new Date().toISOString()` | **ERRADO** - hora local do dispositivo |
+| `useEquipe` (check-in/checkout admin) | `new Date().toISOString()` | **ERRADO** - hora local do dispositivo |
+| `calculadores.ts` (alertas) | `new Date()` | **ERRADO** - hora local do dispositivo |
+| `PainelLocalizador` (relógio) | `new Date()` | **ERRADO** - hora local do dispositivo |
+| `CheckinCheckoutCard` (data do dia) | `new Date()` | **ERRADO** - hora local do dispositivo |
+| Edge Functions (sync-data, close-open-trips) | `new Date()` | **ERRADO** - hora do servidor Deno |
 
-## Contexto e Diferença entre Tipos
+### O Hook `useServerTime` Funciona Corretamente
 
-| Tipo | Fluxo ao Registrar Chegada |
-|------|----------------------------|
-| **Transfer** | Encerra diretamente |
-| **Shuttle** | Pode aguardar retorno (standby na base) |
-| **Missão** | Encerra diretamente (igual Transfer) |
+O hook já:
+1. Chama a RPC `get_server_time()` que retorna `NOW() AT TIME ZONE 'America/Sao_Paulo'`
+2. Calcula o offset entre hora do servidor e hora local do dispositivo
+3. Fornece `getAgoraSync()` que aplica o offset para retornar hora sincronizada
 
-A lógica atual em `useViagemOperacao.ts` (linha 161-163) já trata isso:
-```typescript
-const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle') 
-  ? 'aguardando_retorno' 
-  : 'encerrado';
-```
-
-Ou seja, apenas Shuttle pode entrar em "aguardando_retorno". Transfer e Missão encerram direto.
+**O problema é que muitos componentes NÃO usam esse hook**.
 
 ---
 
@@ -31,130 +35,259 @@ Ou seja, apenas Shuttle pode entrar em "aguardando_retorno". Transfer e Missão 
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Adicionar opção "Missão" no dropdown |
+| `src/hooks/useViagemOperacao.ts` | MODIFICAR | Usar `useServerTime` para todos os timestamps |
+| `src/hooks/useMotoristaPresenca.ts` | MODIFICAR | Usar `useServerTime` para check-in/checkout |
+| `src/hooks/useEquipe.ts` | MODIFICAR | Usar `useServerTime` para operações de presença |
+| `src/lib/utils/calculadores.ts` | MODIFICAR | Receber função `getAgoraSync` como parâmetro |
+| `src/pages/PainelLocalizador.tsx` | MODIFICAR | Sincronizar relógio com servidor |
+| `src/components/app/CheckinCheckoutCard.tsx` | MODIFICAR | Usar data sincronizada |
+| `supabase/functions/sync-data/index.ts` | MODIFICAR | Obter hora do banco |
+| `supabase/functions/close-open-trips/index.ts` | MODIFICAR | Obter hora do banco |
 
 ---
 
-## Detalhes da Implementação
+## Detalhes de Implementação
 
-### Modificar o Select de Tipo de Operação
+### 1. Modificar `useViagemOperacao.ts`
 
-**Antes (linhas 360-370):**
-```tsx
-<Select value={tipoOperacao} onValueChange={setTipoOperacao}>
-  <SelectTrigger>
-    <SelectValue />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="transfer">Transfer</SelectItem>
-    <SelectItem value="shuttle">Shuttle</SelectItem>
-  </SelectContent>
-</Select>
+Adicionar `useServerTime` e substituir todas as instâncias de `new Date()`:
+
+```typescript
+import { useServerTime } from '@/hooks/useServerTime';
+
+export function useViagemOperacao() {
+  const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
+
+  // Substituir em iniciarViagem (linha 126):
+  // DE: h_inicio_real: new Date().toISOString()
+  // PARA: h_inicio_real: getAgoraSync().toISOString()
+
+  // Substituir em registrarChegada (linha 157-158):
+  // DE: const now = new Date(); 
+  //     const horaChegada = now.toTimeString().slice(0, 8);
+  // PARA: const now = getAgoraSync();
+  //       const horaChegada = now.toTimeString().slice(0, 8);
+
+  // Substituir em encerrarViagem (linha 217):
+  // DE: h_fim_real: new Date().toISOString()
+  // PARA: h_fim_real: getAgoraSync().toISOString()
+
+  // Substituir em iniciarRetorno (linha 283):
+  // DE: const now = new Date();
+  // PARA: const now = getAgoraSync();
+
+  // Substituir em atualizarLocalizacaoMotorista:
+  // DE: ultima_localizacao_at: new Date().toISOString()
+  // PARA: ultima_localizacao_at: agoraSync.toISOString()
+}
 ```
 
-**Depois:**
-```tsx
-<Select value={tipoOperacao} onValueChange={setTipoOperacao}>
-  <SelectTrigger>
-    <SelectValue />
-  </SelectTrigger>
-  <SelectContent>
-    <SelectItem value="transfer">Transfer</SelectItem>
-    <SelectItem value="shuttle">Shuttle</SelectItem>
-    <SelectItem value="missao">Missão</SelectItem>
-  </SelectContent>
-</Select>
+**Problema com helpers fora do hook**: As funções `atualizarStatusMotorista` e `atualizarLocalizacaoMotorista` estão fora do hook React, então não podem usar `useServerTime` diretamente. Solução: passar a data sincronizada como parâmetro.
+
+### 2. Modificar `useMotoristaPresenca.ts`
+
+```typescript
+import { useServerTime } from '@/hooks/useServerTime';
+
+export function useMotoristaPresenca(...) {
+  const { getAgoraSync } = useServerTime();
+  
+  const realizarCheckin = async () => {
+    // Linha 130 - substituir:
+    // DE: const now = new Date().toISOString();
+    // PARA: const now = getAgoraSync().toISOString();
+  };
+
+  const realizarCheckout = async (observacao?: string) => {
+    // Linha 195 - substituir:
+    // DE: const now = new Date().toISOString();
+    // PARA: const now = getAgoraSync().toISOString();
+  };
+}
 ```
 
+### 3. Modificar `useEquipe.ts`
+
+```typescript
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
+
+export function useEquipe(eventoId?: string) {
+  const { getAgoraSync } = useServerTime();
+  
+  const fetchEquipe = async () => {
+    // Linha 72 - usar data operacional sincronizada:
+    // DE: const today = new Date().toISOString().split('T')[0];
+    // PARA: const today = getDataOperacional(getAgoraSync());
+  };
+
+  const handleCheckin = async (motoristaId: string) => {
+    // Linhas 138-139 - substituir:
+    // DE: const today = new Date().toISOString().split('T')[0];
+    //     const now = new Date().toISOString();
+    // PARA: const agora = getAgoraSync();
+    //       const today = getDataOperacional(agora);
+    //       const now = agora.toISOString();
+  };
+
+  const handleCheckout = async (motoristaId: string) => {
+    // Linhas 185-186 - mesma lógica
+  };
+}
+```
+
+### 4. Modificar `calculadores.ts`
+
+Modificar `calcularStatusViagem` para receber a hora sincronizada:
+
+```typescript
+export function calcularStatusViagem(
+  viagem: Viagem,
+  tempoMedioMotorista: number,
+  agoraSincronizado?: Date  // Novo parâmetro opcional
+): AlertaViagem {
+  // Linha 106 - substituir:
+  // DE: const now = new Date();
+  // PARA: const now = agoraSincronizado || new Date();
+}
+
+export function calcularKPIsDashboard(
+  viagens: Viagem[],
+  agoraSincronizado?: Date
+): KPIsDashboard {
+  // Passar para calcularStatusViagem
+  alertas.push(calcularStatusViagem(viagem, tempoMedio, agoraSincronizado));
+}
+```
+
+### 5. Modificar `PainelLocalizador.tsx`
+
+Sincronizar o relógio exibido com o servidor:
+
+```typescript
+import { useServerTime } from '@/hooks/useServerTime';
+
+export default function PainelLocalizador() {
+  const { getAgoraSync, offset } = useServerTime();
+  const [currentTime, setCurrentTime] = useState(() => getAgoraSync());
+
+  // Atualizar relógio usando offset sincronizado
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date(Date.now() + offset));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [offset]);
+}
+```
+
+### 6. Modificar `CheckinCheckoutCard.tsx`
+
+```typescript
+import { useServerTime } from '@/hooks/useServerTime';
+
+export function CheckinCheckoutCard(...) {
+  const { getAgoraSync } = useServerTime();
+  
+  // Linha 36 - substituir:
+  // DE: const hoje = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
+  // PARA: const hoje = format(getAgoraSync(), "EEEE, dd 'de' MMMM", { locale: ptBR });
+}
+```
+
+### 7. Modificar Edge Functions
+
+**sync-data/index.ts:**
+
+```typescript
+// Linha 17-18 - substituir:
+// DE: const now = new Date();
+//     const spTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+// PARA: Usar hora do próprio banco de dados
+
+const { data: serverTimeData } = await supabase.rpc('get_server_time');
+const spTime = serverTimeData ? new Date(serverTimeData) : new Date();
+```
+
+**close-open-trips/index.ts:**
+
+Mesma lógica - usar `get_server_time` RPC ao invés de `new Date()`.
+
 ---
 
-## Fluxo Esperado
-
-1. Motorista abre formulário de "Nova Viagem" no app
-2. Seleciona tipo **"Missão"** no dropdown
-3. Preenche pontos de embarque/desembarque e PAX
-4. Clica em "Criar e Iniciar"
-5. Viagem é criada com `tipo_operacao: 'missao'` e `status: 'em_andamento'`
-6. Motorista aparece no Localizador como "Em Trânsito"
-7. Ao clicar em "CHEGOU":
-   - Viagem encerra diretamente (`status: 'encerrado'`)
-   - **SEM** estado intermediário "aguardando_retorno"
-   - Localização do motorista atualiza para ponto de desembarque
-
----
-
-## Visual no App
+## Fluxo de Sincronização
 
 ```text
-┌──────────────────────────────────────────┐
-│            Nova Viagem                   │
-├──────────────────────────────────────────┤
-│                                          │
-│  Motorista: João Silva                   │
-│  Veículo: ABC-1234 - Van                 │
-│                                          │
-│  Ponto de Embarque *                     │
-│  ┌──────────────────────────────────┐   │
-│  │ Base                           ▼ │   │
-│  └──────────────────────────────────┘   │
-│                                          │
-│  Ponto de Desembarque *                  │
-│  ┌──────────────────────────────────┐   │
-│  │ Hotel Copacabana               ▼ │   │
-│  └──────────────────────────────────┘   │
-│                                          │
-│  ┌────────────┐  ┌───────────────────┐   │
-│  │  Qtd PAX * │  │  Tipo *           │   │
-│  │    3       │  │  Missão      ▼    │   │  ← Nova opção
-│  └────────────┘  │  • Transfer       │   │
-│                  │  • Shuttle        │   │
-│                  │  • Missão  ✓      │   │
-│                  └───────────────────┘   │
-│                                          │
-│  Observação                              │
-│  ┌──────────────────────────────────┐   │
-│  │                                  │   │
-│  └──────────────────────────────────┘   │
-│                                          │
-│  [Cancelar]      [Criar e Iniciar]       │
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        SERVIDOR (Supabase)                              │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │  get_server_time() → NOW() AT TIME ZONE 'America/Sao_Paulo'     │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                 ↓                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        FRONTEND (useServerTime)                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │  1. Chama get_server_time() no mount                            │   │
+│  │  2. Calcula offset = serverTime - localTime                     │   │
+│  │  3. Ressincroniza a cada 5 minutos                              │   │
+│  │  4. getAgoraSync() = new Date(Date.now() + offset)              │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                 ↓                                       │
+│  Componentes usam getAgoraSync() para:                                  │
+│  • Criar viagens (h_pickup, h_inicio_real)                              │
+│  • Registrar chegadas (h_chegada, h_fim_real)                           │
+│  • Check-in/Check-out (checkin_at, checkout_at)                         │
+│  • Calcular alertas de atraso                                           │
+│  • Exibir relógios sincronizados                                        │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Impacto nas Funcionalidades
+
+| Funcionalidade | Antes | Depois |
+|----------------|-------|--------|
+| Criação de viagem | Hora sincronizada | Hora sincronizada |
+| Iniciar viagem | Hora LOCAL (erro) | Hora sincronizada |
+| Registrar chegada | Hora LOCAL (erro) | Hora sincronizada |
+| Check-in motorista | Hora LOCAL (erro) | Hora sincronizada |
+| Alertas de atraso | Cálculo com hora LOCAL (erro) | Cálculo sincronizado |
+| Relógio do Localizador | Hora LOCAL | Hora São Paulo |
+| Edge Functions | Hora do container Deno | Hora São Paulo via DB |
 
 ---
 
 ## Seção Técnica
 
-### Alteração no Componente
+### Ordem de Implementação
 
-Apenas uma linha adicionada no Select:
+1. **useViagemOperacao.ts** - Crítico para operações de viagem
+2. **useMotoristaPresenca.ts** - Crítico para controle de presença
+3. **useEquipe.ts** - Admin check-in/checkout
+4. **calculadores.ts** - Alertas em tempo real
+5. **PainelLocalizador.tsx** - Relógio visual
+6. **CheckinCheckoutCard.tsx** - Exibição de data
+7. Edge Functions - Backend sync
 
-```tsx
-<SelectItem value="missao">Missão</SelectItem>
-```
+### Considerações sobre Edge Functions
 
-### Por que funciona automaticamente?
-
-A lógica de encerramento já está pronta em `useViagemOperacao.ts`:
+As Edge Functions rodam em Deno e não têm acesso ao hook React. Devem usar a RPC `get_server_time` diretamente:
 
 ```typescript
-// Shuttle pode aguardar retorno, outros tipos encerram diretamente
-const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle') 
-  ? 'aguardando_retorno' 
-  : 'encerrado';
+const { data: serverTime } = await supabase.rpc('get_server_time');
+const now = serverTime ? new Date(serverTime) : new Date();
 ```
 
-Como `tipo_operacao !== 'shuttle'` para missão, a viagem encerra diretamente.
+### Tratamento de Fallback
 
-### Comportamento no Localizador
+Se a sincronização falhar (erro de rede, etc.), o sistema deve continuar funcionando com hora local como fallback, mas registrar um warning no console. O hook `useServerTime` já faz isso implicitamente (offset = 0 se falhar).
 
-Ao criar viagem tipo missão:
-1. Motorista aparece na coluna "Em Trânsito"
-2. Ao encerrar, motorista move para coluna do ponto de desembarque
+### Nota sobre Realtime
 
-### Observações
-
-- Não é necessário modificar `useViagemOperacao.ts` - a lógica já trata corretamente
-- Não é necessário modificar `ViagemCardMobile.tsx` - o botão "CHEGOU" funciona igual
-- A viagem criada com tipo "missao" será exibida com badge de Missão automaticamente nas tabelas do CCO
-- Compatível com todo o sistema de auditoria existente
-
+As assinaturas Realtime continuarão funcionando normalmente. Os timestamps armazenados no banco estarão corretos, e a exibição será calculada no frontend com o offset sincronizado.
