@@ -362,9 +362,10 @@ export function CreateViagemMotoristaForm({
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+          <SelectContent>
               <SelectItem value="transfer">Transfer</SelectItem>
               <SelectItem value="shuttle">Shuttle</SelectItem>
+              <SelectItem value="missao">Missão</SelectItem>
             </SelectContent>
           </Select>
         </div>
