@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MapPin, RefreshCw, Search, ArrowLeft } from 'lucide-react';
+import { MapPin, RefreshCw, Search, ArrowLeft, Users, Car } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
+import { useLocalizadorVeiculos } from '@/hooks/useLocalizadorVeiculos';
 import { useEventosMissoes } from '@/hooks/useEventosMissoes';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
 import { EventosGrid } from '@/components/public/EventosGrid';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
+
+type ViewMode = 'motoristas' | 'veiculos';
 
 export default function PainelLocalizador() {
   const { eventoId: paramEventoId } = useParams();
@@ -20,14 +24,27 @@ export default function PainelLocalizador() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [eventoNome, setEventoNome] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('veiculos');
   
   const { eventos, loading: loadingEventos } = useEventosMissoes();
+  
+  // Hooks para ambas visualizações
   const { 
     motoristasPorLocalizacao, 
-    localizacoes, 
-    loading, 
-    refetch 
+    localizacoes: localizacoesMotoristas, 
+    loading: loadingMotoristas, 
+    refetch: refetchMotoristas 
   } = useLocalizadorMotoristas(selectedEvento || undefined);
+
+  const {
+    veiculosPorLocalizacao,
+    localizacoes: localizacoesVeiculos,
+    loading: loadingVeiculos,
+    refetch: refetchVeiculos
+  } = useLocalizadorVeiculos(selectedEvento || undefined);
+
+  const loading = viewMode === 'veiculos' ? loadingVeiculos : loadingMotoristas;
+  const refetch = viewMode === 'veiculos' ? refetchVeiculos : refetchMotoristas;
 
   // Sync with URL param
   useEffect(() => {
@@ -151,14 +168,33 @@ export default function PainelLocalizador() {
     );
   }
 
-  // KANBAN VIEW (existing functionality)
-  const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
-  const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
-  const disponiveis = Object.entries(motoristasPorLocalizacao)
-    .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
-    .flatMap(([, arr]) => arr)
-    .filter(m => m.status === 'disponivel').length;
+  // Calculate stats based on view mode
+  const getStats = () => {
+    if (viewMode === 'veiculos') {
+      const totalVeiculos = Object.values(veiculosPorLocalizacao).flat().length;
+      const emRota = veiculosPorLocalizacao['em_rota']?.length || 0;
+      const disponiveis = Object.entries(veiculosPorLocalizacao)
+        .filter(([key]) => key !== 'em_rota' && key !== 'sem_motorista' && key !== 'sem_local')
+        .flatMap(([, arr]) => arr)
+        .filter(v => v.motorista_localizador).length;
+      const semMotorista = veiculosPorLocalizacao['sem_motorista']?.length || 0;
 
+      return { total: totalVeiculos, emRota, disponiveis, semMotorista };
+    } else {
+      const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
+      const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
+      const disponiveis = Object.entries(motoristasPorLocalizacao)
+        .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
+        .flatMap(([, arr]) => arr)
+        .filter(m => m.status === 'disponivel').length;
+
+      return { total: totalMotoristas, emRota: emTransito, disponiveis, semMotorista: 0 };
+    }
+  };
+
+  const stats = getStats();
+
+  // KANBAN VIEW
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -196,20 +232,51 @@ export default function PainelLocalizador() {
             </div>
           </div>
 
+          {/* Toggle Motoristas / Veículos */}
+          <ToggleGroup 
+            type="single" 
+            value={viewMode} 
+            onValueChange={(value) => value && setViewMode(value as ViewMode)}
+            className="bg-white/10 rounded-lg p-1"
+          >
+            <ToggleGroupItem 
+              value="motoristas" 
+              aria-label="Ver motoristas"
+              className="data-[state=on]:bg-[#3F5AEC] data-[state=on]:text-white text-white/70 px-4"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Motoristas
+            </ToggleGroupItem>
+            <ToggleGroupItem 
+              value="veiculos" 
+              aria-label="Ver veículos"
+              className="data-[state=on]:bg-[#3F5AEC] data-[state=on]:text-white text-white/70 px-4"
+            >
+              <Car className="w-4 h-4 mr-2" />
+              Veículos
+            </ToggleGroupItem>
+          </ToggleGroup>
+
           {/* Stats */}
           <div className="flex items-center gap-6">
             <div className="text-center">
-              <div className="text-2xl font-bold text-white">{totalMotoristas}</div>
+              <div className="text-2xl font-bold text-white">{stats.total}</div>
               <div className="text-xs text-white/60 uppercase">Total</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-[#3F5AEC]">{disponiveis}</div>
+              <div className="text-2xl font-bold text-[#3F5AEC]">{stats.disponiveis}</div>
               <div className="text-xs text-white/60 uppercase">Disponíveis</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-white">{emTransito}</div>
-              <div className="text-xs text-white/60 uppercase">Em Trânsito</div>
+              <div className="text-2xl font-bold text-white">{stats.emRota}</div>
+              <div className="text-xs text-white/60 uppercase">Em Rota</div>
             </div>
+            {viewMode === 'veiculos' && stats.semMotorista > 0 && (
+              <div className="text-center">
+                <div className="text-2xl font-bold text-amber-500">{stats.semMotorista}</div>
+                <div className="text-xs text-white/60 uppercase">Sem Motorista</div>
+              </div>
+            )}
           </div>
 
           {/* Clock */}
@@ -228,32 +295,82 @@ export default function PainelLocalizador() {
       <div className="flex-1 p-6 overflow-hidden">
         <ScrollArea className="h-full w-full">
           <div className="flex gap-4 h-[calc(100vh-160px)] pb-4">
-            {/* Location columns */}
-            {localizacoes.map(local => (
-              <LocalizadorColumn
-                key={local}
-                titulo={local}
-                motoristas={motoristasPorLocalizacao[local] || []}
-                tipo="local"
-              />
-            ))}
+            {viewMode === 'veiculos' ? (
+              <>
+                {/* Location columns */}
+                {localizacoesVeiculos.map(local => (
+                  <LocalizadorColumn
+                    key={local}
+                    titulo={local}
+                    veiculos={veiculosPorLocalizacao[local] || []}
+                    tipo="local"
+                    viewMode="veiculos"
+                  />
+                ))}
 
-            {/* Em Trânsito column */}
-            {motoristasPorLocalizacao['em_transito']?.length > 0 && (
-              <LocalizadorColumn
-                titulo="Em Trânsito"
-                motoristas={motoristasPorLocalizacao['em_transito']}
-                tipo="em_transito"
-              />
-            )}
+                {/* Em Rota column */}
+                {(veiculosPorLocalizacao['em_rota']?.length || 0) > 0 && (
+                  <LocalizadorColumn
+                    titulo="Em Rota"
+                    veiculos={veiculosPorLocalizacao['em_rota']}
+                    tipo="em_rota"
+                    viewMode="veiculos"
+                  />
+                )}
 
-            {/* Sem Localização column */}
-            {motoristasPorLocalizacao['sem_local']?.length > 0 && (
-              <LocalizadorColumn
-                titulo="Sem Localização"
-                motoristas={motoristasPorLocalizacao['sem_local']}
-                tipo="sem_local"
-              />
+                {/* Sem Motorista column */}
+                {(veiculosPorLocalizacao['sem_motorista']?.length || 0) > 0 && (
+                  <LocalizadorColumn
+                    titulo="Sem Motorista"
+                    veiculos={veiculosPorLocalizacao['sem_motorista']}
+                    tipo="sem_motorista"
+                    viewMode="veiculos"
+                  />
+                )}
+
+                {/* Sem Localização column */}
+                {(veiculosPorLocalizacao['sem_local']?.length || 0) > 0 && (
+                  <LocalizadorColumn
+                    titulo="Sem Localização"
+                    veiculos={veiculosPorLocalizacao['sem_local']}
+                    tipo="sem_local"
+                    viewMode="veiculos"
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {/* Location columns */}
+                {localizacoesMotoristas.map(local => (
+                  <LocalizadorColumn
+                    key={local}
+                    titulo={local}
+                    motoristas={motoristasPorLocalizacao[local] || []}
+                    tipo="local"
+                    viewMode="motoristas"
+                  />
+                ))}
+
+                {/* Em Trânsito column */}
+                {(motoristasPorLocalizacao['em_transito']?.length || 0) > 0 && (
+                  <LocalizadorColumn
+                    titulo="Em Trânsito"
+                    motoristas={motoristasPorLocalizacao['em_transito']}
+                    tipo="em_transito"
+                    viewMode="motoristas"
+                  />
+                )}
+
+                {/* Sem Localização column */}
+                {(motoristasPorLocalizacao['sem_local']?.length || 0) > 0 && (
+                  <LocalizadorColumn
+                    titulo="Sem Localização"
+                    motoristas={motoristasPorLocalizacao['sem_local']}
+                    tipo="sem_local"
+                    viewMode="motoristas"
+                  />
+                )}
+              </>
             )}
           </div>
           <ScrollBar orientation="horizontal" />

@@ -6,6 +6,7 @@ export interface MotoristaComVeiculo extends Motorista {
   veiculo?: Veiculo | null;
   ultima_localizacao?: string | null;
   ultima_localizacao_at?: string | null;
+  viagem_origem?: string | null;
   viagem_destino?: string | null;
 }
 
@@ -45,31 +46,38 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
       // Usar motorista_id quando disponível para melhor performance
       const { data: viagensAtivas } = await supabase
         .from('viagens')
-        .select('motorista_id, motorista, ponto_desembarque')
+        .select('motorista_id, motorista, ponto_embarque, ponto_desembarque')
         .eq('evento_id', eventoId)
         .eq('status', 'em_andamento')
         .eq('encerrado', false);
 
       // Criar mapa por motorista_id (prioridade) ou nome (fallback)
-      const destinosPorMotoristaId = new Map<string, string>();
-      const destinosPorMotorista = new Map<string, string>();
+      const viagensPorMotoristaId = new Map<string, { origem: string; destino: string }>();
+      const viagensPorMotorista = new Map<string, { origem: string; destino: string }>();
       
       viagensAtivas?.forEach(v => {
+        const rotaInfo = { 
+          origem: v.ponto_embarque || '', 
+          destino: v.ponto_desembarque || '' 
+        };
         if (v.motorista_id) {
-          destinosPorMotoristaId.set(v.motorista_id, v.ponto_desembarque || '');
+          viagensPorMotoristaId.set(v.motorista_id, rotaInfo);
         }
         if (v.motorista) {
-          destinosPorMotorista.set(v.motorista, v.ponto_desembarque || '');
+          viagensPorMotorista.set(v.motorista, rotaInfo);
         }
       });
 
       // Combine data
-      const motoristasComVeiculos: MotoristaComVeiculo[] = (motoristasData || []).map(m => ({
-        ...m,
-        veiculo: m.veiculo_id ? veiculosMap.get(m.veiculo_id) || null : null,
-        // Priorizar busca por ID, fallback por nome
-        viagem_destino: destinosPorMotoristaId.get(m.id) || destinosPorMotorista.get(m.nome) || null,
-      }));
+      const motoristasComVeiculos: MotoristaComVeiculo[] = (motoristasData || []).map(m => {
+        const viagemInfo = viagensPorMotoristaId.get(m.id) || viagensPorMotorista.get(m.nome);
+        return {
+          ...m,
+          veiculo: m.veiculo_id ? veiculosMap.get(m.veiculo_id) || null : null,
+          viagem_origem: viagemInfo?.origem || null,
+          viagem_destino: viagemInfo?.destino || null,
+        };
+      });
 
       setMotoristas(motoristasComVeiculos);
     } catch (error) {

@@ -75,9 +75,18 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
 
         {/* Tempo no local ou destino */}
         {motorista.status === 'em_viagem' && motorista.viagem_destino ? (
-          <div className="flex items-center gap-1 text-blue-400 text-sm">
-            <ArrowRight className="w-4 h-4" />
-            <span className="truncate max-w-[100px]">{motorista.viagem_destino}</span>
+          <div className="flex items-center gap-1 text-blue-400 text-sm min-w-0">
+            {motorista.viagem_origem && (
+              <>
+                <span className="truncate max-w-[60px]" title={motorista.viagem_origem}>
+                  {motorista.viagem_origem}
+                </span>
+              </>
+            )}
+            <ArrowRight className="w-4 h-4 shrink-0" />
+            <span className="truncate max-w-[60px]" title={motorista.viagem_destino}>
+              {motorista.viagem_destino}
+            </span>
           </div>
         ) : tempoNoLocal ? (
           <span className="text-xs text-muted-foreground">
