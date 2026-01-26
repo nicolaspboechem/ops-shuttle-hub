@@ -36,6 +36,8 @@ import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
+import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
@@ -272,6 +274,29 @@ export default function Motoristas() {
   const [editingMotorista, setEditingMotorista] = useState<Motorista | null>(null);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [selectedMotoristaForViagens, setSelectedMotoristaForViagens] = useState<Motorista | null>(null);
+  const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
+  
+  const { user } = useAuth();
+
+  // Handler para atualizar localização manualmente
+  const handleUpdateLocalizacao = async (motoristaId: string, novaLocalizacao: string) => {
+    const { error } = await supabase
+      .from('motoristas')
+      .update({ 
+        ultima_localizacao: novaLocalizacao,
+        ultima_localizacao_at: new Date().toISOString(),
+        atualizado_por: user?.id || null
+      })
+      .eq('id', motoristaId);
+    
+    if (error) {
+      toast.error('Erro ao atualizar localização');
+      throw error;
+    }
+    
+    toast.success('Localização atualizada');
+    refetchMotoristas();
+  };
 
   const filteredCadastrados = useMemo(() => {
     let filtered = [...motoristasCadastrados];
@@ -520,6 +545,7 @@ export default function Motoristas() {
                 onVincularVeiculo={(motoristaId) => navigate(`/evento/${eventoId}/vincular-veiculo/${motoristaId}`)}
                 onEdit={(motorista) => setEditingMotorista(motorista)}
                 onVerViagens={(motorista) => setSelectedMotoristaForViagens(motorista)}
+                onEditLocalizacao={(motorista) => setEditLocMotorista(motorista)}
               />
             ))}
           </div>
@@ -903,6 +929,16 @@ export default function Motoristas() {
           </div>
         </div>
       )}
+
+      {/* Modal para editar localização */}
+      <EditarLocalizacaoModal
+        open={!!editLocMotorista}
+        onOpenChange={(open) => !open && setEditLocMotorista(null)}
+        motorista={editLocMotorista}
+        pontosEmbarque={pontosEmbarque}
+        localizacaoAtual={editLocMotorista ? (ultimasLocalizacoes[editLocMotorista.nome] || (editLocMotorista as any).ultima_localizacao || null) : null}
+        onSave={handleUpdateLocalizacao}
+      />
     </EventLayout>
   );
 }

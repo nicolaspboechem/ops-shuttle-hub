@@ -34,6 +34,7 @@ interface MotoristaKanbanCardProps {
   onVincularVeiculo: () => void;
   onEdit?: () => void;
   onVerViagens?: () => void;
+  onEditLocalizacao?: () => void;
   isDragOverlay?: boolean;
 }
 
@@ -46,6 +47,7 @@ export function MotoristaKanbanCard({
   onVincularVeiculo,
   onEdit,
   onVerViagens,
+  onEditLocalizacao,
   isDragOverlay = false
 }: MotoristaKanbanCardProps) {
   const TipoIcon = veiculo?.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
@@ -214,12 +216,25 @@ export function MotoristaKanbanCard({
           </div>
 
           {/* Última localização */}
-          {ultimaLocalizacao && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
-              <MapPin className="h-3 w-3 flex-shrink-0 text-primary" />
-              <span className="truncate">Última loc: {ultimaLocalizacao}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+            <MapPin className="h-3 w-3 flex-shrink-0 text-primary" />
+            <span className="truncate flex-1">
+              {ultimaLocalizacao ? `Última loc: ${ultimaLocalizacao}` : 'Sem localização'}
+            </span>
+            {onEditLocalizacao && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditLocalizacao();
+                }}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
 
           {/* Veículo vinculado */}
           {veiculo ? (
