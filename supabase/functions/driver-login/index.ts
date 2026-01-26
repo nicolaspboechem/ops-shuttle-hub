@@ -1,12 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Verify password against stored hash (compatible with our custom format)
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  if (storedHash.startsWith('$sha256$')) {
+    const parts = storedHash.split('$');
+    if (parts.length !== 4) return false;
+    
+    const salt = parts[2];
+    const expectedHash = parts[3];
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex === expectedHash;
+  }
+  return false;
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -64,8 +83,8 @@ serve(async (req) => {
       );
     }
 
-    // Verify password
-    const senhaValida = await bcrypt.compare(senha, credencial.senha_hash);
+    // Verify password using our custom verifier
+    const senhaValida = await verifyPassword(senha, credencial.senha_hash);
     
     if (!senhaValida) {
       return new Response(

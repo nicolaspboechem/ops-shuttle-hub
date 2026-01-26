@@ -1,11 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Edge Runtime compatible password hashing using Web Crypto API
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + saltHex);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  // Return format: $sha256$salt$hash
+  return `$sha256$${saltHex}$${hashHex}`;
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -61,8 +75,8 @@ serve(async (req) => {
       .eq('motorista_id', motorista_id)
       .maybeSingle();
 
-    // Hash password
-    const senhaHash = await bcrypt.hash(senha);
+    // Hash password using Edge-compatible method
+    const senhaHash = await hashPassword(senha);
 
     if (existingCred) {
       // Update existing credentials
