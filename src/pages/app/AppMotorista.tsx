@@ -20,8 +20,11 @@ import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
+import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBottomNav';
+import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
+import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, CheckCircle2, Plus, MoreVertical, LogOut, ClipboardList, Car } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
@@ -38,7 +41,7 @@ export default function AppMotorista() {
   const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
   
   const [operando, setOperando] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
 
   const evento = eventos.find(e => e.id === eventoId);
   
@@ -60,6 +63,9 @@ export default function AppMotorista() {
     loading: loadingPresenca,
     refetch: refetchPresenca
   } = useMotoristaPresenca(eventoId, motoristaData?.id);
+
+  // Veículo a exibir: do check-in de hoje ou o atualmente atribuído
+  const veiculoExibir = presenca?.veiculo || veiculoAtribuido;
 
   // Filter missions for this driver (only active)
   const minhasMissoes = useMemo(() => {
@@ -88,6 +94,20 @@ export default function AppMotorista() {
         const statusA = a.status || 'agendado';
         const statusB = b.status || 'agendado';
         return (ordem[statusA] || 5) - (ordem[statusB] || 5);
+      });
+  }, [viagens, motoristaData]);
+
+  // Filter trips - FINALIZED (encerrado or cancelado)
+  const minhasViagensFinalizadas = useMemo(() => {
+    if (!motoristaData) return [];
+    return viagens
+      .filter(v => 
+        v.motorista_id === motoristaData.id && 
+        (v.status === 'encerrado' || v.status === 'cancelado')
+      )
+      .sort((a, b) => {
+        // Ordenar por hora de chegada (mais recente primeiro)
+        return (b.h_chegada || '').localeCompare(a.h_chegada || '');
       });
   }, [viagens, motoristaData]);
 
@@ -255,6 +275,130 @@ export default function AppMotorista() {
   
   const statusInfo = getStatusInfo();
 
+  // Render tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'inicio':
+        return (
+          <div className="space-y-4">
+            {/* Check-in/Check-out Card */}
+            {checkinEnabled && motoristaData && (
+              <CheckinCheckoutCard
+                presenca={presenca}
+                veiculoAtribuido={veiculoAtribuido}
+                onCheckin={realizarCheckin}
+                onCheckout={realizarCheckout}
+                loading={loadingPresenca}
+                hideCheckout // Ocultar checkout - agora está na aba Histórico
+              />
+            )}
+
+            {/* Missões designadas */}
+            {minhasMissoes.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  <span>Missões Designadas ({minhasMissoes.length})</span>
+                </div>
+                {minhasMissoes.map(missao => (
+                  <MissaoCardMobile
+                    key={missao.id}
+                    missao={missao}
+                    loading={operando === missao.id}
+                    onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
+                    onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
+                    onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
+                    onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Viagens Ativas */}
+            {minhasViagensAtivas.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Car className="h-4 w-4 text-primary" />
+                  <span>Viagens Ativas ({minhasViagensAtivas.length})</span>
+                </div>
+                {minhasViagensAtivas.map(viagem => (
+                  <ViagemCardMobile
+                    key={viagem.id}
+                    viagem={viagem}
+                    loading={operando === viagem.id}
+                    onIniciar={() => handleAction(viagem.id, 'iniciar')}
+                    onChegada={() => handleAction(viagem.id, 'chegada')}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Empty State - Tudo certo */}
+            {!hasContent && isIdentified && (
+              <div className="text-center py-16 text-muted-foreground">
+                <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-emerald-500 opacity-50" />
+                <p className="text-lg font-medium">Tudo certo por aqui!</p>
+                <p className="text-sm">Nenhuma viagem ou missão pendente</p>
+              </div>
+            )}
+
+            {/* Empty State - Motorista não identificado */}
+            {!isIdentified && (
+              <div className="text-center py-16 text-muted-foreground">
+                <Car className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium">Motorista não identificado</p>
+                <p className="text-sm">Seu perfil não está vinculado a um motorista cadastrado</p>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'veiculo':
+        return <MotoristaVeiculoTab veiculo={veiculoExibir} />;
+
+      case 'corrida':
+        return (
+          <CreateViagemMotoristaForm
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) setActiveTab('inicio');
+            }}
+            eventoId={eventoId!}
+            motoristaName={nomeMotorista}
+            onCreated={() => {
+              refetch();
+              setActiveTab('inicio');
+            }}
+            embedded // Nova prop para renderizar inline
+          />
+        );
+
+      case 'historico':
+        return (
+          <MotoristaHistoricoTab
+            viagensFinalizadas={minhasViagensFinalizadas}
+            presenca={presenca}
+            onCheckout={realizarCheckout}
+            loadingCheckout={loadingPresenca}
+          />
+        );
+
+      case 'mais':
+        return (
+          <div className="space-y-4">
+            <Button 
+              variant="destructive" 
+              className="w-full gap-2"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              Sair do Aplicativo
+            </Button>
+          </div>
+        );
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -314,99 +458,16 @@ export default function AppMotorista() {
 
       {/* Main content com Pull-to-Refresh */}
       <PullToRefresh onRefresh={handleRefresh}>
-        <main className="container mx-auto px-4 py-4 space-y-4 pb-24">
-          {/* Check-in/Check-out Card */}
-          {checkinEnabled && motoristaData && (
-            <CheckinCheckoutCard
-              presenca={presenca}
-              veiculoAtribuido={veiculoAtribuido}
-              onCheckin={realizarCheckin}
-              onCheckout={realizarCheckout}
-              loading={loadingPresenca}
-            />
-          )}
-
-          {/* Missões designadas */}
-          {minhasMissoes.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <ClipboardList className="h-4 w-4 text-primary" />
-                <span>Missões Designadas ({minhasMissoes.length})</span>
-              </div>
-              {minhasMissoes.map(missao => (
-                <MissaoCardMobile
-                  key={missao.id}
-                  missao={missao}
-                  loading={operando === missao.id}
-                  onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
-                  onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
-                  onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
-                  onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Viagens Ativas */}
-          {minhasViagensAtivas.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Car className="h-4 w-4 text-primary" />
-                <span>Viagens Ativas ({minhasViagensAtivas.length})</span>
-              </div>
-              {minhasViagensAtivas.map(viagem => (
-                <ViagemCardMobile
-                  key={viagem.id}
-                  viagem={viagem}
-                  loading={operando === viagem.id}
-                  onIniciar={() => handleAction(viagem.id, 'iniciar')}
-                  onChegada={() => handleAction(viagem.id, 'chegada')}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Empty State - Tudo certo */}
-          {!hasContent && isIdentified && (
-            <div className="text-center py-16 text-muted-foreground">
-              <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-emerald-500 opacity-50" />
-              <p className="text-lg font-medium">Tudo certo por aqui!</p>
-              <p className="text-sm">Nenhuma viagem ou missão pendente</p>
-            </div>
-          )}
-
-          {/* Empty State - Motorista não identificado */}
-          {!isIdentified && (
-            <div className="text-center py-16 text-muted-foreground">
-              <Car className="h-16 w-16 mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-medium">Motorista não identificado</p>
-              <p className="text-sm">Seu perfil não está vinculado a um motorista cadastrado</p>
-            </div>
-          )}
+        <main className="container mx-auto px-4 py-4 pb-24">
+          {renderTabContent()}
         </main>
       </PullToRefresh>
 
-      {/* FAB Fixo - Nova Viagem */}
-      {isIdentified && (
-        <Button
-          size="lg"
-          onClick={() => setShowForm(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      )}
-
-      {/* Form de criação para motorista */}
-      {isIdentified && (
-        <CreateViagemMotoristaForm
-          open={showForm}
-          onOpenChange={setShowForm}
-          eventoId={eventoId!}
-          motoristaName={nomeMotorista}
-          onCreated={refetch}
-        />
-      )}
+      {/* Bottom Navigation */}
+      <MotoristaBottomNav 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+      />
     </div>
   );
 }
