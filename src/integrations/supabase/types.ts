@@ -428,6 +428,7 @@ export type Database = {
           created_at: string | null
           criado_por: string | null
           data_atualizacao: string | null
+          eh_base: boolean | null
           endereco: string | null
           evento_id: string
           id: string
@@ -440,6 +441,7 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_atualizacao?: string | null
+          eh_base?: boolean | null
           endereco?: string | null
           evento_id: string
           id?: string
@@ -452,6 +454,7 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_atualizacao?: string | null
+          eh_base?: boolean | null
           endereco?: string | null
           evento_id?: string
           id?: string
