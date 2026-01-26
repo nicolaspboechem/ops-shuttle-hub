@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { Veiculo } from '@/hooks/useCadastros';
+import { useServerTime } from '@/hooks/useServerTime';
 import { CheckoutModal } from './CheckoutModal';
 import { VistoriaConfirmModal } from './VistoriaConfirmModal';
 import { VeiculoFotosModal } from './VeiculoFotosModal';
@@ -33,7 +34,8 @@ export function CheckinCheckoutCard({
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showVistoriaModal, setShowVistoriaModal] = useState(false);
   const [showFotosModal, setShowFotosModal] = useState(false);
-  const hoje = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
+  const { getAgoraSync } = useServerTime();
+  const hoje = format(getAgoraSync(), "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const hasCheckin = !!presenca?.checkin_at;
   const hasCheckout = !!presenca?.checkout_at;

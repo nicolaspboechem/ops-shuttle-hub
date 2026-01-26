@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Veiculo } from '@/hooks/useCadastros';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
@@ -28,11 +29,12 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
   const [veiculoAtribuido, setVeiculoAtribuido] = useState<Veiculo | null>(null);
   const [horarioVirada, setHorarioVirada] = useState('04:00');
   const { toast } = useToast();
+  const { getAgoraSync } = useServerTime();
 
   // Data operacional considerando o horário de virada
   const getDataHoje = useCallback(() => {
-    return getDataOperacional(new Date(), horarioVirada);
-  }, [horarioVirada]);
+    return getDataOperacional(getAgoraSync(), horarioVirada);
+  }, [horarioVirada, getAgoraSync]);
 
   const fetchPresenca = useCallback(async () => {
     if (!eventoId || !motoristaId) {
@@ -55,7 +57,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       setHorarioVirada(virada.substring(0, 5));
       
       // Calculate data operacional with the fetched virada time
-      const dataOperacional = getDataOperacional(new Date(), virada.substring(0, 5));
+      const dataOperacional = getDataOperacional(getAgoraSync(), virada.substring(0, 5));
 
       if (!evento?.habilitar_missoes) {
         setLoading(false);
@@ -109,7 +111,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     } finally {
       setLoading(false);
     }
-  }, [eventoId, motoristaId]);
+  }, [eventoId, motoristaId, getAgoraSync]);
 
   useEffect(() => {
     fetchPresenca();
@@ -127,7 +129,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         .single();
 
       const veiculoId = motorista?.veiculo_id || null;
-      const now = new Date().toISOString();
+      const now = getAgoraSync().toISOString();
       const dataOperacional = getDataHoje();
 
       // Upsert presence record with vehicle_id
@@ -192,7 +194,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     if (!eventoId || !motoristaId || !presenca) return false;
 
     try {
-      const now = new Date().toISOString();
+      const now = getAgoraSync().toISOString();
 
       // Update presence with checkout time and observation
       const { data, error } = await supabase

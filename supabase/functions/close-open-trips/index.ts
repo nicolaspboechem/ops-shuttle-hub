@@ -16,6 +16,14 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Obter hora sincronizada do banco de dados (America/Sao_Paulo)
+    const { data: serverTimeData, error: timeError } = await supabase.rpc('get_server_time')
+    if (timeError) {
+      console.warn('[close-open-trips] Erro ao obter hora do servidor:', timeError)
+    }
+    const serverTime = serverTimeData ? new Date(serverTimeData) : new Date()
+    console.log(`[close-open-trips] Executando às ${serverTime.toISOString()} (SP)`)
+
     // Get all open trips
     const { data: openTrips, error: openError } = await supabase
       .from('viagens')

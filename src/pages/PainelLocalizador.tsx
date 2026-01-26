@@ -6,6 +6,7 @@ import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation } from 'lucide-
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
 import { useEventosMissoes } from '@/hooks/useEventosMissoes';
+import { useServerTime } from '@/hooks/useServerTime';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
 import { EventosGrid } from '@/components/public/EventosGrid';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -18,8 +19,10 @@ export default function PainelLocalizador() {
   const navigate = useNavigate();
   const [selectedEvento, setSelectedEvento] = useState<string | null>(paramEventoId || null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [eventoNome, setEventoNome] = useState('');
+  
+  const { offset, getAgoraSync } = useServerTime();
+  const [currentTime, setCurrentTime] = useState(() => getAgoraSync());
   
   const { eventos, loading: loadingEventos } = useEventosMissoes();
   
@@ -51,14 +54,14 @@ export default function PainelLocalizador() {
       });
   }, [selectedEvento]);
 
-  // Update clock every second
+  // Update clock every second using synced time
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(new Date());
+      setCurrentTime(new Date(Date.now() + offset));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [offset]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {

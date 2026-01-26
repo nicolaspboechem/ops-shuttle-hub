@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { toast } from 'sonner';
 
@@ -31,15 +32,21 @@ async function atualizarStatusMotorista(motoristaId: string | null | undefined, 
   }
 }
 
-// Helper para atualizar localização do motorista - agora usa motorista_id
-async function atualizarLocalizacaoMotorista(motoristaId: string | null | undefined, motoristaNome: string, eventoId: string, localizacao: string | null) {
+// Helper para atualizar localização do motorista - recebe timestamp sincronizado
+async function atualizarLocalizacaoMotorista(
+  motoristaId: string | null | undefined, 
+  motoristaNome: string, 
+  eventoId: string, 
+  localizacao: string | null,
+  timestampSync: string
+) {
   // Preferir usar motorista_id (FK normalizada)
   if (motoristaId) {
     const { error } = await supabase
       .from('motoristas')
       .update({ 
         ultima_localizacao: localizacao,
-        ultima_localizacao_at: new Date().toISOString()
+        ultima_localizacao_at: timestampSync
       } as any)
       .eq('id', motoristaId);
 
@@ -54,7 +61,7 @@ async function atualizarLocalizacaoMotorista(motoristaId: string | null | undefi
     .from('motoristas')
     .update({ 
       ultima_localizacao: localizacao,
-      ultima_localizacao_at: new Date().toISOString()
+      ultima_localizacao_at: timestampSync
     } as any)
     .eq('nome', motoristaNome)
     .eq('evento_id', eventoId);
@@ -95,6 +102,7 @@ async function motoristaTemViagensAtivas(motoristaId: string | null | undefined,
 
 export function useViagemOperacao() {
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
 
   const registrarLog = useCallback(async (
     viagemId: string, 
@@ -117,13 +125,15 @@ export function useViagemOperacao() {
       return false;
     }
 
+    const now = getAgoraSync();
+
     const { error } = await supabase
       .from('viagens')
       .update({
         status: 'em_andamento' as StatusViagemOperacao,
         iniciado_por: user.id,
         atualizado_por: user.id,
-        h_inicio_real: new Date().toISOString()
+        h_inicio_real: now.toISOString()
       })
       .eq('id', viagem.id);
 
@@ -145,7 +155,7 @@ export function useViagemOperacao() {
     
     toast.success('Viagem iniciada!');
     return true;
-  }, [user, registrarLog]);
+  }, [user, registrarLog, getAgoraSync]);
 
   // Registrar chegada - pode encerrar ou aguardar retorno (apenas Shuttle)
   const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean) => {
@@ -154,7 +164,7 @@ export function useViagemOperacao() {
       return false;
     }
 
-    const now = new Date();
+    const now = getAgoraSync();
     const horaChegada = now.toTimeString().slice(0, 8);
     
     // Shuttle pode aguardar retorno, outros tipos encerram diretamente
@@ -197,12 +207,18 @@ export function useViagemOperacao() {
     
     // Atualizar localização do motorista para o ponto de desembarque
     if (viagem.evento_id && viagem.ponto_desembarque) {
-      await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+      await atualizarLocalizacaoMotorista(
+        viagem.motorista_id, 
+        viagem.motorista, 
+        viagem.evento_id, 
+        viagem.ponto_desembarque,
+        now.toISOString()
+      );
     }
     
     toast.success(aguardarRetorno ? 'Aguardando retorno...' : 'Rota concluída!');
     return true;
-  }, [user, registrarLog]);
+  }, [user, registrarLog, getAgoraSync]);
 
   const encerrarViagem = useCallback(async (viagem: Viagem) => {
     if (!user) {
@@ -210,11 +226,13 @@ export function useViagemOperacao() {
       return false;
     }
 
+    const now = getAgoraSync();
+
     const { error } = await supabase
       .from('viagens')
       .update({
         status: 'encerrado' as StatusViagemOperacao,
-        h_fim_real: new Date().toISOString(),
+        h_fim_real: now.toISOString(),
         finalizado_por: user.id,
         atualizado_por: user.id,
         encerrado: true
@@ -238,13 +256,19 @@ export function useViagemOperacao() {
       
       // Atualizar localização do motorista para o ponto de desembarque
       if (viagem.ponto_desembarque) {
-        await atualizarLocalizacaoMotorista(viagem.motorista_id, viagem.motorista, viagem.evento_id, viagem.ponto_desembarque);
+        await atualizarLocalizacaoMotorista(
+          viagem.motorista_id, 
+          viagem.motorista, 
+          viagem.evento_id, 
+          viagem.ponto_desembarque,
+          now.toISOString()
+        );
       }
     }
 
     toast.success('Viagem encerrada!');
     return true;
-  }, [user, registrarLog]);
+  }, [user, registrarLog, getAgoraSync]);
 
   const cancelarViagem = useCallback(async (viagem: Viagem, motivo?: string) => {
     if (!user) {
@@ -280,7 +304,7 @@ export function useViagemOperacao() {
       return null;
     }
 
-    const now = new Date();
+    const now = getAgoraSync();
 
     // 1. Criar nova viagem com origem/destino invertidos
     const { data: novaViagem, error: insertError } = await supabase
@@ -342,7 +366,7 @@ export function useViagemOperacao() {
 
     toast.success('Retorno iniciado!');
     return novaViagem;
-  }, [user, registrarLog]);
+  }, [user, registrarLog, getAgoraSync]);
 
   return {
     iniciarViagem,
