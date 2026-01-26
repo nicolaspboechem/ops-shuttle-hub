@@ -56,9 +56,20 @@ export function useEquipe(eventoId?: string) {
 
       if (motError) throw motError;
 
+      // Fetch motorista_credenciais to check who has login
+      const motoristaIds = (motoristas || []).map(m => m.id);
+      let credenciais: any[] = [];
+      if (motoristaIds.length > 0) {
+        const { data: credenciaisData } = await supabase
+          .from('motorista_credenciais')
+          .select('motorista_id, telefone, ativo')
+          .in('motorista_id', motoristaIds)
+          .eq('ativo', true);
+        credenciais = credenciaisData || [];
+      }
+
       // Fetch today's presença
       const today = new Date().toISOString().split('T')[0];
-      const motoristaIds = (motoristas || []).map(m => m.id);
       let presencas: any[] = [];
       if (motoristaIds.length > 0) {
         const { data: presencaData } = await supabase
@@ -87,20 +98,21 @@ export function useEquipe(eventoId?: string) {
           };
         });
 
-      // Map motoristas
+      // Map motoristas - check has_login from motorista_credenciais
       const motoristaMembros: EquipeMembro[] = (motoristas || []).map(m => {
         const presenca = presencas.find(p => p.motorista_id === m.id);
+        const credencial = credenciais.find(c => c.motorista_id === m.id);
         return {
           id: m.id,
           tipo: 'motorista' as const,
           user_id: m.user_id || undefined,
           nome: m.nome,
-          telefone: m.telefone || undefined,
+          telefone: credencial?.telefone || m.telefone || undefined,
           role: 'motorista',
           status: m.status || 'disponivel',
           veiculo_id: m.veiculo_id || undefined,
           veiculo_placa: m.veiculos?.placa || undefined,
-          has_login: !!m.user_id,
+          has_login: !!credencial, // Check motorista_credenciais instead of user_id
           created_at: m.data_criacao,
           checkin_at: presenca?.checkin_at || null,
           checkout_at: presenca?.checkout_at || null,

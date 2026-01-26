@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
 import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
 import { useMissoes } from '@/hooks/useMissoes';
@@ -27,7 +27,10 @@ import logoAS from '@/assets/as_logo_reduzida_preta.png';
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { profile, signOut, user } = useAuth();
+  
+  // Use driver auth instead of Supabase auth
+  const { driverSession, signOut } = useDriverAuth();
+  
   const { viagens, loading, refetch } = useViagens(eventoId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada } = useViagemOperacao();
@@ -39,15 +42,13 @@ export default function AppMotorista() {
 
   const evento = eventos.find(e => e.id === eventoId);
   
-  // Find motorista by user profile name (auto-identification)
-  const nomeMotorista = profile?.full_name || '';
-  
+  // Get motorista directly from driver session
   const motoristaData = useMemo(() => {
-    if (!nomeMotorista) return null;
-    return motoristas.find(m => 
-      m.nome.toLowerCase() === nomeMotorista.toLowerCase().trim()
-    );
-  }, [motoristas, nomeMotorista]);
+    if (!driverSession?.motorista_id) return null;
+    return motoristas.find(m => m.id === driverSession.motorista_id);
+  }, [motoristas, driverSession?.motorista_id]);
+
+  const nomeMotorista = driverSession?.motorista_nome || motoristaData?.nome || '';
 
   // Hook de presença (check-in/check-out)
   const {
@@ -94,6 +95,11 @@ export default function AppMotorista() {
     await Promise.all([refetch(), refetchMissoes(), refetchPresenca()]);
   };
 
+  const handleLogout = () => {
+    signOut();
+    navigate('/login/motorista');
+  };
+
   const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar' | 'finalizar') => {
     const missao = missoes.find(m => m.id === missaoId);
     if (!missao) return;
@@ -134,8 +140,6 @@ export default function AppMotorista() {
             tipo_operacao: 'transfer',
             h_pickup: horaPickup,
             status: 'em_andamento',
-            criado_por: user?.id,
-            iniciado_por: user?.id,
             h_inicio_real: now.toISOString(),
             encerrado: false,
             origem_missao_id: missaoId, // Vincular viagem à missão
@@ -155,7 +159,6 @@ export default function AppMotorista() {
           .update({ 
             viagem_id: novaViagem.id,
             status: 'em_andamento',
-            atualizado_por: user?.id
           })
           .eq('id', missaoId);
 
@@ -187,8 +190,6 @@ export default function AppMotorista() {
               status: 'encerrado',
               h_chegada: horaChegada,
               h_fim_real: now.toISOString(),
-              finalizado_por: user?.id,
-              atualizado_por: user?.id,
               encerrado: true,
             })
             .eq('id', viagemId);
@@ -269,7 +270,7 @@ export default function AppMotorista() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/login/motorista')}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <img 
@@ -298,10 +299,7 @@ export default function AppMotorista() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem 
-                    onClick={async () => {
-                      await signOut();
-                      navigate('/auth');
-                    }}
+                    onClick={handleLogout}
                     className="text-destructive focus:text-destructive"
                   >
                     <LogOut className="h-4 w-4 mr-2" />

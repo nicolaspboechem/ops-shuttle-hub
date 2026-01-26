@@ -478,7 +478,6 @@ export default function EventoUsuarios() {
               id: loginModalMembro.id,
               nome: loginModalMembro.nome,
               telefone: loginModalMembro.telefone,
-              user_id: loginModalMembro.user_id,
               has_login: loginModalMembro.has_login,
             }}
             eventoId={eventoId}
