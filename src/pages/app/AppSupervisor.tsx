@@ -2,57 +2,44 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Veiculo } from '@/hooks/useCadastros';
+import { useViagens } from '@/hooks/useViagens';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 import { 
-  Car, 
-  Plus, 
-  Search, 
-  LogOut, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Clock, 
-  Wrench,
-  Camera,
   ChevronLeft,
   MoreVertical,
-  Fuel,
-  Users
+  LogOut
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
-import { VistoriaVeiculoWizard } from '@/components/app/VistoriaVeiculoWizard';
-import { VeiculoCardSupervisor } from '@/components/app/VeiculoCardSupervisor';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import { SupervisorBottomNav, SupervisorTabId } from '@/components/app/SupervisorBottomNav';
+import { SupervisorFrotaTab } from '@/components/app/SupervisorFrotaTab';
+import { SupervisorViagensTab } from '@/components/app/SupervisorViagensTab';
+import { SupervisorLocalizadorTab } from '@/components/app/SupervisorLocalizadorTab';
+import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
+import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 
 export default function AppSupervisor() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const { user, signOut, profile } = useAuth();
   
-  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [selectedVeiculo, setSelectedVeiculo] = useState<Veiculo | null>(null);
+  const [activeTab, setActiveTab] = useState<SupervisorTabId>('frota');
   const [evento, setEvento] = useState<{ nome_planilha: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showNovaViagem, setShowNovaViagem] = useState(false);
+  
+  const { refetch: refetchViagens } = useViagens(eventoId);
 
   useEffect(() => {
     if (eventoId) {
       fetchEvento();
-      fetchVeiculos();
     }
   }, [eventoId]);
 
@@ -64,87 +51,45 @@ export default function AppSupervisor() {
       .single();
     
     if (data) setEvento(data);
-  };
-
-  const fetchVeiculos = async () => {
-    if (!eventoId) return;
-    
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('veiculos')
-      .select('*')
-      .eq('evento_id', eventoId)
-      .eq('ativo', true)
-      .order('data_criacao', { ascending: false });
-    
-    if (error) {
-      toast.error('Erro ao carregar veículos');
-      console.error(error);
-    } else {
-      setVeiculos(data || []);
-    }
     setLoading(false);
   };
 
-  const handleStatusChange = async (veiculoId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('veiculos')
-      .update({
-        status: newStatus,
-        atualizado_por: user?.id,
-        liberado_em: newStatus === 'liberado' ? new Date().toISOString() : null,
-        liberado_por: newStatus === 'liberado' ? user?.id : null,
-      })
-      .eq('id', veiculoId);
-    
-    if (error) {
-      toast.error('Erro ao atualizar status');
+  const handleTabChange = (tab: SupervisorTabId) => {
+    if (tab === 'nova') {
+      setShowNovaViagem(true);
     } else {
-      toast.success(`Status atualizado para ${newStatus}`);
-      fetchVeiculos();
+      setActiveTab(tab);
     }
   };
 
-  const handleReInspecao = (veiculo: Veiculo) => {
-    setSelectedVeiculo(veiculo);
-    setWizardOpen(true);
-  };
-
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-
-  const stats = {
-    liberados: veiculos.filter(v => v.status === 'liberado').length,
-    pendentes: veiculos.filter(v => v.status === 'pendente').length,
-    emInspecao: veiculos.filter(v => v.status === 'em_inspecao').length,
-    manutencao: veiculos.filter(v => v.status === 'manutencao').length,
-  };
-
-  const handleStatusFilter = (status: string) => {
-    setStatusFilter(prev => prev === status ? null : status);
-  };
-
-  const filteredVeiculos = veiculos.filter(v => {
-    const matchesSearch = v.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.tipo_veiculo.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || v.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Group by status
-  const groupedVeiculos = {
-    liberado: filteredVeiculos.filter(v => v.status === 'liberado'),
-    pendente: filteredVeiculos.filter(v => v.status === 'pendente'),
-    em_inspecao: filteredVeiculos.filter(v => v.status === 'em_inspecao'),
-    manutencao: filteredVeiculos.filter(v => v.status === 'manutencao'),
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'frota':
+        return <SupervisorFrotaTab eventoId={eventoId!} />;
+      case 'viagens':
+        return <SupervisorViagensTab eventoId={eventoId!} onRefresh={refetchViagens} />;
+      case 'localizador':
+        return <SupervisorLocalizadorTab eventoId={eventoId!} />;
+      case 'mais':
+        return (
+          <SupervisorMaisTab 
+            eventoId={eventoId!} 
+            eventoNome={evento?.nome_planilha}
+            userName={profile?.full_name || user?.email}
+            onLogout={signOut}
+          />
+        );
+      default:
+        return <SupervisorFrotaTab eventoId={eventoId!} />;
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-4 space-y-4">
         <Skeleton className="h-16 w-full" />
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20" />)}
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}
         </div>
         <Skeleton className="h-10 w-full" />
         {[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}
@@ -153,7 +98,7 @@ export default function AppSupervisor() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col pb-16">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-3">
@@ -174,7 +119,7 @@ export default function AppSupervisor() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h1 className="text-base font-semibold truncate">Supervisor</h1>
-                  <Badge variant="secondary" className="text-xs">Veículos</Badge>
+                  <Badge variant="secondary" className="text-xs">Master</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
                   {evento?.nome_planilha || 'Carregando...'}
@@ -202,206 +147,23 @@ export default function AppSupervisor() {
         </div>
       </header>
 
-      {/* Stats Cards */}
-      <div className="container mx-auto px-4 py-4">
-        <div className="grid grid-cols-4 gap-2">
-          <Card 
-            className={`cursor-pointer transition-all active:scale-95 ${
-              statusFilter === 'liberado' 
-                ? 'border-emerald-500 bg-emerald-500/20 ring-2 ring-emerald-500/50' 
-                : 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10'
-            }`}
-            onClick={() => handleStatusFilter('liberado')}
-          >
-            <CardContent className="p-3 text-center">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 mx-auto mb-1" />
-              <p className="text-xl font-bold text-emerald-600">{stats.liberados}</p>
-              <p className="text-[10px] text-muted-foreground">Liberados</p>
-            </CardContent>
-          </Card>
-          <Card 
-            className={`cursor-pointer transition-all active:scale-95 ${
-              statusFilter === 'pendente' 
-                ? 'border-destructive bg-destructive/20 ring-2 ring-destructive/50' 
-                : 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
-            }`}
-            onClick={() => handleStatusFilter('pendente')}
-          >
-            <CardContent className="p-3 text-center">
-              <AlertTriangle className="h-5 w-5 text-destructive mx-auto mb-1" />
-              <p className="text-xl font-bold text-destructive">{stats.pendentes}</p>
-              <p className="text-[10px] text-muted-foreground">Pendentes</p>
-            </CardContent>
-          </Card>
-          <Card 
-            className={`cursor-pointer transition-all active:scale-95 ${
-              statusFilter === 'em_inspecao' 
-                ? 'border-amber-500 bg-amber-500/20 ring-2 ring-amber-500/50' 
-                : 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10'
-            }`}
-            onClick={() => handleStatusFilter('em_inspecao')}
-          >
-            <CardContent className="p-3 text-center">
-              <Clock className="h-5 w-5 text-amber-600 mx-auto mb-1" />
-              <p className="text-xl font-bold text-amber-600">{stats.emInspecao}</p>
-              <p className="text-[10px] text-muted-foreground">Em Inspeção</p>
-            </CardContent>
-          </Card>
-          <Card 
-            className={`cursor-pointer transition-all active:scale-95 ${
-              statusFilter === 'manutencao' 
-                ? 'border-muted-foreground bg-muted/40 ring-2 ring-muted-foreground/50' 
-                : 'border-muted bg-muted/20 hover:bg-muted/30'
-            }`}
-            onClick={() => handleStatusFilter('manutencao')}
-          >
-            <CardContent className="p-3 text-center">
-              <Wrench className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
-              <p className="text-xl font-bold text-muted-foreground">{stats.manutencao}</p>
-              <p className="text-[10px] text-muted-foreground">Manutenção</p>
-            </CardContent>
-          </Card>
-        </div>
-        {statusFilter && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="mt-2 w-full text-muted-foreground"
-            onClick={() => setStatusFilter(null)}
-          >
-            Limpar filtro
-          </Button>
-        )}
-      </div>
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-4">
+        {renderTabContent()}
+      </main>
 
-      {/* Search */}
-      <div className="container mx-auto px-4 pb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por placa, nome ou tipo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
+      {/* Bottom Navigation */}
+      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {/* Vehicle List */}
-      <div className="flex-1 container mx-auto px-4 pb-24 space-y-6">
-        {/* Pendentes primeiro - prioridade */}
-        {groupedVeiculos.pendente.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-              Pendentes ({groupedVeiculos.pendente.length})
-            </h3>
-            <div className="space-y-2">
-              {groupedVeiculos.pendente.map(veiculo => (
-                <VeiculoCardSupervisor
-                  key={veiculo.id}
-                  veiculo={veiculo}
-                  onStatusChange={handleStatusChange}
-                  onReInspecao={handleReInspecao}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Em Inspeção */}
-        {groupedVeiculos.em_inspecao.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-amber-600">
-              <Clock className="h-4 w-4" />
-              Em Inspeção ({groupedVeiculos.em_inspecao.length})
-            </h3>
-            <div className="space-y-2">
-              {groupedVeiculos.em_inspecao.map(veiculo => (
-                <VeiculoCardSupervisor
-                  key={veiculo.id}
-                  veiculo={veiculo}
-                  onStatusChange={handleStatusChange}
-                  onReInspecao={handleReInspecao}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Liberados */}
-        {groupedVeiculos.liberado.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-              Liberados ({groupedVeiculos.liberado.length})
-            </h3>
-            <div className="space-y-2">
-              {groupedVeiculos.liberado.map(veiculo => (
-                <VeiculoCardSupervisor
-                  key={veiculo.id}
-                  veiculo={veiculo}
-                  onStatusChange={handleStatusChange}
-                  onReInspecao={handleReInspecao}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Manutenção */}
-        {groupedVeiculos.manutencao.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
-              <Wrench className="h-4 w-4" />
-              Manutenção ({groupedVeiculos.manutencao.length})
-            </h3>
-            <div className="space-y-2">
-              {groupedVeiculos.manutencao.map(veiculo => (
-                <VeiculoCardSupervisor
-                  key={veiculo.id}
-                  veiculo={veiculo}
-                  onStatusChange={handleStatusChange}
-                  onReInspecao={handleReInspecao}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {filteredVeiculos.length === 0 && (
-          <div className="text-center py-12">
-            <Car className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-muted-foreground">
-              {searchTerm ? 'Nenhum veículo encontrado' : 'Nenhum veículo cadastrado'}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* FAB */}
-      <div className="fixed bottom-6 right-6">
-        <Button 
-          size="lg" 
-          className="rounded-full h-14 w-14 shadow-lg"
-          onClick={() => {
-            setSelectedVeiculo(null);
-            setWizardOpen(true);
-          }}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
-
-      {/* Wizard de Vistoria */}
-      <VistoriaVeiculoWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        eventoId={eventoId || ''}
-        veiculoExistente={selectedVeiculo}
-        onComplete={() => {
-          fetchVeiculos();
-          setSelectedVeiculo(null);
+      {/* Nova Viagem */}
+      <CreateViagemForm 
+        open={showNovaViagem}
+        onOpenChange={setShowNovaViagem}
+        eventoId={eventoId!}
+        onCreated={() => {
+          setShowNovaViagem(false);
+          refetchViagens();
+          setActiveTab('viagens');
         }}
       />
     </div>
