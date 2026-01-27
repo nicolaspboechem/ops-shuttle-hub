@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { useViagemOperacao } from '@/hooks/useViagemOperacao';
-import { useAuth } from '@/lib/auth/AuthContext';
 import { useUserNames } from '@/hooks/useUserNames';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Bus, 
   MapPin, 
@@ -69,6 +77,7 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
   
   const [loading, setLoading] = useState(false);
   const [showPaxDialog, setShowPaxDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [paxInput, setPaxInput] = useState('');
   const [aguardarRetorno, setAguardarRetorno] = useState(false);
 
@@ -121,8 +130,12 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
     setLoading(false);
   };
 
-  const handleCancelar = async () => {
-    if (!confirm('Cancelar esta viagem?')) return;
+  const handleCancelar = () => {
+    setShowCancelDialog(true);
+  };
+
+  const confirmCancelar = async () => {
+    setShowCancelDialog(false);
     setLoading(true);
     await cancelarViagem(viagem);
     onUpdate();
@@ -459,6 +472,27 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog para confirmar cancelamento */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar viagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A viagem de <strong>{viagem.motorista}</strong> será marcada como cancelada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmCancelar} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Cancelar Viagem
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
