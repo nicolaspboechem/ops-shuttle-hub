@@ -1,250 +1,315 @@
 
-# Plano: Análise Completa do Sistema e Teste de Fluxo de Missões
+# Plano: Redesign do App Operador com Barra Inferior e UX Aprimorada
 
 ## Resumo Executivo
 
-Realizei uma auditoria completa do sistema analisando banco de dados, código, hooks, componentes e fluxos operacionais. Abaixo apresento os resultados organizados nas três áreas solicitadas.
+O App Operador (`/app/:eventoId/operador`) atualmente é funcional mas possui UX inferior comparado ao App Motorista. Este plano foca em:
+
+1. **Autenticação unificada** - Operador já usa Supabase Auth (mesmo login do Admin) ✅
+2. **Funcionalidades existentes** - Iniciar, finalizar, marcar retorno de shuttles ✅
+3. **Melhoria visual** - Adicionar barra inferior com ações rápidas (como o Motorista)
+4. **Consistência de UI** - Padronizar header, layout e feedback
 
 ---
 
-## 1. Teste do Fluxo Completo de Missão
+## Análise da Situação Atual
 
-### Estado Atual das Missões
+### O que já funciona corretamente:
 
-| Status | Quantidade | Observação |
-|--------|------------|------------|
-| Pendente | 2 | Aguardando aceite |
-| Aceita | 2 | Aguardando início |
-| Em Andamento | 0 | Nenhuma em execução |
+| Funcionalidade | Status | Observação |
+|----------------|--------|------------|
+| Login via `/auth` (Supabase Auth) | ✅ OK | Operadores usam email/senha |
+| Iniciar corridas | ✅ OK | `iniciarViagem()` funciona |
+| Finalizar corridas | ✅ OK | `registrarChegada()` funciona |
+| Finalizar shuttle com retorno | ✅ OK | `iniciarRetorno()` funciona |
+| Pull-to-refresh | ✅ OK | Atualização por gesto |
+| FAB para nova viagem | ⚠️ Subótimo | Fica no canto, esconde conteúdo |
 
-**Missões Pendentes Identificadas:**
-- "Teste" para Carina: SDU → Sheraton
-- "Teste" para Claudio: Jockey → Sheraton
+### Problemas de UX identificados:
 
-### Verificação do Código de Fluxo
-
-O código em `AppMotorista.tsx` (linhas 195-252) foi corrigido e agora:
-- Usa `getAgoraSync()` para timestamps sincronizados
-- Atualiza `ultima_localizacao` para `ponto_desembarque` ao finalizar
-- Registra `finalizado_por` na viagem
-
-### Viagem Travada Identificada
-
-**PROBLEMA ENCONTRADO:** Uma viagem está travada em "em_andamento" sem finalização:
-- **ID:** a3915e71-20f6-4dec-84f5-70f0235a03ac
-- **Motorista:** Teste
-- **Rota:** Hilton Barra → SDU
-- **Iniciada:** 26/01/2026 11:53
-- **Status:** em_andamento (não encerrada)
-
-Esta viagem precisa ser encerrada manualmente ou automaticamente via script de limpeza.
-
-### Verificação de Localização no Painel
-
-Drivers com localização atualizada corretamente:
-- **Elaine:** Sheraton (após missão finalizada às 20:38)
-- **Briefing Manhã:** Sheraton (após missão às 15:46)
-
-Drivers sem localização (nunca finalizaram viagem ou são novos):
-- Antonio, Bira, Carlos, Daniel, Edson, etc. (17 motoristas)
+| Problema | Impacto | Prioridade |
+|----------|---------|------------|
+| Sem barra inferior fixa | Alto - navegação difícil | Alta |
+| FAB no canto inferior direito | Médio - esconde conteúdo | Média |
+| Confirm nativo para cancelar | Médio - quebra design | Média |
+| Sem indicador de status de conexão | Baixo | Baixa |
+| Header sem status do operador | Baixo | Baixa |
 
 ---
 
-## 2. Inconsistências Encontradas
+## Plano de Implementação
 
-### 2.1 Dados Operacionais
+### Fase 1: Criar Barra Inferior para Operador
 
-| Categoria | Status | Detalhes |
-|-----------|--------|----------|
-| Viagens sem motorista_id | ⚠️ | ~260 viagens legadas (Google Sheets) sem FK |
-| Motoristas sem localização | ✅ Esperado | 17 motoristas nunca finalizaram viagem |
-| Missões órfãs | ✅ OK | Nenhuma encontrada |
-| Motoristas duplicados | ✅ OK | Nenhum duplicado |
+**Novo componente: `OperadorBottomNav.tsx`**
 
-### 2.2 Roles e Permissões
+Abas propostas (5 tabs como o Motorista):
 
-**Estrutura de Roles:**
-```
-user_roles (global):
-├── admin (4 usuários): Antonio, Nicolas, Douglas, Admin-AS
-└── user (12 usuários): operadores e motoristas
+| Tab | Ícone | Função |
+|-----|-------|--------|
+| **Viagens** | Bus | Lista de viagens ativas/finalizadas |
+| **Motoristas** | Users | Status dos motoristas do evento |
+| **Nova** | Plus (botão central destacado) | Criar nova viagem |
+| **Histórico** | ClipboardList | Viagens finalizadas do dia |
+| **Mais** | MoreHorizontal | Cadastros rápidos, KM, logout |
 
-profiles.user_type:
-├── admin (4)
-├── operador (11)
-└── motorista (1 - Tatiana)
+### Fase 2: Refatorar AppOperador para Navegação por Tabs
 
-evento_usuarios (por evento):
-└── role: motorista (11 registros)
+**Estrutura proposta:**
+
+```text
+AppOperador.tsx (refatorado)
+├── Header (simplificado)
+│   ├── Logo AS Brasil
+│   ├── Nome do Evento
+│   └── Indicador de Conexão
+│
+├── Tab Content (renderizado dinamicamente)
+│   ├── Tab "viagens": Lista filtrada + status cards
+│   ├── Tab "motoristas": Cards dos motoristas do evento
+│   ├── Tab "nova": Formulário de criação inline
+│   ├── Tab "historico": Viagens encerradas do dia
+│   └── Tab "mais": Ações e configurações
+│
+└── OperadorBottomNav (fixo)
+    └── 5 tabs com ação central destacada
 ```
 
-**INCONSISTÊNCIA IDENTIFICADA:**
-- Tatiana Suzarte tem `user_roles.role = 'admin'` mas `profiles.user_type = 'motorista'`
-- Isso pode causar confusão na UI, embora funcionalmente ela tenha acesso admin
+### Fase 3: Melhorias de UI/UX
 
-### 2.3 Credenciais de Motoristas
+1. **Substituir `confirm()` por AlertDialog**
+   - Usar componente shadcn/ui para consistência
 
-| Motorista | Telefone | Último Login |
-|-----------|----------|--------------|
-| Paulo Leandro | 21964178097 | Nunca |
-| Elaine | 21983501606 | Nunca |
-| Claudio | 21998407166 | Nunca |
-| Carlos Henrique | 21990561952 | Nunca |
-| Carina | 21966452933 | Nunca |
+2. **Mover formulário de criação para tab dedicada**
+   - Eliminar FAB
+   - Experiência mais fluida
 
-**OBSERVAÇÃO:** Nenhum motorista fez login pelo app ainda (todos com `ultimo_login = null`), apesar de terem credenciais criadas.
-
-### 2.4 Pontos de Embarque
-
-| Evento | Ponto Base | Outros Pontos |
-|--------|------------|---------------|
-| Rio Open - Briefing | Jockey ✅ | SDU, Sheraton |
-| CCXP 2025 - teste | Nenhum ❌ | Hilton Barra, SDU |
-
-**PROBLEMA:** Evento "CCXP 2025 - teste" não tem base configurada.
-
-### 2.5 Check-ins de Presença
-
-5 motoristas com check-in registrado, todos sem checkout:
-- Elaine, Paulo Leandro, Briefing Manhã, Teste, Nicolas
-
-Isso indica que a funcionalidade de checkout não está sendo usada ou há problema de UI.
+3. **Adicionar Empty States bonitos**
+   - Quando não há viagens
+   - Quando não há motoristas
 
 ---
 
-## 3. Arquivos/Código/Tabelas Mortas
-
-### 3.1 Hook Não Utilizado
-
-| Arquivo | Status | Ação Recomendada |
-|---------|--------|------------------|
-| `src/hooks/useSwipeGesture.ts` | ⚠️ MORTO | Nenhum import encontrado. Pode ser removido. |
-
-### 3.2 Tabela com Dados Vazios
-
-| Tabela | Registros | Observação |
-|--------|-----------|------------|
-| `ponto_motoristas` | 0 | Feature de motorista preferencial por ponto não usada |
-| `veiculo_vistoria_historico` | 0 | Nenhuma vistoria realizada ainda |
-| `rotas_shuttle` | 2 | Rotas cadastradas mas sem uso aparente |
-
-### 3.3 Código Potencialmente Redundante
-
-| Arquivo | Observação |
-|---------|------------|
-| `useLocalizadorVeiculos.ts` | Usado apenas em 1 componente (LocalizadorVeiculoCard.tsx) |
-| `useEventosMissoes.ts` | Hook específico, verificar se ainda necessário |
-
-### 3.4 Viagens Legadas sem Foreign Keys
-
-260+ viagens importadas do Google Sheets sem `motorista_id`:
-- Motoristas: Nathan Queiroz, Assis, Mineiro, Eduardo, Odilon, etc.
-- Essas viagens não podem ser rastreadas no sistema moderno
-
-### 3.5 Cache/Estado
-
-O sistema NÃO utiliza caches persistentes problemáticos:
-- React Query gerencia cache de dados
-- Supabase Realtime atualiza em tempo real
-- Não há localStorage/sessionStorage para dados críticos
-
----
-
-## Plano de Correções
-
-### Correções Imediatas (Alta Prioridade)
-
-1. **Encerrar viagem travada**
-   - Executar UPDATE na viagem `a3915e71-...` para status='encerrado', encerrado=true
-
-2. **Remover hook morto**
-   - Deletar `src/hooks/useSwipeGesture.ts`
-
-3. **Corrigir inconsistência de role**
-   - Atualizar `profiles.user_type` de Tatiana para 'admin'
-
-### Correções de Médio Prazo
-
-4. **Configurar Base no CCXP**
-   - Definir um ponto como `eh_base = true` para o evento CCXP 2025
-
-5. **Limpar viagens legadas** (opcional)
-   - Considerar migrar ou arquivar viagens sem `motorista_id`
-
-### Verificações de Teste de Fluxo
-
-Para testar o fluxo completo de missão:
-
-1. **Designar**: Criar nova missão via CCO para motorista com credenciais
-2. **Aceitar**: Motorista loga no app e aceita a missão (swipe direita)
-3. **Iniciar**: Motorista inicia a missão (cria viagem automaticamente)
-4. **Finalizar**: Motorista registra chegada
-5. **Verificar**: Confirmar no Painel Localizador que motorista aparece no ponto de destino
-
----
-
-## Arquivos a Modificar
+## Arquivos a Criar/Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/hooks/useSwipeGesture.ts` | DELETAR | Hook não utilizado |
-| Migration SQL | CRIAR | Encerrar viagem travada e corrigir profile |
+| `src/components/app/OperadorBottomNav.tsx` | **CRIAR** | Barra de navegação inferior (similar ao MotoristaBottomNav) |
+| `src/pages/app/AppOperador.tsx` | **REFATORAR** | Implementar navegação por tabs, remover FAB |
+| `src/components/app/ViagemCardOperador.tsx` | **MODIFICAR** | Substituir confirm() por AlertDialog |
+| `src/components/app/OperadorMotoristasTab.tsx` | **CRIAR** | Tab para ver motoristas do evento |
+| `src/components/app/OperadorHistoricoTab.tsx` | **CRIAR** | Tab para histórico de viagens |
 
 ---
 
 ## Seção Técnica
 
-### SQL para Correções Imediatas
+### Componente OperadorBottomNav
 
-```sql
--- 1. Encerrar viagem travada
-UPDATE viagens
-SET status = 'encerrado',
-    encerrado = true,
-    h_chegada = '15:00:00',
-    h_fim_real = NOW()
-WHERE id = 'a3915e71-20f6-4dec-84f5-70f0235a03ac';
+```typescript
+// src/components/app/OperadorBottomNav.tsx
+import { Bus, Users, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
--- 2. Corrigir motorista "Teste" - atualizar localização
-UPDATE motoristas
-SET status = 'disponivel',
-    ultima_localizacao = 'SDU',
-    ultima_localizacao_at = NOW()
-WHERE id = '96cee90d-5b1d-4179-8c5e-6f1d9c3fb9c8';
+export type OperadorTabId = 'viagens' | 'motoristas' | 'nova' | 'historico' | 'mais';
 
--- 3. Corrigir inconsistência de profile (Tatiana)
-UPDATE profiles
-SET user_type = 'admin'
-WHERE user_id = (SELECT user_id FROM profiles WHERE full_name = 'Tatiana Suzarte');
+interface NavTab {
+  id: OperadorTabId;
+  label: string;
+  icon: React.ElementType;
+}
 
--- 4. Definir base para CCXP (escolher Hilton Barra como exemplo)
-UPDATE pontos_embarque
-SET eh_base = true
-WHERE evento_id = '4a674005-5b4a-46c9-b010-12f867296602'
-  AND nome = 'Hilton Barra';
+const tabs: NavTab[] = [
+  { id: 'viagens', label: 'Viagens', icon: Bus },
+  { id: 'motoristas', label: 'Motoristas', icon: Users },
+  { id: 'nova', label: 'Nova', icon: Plus },
+  { id: 'historico', label: 'Histórico', icon: ClipboardList },
+  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
+];
+
+interface OperadorBottomNavProps {
+  activeTab: OperadorTabId;
+  onTabChange: (tab: OperadorTabId) => void;
+}
+
+export function OperadorBottomNav({ activeTab, onTabChange }: OperadorBottomNavProps) {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-bottom">
+      <div className="flex items-center justify-around h-16">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const Icon = tab.icon;
+          
+          // Botão central destacado para "Nova"
+          if (tab.id === 'nova') {
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
+              >
+                <div className={cn(
+                  "w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg transition-colors",
+                  isActive 
+                    ? "bg-primary text-primary-foreground" 
+                    : "bg-primary/90 text-primary-foreground"
+                )}>
+                  <Icon className="w-6 h-6" />
+                </div>
+              </button>
+            );
+          }
+          
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
 ```
 
-### Verificação de Integridade
+### Refatoração do AppOperador
 
-```sql
--- Verificar motoristas que deveriam ter localização
-SELECT m.nome, m.ultima_localizacao, 
-       (SELECT ponto_desembarque FROM viagens 
-        WHERE motorista_id = m.id AND encerrado = true 
-        ORDER BY h_fim_real DESC NULLS LAST LIMIT 1) as deveria_estar
-FROM motoristas m
-WHERE m.ativo = true;
+Estrutura principal com tabs:
+
+```typescript
+// AppOperador.tsx (estrutura)
+const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
+
+const renderTabContent = () => {
+  switch (activeTab) {
+    case 'viagens':
+      return (
+        <div className="space-y-4">
+          {/* Status Cards */}
+          <div className="grid grid-cols-4 gap-2">...</div>
+          
+          {/* Lista de viagens */}
+          <div className="space-y-3">
+            {sortedViagens.map(viagem => (
+              <ViagemCardOperador key={viagem.id} viagem={viagem} onUpdate={refetch} />
+            ))}
+          </div>
+        </div>
+      );
+
+    case 'motoristas':
+      return <OperadorMotoristasTab eventoId={eventoId!} />;
+
+    case 'nova':
+      return (
+        <CreateViagemForm
+          open={true}
+          embedded // Prop para renderizar inline
+          eventoId={eventoId!}
+          onCreated={() => {
+            refetch();
+            setActiveTab('viagens');
+          }}
+        />
+      );
+
+    case 'historico':
+      return <OperadorHistoricoTab viagensFinalizadas={viagensEncerradas} />;
+
+    case 'mais':
+      return (
+        <div className="space-y-4">
+          <Button onClick={() => setShowMotoristaForm(true)}>
+            <User className="h-4 w-4 mr-2" /> Cadastrar Motorista
+          </Button>
+          <Button onClick={() => setShowVeiculoForm(true)}>
+            <Car className="h-4 w-4 mr-2" /> Cadastrar Veículo
+          </Button>
+          <Button onClick={() => setShowKmModal(true)}>
+            <Gauge className="h-4 w-4 mr-2" /> Registrar KM
+          </Button>
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Sair
+          </Button>
+        </div>
+      );
+  }
+};
 ```
+
+### AlertDialog para Cancelamento
+
+Substituir `confirm()` em `ViagemCardOperador.tsx`:
+
+```typescript
+// Adicionar estado
+const [showCancelDialog, setShowCancelDialog] = useState(false);
+
+// Handler
+const handleCancelar = async () => {
+  setShowCancelDialog(true);
+};
+
+const confirmCancelar = async () => {
+  setShowCancelDialog(false);
+  setLoading(true);
+  await cancelarViagem(viagem);
+  onUpdate();
+  setLoading(false);
+};
+
+// JSX
+<AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Cancelar viagem?</AlertDialogTitle>
+      <AlertDialogDescription>
+        Esta ação não pode ser desfeita. A viagem será marcada como cancelada.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Voltar</AlertDialogCancel>
+      <AlertDialogAction onClick={confirmCancelar} className="bg-destructive">
+        Cancelar Viagem
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+---
+
+## Comparativo Visual
+
+### Antes (AppOperador atual)
+- Header com menu dropdown
+- Lista de viagens com filtros
+- FAB no canto inferior direito
+- Sem navegação inferior
+
+### Depois (AppOperador redesenhado)
+- Header simplificado com indicador de status
+- Navegação por tabs na barra inferior
+- Botão central destacado para criar viagem
+- Experiência consistente com AppMotorista
 
 ---
 
 ## Resultado Esperado
 
-Após as correções:
-
-1. ✅ Viagem travada será encerrada
-2. ✅ Motorista "Teste" terá localização correta (SDU)
-3. ✅ Hook morto será removido do codebase
-4. ✅ Profile de Tatiana terá user_type consistente
-5. ✅ CCXP terá ponto base configurado
-6. ✅ Fluxo de missões funcionará corretamente com atualização de localização
+1. ✅ Interface mais bonita e moderna
+2. ✅ Navegação por barra inferior (5 abas)
+3. ✅ Botão central destacado para nova viagem
+4. ✅ Aba dedicada para ver motoristas do evento
+5. ✅ Aba de histórico com viagens finalizadas
+6. ✅ Aba "Mais" com ações administrativas
+7. ✅ Consistência visual com o App Motorista
+8. ✅ AlertDialog substituindo confirm() nativo
