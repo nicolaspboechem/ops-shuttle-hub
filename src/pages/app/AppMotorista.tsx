@@ -6,6 +6,7 @@ import { useViagemOperacaoMotorista } from '@/hooks/useViagemOperacaoMotorista';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { useMotoristaPresenca } from '@/hooks/useMotoristaPresenca';
+import { useServerTime } from '@/hooks/useServerTime';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -39,6 +40,7 @@ export default function AppMotorista() {
   const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
   const { motoristas } = useMotoristas(eventoId);
   const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
+  const { getAgoraSync } = useServerTime();
   
   const [operando, setOperando] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
@@ -141,7 +143,7 @@ export default function AppMotorista() {
         // Encontrar veículo vinculado ao motorista
         const veiculoVinculado = motorista.veiculo_id;
 
-        const now = new Date();
+        const now = getAgoraSync();
         const horaPickup = now.toTimeString().slice(0, 8);
 
         const { data: novaViagem, error } = await supabase
@@ -199,11 +201,10 @@ export default function AppMotorista() {
         }
 
         const viagemId = missao.viagem_id;
+        const now = getAgoraSync(); // ✅ Usa hora sincronizada do servidor
+        const horaChegada = now.toTimeString().slice(0, 8);
         
         if (viagemId) {
-          const now = new Date();
-          const horaChegada = now.toTimeString().slice(0, 8);
-
           await supabase
             .from('viagens')
             .update({
@@ -211,6 +212,7 @@ export default function AppMotorista() {
               h_chegada: horaChegada,
               h_fim_real: now.toISOString(),
               encerrado: true,
+              finalizado_por: driverSession?.motorista_id || null,
             })
             .eq('id', viagemId);
         }
@@ -227,6 +229,17 @@ export default function AppMotorista() {
           await supabase
             .from('motoristas')
             .update({ status: 'disponivel' })
+            .eq('id', missao.motorista_id);
+        }
+
+        // ✅ ATUALIZAR LOCALIZAÇÃO PARA O PONTO DE DESEMBARQUE
+        if (missao.ponto_desembarque) {
+          await supabase
+            .from('motoristas')
+            .update({
+              ultima_localizacao: missao.ponto_desembarque,
+              ultima_localizacao_at: now.toISOString()
+            })
             .eq('id', missao.motorista_id);
         }
 

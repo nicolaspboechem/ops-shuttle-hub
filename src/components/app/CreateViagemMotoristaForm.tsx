@@ -95,6 +95,25 @@ export function CreateViagemMotoristaForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Log de diagnóstico
+    console.log('[CreateViagemMotoristaForm] Tentando criar viagem:', {
+      eventoId,
+      motoristaId: driverSession?.motorista_id,
+      motoristaName,
+      pontoEmbarque,
+      pontoDesembarque,
+      tipoOperacao,
+      qtdPax,
+      sessionValid: !!driverSession
+    });
+    
+    // Validar sessão do motorista
+    if (!driverSession?.motorista_id) {
+      toast.error('Sessão expirada. Faça login novamente.');
+      console.error('[CreateViagemMotoristaForm] Sessão inválida:', driverSession);
+      return;
+    }
+    
     // Validações obrigatórias para motorista
     if (!pontoEmbarque) {
       toast.error('Selecione o ponto de embarque');
@@ -145,8 +164,13 @@ export function CreateViagemMotoristaForm({
         }]);
 
       if (error) {
-        console.error('Erro ao criar viagem:', error);
-        toast.error('Erro ao criar viagem');
+        console.error('[CreateViagemMotoristaForm] Erro detalhado:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        toast.error(`Erro ao criar viagem: ${error.message}`);
         return;
       }
 
