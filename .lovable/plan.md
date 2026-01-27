@@ -1,134 +1,120 @@
 
-# Plano: Redesign do App Supervisor - Foco em Motoristas e Veículos
+# Plano: Criação da Role "Cliente" - Dashboard Estratégico
 
 ## Resumo Executivo
 
-O App Supervisor será a **interface master de campo** com foco primário em **Motoristas** e **Veículos**, mantendo acesso secundário a operadores e viagens. A navegação será organizada por prioridade operacional.
+Criar uma nova role "cliente" no sistema de evento_usuarios com uma interface dedicada focada em **análise estratégica de público e comportamento**. O cliente terá acesso condicional ao Dashboard, Localizador e Painel de Horários baseado nas configurações do evento no CCO.
 
 ---
 
-## Estrutura de Navegação (5 Tabs)
+## Análise da Arquitetura Atual
 
-```text
-SupervisorBottomNav - Ordenado por Prioridade
-│
-├── 🚗 Frota (Tab Principal)
-│   ├── Sub-tab "Motoristas" - Localização + Status + Vincular Veículo
-│   └── Sub-tab "Veículos" - Kanban por status + Re-vistoria
-│
-├── 🚌 Viagens
-│   ├── Lista completa de viagens ativas
-│   ├── Iniciar/Finalizar/Retorno (como Operador)
-│   └── Botão de Edição (exclusivo Supervisor)
-│
-├── ➕ Nova (Botão Central Destacado)
-│   └── Criar viagem rápida
-│
-├── 📍 Localizador
-│   ├── Mapa Kanban de localização
-│   ├── Motoristas por ponto
-│   └── Edição manual de localização
-│
-└── ⚙️ Mais
-    ├── Cadastrar Motorista
-    ├── Cadastrar Veículo
-    ├── Ver Operadores do Evento
-    ├── Registrar KM
-    ├── Histórico/Auditoria
-    └── Sair
+### Sistema de Roles Existente
+
+| Role | Tabela | Interface | Acesso |
+|------|--------|-----------|--------|
+| `admin` | user_roles | CCO Desktop | Completo |
+| `motorista` | evento_usuarios | App Mobile | Viagens próprias |
+| `operador` | evento_usuarios | App Mobile | Gerenciar viagens |
+| `supervisor` | evento_usuarios | App Mobile | Master de campo |
+
+### Configurações de Evento (tabela `eventos`)
+- `habilitar_localizador: boolean` - Controla visibilidade do painel localizador
+- `visivel_publico: boolean` - Controla visibilidade do painel de horários
+
+---
+
+## Estrutura da Nova Role
+
+### Role: `cliente`
+
+**Características:**
+- Armazenado em `evento_usuarios` com role = 'cliente'
+- Acesso somente leitura (sem ações de criação/edição)
+- Dashboard estratégico sem alertas operacionais
+- Acesso condicional ao Localizador e Painel
+
+### Abas Disponíveis
+
+| Aba | Condição | Descrição |
+|-----|----------|-----------|
+| **Dashboard** | Sempre visível | Versão estratégica focada em métricas de público |
+| **Localizador** | Se `habilitar_localizador = true` | Visualização do Kanban de motoristas |
+| **Painel** | Se `visivel_publico = true` | Horários de rotas shuttle |
+
+---
+
+## Implementação
+
+### Fase 1: Atualização do AuthContext
+
+**Arquivo:** `src/lib/auth/AuthContext.tsx`
+
+Adicionar 'cliente' ao tipo EventRole:
+
+```typescript
+type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
 ```
 
----
+### Fase 2: Criação dos Componentes de Layout
 
-## Comparativo de Prioridades
+**Novos Arquivos:**
 
-| Funcionalidade | Operador | Supervisor |
-|----------------|----------|------------|
-| **Gestão de Motoristas** | Lista simples | **Tab dedicada + Localização + Vinculação** |
-| **Gestão de Veículos** | Não tem | **Tab dedicada + Kanban + Re-vistoria** |
-| **Viagens** | Tab principal | Tab secundária |
-| **Edição de Viagem** | Não | **Sim** |
-| **Localizador** | Não | **Tab dedicada** |
-| **Operadores** | Não | Aba "Mais" |
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/app/ClienteBottomNav.tsx` | Navegação inferior mobile (3 tabs) |
+| `src/components/app/ClienteHeaderNav.tsx` | Header desktop com abas fixas |
+| `src/components/app/ClienteDashboardTab.tsx` | Dashboard estratégico |
+| `src/pages/app/AppCliente.tsx` | Página principal do cliente |
 
----
+### Fase 3: ClienteBottomNav (Mobile)
 
-## Detalhamento das Tabs
-
-### Tab 1: Frota (Principal)
-
-A primeira tab que o Supervisor vê ao abrir o app.
-
-**Sub-tab Motoristas:**
-- Cards de motoristas com status em tempo real
-- Veículo vinculado visível
-- Última localização
-- **Ações por swipe/menu:**
-  - Editar localização
-  - Vincular/desvincular veículo
-  - Ver detalhes
-
-**Sub-tab Veículos:**
-- Kanban por status (aproveitando layout atual)
-- Cards agrupados: Pendentes > Em Inspeção > Liberados > Manutenção
-- **Ações por swipe/menu:**
-  - Liberar/Marcar Pendente
-  - Re-vistoriar
-  - Ver histórico de vistorias
-
-### Tab 2: Viagens
-
-Similar ao Operador, mas com **poder de edição**.
-
-- Cards de viagem com status
-- Ações: Iniciar, Chegou, Retorno, Encerrar
-- **NOVO:** Botão de edição (lápis) em cada card
-- Modal de edição completo:
-  - Trocar motorista
-  - Trocar veículo
-  - Alterar pontos
-  - Alterar horários
-  - Alterar PAX
-  - Alterar status
-
-### Tab 3: Nova (Central)
-
-Botão destacado para criar viagem rapidamente.
-
-- Abre o formulário de criação inline
-- Auto-preenche veículo ao selecionar motorista
-- Viagem inicia automaticamente
-
-### Tab 4: Localizador
-
-Visualização Kanban de localização dos motoristas.
-
-- Scroll horizontal por colunas
-- Cada coluna = um ponto de embarque
-- Coluna especial "Em Trânsito" com rota ativa
-- **Toque no card:** Abre modal para editar localização manualmente
-
-### Tab 5: Mais
-
-Acesso a funcionalidades administrativas.
+Navegação inferior com 3 abas:
 
 ```text
-Cadastros
-├── Cadastrar Motorista (wizard)
-├── Cadastrar Veículo (wizard com vistoria)
-└── Registrar KM
-
-Equipe
-└── Ver Operadores do Evento
-
-Auditoria
-├── Histórico de Viagens do Dia
-└── Histórico de Vistorias
-
-Conta
-├── Trocar Evento
-└── Sair
+┌──────────────────────────────────────────┐
+│                                          │
+│          [CONTEÚDO DA TAB]               │
+│                                          │
+├──────────────────────────────────────────┤
+│  [📊]      [📍]      [🕐]               │
+│ Dashboard  Local*    Painel*            │
+│                                          │
+│  * Exibido condicionalmente              │
+└──────────────────────────────────────────┘
 ```
+
+### Fase 4: ClienteHeaderNav (Desktop)
+
+Header fixo com abas horizontais:
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│  🏢 AS Brasil │ Evento XYZ │ Dashboard │ Local* │ Painel*│
+└──────────────────────────────────────────────────────────┘
+```
+
+### Fase 5: ClienteDashboardTab - Dashboard Estratégico
+
+**Removido do Dashboard Original:**
+- ❌ AlertsPanel (alertas e críticos)
+- ❌ Top Motoristas
+- ❌ Top Veículos
+- ❌ Cards de Status (OK, Alerta, Crítico)
+
+**Mantido/Expandido:**
+- ✅ Métricas de PAX em tempo real
+- ✅ Viagens por hora (gráfico)
+- ✅ PAX por hora (gráfico)
+- ✅ Desempenho por Rota
+- ✅ Filtros por tipo de operação e ponto de embarque
+- ✅ Indicadores de tempo médio
+
+**Novas Métricas Estratégicas:**
+- Total de PAX transportados no dia
+- Pico de demanda (horário)
+- Rota mais utilizada
+- Ocupação média dos veículos
 
 ---
 
@@ -136,164 +122,302 @@ Conta
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `SupervisorBottomNav.tsx` | Barra de navegação com 5 tabs |
-| `SupervisorFrotaTab.tsx` | Tab principal com sub-tabs Motoristas/Veículos |
-| `SupervisorViagensTab.tsx` | Lista de viagens com edição |
-| `SupervisorLocalizadorTab.tsx` | Kanban de localização mobile |
-| `SupervisorMaisTab.tsx` | Cadastros + Equipe + Auditoria |
-| `EditViagemMobileModal.tsx` | Modal de edição completo para mobile |
-| `SupervisorMotoristaCard.tsx` | Card de motorista com ações |
+| `src/components/app/ClienteBottomNav.tsx` | Navegação mobile |
+| `src/components/app/ClienteHeaderNav.tsx` | Header desktop |
+| `src/components/app/ClienteDashboardTab.tsx` | Dashboard estratégico |
+| `src/components/app/ClienteLocalizadorTab.tsx` | Wrapper do localizador |
+| `src/components/app/ClientePainelTab.tsx` | Wrapper do painel de horários |
+| `src/pages/app/AppCliente.tsx` | Página principal |
 
-## Arquivo a Refatorar
+## Arquivos a Modificar
 
-| Arquivo | Mudanças |
-|---------|----------|
-| `AppSupervisor.tsx` | Reestruturar para navegação por tabs |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/lib/auth/AuthContext.tsx` | Adicionar 'cliente' ao EventRole |
+| `src/App.tsx` | Adicionar rota `/app/:eventoId/cliente` |
+| `src/pages/app/AppHome.tsx` | Redirecionar cliente para sua interface |
 
 ---
 
 ## Seção Técnica
 
-### SupervisorBottomNav
+### Estrutura do AppCliente
 
 ```typescript
-export type SupervisorTabId = 'frota' | 'viagens' | 'nova' | 'localizador' | 'mais';
+// src/pages/app/AppCliente.tsx
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ClienteBottomNav, ClienteTabId } from '@/components/app/ClienteBottomNav';
+import { ClienteHeaderNav } from '@/components/app/ClienteHeaderNav';
+import { ClienteDashboardTab } from '@/components/app/ClienteDashboardTab';
+import { ClienteLocalizadorTab } from '@/components/app/ClienteLocalizadorTab';
+import { ClientePainelTab } from '@/components/app/ClientePainelTab';
 
-const tabs: NavTab[] = [
-  { id: 'frota', label: 'Frota', icon: Car },      // Principal - Motoristas + Veículos
-  { id: 'viagens', label: 'Viagens', icon: Bus },  // Secundário
-  { id: 'nova', label: 'Nova', icon: Plus },       // Ação central
-  { id: 'localizador', label: 'Local', icon: MapPin },
-  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
-];
+export default function AppCliente() {
+  const { eventoId } = useParams<{ eventoId: string }>();
+  const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState<ClienteTabId>('dashboard');
+  const [evento, setEvento] = useState<{
+    nome_planilha: string;
+    habilitar_localizador: boolean;
+    visivel_publico: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    // Fetch event settings
+    supabase
+      .from('eventos')
+      .select('nome_planilha, habilitar_localizador, visivel_publico')
+      .eq('id', eventoId)
+      .single()
+      .then(({ data }) => setEvento(data));
+  }, [eventoId]);
+
+  const tabs = useMemo(() => {
+    const available: ClienteTabId[] = ['dashboard'];
+    if (evento?.habilitar_localizador) available.push('localizador');
+    if (evento?.visivel_publico) available.push('painel');
+    return available;
+  }, [evento]);
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return <ClienteDashboardTab eventoId={eventoId!} />;
+      case 'localizador':
+        return <ClienteLocalizadorTab eventoId={eventoId!} />;
+      case 'painel':
+        return <ClientePainelTab eventoId={eventoId!} />;
+    }
+  };
+
+  if (isMobile) {
+    return (
+      <div className="min-h-screen pb-16">
+        <MobileHeader title={evento?.nome_planilha || 'Cliente'} />
+        {renderContent()}
+        <ClienteBottomNav 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab}
+          availableTabs={tabs}
+        />
+      </div>
+    );
+  }
+
+  // Desktop
+  return (
+    <div className="min-h-screen">
+      <ClienteHeaderNav 
+        eventoNome={evento?.nome_planilha}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        availableTabs={tabs}
+      />
+      <main className="container mx-auto px-6 py-6">
+        {renderContent()}
+      </main>
+    </div>
+  );
+}
 ```
 
-### SupervisorFrotaTab (com sub-tabs)
+### ClienteBottomNav
 
 ```typescript
-export function SupervisorFrotaTab({ eventoId }: Props) {
-  const [subTab, setSubTab] = useState<'motoristas' | 'veiculos'>('motoristas');
+export type ClienteTabId = 'dashboard' | 'localizador' | 'painel';
+
+interface ClienteBottomNavProps {
+  activeTab: ClienteTabId;
+  onTabChange: (tab: ClienteTabId) => void;
+  availableTabs: ClienteTabId[];
+}
+
+const allTabs = [
+  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  { id: 'localizador', label: 'Localizador', icon: MapPin },
+  { id: 'painel', label: 'Painel', icon: Clock },
+];
+
+export function ClienteBottomNav({ activeTab, onTabChange, availableTabs }: ClienteBottomNavProps) {
+  const visibleTabs = allTabs.filter(t => availableTabs.includes(t.id));
   
   return (
-    <div className="space-y-4">
-      {/* Sub-tab toggle */}
-      <div className="flex bg-muted rounded-lg p-1">
-        <button 
-          onClick={() => setSubTab('motoristas')}
-          className={cn(
-            "flex-1 py-2 rounded-md text-sm font-medium transition",
-            subTab === 'motoristas' && "bg-background shadow"
-          )}
-        >
-          <Users className="h-4 w-4 inline mr-1" /> Motoristas
-        </button>
-        <button 
-          onClick={() => setSubTab('veiculos')}
-          className={cn(
-            "flex-1 py-2 rounded-md text-sm font-medium transition",
-            subTab === 'veiculos' && "bg-background shadow"
-          )}
-        >
-          <Car className="h-4 w-4 inline mr-1" /> Veículos
-        </button>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t">
+      <div className="flex items-center justify-around h-16">
+        {visibleTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onTabChange(tab.id)}
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 flex-1 h-full",
+              activeTab === tab.id ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            <tab.icon className="w-5 h-5" />
+            <span className="text-[10px] font-medium">{tab.label}</span>
+          </button>
+        ))}
       </div>
-      
-      {/* Conteúdo */}
-      {subTab === 'motoristas' ? (
-        <SupervisorMotoristasSubTab eventoId={eventoId} />
-      ) : (
-        <SupervisorVeiculosSubTab eventoId={eventoId} />
+    </nav>
+  );
+}
+```
+
+### ClienteHeaderNav (Desktop)
+
+```typescript
+export function ClienteHeaderNav({ 
+  eventoNome, 
+  activeTab, 
+  onTabChange, 
+  availableTabs 
+}: Props) {
+  return (
+    <header className="sticky top-0 z-50 border-b bg-background">
+      <div className="container mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center gap-4">
+            <img src={logoAS} alt="AS Brasil" className="h-10" />
+            <div>
+              <h1 className="font-semibold">{eventoNome}</h1>
+              <Badge variant="secondary">Cliente</Badge>
+            </div>
+          </div>
+          
+          {/* Tabs */}
+          <div className="flex items-center gap-1">
+            {availableTabs.map(tabId => (
+              <Button
+                key={tabId}
+                variant={activeTab === tabId ? "default" : "ghost"}
+                onClick={() => onTabChange(tabId)}
+              >
+                {tabId === 'dashboard' && <><BarChart3 className="mr-2" />Dashboard</>}
+                {tabId === 'localizador' && <><MapPin className="mr-2" />Localizador</>}
+                {tabId === 'painel' && <><Clock className="mr-2" />Painel</>}
+              </Button>
+            ))}
+          </div>
+          
+          <Button variant="ghost" size="icon" onClick={signOut}>
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
+}
+```
+
+### ClienteDashboardTab (Dashboard Estratégico)
+
+Dashboard focado em análise de público, **sem elementos operacionais**:
+
+```typescript
+export function ClienteDashboardTab({ eventoId }: { eventoId: string }) {
+  const { viagens } = useViagens(eventoId);
+  const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas } = useCalculos(viagens);
+
+  // Métricas estratégicas
+  const totalPaxDia = useMemo(() => 
+    viagens.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0)
+  , [viagens]);
+
+  const horarioPico = useMemo(() => {
+    if (!metricasPorHora.length) return null;
+    return metricasPorHora.reduce((max, h) => h.pax > max.pax ? h : max);
+  }, [metricasPorHora]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header com última atualização */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Análise Estratégica</h2>
+        <Badge variant="outline">{format(new Date(), 'HH:mm:ss')}</Badge>
+      </div>
+
+      {/* KPIs Estratégicos - Sem alertas */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard 
+          title="Total PAX Dia" 
+          value={totalPaxDia} 
+          icon={<Users />} 
+        />
+        <MetricCard 
+          title="Viagens Realizadas" 
+          value={viagensFinalizadas.length} 
+          icon={<CheckCircle />} 
+        />
+        <MetricCard 
+          title="Em Trânsito" 
+          value={viagensAtivas.length} 
+          icon={<Bus />} 
+        />
+        <MetricCard 
+          title="Tempo Médio" 
+          value={formatarMinutos(kpis?.tempoMedioGeral || 0)} 
+          icon={<Clock />} 
+        />
+      </div>
+
+      {/* Gráficos - Foco em comportamento */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <PassengersChart data={metricasPorHora} />
+        <RoutePerformanceChart viagens={viagens} />
+      </div>
+
+      {/* Insights */}
+      {horarioPico && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Insights</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>
+              <strong>Horário de Pico:</strong> {horarioPico.hora}h 
+              com {horarioPico.pax} passageiros
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
 }
 ```
 
-### Card de Motorista com Ações
+---
+
+## Rotas e Proteção
+
+### Nova Rota no App.tsx
 
 ```typescript
-// SupervisorMotoristaCard.tsx
-<SwipeableCard
-  leftAction={{
-    icon: <MapPin />,
-    label: 'Local',
-    bgColor: 'bg-blue-600',
-    action: () => onEditLocation(motorista),
-  }}
-  rightAction={{
-    icon: <Link2 />,
-    label: 'Vincular',
-    bgColor: 'bg-emerald-600',
-    action: () => onLinkVehicle(motorista),
-  }}
->
-  {/* Card content */}
-</SwipeableCard>
+// Adicionar após as rotas do supervisor
+<Route path="/app/:eventoId/cliente" element={
+  <EventRoleRoute allowedRoles={['cliente']}>
+    <AppCliente />
+  </EventRoleRoute>
+} />
 ```
 
-### EditViagemMobileModal (Edição Completa)
+### Atualização do AppHome.tsx
+
+Adicionar redirecionamento para clientes:
 
 ```typescript
-interface EditViagemMobileModalProps {
-  viagem: Viagem;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  eventoId: string;
-  onSave: () => void;
+// Em handleSelectEvento
+if (role === 'cliente') {
+  navigate(`/app/${evento.id}/cliente`);
 }
 
-// Campos editáveis:
-// - Motorista (Combobox)
-// - Veículo (Combobox)
-// - Ponto Embarque (Combobox)
-// - Ponto Desembarque (Combobox)
-// - Horário Pickup
-// - Horário Chegada
-// - PAX Ida / PAX Retorno
-// - Status (agendado/em_andamento/aguardando_retorno/encerrado)
-// - Observação
-```
-
-### Estrutura do AppSupervisor Refatorado
-
-```typescript
-export default function AppSupervisor() {
-  const [activeTab, setActiveTab] = useState<SupervisorTabId>('frota'); // Frota é o default
-  
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'frota':
-        return <SupervisorFrotaTab eventoId={eventoId!} />;
-      case 'viagens':
-        return <SupervisorViagensTab eventoId={eventoId!} onRefresh={refetch} />;
-      case 'nova':
-        return (
-          <CreateViagemForm
-            open={true}
-            embedded
-            eventoId={eventoId!}
-            onCreated={() => {
-              refetch();
-              setActiveTab('viagens');
-            }}
-          />
-        );
-      case 'localizador':
-        return <SupervisorLocalizadorTab eventoId={eventoId!} />;
-      case 'mais':
-        return <SupervisorMaisTab eventoId={eventoId!} onLogout={signOut} />;
-    }
-  };
-  
-  return (
-    <div className="min-h-screen bg-background flex flex-col pb-16">
-      <Header />
-      <main className="flex-1 container mx-auto px-4 py-4">
-        {renderTabContent()}
-      </main>
-      <SupervisorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
-    </div>
-  );
+// Em auto-redirect (single event)
+if (role === 'cliente') {
+  navigate(`/app/${evento.id}/cliente`);
+  return;
 }
 ```
 
@@ -301,53 +425,74 @@ export default function AppSupervisor() {
 
 ## Fluxo Visual
 
+### Desktop
+
 ```text
-┌─────────────────────────────────────────┐
-│  🏢 Supervisor - Evento XYZ             │
-├─────────────────────────────────────────┤
-│                                         │
-│  ┌─────────────────────────────────┐   │
-│  │ [Motoristas] │ [Veículos]       │   │  ← Sub-tabs
-│  └─────────────────────────────────┘   │
-│                                         │
-│  ┌─────────────────────────────────┐   │
-│  │ 🟢 Disponíveis: 8               │   │
-│  │ 🔵 Em Viagem: 3                 │   │
-│  │ ⚠️ Sem Veículo: 2               │   │
-│  └─────────────────────────────────┘   │
-│                                         │
-│  ┌─ Card Motorista ─────────────────┐   │
-│  │ 👤 João Silva                    │   │
-│  │ 🚗 Van ABC-1234                  │   │
-│  │ 📍 Sheraton                      │   │
-│  │ ← [Localização] [Veículo] →      │   │  ← Swipe actions
-│  └───────────────────────────────────┘   │
-│                                         │
-├─────────────────────────────────────────┤
-│  [🚗]   [🚌]   [➕]   [📍]   [⚙️]      │  ← Bottom Nav
-│  Frota Viagens Nova  Local  Mais       │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  🏢 AS Brasil  │  Rio Open 2026  │  [Dashboard]  [Local]  [Painel] │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌──────────────────┐  ┌──────────────────┐                    │
+│   │ Total PAX Dia    │  │ Viagens Realizadas│                    │
+│   │      1,234       │  │        56         │                    │
+│   └──────────────────┘  └──────────────────┘                    │
+│                                                                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │                 Gráfico PAX por Hora                     │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │              Desempenho por Rota                         │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Mobile
+
+```text
+┌─────────────────────────────┐
+│  Rio Open 2026    [⚙️]      │
+├─────────────────────────────┤
+│                             │
+│  ┌─────────┐ ┌─────────┐   │
+│  │PAX Dia  │ │Viagens  │   │
+│  │  1,234  │ │   56    │   │
+│  └─────────┘ └─────────┘   │
+│                             │
+│  ┌─────────┐ ┌─────────┐   │
+│  │Trânsito │ │Tempo Méd│   │
+│  │    8    │ │  45min  │   │
+│  └─────────┘ └─────────┘   │
+│                             │
+│  ┌───────────────────────┐ │
+│  │ [Gráfico PAX/Hora]    │ │
+│  └───────────────────────┘ │
+│                             │
+├─────────────────────────────┤
+│  [📊]      [📍]     [🕐]   │
+│ Dashboard  Local   Painel  │
+└─────────────────────────────┘
 ```
 
 ---
 
 ## Resultado Esperado
 
-Após implementação:
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| ✅ Dashboard Estratégico | Métricas de público sem alertas operacionais |
+| ✅ Localizador Condicional | Visível se `habilitar_localizador = true` |
+| ✅ Painel Condicional | Visível se `visivel_publico = true` |
+| ✅ Desktop com Header | Abas fixas no topo |
+| ✅ Mobile com Bottom Nav | Navegação inferior |
+| ✅ Sem impacto nas roles existentes | Sistema atual preservado |
 
-| Prioridade | Funcionalidade | Status |
-|------------|----------------|--------|
-| 🥇 Alta | Gestão de Motoristas (Tab Frota) | Nova |
-| 🥇 Alta | Gestão de Veículos (Tab Frota) | Expandida |
-| 🥈 Média | Viagens com Edição | Nova |
-| 🥈 Média | Localizador de Motoristas | Nova |
-| 🥉 Baixa | Ver Operadores | Nova (em "Mais") |
-| 🥉 Baixa | Auditoria/Histórico | Nova (em "Mais") |
+---
 
-**Diferencial do Supervisor:**
-1. ✅ Tab inicial é **Frota** (motoristas + veículos)
-2. ✅ Pode **editar viagens** em campo
-3. ✅ Pode **editar localização** de motoristas
-4. ✅ Pode **vincular veículos** a motoristas
-5. ✅ Pode **re-vistoriar** veículos
-6. ✅ Acesso a **operadores** do evento
+## Próximos Passos (Pós-Implementação)
+
+1. Criar usuários de teste com role 'cliente'
+2. Vincular ao evento via `evento_usuarios`
+3. Testar visibilidade condicional das tabs
+4. Validar responsividade desktop/mobile
