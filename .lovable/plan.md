@@ -1,78 +1,185 @@
 
-# Plano: Correção de Erros Críticos no Sistema
+# Plano: Análise Completa do Sistema e Teste de Fluxo de Missões
 
-## Problemas Identificados
+## Resumo Executivo
 
-### Problema 1: Localização incorreta ao finalizar Missão/Viagem
+Realizei uma auditoria completa do sistema analisando banco de dados, código, hooks, componentes e fluxos operacionais. Abaixo apresento os resultados organizados nas três áreas solicitadas.
 
-**Causa Raiz Identificada:**
-No arquivo `src/pages/app/AppMotorista.tsx`, a função `handleMissaoAction` quando `action === 'finalizar'` (linhas 193-235):
-1. Finaliza a viagem **sem** atualizar a `ultima_localizacao` do motorista
-2. Usa `new Date()` local ao invés do horário sincronizado do servidor
+---
 
-O código atual apenas:
-- Atualiza o status da viagem para "encerrado"
-- Verifica se há outras viagens ativas
-- Atualiza status do motorista para "disponivel"
+## 1. Teste do Fluxo Completo de Missão
 
-**Mas NÃO atualiza** a `ultima_localizacao` do motorista para o `ponto_desembarque` da missão.
+### Estado Atual das Missões
 
-```text
-FLUXO ATUAL (INCORRETO):
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ Finalizar   │ --> │ Viagem =    │ --> │ Motorista = │
-│ Missão      │     │ encerrado   │     │ disponivel  │
-└─────────────┘     └─────────────┘     └─────────────┘
-                                              ↓
-                                        ultima_localizacao
-                                        NÃO ATUALIZADA!
-                                        (continua como "Base")
+| Status | Quantidade | Observação |
+|--------|------------|------------|
+| Pendente | 2 | Aguardando aceite |
+| Aceita | 2 | Aguardando início |
+| Em Andamento | 0 | Nenhuma em execução |
 
-FLUXO CORRETO (A IMPLEMENTAR):
-┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
-│ Finalizar   │ --> │ Viagem =    │ --> │ Motorista =     │
-│ Missão      │     │ encerrado   │     │ disponivel +    │
-└─────────────┘     └─────────────┘     │ ultima_loc =    │
-                                        │ ponto_desembarque│
-                                        └─────────────────┘
+**Missões Pendentes Identificadas:**
+- "Teste" para Carina: SDU → Sheraton
+- "Teste" para Claudio: Jockey → Sheraton
+
+### Verificação do Código de Fluxo
+
+O código em `AppMotorista.tsx` (linhas 195-252) foi corrigido e agora:
+- Usa `getAgoraSync()` para timestamps sincronizados
+- Atualiza `ultima_localizacao` para `ponto_desembarque` ao finalizar
+- Registra `finalizado_por` na viagem
+
+### Viagem Travada Identificada
+
+**PROBLEMA ENCONTRADO:** Uma viagem está travada em "em_andamento" sem finalização:
+- **ID:** a3915e71-20f6-4dec-84f5-70f0235a03ac
+- **Motorista:** Teste
+- **Rota:** Hilton Barra → SDU
+- **Iniciada:** 26/01/2026 11:53
+- **Status:** em_andamento (não encerrada)
+
+Esta viagem precisa ser encerrada manualmente ou automaticamente via script de limpeza.
+
+### Verificação de Localização no Painel
+
+Drivers com localização atualizada corretamente:
+- **Elaine:** Sheraton (após missão finalizada às 20:38)
+- **Briefing Manhã:** Sheraton (após missão às 15:46)
+
+Drivers sem localização (nunca finalizaram viagem ou são novos):
+- Antonio, Bira, Carlos, Daniel, Edson, etc. (17 motoristas)
+
+---
+
+## 2. Inconsistências Encontradas
+
+### 2.1 Dados Operacionais
+
+| Categoria | Status | Detalhes |
+|-----------|--------|----------|
+| Viagens sem motorista_id | ⚠️ | ~260 viagens legadas (Google Sheets) sem FK |
+| Motoristas sem localização | ✅ Esperado | 17 motoristas nunca finalizaram viagem |
+| Missões órfãs | ✅ OK | Nenhuma encontrada |
+| Motoristas duplicados | ✅ OK | Nenhum duplicado |
+
+### 2.2 Roles e Permissões
+
+**Estrutura de Roles:**
+```
+user_roles (global):
+├── admin (4 usuários): Antonio, Nicolas, Douglas, Admin-AS
+└── user (12 usuários): operadores e motoristas
+
+profiles.user_type:
+├── admin (4)
+├── operador (11)
+└── motorista (1 - Tatiana)
+
+evento_usuarios (por evento):
+└── role: motorista (11 registros)
 ```
 
+**INCONSISTÊNCIA IDENTIFICADA:**
+- Tatiana Suzarte tem `user_roles.role = 'admin'` mas `profiles.user_type = 'motorista'`
+- Isso pode causar confusão na UI, embora funcionalmente ela tenha acesso admin
+
+### 2.3 Credenciais de Motoristas
+
+| Motorista | Telefone | Último Login |
+|-----------|----------|--------------|
+| Paulo Leandro | 21964178097 | Nunca |
+| Elaine | 21983501606 | Nunca |
+| Claudio | 21998407166 | Nunca |
+| Carlos Henrique | 21990561952 | Nunca |
+| Carina | 21966452933 | Nunca |
+
+**OBSERVAÇÃO:** Nenhum motorista fez login pelo app ainda (todos com `ultimo_login = null`), apesar de terem credenciais criadas.
+
+### 2.4 Pontos de Embarque
+
+| Evento | Ponto Base | Outros Pontos |
+|--------|------------|---------------|
+| Rio Open - Briefing | Jockey ✅ | SDU, Sheraton |
+| CCXP 2025 - teste | Nenhum ❌ | Hilton Barra, SDU |
+
+**PROBLEMA:** Evento "CCXP 2025 - teste" não tem base configurada.
+
+### 2.5 Check-ins de Presença
+
+5 motoristas com check-in registrado, todos sem checkout:
+- Elaine, Paulo Leandro, Briefing Manhã, Teste, Nicolas
+
+Isso indica que a funcionalidade de checkout não está sendo usada ou há problema de UI.
+
 ---
 
-### Problema 2: Sincronização de Horário com São Paulo
+## 3. Arquivos/Código/Tabelas Mortas
 
-**Causa Raiz Identificada:**
-Em vários pontos do código, `new Date()` é usado diretamente ao invés de `getAgoraSync()`:
+### 3.1 Hook Não Utilizado
 
-| Arquivo | Linha | Código Problemático |
-|---------|-------|---------------------|
-| `AppMotorista.tsx` | 144 | `const now = new Date()` (iniciar missão) |
-| `AppMotorista.tsx` | 204 | `const now = new Date()` (finalizar missão) |
-| `Motoristas.tsx` | 287 | `new Date().toISOString()` (atualizar localização) |
+| Arquivo | Status | Ação Recomendada |
+|---------|--------|------------------|
+| `src/hooks/useSwipeGesture.ts` | ⚠️ MORTO | Nenhum import encontrado. Pode ser removido. |
 
-O hook `useServerTime` já existe e funciona corretamente:
-- A função RPC `get_server_time()` retorna `NOW() AT TIME ZONE 'America/Sao_Paulo'`
-- O hook calcula o offset entre o cliente e o servidor
-- `getAgoraSync()` retorna a hora correta compensada
+### 3.2 Tabela com Dados Vazios
 
-**Problema:** O código usa `new Date()` diretamente em vez de `getAgoraSync()`.
+| Tabela | Registros | Observação |
+|--------|-----------|------------|
+| `ponto_motoristas` | 0 | Feature de motorista preferencial por ponto não usada |
+| `veiculo_vistoria_historico` | 0 | Nenhuma vistoria realizada ainda |
+| `rotas_shuttle` | 2 | Rotas cadastradas mas sem uso aparente |
+
+### 3.3 Código Potencialmente Redundante
+
+| Arquivo | Observação |
+|---------|------------|
+| `useLocalizadorVeiculos.ts` | Usado apenas em 1 componente (LocalizadorVeiculoCard.tsx) |
+| `useEventosMissoes.ts` | Hook específico, verificar se ainda necessário |
+
+### 3.4 Viagens Legadas sem Foreign Keys
+
+260+ viagens importadas do Google Sheets sem `motorista_id`:
+- Motoristas: Nathan Queiroz, Assis, Mineiro, Eduardo, Odilon, etc.
+- Essas viagens não podem ser rastreadas no sistema moderno
+
+### 3.5 Cache/Estado
+
+O sistema NÃO utiliza caches persistentes problemáticos:
+- React Query gerencia cache de dados
+- Supabase Realtime atualiza em tempo real
+- Não há localStorage/sessionStorage para dados críticos
 
 ---
 
-### Problema 3: Motorista não consegue criar corrida
+## Plano de Correções
 
-**Análise:**
-Após revisar o código, o `CreateViagemMotoristaForm.tsx` está correto:
-- Usa `useDriverAuth()` para obter `driverSession`
-- Define `iniciado_por` e `criado_por` com `driverSession?.motorista_id`
-- As políticas RLS permitem INSERT com `WITH CHECK (true)`
+### Correções Imediatas (Alta Prioridade)
 
-**Possíveis causas adicionais:**
-1. O motorista pode não ter veículo vinculado (não é obrigatório)
-2. Pode haver erro de validação no frontend antes de submeter
-3. A sessão do motorista pode estar expirada
+1. **Encerrar viagem travada**
+   - Executar UPDATE na viagem `a3915e71-...` para status='encerrado', encerrado=true
 
-Vou adicionar logs de diagnóstico e melhorar o tratamento de erros.
+2. **Remover hook morto**
+   - Deletar `src/hooks/useSwipeGesture.ts`
+
+3. **Corrigir inconsistência de role**
+   - Atualizar `profiles.user_type` de Tatiana para 'admin'
+
+### Correções de Médio Prazo
+
+4. **Configurar Base no CCXP**
+   - Definir um ponto como `eh_base = true` para o evento CCXP 2025
+
+5. **Limpar viagens legadas** (opcional)
+   - Considerar migrar ou arquivar viagens sem `motorista_id`
+
+### Verificações de Teste de Fluxo
+
+Para testar o fluxo completo de missão:
+
+1. **Designar**: Criar nova missão via CCO para motorista com credenciais
+2. **Aceitar**: Motorista loga no app e aceita a missão (swipe direita)
+3. **Iniciar**: Motorista inicia a missão (cria viagem automaticamente)
+4. **Finalizar**: Motorista registra chegada
+5. **Verificar**: Confirmar no Painel Localizador que motorista aparece no ponto de destino
 
 ---
 
@@ -80,208 +187,54 @@ Vou adicionar logs de diagnóstico e melhorar o tratamento de erros.
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Corrigir `handleMissaoAction` para atualizar localização e usar horário sincronizado |
-| `src/pages/Motoristas.tsx` | MODIFICAR | Substituir `new Date()` por `getAgoraSync()` |
-| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Adicionar logs de diagnóstico e melhorar feedback de erro |
-
----
-
-## Detalhes da Implementação
-
-### 1. Correção do `handleMissaoAction` em `AppMotorista.tsx`
-
-**Mudanças necessárias:**
-
-1. Importar `useServerTime` e usar `getAgoraSync()`
-2. Ao finalizar missão, atualizar `ultima_localizacao` do motorista
-
-```typescript
-// ANTES (linhas 193-235):
-} else if (action === 'finalizar') {
-  const motorista = motoristas.find(m => m.id === missao.motorista_id);
-  if (!motorista) { return; }
-  
-  const viagemId = missao.viagem_id;
-  if (viagemId) {
-    const now = new Date(); // ❌ Usa hora local
-    const horaChegada = now.toTimeString().slice(0, 8);
-    
-    await supabase.from('viagens').update({
-      status: 'encerrado',
-      h_chegada: horaChegada,
-      h_fim_real: now.toISOString(),
-      encerrado: true,
-    }).eq('id', viagemId);
-  }
-  
-  // Verificar outras viagens e atualizar status
-  // ❌ NÃO ATUALIZA ultima_localizacao!
-}
-
-// DEPOIS:
-} else if (action === 'finalizar') {
-  const motorista = motoristas.find(m => m.id === missao.motorista_id);
-  if (!motorista) { return; }
-  
-  const viagemId = missao.viagem_id;
-  const now = getAgoraSync(); // ✅ Usa hora sincronizada
-  const horaChegada = now.toTimeString().slice(0, 8);
-  
-  if (viagemId) {
-    await supabase.from('viagens').update({
-      status: 'encerrado',
-      h_chegada: horaChegada,
-      h_fim_real: now.toISOString(),
-      encerrado: true,
-      finalizado_por: driverSession?.motorista_id || null,
-    }).eq('id', viagemId);
-  }
-  
-  // Verificar outras viagens
-  const { data: outrasViagens } = await supabase
-    .from('viagens').select('id')
-    .eq('motorista_id', motorista.id)
-    .eq('evento_id', eventoId)
-    .eq('encerrado', false);
-  
-  if (!outrasViagens || outrasViagens.length === 0) {
-    await supabase.from('motoristas').update({ 
-      status: 'disponivel' 
-    }).eq('id', missao.motorista_id);
-  }
-  
-  // ✅ ATUALIZAR LOCALIZAÇÃO PARA O PONTO DE DESEMBARQUE
-  if (missao.ponto_desembarque) {
-    await supabase.from('motoristas').update({
-      ultima_localizacao: missao.ponto_desembarque,
-      ultima_localizacao_at: now.toISOString()
-    }).eq('id', missao.motorista_id);
-  }
-  
-  await updateMissao(missaoId, { status: 'concluida' });
-}
-```
-
-### 2. Correção ao Iniciar Missão
-
-Também precisamos usar hora sincronizada ao iniciar a missão (linha 144):
-
-```typescript
-// ANTES:
-const now = new Date();
-
-// DEPOIS:
-const now = getAgoraSync();
-```
-
-### 3. Correção no `Motoristas.tsx`
-
-```typescript
-// ANTES (linha 287):
-ultima_localizacao_at: new Date().toISOString(),
-
-// DEPOIS:
-const { getAgoraSync } = useServerTime();
-// ...
-ultima_localizacao_at: getAgoraSync().toISOString(),
-```
-
-### 4. Melhoria no `CreateViagemMotoristaForm.tsx`
-
-Adicionar melhor feedback de erro:
-
-```typescript
-// Adicionar no handleSubmit:
-console.log('[CreateViagemMotoristaForm] Tentando criar viagem:', {
-  eventoId,
-  motoristaId: driverSession?.motorista_id,
-  pontoEmbarque,
-  pontoDesembarque,
-  tipoOperacao
-});
-
-// Melhorar tratamento de erro:
-if (error) {
-  console.error('[CreateViagemMotoristaForm] Erro detalhado:', error);
-  toast.error(`Erro ao criar viagem: ${error.message}`);
-  return;
-}
-```
+| `src/hooks/useSwipeGesture.ts` | DELETAR | Hook não utilizado |
+| Migration SQL | CRIAR | Encerrar viagem travada e corrigir profile |
 
 ---
 
 ## Seção Técnica
 
-### Verificação da Sincronização de Tempo
-
-O sistema já possui a infraestrutura correta:
+### SQL para Correções Imediatas
 
 ```sql
--- Função no banco (já existe)
-CREATE OR REPLACE FUNCTION public.get_server_time()
-RETURNS timestamp with time zone
-LANGUAGE sql STABLE SECURITY DEFINER
-AS $function$
-  SELECT NOW() AT TIME ZONE 'America/Sao_Paulo';
-$function$
+-- 1. Encerrar viagem travada
+UPDATE viagens
+SET status = 'encerrado',
+    encerrado = true,
+    h_chegada = '15:00:00',
+    h_fim_real = NOW()
+WHERE id = 'a3915e71-20f6-4dec-84f5-70f0235a03ac';
+
+-- 2. Corrigir motorista "Teste" - atualizar localização
+UPDATE motoristas
+SET status = 'disponivel',
+    ultima_localizacao = 'SDU',
+    ultima_localizacao_at = NOW()
+WHERE id = '96cee90d-5b1d-4179-8c5e-6f1d9c3fb9c8';
+
+-- 3. Corrigir inconsistência de profile (Tatiana)
+UPDATE profiles
+SET user_type = 'admin'
+WHERE user_id = (SELECT user_id FROM profiles WHERE full_name = 'Tatiana Suzarte');
+
+-- 4. Definir base para CCXP (escolher Hilton Barra como exemplo)
+UPDATE pontos_embarque
+SET eh_base = true
+WHERE evento_id = '4a674005-5b4a-46c9-b010-12f867296602'
+  AND nome = 'Hilton Barra';
 ```
 
-```typescript
-// Hook useServerTime (já existe)
-const getAgoraSync = useCallback(() => {
-  return new Date(Date.now() + offset);
-}, [offset]);
+### Verificação de Integridade
+
+```sql
+-- Verificar motoristas que deveriam ter localização
+SELECT m.nome, m.ultima_localizacao, 
+       (SELECT ponto_desembarque FROM viagens 
+        WHERE motorista_id = m.id AND encerrado = true 
+        ORDER BY h_fim_real DESC NULLS LAST LIMIT 1) as deveria_estar
+FROM motoristas m
+WHERE m.ativo = true;
 ```
-
-O problema é que alguns componentes não estão usando este hook.
-
-### Fluxo de Atualização de Localização
-
-Ao finalizar qualquer viagem (via missão ou diretamente), a localização deve ser atualizada:
-
-```text
-1. Motorista finaliza viagem/missão
-2. Sistema verifica ponto_desembarque da viagem/missão
-3. Sistema atualiza motoristas.ultima_localizacao = ponto_desembarque
-4. Sistema atualiza motoristas.ultima_localizacao_at = timestamp sincronizado
-5. Painel Localizador exibe motorista na coluna correta
-```
-
-### Garantia de Consistência
-
-Para evitar problemas futuros, todas as operações de tempo devem passar por `getAgoraSync()`:
-
-| Operação | Fonte de Tempo |
-|----------|---------------|
-| Iniciar viagem | `getAgoraSync()` |
-| Registrar chegada | `getAgoraSync()` |
-| Finalizar missão | `getAgoraSync()` |
-| Check-in | `getAgoraSync()` |
-| Check-out | `getAgoraSync()` |
-| Atualizar localização | `getAgoraSync()` |
-
----
-
-## Ordem de Implementação
-
-1. Modificar `AppMotorista.tsx`:
-   - Adicionar import de `useServerTime`
-   - Substituir `new Date()` por `getAgoraSync()` em todo o componente
-   - Adicionar atualização de `ultima_localizacao` na finalização de missão
-
-2. Modificar `Motoristas.tsx`:
-   - Adicionar import de `useServerTime`
-   - Substituir `new Date().toISOString()` por `getAgoraSync().toISOString()`
-
-3. Modificar `CreateViagemMotoristaForm.tsx`:
-   - Adicionar logs de diagnóstico
-   - Melhorar mensagens de erro
-
-4. Testar fluxos completos:
-   - Criar viagem como motorista
-   - Iniciar e finalizar viagem
-   - Iniciar e finalizar missão
-   - Verificar localização no Painel Localizador
 
 ---
 
@@ -289,8 +242,9 @@ Para evitar problemas futuros, todas as operações de tempo devem passar por `g
 
 Após as correções:
 
-1. **Localização correta**: Ao finalizar uma missão que vai do "Jockey" ao "Sheraton", o motorista aparecerá no Painel Localizador na coluna "Sheraton", não na "Base".
-
-2. **Horário sincronizado**: Todos os timestamps serão baseados no fuso horário de Brasília/São Paulo, independente do dispositivo do usuário.
-
-3. **Criação de viagens funcional**: O motorista conseguirá criar viagens de todos os tipos (Transfer, Shuttle, Missão) com feedback claro de erros se houver problemas.
+1. ✅ Viagem travada será encerrada
+2. ✅ Motorista "Teste" terá localização correta (SDU)
+3. ✅ Hook morto será removido do codebase
+4. ✅ Profile de Tatiana terá user_type consistente
+5. ✅ CCXP terá ponto base configurado
+6. ✅ Fluxo de missões funcionará corretamente com atualização de localização
