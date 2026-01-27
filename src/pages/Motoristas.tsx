@@ -37,6 +37,7 @@ import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
 import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
+import { useServerTime } from '@/hooks/useServerTime';
 import { useAuth } from '@/lib/auth/AuthContext';
 
 const sections: InnerSidebarSection[] = [
@@ -277,6 +278,7 @@ export default function Motoristas() {
   const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
   
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
 
   // Handler para atualizar localização manualmente
   const handleUpdateLocalizacao = async (motoristaId: string, novaLocalizacao: string) => {
@@ -284,7 +286,7 @@ export default function Motoristas() {
       .from('motoristas')
       .update({ 
         ultima_localizacao: novaLocalizacao,
-        ultima_localizacao_at: new Date().toISOString(),
+        ultima_localizacao_at: getAgoraSync().toISOString(), // ✅ Usa hora sincronizada
         atualizado_por: user?.id || null
       })
       .eq('id', motoristaId);
