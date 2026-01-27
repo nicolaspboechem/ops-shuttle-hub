@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck, ShieldCheck } from 'lucide-react';
+import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck, ShieldCheck, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
@@ -21,7 +21,7 @@ export default function AppHome() {
   const [eventos, setEventos] = useState<EventoWithCount[]>([]);
   const [selectedEvento, setSelectedEvento] = useState<EventoWithCount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'motorista' | 'operador' | 'supervisor' | null>(null);
+  const [userRole, setUserRole] = useState<'motorista' | 'operador' | 'supervisor' | 'cliente' | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -62,7 +62,7 @@ export default function AppHome() {
       }
 
       // Determine user's primary role
-      const primaryRole = linkedEvents[0].role as 'motorista' | 'operador' | 'supervisor';
+      const primaryRole = linkedEvents[0].role as 'motorista' | 'operador' | 'supervisor' | 'cliente';
       setUserRole(primaryRole);
 
       const eventIds = linkedEvents.map(e => e.evento_id);
@@ -92,6 +92,9 @@ export default function AppHome() {
           return;
         } else if (role === 'supervisor') {
           navigate(`/app/${evento.id}/supervisor`);
+          return;
+        } else if (role === 'cliente') {
+          navigate(`/app/${evento.id}/cliente`);
           return;
         }
       }
@@ -141,6 +144,8 @@ export default function AppHome() {
       navigate(`/app/${evento.id}/motorista`);
     } else if (role === 'supervisor') {
       navigate(`/app/${evento.id}/supervisor`);
+    } else if (role === 'cliente') {
+      navigate(`/app/${evento.id}/cliente`);
     }
   };
 
@@ -166,6 +171,12 @@ export default function AppHome() {
     }
   };
 
+  const handleCliente = () => {
+    if (selectedEvento) {
+      navigate(`/app/${selectedEvento.id}/cliente`);
+    }
+  };
+
   const getDateRange = (evento: Evento) => {
     if (evento.data_inicio && evento.data_fim) {
       const start = new Date(evento.data_inicio + 'T12:00:00');
@@ -180,6 +191,7 @@ export default function AppHome() {
     if (userRole === 'operador') return 'Operador';
     if (userRole === 'motorista') return 'Motorista';
     if (userRole === 'supervisor') return 'Supervisor';
+    if (userRole === 'cliente') return 'Cliente';
     return null;
   };
 
@@ -472,6 +484,24 @@ export default function AppHome() {
                     <h4 className="font-semibold">Supervisor</h4>
                     <p className="text-sm text-muted-foreground">
                       Vistoria e gestão de veículos
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="cursor-pointer hover:border-cyan-500/50 hover:shadow-md transition-all"
+                onClick={handleCliente}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center">
+                    <BarChart3 className="h-6 w-6 text-cyan-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold">Cliente</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Dashboard estratégico
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />

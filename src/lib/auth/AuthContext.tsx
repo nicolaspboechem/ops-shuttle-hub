@@ -3,7 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
-type EventRole = 'motorista' | 'operador' | 'supervisor';
+type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
 
 interface UserProfile {
   id: string;
