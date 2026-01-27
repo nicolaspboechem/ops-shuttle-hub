@@ -29,6 +29,7 @@ import Auditoria from "./pages/Auditoria";
 import AppHome from "./pages/app/AppHome";
 
 import AppMotorista from "./pages/app/AppMotorista";
+import AppCliente from "./pages/app/AppCliente";
 import AppOperador from "./pages/app/AppOperador";
 import AppSupervisor from "./pages/app/AppSupervisor";
 import PainelPublico from "./pages/PainelPublico";
@@ -76,6 +77,11 @@ const App = () => (
             <Route path="/app/:eventoId/supervisor" element={
               <EventRoleRoute allowedRoles={['supervisor', 'operador']}>
                 <AppSupervisor />
+              </EventRoleRoute>
+            } />
+            <Route path="/app/:eventoId/cliente" element={
+              <EventRoleRoute allowedRoles={['cliente']}>
+                <AppCliente />
               </EventRoleRoute>
             } />
             
