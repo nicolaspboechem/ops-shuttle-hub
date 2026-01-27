@@ -1,54 +1,78 @@
 
-# Plano: Correção de Erros em Viagens de Motorista e Funcionalidade de "Base"
+# Plano: Correção de Erros Críticos no Sistema
 
 ## Problemas Identificados
 
-### Problema 1: Erro ao Finalizar Viagem Iniciada pelo App do Motorista
+### Problema 1: Localização incorreta ao finalizar Missão/Viagem
 
-**Causa raiz**: O formulário `CreateViagemMotoristaForm.tsx` usa `useAuth()` (linha 59) para obter o `user.id` e definir `iniciado_por`. Porém, motoristas usam autenticação customizada (`useDriverAuth()`), então `user` é **null**.
+**Causa Raiz Identificada:**
+No arquivo `src/pages/app/AppMotorista.tsx`, a função `handleMissaoAction` quando `action === 'finalizar'` (linhas 193-235):
+1. Finaliza a viagem **sem** atualizar a `ultima_localizacao` do motorista
+2. Usa `new Date()` local ao invés do horário sincronizado do servidor
 
-**Trecho problemático (linha 143)**:
-```typescript
-iniciado_por: user?.id  // user é null para motoristas!
+O código atual apenas:
+- Atualiza o status da viagem para "encerrado"
+- Verifica se há outras viagens ativas
+- Atualiza status do motorista para "disponivel"
+
+**Mas NÃO atualiza** a `ultima_localizacao` do motorista para o `ponto_desembarque` da missão.
+
+```text
+FLUXO ATUAL (INCORRETO):
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Finalizar   │ --> │ Viagem =    │ --> │ Motorista = │
+│ Missão      │     │ encerrado   │     │ disponivel  │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                              ↓
+                                        ultima_localizacao
+                                        NÃO ATUALIZADA!
+                                        (continua como "Base")
+
+FLUXO CORRETO (A IMPLEMENTAR):
+┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+│ Finalizar   │ --> │ Viagem =    │ --> │ Motorista =     │
+│ Missão      │     │ encerrado   │     │ disponivel +    │
+└─────────────┘     └─────────────┘     │ ultima_loc =    │
+                                        │ ponto_desembarque│
+                                        └─────────────────┘
 ```
-
-Quando a viagem é criada com `iniciado_por: null`, o hook `useViagemOperacaoMotorista` funciona para iniciar e registrar chegada, mas pode haver problemas de log ou validações inconsistentes.
 
 ---
 
-### Problema 2: Localização do Motorista Incorreta ao Encerrar Viagem
+### Problema 2: Sincronização de Horário com São Paulo
 
-**Observação**: Ao analisar o código, verifiquei que o hook `useViagemOperacaoMotorista.ts` **já está correto**:
+**Causa Raiz Identificada:**
+Em vários pontos do código, `new Date()` é usado diretamente ao invés de `getAgoraSync()`:
 
-```typescript
-// Linhas 185-192 do useViagemOperacaoMotorista.ts
-// Atualizar localização do motorista para o ponto de desembarque
-if (viagem.ponto_desembarque) {
-  await atualizarLocalizacaoMotorista(
-    driverSession.motorista_id, 
-    viagem.ponto_desembarque,  // ← Atualiza para o destino, não para base
-    now.toISOString()
-  );
-}
-```
+| Arquivo | Linha | Código Problemático |
+|---------|-------|---------------------|
+| `AppMotorista.tsx` | 144 | `const now = new Date()` (iniciar missão) |
+| `AppMotorista.tsx` | 204 | `const now = new Date()` (finalizar missão) |
+| `Motoristas.tsx` | 287 | `new Date().toISOString()` (atualizar localização) |
 
-**Possível causa**: O problema pode estar em outro lugar:
-1. O `ponto_desembarque` pode estar vindo como `null` em viagens criadas manualmente
-2. A lógica de check-in define `ultima_localizacao` como 'Base' e sobrescreve
+O hook `useServerTime` já existe e funciona corretamente:
+- A função RPC `get_server_time()` retorna `NOW() AT TIME ZONE 'America/Sao_Paulo'`
+- O hook calcula o offset entre o cliente e o servidor
+- `getAgoraSync()` retorna a hora correta compensada
 
-Vou verificar e corrigir o formulário de criação para garantir que o `ponto_desembarque` seja sempre preenchido corretamente com o nome do ponto selecionado.
+**Problema:** O código usa `new Date()` diretamente em vez de `getAgoraSync()`.
 
 ---
 
-### Problema 3: Badge de "Base" nos Pontos de Embarque
+### Problema 3: Motorista não consegue criar corrida
 
-**Requisito**: Permitir marcar UM ponto de embarque como "Base" por evento, com indicação visual.
+**Análise:**
+Após revisar o código, o `CreateViagemMotoristaForm.tsx` está correto:
+- Usa `useDriverAuth()` para obter `driverSession`
+- Define `iniciado_por` e `criado_por` com `driverSession?.motorista_id`
+- As políticas RLS permitem INSERT com `WITH CHECK (true)`
 
-**Solução**:
-1. Adicionar coluna `eh_base` (boolean) na tabela `pontos_embarque`
-2. Adicionar badge visual na lista de pontos
-3. Adicionar switch/toggle no modal de edição
-4. Garantir que apenas um ponto seja "base" por evento (desmarcar outros ao marcar novo)
+**Possíveis causas adicionais:**
+1. O motorista pode não ter veículo vinculado (não é obrigatório)
+2. Pode haver erro de validação no frontend antes de submeter
+3. A sessão do motorista pode estar expirada
+
+Vou adicionar logs de diagnóstico e melhorar o tratamento de erros.
 
 ---
 
@@ -56,180 +80,217 @@ Vou verificar e corrigir o formulário de criação para garantir que o `ponto_d
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Usar `driverSession` ao invés de `user` para registro de auditoria |
-| `src/hooks/usePontosEmbarque.ts` | MODIFICAR | Adicionar campo `eh_base` na interface e função `setBase` |
-| `src/components/rotas/PontoEmbarqueModal.tsx` | MODIFICAR | Adicionar toggle para marcar como base |
-| `src/pages/RotasShuttle.tsx` | MODIFICAR | Exibir badge "Base" na lista de pontos |
-
----
-
-## Migração de Banco de Dados
-
-Adicionar coluna `eh_base` na tabela `pontos_embarque`:
-
-```sql
-ALTER TABLE pontos_embarque 
-ADD COLUMN eh_base BOOLEAN DEFAULT false;
-
--- Índice para garantir performance na busca por base
-CREATE INDEX idx_pontos_embarque_base 
-ON pontos_embarque(evento_id, eh_base) 
-WHERE eh_base = true;
-```
+| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Corrigir `handleMissaoAction` para atualizar localização e usar horário sincronizado |
+| `src/pages/Motoristas.tsx` | MODIFICAR | Substituir `new Date()` por `getAgoraSync()` |
+| `src/components/app/CreateViagemMotoristaForm.tsx` | MODIFICAR | Adicionar logs de diagnóstico e melhorar feedback de erro |
 
 ---
 
 ## Detalhes da Implementação
 
-### 1. Correção do CreateViagemMotoristaForm
+### 1. Correção do `handleMissaoAction` em `AppMotorista.tsx`
+
+**Mudanças necessárias:**
+
+1. Importar `useServerTime` e usar `getAgoraSync()`
+2. Ao finalizar missão, atualizar `ultima_localizacao` do motorista
 
 ```typescript
-// ANTES (problemático)
-import { useAuth } from '@/lib/auth/AuthContext';
-const { user } = useAuth();
-
-// DEPOIS (corrigido)
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
-const { driverSession } = useDriverAuth();
-
-// Na criação da viagem:
-iniciado_por: driverSession?.motorista_id || null,
-criado_por: driverSession?.motorista_id || null,
-```
-
-### 2. Adicionar eh_base no Hook e Interface
-
-**usePontosEmbarque.ts**:
-```typescript
-export interface PontoEmbarque {
-  // ... campos existentes
-  eh_base: boolean;  // novo campo
+// ANTES (linhas 193-235):
+} else if (action === 'finalizar') {
+  const motorista = motoristas.find(m => m.id === missao.motorista_id);
+  if (!motorista) { return; }
+  
+  const viagemId = missao.viagem_id;
+  if (viagemId) {
+    const now = new Date(); // ❌ Usa hora local
+    const horaChegada = now.toTimeString().slice(0, 8);
+    
+    await supabase.from('viagens').update({
+      status: 'encerrado',
+      h_chegada: horaChegada,
+      h_fim_real: now.toISOString(),
+      encerrado: true,
+    }).eq('id', viagemId);
+  }
+  
+  // Verificar outras viagens e atualizar status
+  // ❌ NÃO ATUALIZA ultima_localizacao!
 }
 
-// Nova função para marcar como base
-const setBase = async (pontoId: string) => {
-  if (!eventoId) return;
+// DEPOIS:
+} else if (action === 'finalizar') {
+  const motorista = motoristas.find(m => m.id === missao.motorista_id);
+  if (!motorista) { return; }
   
-  // 1. Desmarcar todos os outros pontos do evento
-  await supabase
-    .from('pontos_embarque')
-    .update({ eh_base: false })
-    .eq('evento_id', eventoId);
+  const viagemId = missao.viagem_id;
+  const now = getAgoraSync(); // ✅ Usa hora sincronizada
+  const horaChegada = now.toTimeString().slice(0, 8);
   
-  // 2. Marcar o ponto selecionado
-  await supabase
-    .from('pontos_embarque')
-    .update({ eh_base: true })
-    .eq('id', pontoId);
+  if (viagemId) {
+    await supabase.from('viagens').update({
+      status: 'encerrado',
+      h_chegada: horaChegada,
+      h_fim_real: now.toISOString(),
+      encerrado: true,
+      finalizado_por: driverSession?.motorista_id || null,
+    }).eq('id', viagemId);
+  }
   
-  toast.success('Base definida');
-  fetchPontos();
-};
+  // Verificar outras viagens
+  const { data: outrasViagens } = await supabase
+    .from('viagens').select('id')
+    .eq('motorista_id', motorista.id)
+    .eq('evento_id', eventoId)
+    .eq('encerrado', false);
+  
+  if (!outrasViagens || outrasViagens.length === 0) {
+    await supabase.from('motoristas').update({ 
+      status: 'disponivel' 
+    }).eq('id', missao.motorista_id);
+  }
+  
+  // ✅ ATUALIZAR LOCALIZAÇÃO PARA O PONTO DE DESEMBARQUE
+  if (missao.ponto_desembarque) {
+    await supabase.from('motoristas').update({
+      ultima_localizacao: missao.ponto_desembarque,
+      ultima_localizacao_at: now.toISOString()
+    }).eq('id', missao.motorista_id);
+  }
+  
+  await updateMissao(missaoId, { status: 'concluida' });
+}
 ```
 
-### 3. Interface Visual na Lista de Pontos
+### 2. Correção ao Iniciar Missão
 
-**RotasShuttle.tsx** - Badge de base:
-```tsx
-<div className="flex items-center gap-2 mb-1">
-  <span className="font-medium">{ponto.nome}</span>
-  {ponto.eh_base && (
-    <Badge variant="default" className="text-xs bg-primary">
-      🏠 Base
-    </Badge>
-  )}
-  {!ponto.ativo && (
-    <Badge variant="secondary" className="text-xs">Inativo</Badge>
-  )}
-</div>
+Também precisamos usar hora sincronizada ao iniciar a missão (linha 144):
+
+```typescript
+// ANTES:
+const now = new Date();
+
+// DEPOIS:
+const now = getAgoraSync();
 ```
 
-### 4. Toggle no Modal de Edição
+### 3. Correção no `Motoristas.tsx`
 
-**PontoEmbarqueModal.tsx**:
-```tsx
-<div className="flex items-center justify-between">
-  <div className="space-y-0.5">
-    <Label htmlFor="ehBase">Marcar como Base</Label>
-    <p className="text-xs text-muted-foreground">
-      Define este ponto como local de base/retorno
-    </p>
-  </div>
-  <Switch
-    id="ehBase"
-    checked={ehBase}
-    onCheckedChange={setEhBase}
-  />
-</div>
+```typescript
+// ANTES (linha 287):
+ultima_localizacao_at: new Date().toISOString(),
+
+// DEPOIS:
+const { getAgoraSync } = useServerTime();
+// ...
+ultima_localizacao_at: getAgoraSync().toISOString(),
 ```
 
----
+### 4. Melhoria no `CreateViagemMotoristaForm.tsx`
 
-## Fluxo de Localização do Motorista (Verificação)
+Adicionar melhor feedback de erro:
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    FLUXO DE LOCALIZAÇÃO                                 │
-├───────────────┬─────────────────────────────────────────────────────────┤
-│ AÇÃO          │ LOCALIZAÇÃO APÓS                                        │
-├───────────────┼─────────────────────────────────────────────────────────┤
-│ Check-in      │ "Base" (definido no check-in)                           │
-│ Iniciar Trip  │ Mantém localização anterior                             │
-│ Encerrar Trip │ ponto_desembarque (destino da viagem)                   │
-│ Check-out     │ Mantém localização atual                                │
-└───────────────┴─────────────────────────────────────────────────────────┘
+```typescript
+// Adicionar no handleSubmit:
+console.log('[CreateViagemMotoristaForm] Tentando criar viagem:', {
+  eventoId,
+  motoristaId: driverSession?.motorista_id,
+  pontoEmbarque,
+  pontoDesembarque,
+  tipoOperacao
+});
+
+// Melhorar tratamento de erro:
+if (error) {
+  console.error('[CreateViagemMotoristaForm] Erro detalhado:', error);
+  toast.error(`Erro ao criar viagem: ${error.message}`);
+  return;
+}
 ```
-
-O código já está correto para definir localização como `ponto_desembarque`. Se não está funcionando, o problema pode ser que `viagem.ponto_desembarque` está vindo como `null`. Vou garantir que o formulário de criação manual sempre preencha esse campo.
-
----
-
-## Ordem de Implementação
-
-1. **Migração SQL**: Adicionar coluna `eh_base` na tabela
-2. **Atualizar tipos**: `PontoEmbarque` interface e `PontoEmbarqueInput`
-3. **Hook**: Adicionar função `setBase` e `pontoBase` getter
-4. **Modal**: Adicionar toggle para marcar como base
-5. **Lista**: Adicionar badge visual
-6. **Formulário motorista**: Corrigir uso de `driverSession` ao invés de `user`
 
 ---
 
 ## Seção Técnica
 
-### Garantia de Unicidade da Base
+### Verificação da Sincronização de Tempo
 
-Ao marcar um ponto como base, primeiro desmarcamos TODOS os outros pontos do mesmo evento:
+O sistema já possui a infraestrutura correta:
 
-```typescript
-// Transação lógica (não é ACID, mas funcional)
-await supabase
-  .from('pontos_embarque')
-  .update({ eh_base: false })
-  .eq('evento_id', eventoId)
-  .neq('id', pontoId);  // Excluir o ponto que será marcado
-
-await supabase
-  .from('pontos_embarque')
-  .update({ eh_base: true })
-  .eq('id', pontoId);
+```sql
+-- Função no banco (já existe)
+CREATE OR REPLACE FUNCTION public.get_server_time()
+RETURNS timestamp with time zone
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $function$
+  SELECT NOW() AT TIME ZONE 'America/Sao_Paulo';
+$function$
 ```
 
-### Uso da Base no Localizador
-
-O painel localizador pode usar o ponto marcado como base para exibir uma coluna especial ou filtrar motoristas que estão na base:
-
 ```typescript
-const pontoBase = pontos.find(p => p.eh_base);
+// Hook useServerTime (já existe)
+const getAgoraSync = useCallback(() => {
+  return new Date(Date.now() + offset);
+}, [offset]);
 ```
 
-### Correção do ponto_desembarque Vazio
+O problema é que alguns componentes não estão usando este hook.
 
-No formulário de criação, garantir que o campo seja sempre preenchido mesmo que o ponto seja digitado manualmente (não selecionado do cadastro):
+### Fluxo de Atualização de Localização
 
-```typescript
-ponto_desembarque: pontoDesembarque, // Sempre usa o texto selecionado/digitado
-ponto_desembarque_id: pontoDesembarqueData?.id || null, // ID pode ser null para texto livre
+Ao finalizar qualquer viagem (via missão ou diretamente), a localização deve ser atualizada:
+
+```text
+1. Motorista finaliza viagem/missão
+2. Sistema verifica ponto_desembarque da viagem/missão
+3. Sistema atualiza motoristas.ultima_localizacao = ponto_desembarque
+4. Sistema atualiza motoristas.ultima_localizacao_at = timestamp sincronizado
+5. Painel Localizador exibe motorista na coluna correta
 ```
 
-Isso já está correto no código atual (linhas 130-136). O problema pode ser na **recuperação** da viagem quando `registrarChegada` é chamado - a viagem pode não ter `ponto_desembarque` populado se veio de uma query antiga.
+### Garantia de Consistência
+
+Para evitar problemas futuros, todas as operações de tempo devem passar por `getAgoraSync()`:
+
+| Operação | Fonte de Tempo |
+|----------|---------------|
+| Iniciar viagem | `getAgoraSync()` |
+| Registrar chegada | `getAgoraSync()` |
+| Finalizar missão | `getAgoraSync()` |
+| Check-in | `getAgoraSync()` |
+| Check-out | `getAgoraSync()` |
+| Atualizar localização | `getAgoraSync()` |
+
+---
+
+## Ordem de Implementação
+
+1. Modificar `AppMotorista.tsx`:
+   - Adicionar import de `useServerTime`
+   - Substituir `new Date()` por `getAgoraSync()` em todo o componente
+   - Adicionar atualização de `ultima_localizacao` na finalização de missão
+
+2. Modificar `Motoristas.tsx`:
+   - Adicionar import de `useServerTime`
+   - Substituir `new Date().toISOString()` por `getAgoraSync().toISOString()`
+
+3. Modificar `CreateViagemMotoristaForm.tsx`:
+   - Adicionar logs de diagnóstico
+   - Melhorar mensagens de erro
+
+4. Testar fluxos completos:
+   - Criar viagem como motorista
+   - Iniciar e finalizar viagem
+   - Iniciar e finalizar missão
+   - Verificar localização no Painel Localizador
+
+---
+
+## Resultado Esperado
+
+Após as correções:
+
+1. **Localização correta**: Ao finalizar uma missão que vai do "Jockey" ao "Sheraton", o motorista aparecerá no Painel Localizador na coluna "Sheraton", não na "Base".
+
+2. **Horário sincronizado**: Todos os timestamps serão baseados no fuso horário de Brasília/São Paulo, independente do dispositivo do usuário.
+
+3. **Criação de viagens funcional**: O motorista conseguirá criar viagens de todos os tipos (Transfer, Shuttle, Missão) com feedback claro de erros se houver problemas.
