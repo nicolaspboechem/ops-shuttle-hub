@@ -1,315 +1,353 @@
 
-# Plano: Redesign do App Operador com Barra Inferior e UX Aprimorada
+# Plano: Redesign do App Supervisor - Foco em Motoristas e Veículos
 
 ## Resumo Executivo
 
-O App Operador (`/app/:eventoId/operador`) atualmente é funcional mas possui UX inferior comparado ao App Motorista. Este plano foca em:
-
-1. **Autenticação unificada** - Operador já usa Supabase Auth (mesmo login do Admin) ✅
-2. **Funcionalidades existentes** - Iniciar, finalizar, marcar retorno de shuttles ✅
-3. **Melhoria visual** - Adicionar barra inferior com ações rápidas (como o Motorista)
-4. **Consistência de UI** - Padronizar header, layout e feedback
+O App Supervisor será a **interface master de campo** com foco primário em **Motoristas** e **Veículos**, mantendo acesso secundário a operadores e viagens. A navegação será organizada por prioridade operacional.
 
 ---
 
-## Análise da Situação Atual
-
-### O que já funciona corretamente:
-
-| Funcionalidade | Status | Observação |
-|----------------|--------|------------|
-| Login via `/auth` (Supabase Auth) | ✅ OK | Operadores usam email/senha |
-| Iniciar corridas | ✅ OK | `iniciarViagem()` funciona |
-| Finalizar corridas | ✅ OK | `registrarChegada()` funciona |
-| Finalizar shuttle com retorno | ✅ OK | `iniciarRetorno()` funciona |
-| Pull-to-refresh | ✅ OK | Atualização por gesto |
-| FAB para nova viagem | ⚠️ Subótimo | Fica no canto, esconde conteúdo |
-
-### Problemas de UX identificados:
-
-| Problema | Impacto | Prioridade |
-|----------|---------|------------|
-| Sem barra inferior fixa | Alto - navegação difícil | Alta |
-| FAB no canto inferior direito | Médio - esconde conteúdo | Média |
-| Confirm nativo para cancelar | Médio - quebra design | Média |
-| Sem indicador de status de conexão | Baixo | Baixa |
-| Header sem status do operador | Baixo | Baixa |
-
----
-
-## Plano de Implementação
-
-### Fase 1: Criar Barra Inferior para Operador
-
-**Novo componente: `OperadorBottomNav.tsx`**
-
-Abas propostas (5 tabs como o Motorista):
-
-| Tab | Ícone | Função |
-|-----|-------|--------|
-| **Viagens** | Bus | Lista de viagens ativas/finalizadas |
-| **Motoristas** | Users | Status dos motoristas do evento |
-| **Nova** | Plus (botão central destacado) | Criar nova viagem |
-| **Histórico** | ClipboardList | Viagens finalizadas do dia |
-| **Mais** | MoreHorizontal | Cadastros rápidos, KM, logout |
-
-### Fase 2: Refatorar AppOperador para Navegação por Tabs
-
-**Estrutura proposta:**
+## Estrutura de Navegação (5 Tabs)
 
 ```text
-AppOperador.tsx (refatorado)
-├── Header (simplificado)
-│   ├── Logo AS Brasil
-│   ├── Nome do Evento
-│   └── Indicador de Conexão
+SupervisorBottomNav - Ordenado por Prioridade
 │
-├── Tab Content (renderizado dinamicamente)
-│   ├── Tab "viagens": Lista filtrada + status cards
-│   ├── Tab "motoristas": Cards dos motoristas do evento
-│   ├── Tab "nova": Formulário de criação inline
-│   ├── Tab "historico": Viagens encerradas do dia
-│   └── Tab "mais": Ações e configurações
+├── 🚗 Frota (Tab Principal)
+│   ├── Sub-tab "Motoristas" - Localização + Status + Vincular Veículo
+│   └── Sub-tab "Veículos" - Kanban por status + Re-vistoria
 │
-└── OperadorBottomNav (fixo)
-    └── 5 tabs com ação central destacada
+├── 🚌 Viagens
+│   ├── Lista completa de viagens ativas
+│   ├── Iniciar/Finalizar/Retorno (como Operador)
+│   └── Botão de Edição (exclusivo Supervisor)
+│
+├── ➕ Nova (Botão Central Destacado)
+│   └── Criar viagem rápida
+│
+├── 📍 Localizador
+│   ├── Mapa Kanban de localização
+│   ├── Motoristas por ponto
+│   └── Edição manual de localização
+│
+└── ⚙️ Mais
+    ├── Cadastrar Motorista
+    ├── Cadastrar Veículo
+    ├── Ver Operadores do Evento
+    ├── Registrar KM
+    ├── Histórico/Auditoria
+    └── Sair
 ```
-
-### Fase 3: Melhorias de UI/UX
-
-1. **Substituir `confirm()` por AlertDialog**
-   - Usar componente shadcn/ui para consistência
-
-2. **Mover formulário de criação para tab dedicada**
-   - Eliminar FAB
-   - Experiência mais fluida
-
-3. **Adicionar Empty States bonitos**
-   - Quando não há viagens
-   - Quando não há motoristas
 
 ---
 
-## Arquivos a Criar/Modificar
+## Comparativo de Prioridades
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/app/OperadorBottomNav.tsx` | **CRIAR** | Barra de navegação inferior (similar ao MotoristaBottomNav) |
-| `src/pages/app/AppOperador.tsx` | **REFATORAR** | Implementar navegação por tabs, remover FAB |
-| `src/components/app/ViagemCardOperador.tsx` | **MODIFICAR** | Substituir confirm() por AlertDialog |
-| `src/components/app/OperadorMotoristasTab.tsx` | **CRIAR** | Tab para ver motoristas do evento |
-| `src/components/app/OperadorHistoricoTab.tsx` | **CRIAR** | Tab para histórico de viagens |
+| Funcionalidade | Operador | Supervisor |
+|----------------|----------|------------|
+| **Gestão de Motoristas** | Lista simples | **Tab dedicada + Localização + Vinculação** |
+| **Gestão de Veículos** | Não tem | **Tab dedicada + Kanban + Re-vistoria** |
+| **Viagens** | Tab principal | Tab secundária |
+| **Edição de Viagem** | Não | **Sim** |
+| **Localizador** | Não | **Tab dedicada** |
+| **Operadores** | Não | Aba "Mais" |
+
+---
+
+## Detalhamento das Tabs
+
+### Tab 1: Frota (Principal)
+
+A primeira tab que o Supervisor vê ao abrir o app.
+
+**Sub-tab Motoristas:**
+- Cards de motoristas com status em tempo real
+- Veículo vinculado visível
+- Última localização
+- **Ações por swipe/menu:**
+  - Editar localização
+  - Vincular/desvincular veículo
+  - Ver detalhes
+
+**Sub-tab Veículos:**
+- Kanban por status (aproveitando layout atual)
+- Cards agrupados: Pendentes > Em Inspeção > Liberados > Manutenção
+- **Ações por swipe/menu:**
+  - Liberar/Marcar Pendente
+  - Re-vistoriar
+  - Ver histórico de vistorias
+
+### Tab 2: Viagens
+
+Similar ao Operador, mas com **poder de edição**.
+
+- Cards de viagem com status
+- Ações: Iniciar, Chegou, Retorno, Encerrar
+- **NOVO:** Botão de edição (lápis) em cada card
+- Modal de edição completo:
+  - Trocar motorista
+  - Trocar veículo
+  - Alterar pontos
+  - Alterar horários
+  - Alterar PAX
+  - Alterar status
+
+### Tab 3: Nova (Central)
+
+Botão destacado para criar viagem rapidamente.
+
+- Abre o formulário de criação inline
+- Auto-preenche veículo ao selecionar motorista
+- Viagem inicia automaticamente
+
+### Tab 4: Localizador
+
+Visualização Kanban de localização dos motoristas.
+
+- Scroll horizontal por colunas
+- Cada coluna = um ponto de embarque
+- Coluna especial "Em Trânsito" com rota ativa
+- **Toque no card:** Abre modal para editar localização manualmente
+
+### Tab 5: Mais
+
+Acesso a funcionalidades administrativas.
+
+```text
+Cadastros
+├── Cadastrar Motorista (wizard)
+├── Cadastrar Veículo (wizard com vistoria)
+└── Registrar KM
+
+Equipe
+└── Ver Operadores do Evento
+
+Auditoria
+├── Histórico de Viagens do Dia
+└── Histórico de Vistorias
+
+Conta
+├── Trocar Evento
+└── Sair
+```
+
+---
+
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `SupervisorBottomNav.tsx` | Barra de navegação com 5 tabs |
+| `SupervisorFrotaTab.tsx` | Tab principal com sub-tabs Motoristas/Veículos |
+| `SupervisorViagensTab.tsx` | Lista de viagens com edição |
+| `SupervisorLocalizadorTab.tsx` | Kanban de localização mobile |
+| `SupervisorMaisTab.tsx` | Cadastros + Equipe + Auditoria |
+| `EditViagemMobileModal.tsx` | Modal de edição completo para mobile |
+| `SupervisorMotoristaCard.tsx` | Card de motorista com ações |
+
+## Arquivo a Refatorar
+
+| Arquivo | Mudanças |
+|---------|----------|
+| `AppSupervisor.tsx` | Reestruturar para navegação por tabs |
 
 ---
 
 ## Seção Técnica
 
-### Componente OperadorBottomNav
+### SupervisorBottomNav
 
 ```typescript
-// src/components/app/OperadorBottomNav.tsx
-import { Bus, Users, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-export type OperadorTabId = 'viagens' | 'motoristas' | 'nova' | 'historico' | 'mais';
-
-interface NavTab {
-  id: OperadorTabId;
-  label: string;
-  icon: React.ElementType;
-}
+export type SupervisorTabId = 'frota' | 'viagens' | 'nova' | 'localizador' | 'mais';
 
 const tabs: NavTab[] = [
-  { id: 'viagens', label: 'Viagens', icon: Bus },
-  { id: 'motoristas', label: 'Motoristas', icon: Users },
-  { id: 'nova', label: 'Nova', icon: Plus },
-  { id: 'historico', label: 'Histórico', icon: ClipboardList },
+  { id: 'frota', label: 'Frota', icon: Car },      // Principal - Motoristas + Veículos
+  { id: 'viagens', label: 'Viagens', icon: Bus },  // Secundário
+  { id: 'nova', label: 'Nova', icon: Plus },       // Ação central
+  { id: 'localizador', label: 'Local', icon: MapPin },
   { id: 'mais', label: 'Mais', icon: MoreHorizontal },
 ];
+```
 
-interface OperadorBottomNavProps {
-  activeTab: OperadorTabId;
-  onTabChange: (tab: OperadorTabId) => void;
-}
+### SupervisorFrotaTab (com sub-tabs)
 
-export function OperadorBottomNav({ activeTab, onTabChange }: OperadorBottomNavProps) {
+```typescript
+export function SupervisorFrotaTab({ eventoId }: Props) {
+  const [subTab, setSubTab] = useState<'motoristas' | 'veiculos'>('motoristas');
+  
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-bottom">
-      <div className="flex items-center justify-around h-16">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
-          
-          // Botão central destacado para "Nova"
-          if (tab.id === 'nova') {
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
-              >
-                <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg transition-colors",
-                  isActive 
-                    ? "bg-primary text-primary-foreground" 
-                    : "bg-primary/90 text-primary-foreground"
-                )}>
-                  <Icon className="w-6 h-6" />
-                </div>
-              </button>
-            );
-          }
-          
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground"
-              )}
-            >
-              <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
-            </button>
-          );
-        })}
+    <div className="space-y-4">
+      {/* Sub-tab toggle */}
+      <div className="flex bg-muted rounded-lg p-1">
+        <button 
+          onClick={() => setSubTab('motoristas')}
+          className={cn(
+            "flex-1 py-2 rounded-md text-sm font-medium transition",
+            subTab === 'motoristas' && "bg-background shadow"
+          )}
+        >
+          <Users className="h-4 w-4 inline mr-1" /> Motoristas
+        </button>
+        <button 
+          onClick={() => setSubTab('veiculos')}
+          className={cn(
+            "flex-1 py-2 rounded-md text-sm font-medium transition",
+            subTab === 'veiculos' && "bg-background shadow"
+          )}
+        >
+          <Car className="h-4 w-4 inline mr-1" /> Veículos
+        </button>
       </div>
-    </nav>
+      
+      {/* Conteúdo */}
+      {subTab === 'motoristas' ? (
+        <SupervisorMotoristasSubTab eventoId={eventoId} />
+      ) : (
+        <SupervisorVeiculosSubTab eventoId={eventoId} />
+      )}
+    </div>
   );
 }
 ```
 
-### Refatoração do AppOperador
-
-Estrutura principal com tabs:
+### Card de Motorista com Ações
 
 ```typescript
-// AppOperador.tsx (estrutura)
-const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
-
-const renderTabContent = () => {
-  switch (activeTab) {
-    case 'viagens':
-      return (
-        <div className="space-y-4">
-          {/* Status Cards */}
-          <div className="grid grid-cols-4 gap-2">...</div>
-          
-          {/* Lista de viagens */}
-          <div className="space-y-3">
-            {sortedViagens.map(viagem => (
-              <ViagemCardOperador key={viagem.id} viagem={viagem} onUpdate={refetch} />
-            ))}
-          </div>
-        </div>
-      );
-
-    case 'motoristas':
-      return <OperadorMotoristasTab eventoId={eventoId!} />;
-
-    case 'nova':
-      return (
-        <CreateViagemForm
-          open={true}
-          embedded // Prop para renderizar inline
-          eventoId={eventoId!}
-          onCreated={() => {
-            refetch();
-            setActiveTab('viagens');
-          }}
-        />
-      );
-
-    case 'historico':
-      return <OperadorHistoricoTab viagensFinalizadas={viagensEncerradas} />;
-
-    case 'mais':
-      return (
-        <div className="space-y-4">
-          <Button onClick={() => setShowMotoristaForm(true)}>
-            <User className="h-4 w-4 mr-2" /> Cadastrar Motorista
-          </Button>
-          <Button onClick={() => setShowVeiculoForm(true)}>
-            <Car className="h-4 w-4 mr-2" /> Cadastrar Veículo
-          </Button>
-          <Button onClick={() => setShowKmModal(true)}>
-            <Gauge className="h-4 w-4 mr-2" /> Registrar KM
-          </Button>
-          <Button variant="destructive" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Sair
-          </Button>
-        </div>
-      );
-  }
-};
+// SupervisorMotoristaCard.tsx
+<SwipeableCard
+  leftAction={{
+    icon: <MapPin />,
+    label: 'Local',
+    bgColor: 'bg-blue-600',
+    action: () => onEditLocation(motorista),
+  }}
+  rightAction={{
+    icon: <Link2 />,
+    label: 'Vincular',
+    bgColor: 'bg-emerald-600',
+    action: () => onLinkVehicle(motorista),
+  }}
+>
+  {/* Card content */}
+</SwipeableCard>
 ```
 
-### AlertDialog para Cancelamento
-
-Substituir `confirm()` em `ViagemCardOperador.tsx`:
+### EditViagemMobileModal (Edição Completa)
 
 ```typescript
-// Adicionar estado
-const [showCancelDialog, setShowCancelDialog] = useState(false);
+interface EditViagemMobileModalProps {
+  viagem: Viagem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  eventoId: string;
+  onSave: () => void;
+}
 
-// Handler
-const handleCancelar = async () => {
-  setShowCancelDialog(true);
-};
+// Campos editáveis:
+// - Motorista (Combobox)
+// - Veículo (Combobox)
+// - Ponto Embarque (Combobox)
+// - Ponto Desembarque (Combobox)
+// - Horário Pickup
+// - Horário Chegada
+// - PAX Ida / PAX Retorno
+// - Status (agendado/em_andamento/aguardando_retorno/encerrado)
+// - Observação
+```
 
-const confirmCancelar = async () => {
-  setShowCancelDialog(false);
-  setLoading(true);
-  await cancelarViagem(viagem);
-  onUpdate();
-  setLoading(false);
-};
+### Estrutura do AppSupervisor Refatorado
 
-// JSX
-<AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Cancelar viagem?</AlertDialogTitle>
-      <AlertDialogDescription>
-        Esta ação não pode ser desfeita. A viagem será marcada como cancelada.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel>Voltar</AlertDialogCancel>
-      <AlertDialogAction onClick={confirmCancelar} className="bg-destructive">
-        Cancelar Viagem
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+```typescript
+export default function AppSupervisor() {
+  const [activeTab, setActiveTab] = useState<SupervisorTabId>('frota'); // Frota é o default
+  
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'frota':
+        return <SupervisorFrotaTab eventoId={eventoId!} />;
+      case 'viagens':
+        return <SupervisorViagensTab eventoId={eventoId!} onRefresh={refetch} />;
+      case 'nova':
+        return (
+          <CreateViagemForm
+            open={true}
+            embedded
+            eventoId={eventoId!}
+            onCreated={() => {
+              refetch();
+              setActiveTab('viagens');
+            }}
+          />
+        );
+      case 'localizador':
+        return <SupervisorLocalizadorTab eventoId={eventoId!} />;
+      case 'mais':
+        return <SupervisorMaisTab eventoId={eventoId!} onLogout={signOut} />;
+    }
+  };
+  
+  return (
+    <div className="min-h-screen bg-background flex flex-col pb-16">
+      <Header />
+      <main className="flex-1 container mx-auto px-4 py-4">
+        {renderTabContent()}
+      </main>
+      <SupervisorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+    </div>
+  );
+}
 ```
 
 ---
 
-## Comparativo Visual
+## Fluxo Visual
 
-### Antes (AppOperador atual)
-- Header com menu dropdown
-- Lista de viagens com filtros
-- FAB no canto inferior direito
-- Sem navegação inferior
-
-### Depois (AppOperador redesenhado)
-- Header simplificado com indicador de status
-- Navegação por tabs na barra inferior
-- Botão central destacado para criar viagem
-- Experiência consistente com AppMotorista
+```text
+┌─────────────────────────────────────────┐
+│  🏢 Supervisor - Evento XYZ             │
+├─────────────────────────────────────────┤
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │ [Motoristas] │ [Veículos]       │   │  ← Sub-tabs
+│  └─────────────────────────────────┘   │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │ 🟢 Disponíveis: 8               │   │
+│  │ 🔵 Em Viagem: 3                 │   │
+│  │ ⚠️ Sem Veículo: 2               │   │
+│  └─────────────────────────────────┘   │
+│                                         │
+│  ┌─ Card Motorista ─────────────────┐   │
+│  │ 👤 João Silva                    │   │
+│  │ 🚗 Van ABC-1234                  │   │
+│  │ 📍 Sheraton                      │   │
+│  │ ← [Localização] [Veículo] →      │   │  ← Swipe actions
+│  └───────────────────────────────────┘   │
+│                                         │
+├─────────────────────────────────────────┤
+│  [🚗]   [🚌]   [➕]   [📍]   [⚙️]      │  ← Bottom Nav
+│  Frota Viagens Nova  Local  Mais       │
+└─────────────────────────────────────────┘
+```
 
 ---
 
 ## Resultado Esperado
 
-1. ✅ Interface mais bonita e moderna
-2. ✅ Navegação por barra inferior (5 abas)
-3. ✅ Botão central destacado para nova viagem
-4. ✅ Aba dedicada para ver motoristas do evento
-5. ✅ Aba de histórico com viagens finalizadas
-6. ✅ Aba "Mais" com ações administrativas
-7. ✅ Consistência visual com o App Motorista
-8. ✅ AlertDialog substituindo confirm() nativo
+Após implementação:
+
+| Prioridade | Funcionalidade | Status |
+|------------|----------------|--------|
+| 🥇 Alta | Gestão de Motoristas (Tab Frota) | Nova |
+| 🥇 Alta | Gestão de Veículos (Tab Frota) | Expandida |
+| 🥈 Média | Viagens com Edição | Nova |
+| 🥈 Média | Localizador de Motoristas | Nova |
+| 🥉 Baixa | Ver Operadores | Nova (em "Mais") |
+| 🥉 Baixa | Auditoria/Histórico | Nova (em "Mais") |
+
+**Diferencial do Supervisor:**
+1. ✅ Tab inicial é **Frota** (motoristas + veículos)
+2. ✅ Pode **editar viagens** em campo
+3. ✅ Pode **editar localização** de motoristas
+4. ✅ Pode **vincular veículos** a motoristas
+5. ✅ Pode **re-vistoriar** veículos
+6. ✅ Acesso a **operadores** do evento
