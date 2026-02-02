@@ -11,9 +11,6 @@ import {
   Gauge, 
   LogOut,
   Settings,
-  Users,
-  ClipboardList,
-  History,
   Shield,
   ChevronRight
 } from 'lucide-react';
@@ -110,64 +107,6 @@ export function SupervisorMaisTab({
             <div className="flex items-center">
               <Gauge className="h-5 w-5 mr-3" />
               Registrar KM
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Equipe */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Equipe do Evento
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Button 
-            variant="outline" 
-            className="w-full justify-between h-12"
-            onClick={() => navigate(`/evento/${eventoId}/equipe`)}
-          >
-            <div className="flex items-center">
-              <Users className="h-5 w-5 mr-3" />
-              Ver Operadores
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Auditoria */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="h-4 w-4" />
-            Auditoria
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Button 
-            variant="outline" 
-            className="w-full justify-between h-12"
-            onClick={() => navigate(`/evento/${eventoId}/viagens-finalizadas`)}
-          >
-            <div className="flex items-center">
-              <History className="h-5 w-5 mr-3" />
-              Histórico de Viagens
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            className="w-full justify-between h-12"
-            onClick={() => navigate(`/evento/${eventoId}/veiculos`)}
-          >
-            <div className="flex items-center">
-              <Car className="h-5 w-5 mr-3" />
-              Histórico de Vistorias
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
