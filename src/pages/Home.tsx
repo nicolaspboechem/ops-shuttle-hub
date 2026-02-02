@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,10 +6,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, 
   Clock, Car, UserCheck, Activity, Calendar, Users, 
-  TrendingUp, AlertTriangle, RefreshCw, Truck
+  TrendingUp, RefreshCw, Truck, Filter, X
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,6 +33,8 @@ interface Notification {
   read: boolean;
   icon: React.ReactNode;
   color: string;
+  motorista?: string;
+  placa?: string;
 }
 
 interface Stats {
@@ -51,6 +61,40 @@ export default function Home() {
   const [stats, setStats] = useState<Stats>({ eventosAtivos: 0, viagensHoje: 0, motoristasOnline: 0, veiculosLiberados: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filtroMotorista, setFiltroMotorista] = useState<string>('todos');
+  const [filtroVeiculo, setFiltroVeiculo] = useState<string>('todos');
+
+  // Extract unique motoristas and placas from notifications
+  const { motoristas, placas } = useMemo(() => {
+    const motoristasSet = new Set<string>();
+    const placasSet = new Set<string>();
+    
+    notifications.forEach(n => {
+      if (n.motorista) motoristasSet.add(n.motorista);
+      if (n.placa) placasSet.add(n.placa);
+    });
+    
+    return {
+      motoristas: Array.from(motoristasSet).sort(),
+      placas: Array.from(placasSet).sort()
+    };
+  }, [notifications]);
+
+  // Filter notifications
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter(n => {
+      const matchMotorista = filtroMotorista === 'todos' || n.motorista === filtroMotorista;
+      const matchVeiculo = filtroVeiculo === 'todos' || n.placa === filtroVeiculo;
+      return matchMotorista && matchVeiculo;
+    });
+  }, [notifications, filtroMotorista, filtroVeiculo]);
+
+  const hasActiveFilters = filtroMotorista !== 'todos' || filtroVeiculo !== 'todos';
+
+  const clearFilters = () => {
+    setFiltroMotorista('todos');
+    setFiltroVeiculo('todos');
+  };
 
   const fetchStats = useCallback(async () => {
     const today = new Date();
@@ -113,47 +157,55 @@ export default function Home() {
 
     (viagemLogs || []).forEach((log: any) => {
       const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
+      const motoristaNome = log.viagem?.motorista || 'Motorista';
+      const placaVeiculo = log.viagem?.placa || '';
       newNotifications.push({
         id: `viagem-${log.id}`,
         type: 'viagem',
         action: log.acao,
         title: config.label,
-        description: `${log.viagem?.motorista || 'Motorista'} (${log.viagem?.placa || 'Placa'}) - por ${log.profile?.full_name || 'Sistema'}`,
+        description: `${motoristaNome} (${placaVeiculo || 'Sem placa'}) - por ${log.profile?.full_name || 'Sistema'}`,
         timestamp: log.created_at,
         read: false,
         icon: config.icon,
         color: config.color,
+        motorista: motoristaNome,
+        placa: placaVeiculo,
       });
     });
 
     (presencaLogs || []).forEach((log: any) => {
       const isCheckout = log.checkout_at && new Date(log.checkout_at) > new Date(log.checkin_at || 0);
       const config = isCheckout ? actionConfig.checkout : actionConfig.checkin;
+      const motoristaNome = log.motorista?.nome || 'Motorista';
       newNotifications.push({
         id: `presenca-${log.id}`,
         type: 'presenca',
         action: isCheckout ? 'checkout' : 'checkin',
         title: config.label,
-        description: `${log.motorista?.nome || 'Motorista'}`,
+        description: motoristaNome,
         timestamp: log.updated_at,
         read: false,
         icon: config.icon,
         color: config.color,
+        motorista: motoristaNome,
       });
     });
 
     (vistoriaLogs || []).forEach((log: any) => {
       const config = log.status_novo === 'liberado' ? actionConfig.liberacao : actionConfig.inspecao;
+      const placaVeiculo = log.veiculo?.placa || 'Veículo';
       newNotifications.push({
         id: `vistoria-${log.id}`,
         type: 'vistoria',
         action: log.tipo_vistoria,
         title: config.label,
-        description: `${log.veiculo?.placa || 'Veículo'} - por ${log.realizado_por_nome || 'Sistema'}`,
+        description: `${placaVeiculo} - por ${log.realizado_por_nome || 'Sistema'}`,
         timestamp: log.created_at,
         read: false,
         icon: config.icon,
         color: config.color,
+        placa: placaVeiculo,
       });
     });
 
@@ -288,7 +340,7 @@ export default function Home() {
         {/* Activity Feed */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-primary" />
                 <CardTitle>Atividade em Tempo Real</CardTitle>
@@ -301,21 +353,70 @@ export default function Home() {
             <CardDescription>
               Todas as ações realizadas no sistema aparecem aqui instantaneamente
             </CardDescription>
+            
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-3 pt-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Filtros:</span>
+              </div>
+              
+              <Select value={filtroMotorista} onValueChange={setFiltroMotorista}>
+                <SelectTrigger className="w-[180px]">
+                  <Users className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Motorista" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos Motoristas</SelectItem>
+                  {motoristas.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filtroVeiculo} onValueChange={setFiltroVeiculo}>
+                <SelectTrigger className="w-[150px]">
+                  <Car className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos Veículos</SelectItem>
+                  {placas.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-muted-foreground">
+                  <X className="h-4 w-4 mr-1" />
+                  Limpar
+                </Button>
+              )}
+
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="ml-auto">
+                  {filteredNotifications.length} resultado(s)
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[500px] pr-4">
-              {notifications.length === 0 ? (
+              {filteredNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Bell className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                  <p className="text-muted-foreground">Nenhuma atividade recente</p>
+                  <p className="text-muted-foreground">
+                    {hasActiveFilters ? 'Nenhuma atividade encontrada com os filtros aplicados' : 'Nenhuma atividade recente'}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    As ações do sistema aparecerão aqui em tempo real
+                    {hasActiveFilters ? 'Tente ajustar os filtros' : 'As ações do sistema aparecerão aqui em tempo real'}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <AnimatePresence initial={false}>
-                    {notifications.map((notification, index) => (
+                    {filteredNotifications.map((notification, index) => (
                       <motion.div
                         key={notification.id}
                         initial={{ opacity: 0, y: -10 }}
