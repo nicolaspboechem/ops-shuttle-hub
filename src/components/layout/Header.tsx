@@ -1,6 +1,6 @@
-import { Bell, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { NotificationsPanel } from './NotificationsPanel';
 
 interface HeaderProps {
   title: string;
@@ -10,7 +10,7 @@ interface HeaderProps {
   onRefresh?: () => void;
 }
 
-export function Header({ title, subtitle, lastUpdate, alertCount = 0, onRefresh }: HeaderProps) {
+export function Header({ title, subtitle, lastUpdate, onRefresh }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-8 py-4 bg-card border-b border-border">
       <div>
@@ -40,14 +40,8 @@ export function Header({ title, subtitle, lastUpdate, alertCount = 0, onRefresh 
           </Button>
         )}
 
-        <Button variant="outline" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          {alertCount > 0 && (
-            <Badge className="absolute -top-1.5 -right-1.5 h-5 min-w-5 flex items-center justify-center p-0 text-xs bg-status-critical text-status-critical-foreground">
-              {alertCount}
-            </Badge>
-          )}
-        </Button>
+        {/* Notifications Panel - Realtime for Admin */}
+        <NotificationsPanel />
       </div>
     </header>
   );
