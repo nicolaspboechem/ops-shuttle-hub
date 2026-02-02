@@ -569,6 +569,53 @@ export type Database = {
           },
         ]
       }
+      staff_credenciais: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          evento_id: string
+          id: string
+          role: string
+          senha_hash: string
+          telefone: string
+          ultimo_login: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          evento_id: string
+          id?: string
+          role?: string
+          senha_hash: string
+          telefone: string
+          ultimo_login?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          evento_id?: string
+          id?: string
+          role?: string
+          senha_hash?: string
+          telefone?: string
+          ultimo_login?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_credenciais_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permissions: {
         Row: {
           granted_at: string | null

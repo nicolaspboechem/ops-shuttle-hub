@@ -40,31 +40,59 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
     setIsSubmitting(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      // Generate a UUID for the new staff member (no Supabase Auth)
+      const userId = crypto.randomUUID();
+      const phoneDigits = telefone.replace(/\D/g, '');
 
-      const response = await supabase.functions.invoke('create-user', {
-        body: {
-          telefone: telefone.replace(/\D/g, ''),
-          login_type: 'phone',
-          password: senha.trim(),
+      // Create profile directly in the database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: userId,
           full_name: nome.trim(),
+          telefone: phoneDigits,
           user_type: staffType,
+          login_type: 'phone',
+        });
+
+      if (profileError) {
+        toast.error(`Erro ao criar perfil: ${profileError.message}`);
+        return;
+      }
+
+      // Link to event
+      const { error: eventoError } = await supabase
+        .from('evento_usuarios')
+        .insert({
+          user_id: userId,
           evento_id: eventoId,
-        },
-        headers: {
-          Authorization: `Bearer ${sessionData.session?.access_token}`,
+          role: staffType,
+        });
+
+      if (eventoError) {
+        toast.error(`Erro ao vincular ao evento: ${eventoError.message}`);
+        return;
+      }
+
+      // Create credentials via Edge Function
+      const response = await supabase.functions.invoke('staff-register', {
+        body: {
+          user_id: userId,
+          evento_id: eventoId,
+          telefone: phoneDigits,
+          senha: senha.trim(),
+          role: staffType,
+          full_name: nome.trim(),
         },
       });
 
       if (response.error) {
-        toast.error(`Erro ao criar usuário: ${response.error.message}`);
+        toast.error(`Erro ao criar credenciais: ${response.error.message}`);
         return;
       }
 
-      const phoneFormatted = response.data?.phone || `+55${telefone.replace(/\D/g, '')}`;
-
       setCreatedCredentials({
-        login: phoneFormatted,
+        login: `+55${phoneDigits}`,
         password: senha.trim(),
       });
       setShowCredentialsModal(true);
