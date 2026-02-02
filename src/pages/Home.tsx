@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,30 +20,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { 
-  Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, 
-  Clock, Car, UserCheck, Activity, Calendar, Users, 
+  Bell, Clock, Car, Activity, Calendar, Users, 
   TrendingUp, RefreshCw, Truck, Filter, X, Check, Trash2,
   Volume2, VolumeX
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { useNotifications } from '@/hooks/useNotifications';
 import { toast } from 'sonner';
-
-interface Notification {
-  id: string;
-  type: 'viagem' | 'veiculo' | 'motorista' | 'presenca' | 'vistoria';
-  action: string;
-  title: string;
-  description: string;
-  timestamp: string;
-  read: boolean;
-  icon: React.ReactNode;
-  color: string;
-  motorista?: string;
-  placa?: string;
-}
 
 interface Stats {
   eventosAtivos: number;
@@ -52,33 +37,22 @@ interface Stats {
   veiculosLiberados: number;
 }
 
-const actionConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  inicio: { label: 'Viagem Iniciada', icon: <Play className="h-4 w-4" />, color: 'bg-blue-500' },
-  chegada: { label: 'Chegou ao Destino', icon: <MapPin className="h-4 w-4" />, color: 'bg-amber-500' },
-  retorno: { label: 'Retornou', icon: <RotateCcw className="h-4 w-4" />, color: 'bg-green-500' },
-  encerramento: { label: 'Viagem Encerrada', icon: <CheckCircle className="h-4 w-4" />, color: 'bg-green-600' },
-  cancelamento: { label: 'Viagem Cancelada', icon: <XCircle className="h-4 w-4" />, color: 'bg-red-500' },
-  checkin: { label: 'Check-in Realizado', icon: <UserCheck className="h-4 w-4" />, color: 'bg-emerald-500' },
-  checkout: { label: 'Check-out Realizado', icon: <Clock className="h-4 w-4" />, color: 'bg-orange-500' },
-  inspecao: { label: 'Veículo Inspecionado', icon: <Car className="h-4 w-4" />, color: 'bg-purple-500' },
-  liberacao: { label: 'Veículo Liberado', icon: <CheckCircle className="h-4 w-4" />, color: 'bg-teal-500' },
-};
-
 export default function Home() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const {
+    notifications,
+    loading: notificationsLoading,
+    soundEnabled,
+    setSoundEnabled,
+    markAsRead,
+    deleteNotification,
+    refresh: refreshNotifications,
+  } = useNotifications();
+
   const [stats, setStats] = useState<Stats>({ eventosAtivos: 0, viagensHoje: 0, motoristasOnline: 0, veiculosLiberados: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filtroMotorista, setFiltroMotorista] = useState<string>('todos');
   const [filtroVeiculo, setFiltroVeiculo] = useState<string>('todos');
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('notification-sound-enabled');
-    return saved !== 'false';
-  });
-  
-  const { playNotificationSound } = useNotificationSound();
-  const previousNotificationCount = useRef<number>(0);
-  const isInitialLoad = useRef(true);
 
   // Extract unique motoristas and placas from notifications
   const { motoristas, placas } = useMemo(() => {
@@ -115,18 +89,7 @@ export default function Home() {
   const toggleSound = () => {
     const newValue = !soundEnabled;
     setSoundEnabled(newValue);
-    localStorage.setItem('notification-sound-enabled', String(newValue));
     toast.success(newValue ? 'Som de notificações ativado' : 'Som de notificações desativado');
-  };
-
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-  };
-
-  const handleDeleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const fetchStats = useCallback(async () => {
@@ -146,162 +109,36 @@ export default function Home() {
       motoristasOnline: motoristasRes.count || 0,
       veiculosLiberados: veiculosRes.count || 0,
     });
-  }, []);
-
-  const fetchNotifications = useCallback(async () => {
-    const { data: viagemLogs } = await supabase
-      .from('viagem_logs')
-      .select(`
-        id,
-        acao,
-        created_at,
-        viagem:viagens!viagem_id(motorista, placa, evento_id),
-        profile:profiles!user_id(full_name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(30);
-
-    const { data: presencaLogs } = await supabase
-      .from('motorista_presenca')
-      .select(`
-        id,
-        checkin_at,
-        checkout_at,
-        updated_at,
-        motorista:motoristas!motorista_id(nome)
-      `)
-      .order('updated_at', { ascending: false })
-      .limit(15);
-
-    const { data: vistoriaLogs } = await supabase
-      .from('veiculo_vistoria_historico')
-      .select(`
-        id,
-        tipo_vistoria,
-        status_novo,
-        created_at,
-        veiculo:veiculos!veiculo_id(placa),
-        realizado_por_nome
-      `)
-      .order('created_at', { ascending: false })
-      .limit(15);
-
-    const newNotifications: Notification[] = [];
-
-    (viagemLogs || []).forEach((log: any) => {
-      const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
-      const motoristaNome = log.viagem?.motorista || 'Motorista';
-      const placaVeiculo = log.viagem?.placa || '';
-      newNotifications.push({
-        id: `viagem-${log.id}`,
-        type: 'viagem',
-        action: log.acao,
-        title: config.label,
-        description: `${motoristaNome} (${placaVeiculo || 'Sem placa'}) - por ${log.profile?.full_name || 'Sistema'}`,
-        timestamp: log.created_at,
-        read: false,
-        icon: config.icon,
-        color: config.color,
-        motorista: motoristaNome,
-        placa: placaVeiculo,
-      });
-    });
-
-    (presencaLogs || []).forEach((log: any) => {
-      const isCheckout = log.checkout_at && new Date(log.checkout_at) > new Date(log.checkin_at || 0);
-      const config = isCheckout ? actionConfig.checkout : actionConfig.checkin;
-      const motoristaNome = log.motorista?.nome || 'Motorista';
-      newNotifications.push({
-        id: `presenca-${log.id}`,
-        type: 'presenca',
-        action: isCheckout ? 'checkout' : 'checkin',
-        title: config.label,
-        description: motoristaNome,
-        timestamp: log.updated_at,
-        read: false,
-        icon: config.icon,
-        color: config.color,
-        motorista: motoristaNome,
-      });
-    });
-
-    (vistoriaLogs || []).forEach((log: any) => {
-      const config = log.status_novo === 'liberado' ? actionConfig.liberacao : actionConfig.inspecao;
-      const placaVeiculo = log.veiculo?.placa || 'Veículo';
-      newNotifications.push({
-        id: `vistoria-${log.id}`,
-        type: 'vistoria',
-        action: log.tipo_vistoria,
-        title: config.label,
-        description: `${placaVeiculo} - por ${log.realizado_por_nome || 'Sistema'}`,
-        timestamp: log.created_at,
-        read: false,
-        icon: config.icon,
-        color: config.color,
-        placa: placaVeiculo,
-      });
-    });
-
-    newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const finalNotifications = newNotifications.slice(0, 50);
-    
-    // Play sound for new notifications (only after initial load)
-    if (!isInitialLoad.current && soundEnabled && finalNotifications.length > previousNotificationCount.current) {
-      playNotificationSound();
-    }
-    
-    previousNotificationCount.current = finalNotifications.length;
-    setNotifications(finalNotifications);
-  }, [soundEnabled, playNotificationSound]);
-
-  const fetchAll = useCallback(async () => {
-    await Promise.all([fetchStats(), fetchNotifications()]);
     setLoading(false);
-  }, [fetchStats, fetchNotifications]);
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchAll();
+    await Promise.all([fetchStats(), refreshNotifications()]);
     setRefreshing(false);
   };
 
   useEffect(() => {
-    fetchAll().then(() => {
-      isInitialLoad.current = false;
-    });
-    // Realtime subscriptions
-    const viagemLogsChannel = supabase
-      .channel('home-viagem-logs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, () => fetchNotifications())
-      .subscribe();
+    fetchStats();
 
+    // Realtime for stats updates
     const presencaChannel = supabase
-      .channel('home-presenca')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, () => {
-        fetchNotifications();
-        fetchStats();
-      })
-      .subscribe();
-
-    const vistoriaChannel = supabase
-      .channel('home-vistoria')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, () => fetchNotifications())
+      .channel('home-stats-presenca')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, () => fetchStats())
       .subscribe();
 
     const viagensChannel = supabase
-      .channel('home-viagens')
+      .channel('home-stats-viagens')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, () => fetchStats())
       .subscribe();
 
     return () => {
-      supabase.removeChannel(viagemLogsChannel);
       supabase.removeChannel(presencaChannel);
-      supabase.removeChannel(vistoriaChannel);
       supabase.removeChannel(viagensChannel);
     };
-  }, [fetchAll, fetchNotifications, fetchStats]);
+  }, [fetchStats]);
 
-  if (loading) {
+  if (loading || notificationsLoading) {
     return (
       <MainLayout>
         <div className="p-8 space-y-6">
@@ -523,7 +360,7 @@ export default function Home() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-muted-foreground hover:text-green-500"
-                                    onClick={() => handleMarkAsRead(notification.id)}
+                                    onClick={() => markAsRead(notification.id)}
                                   >
                                     <Check className="h-4 w-4" />
                                   </Button>
@@ -537,7 +374,7 @@ export default function Home() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={() => handleDeleteNotification(notification.id)}
+                                  onClick={() => deleteNotification(notification.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>

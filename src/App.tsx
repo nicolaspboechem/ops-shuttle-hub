@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
 import { StaffAuthProvider } from "@/lib/auth/StaffAuthContext";
+import { NotificationsProvider } from "@/hooks/useNotifications";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
 import { EventRoleRoute } from "@/components/auth/EventRoleRoute";
@@ -48,11 +49,12 @@ const App = () => (
     <AuthProvider>
       <DriverAuthProvider>
         <StaffAuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
+          <NotificationsProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/login/motorista" element={<LoginMotorista />} />
@@ -111,10 +113,11 @@ const App = () => (
               <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
               <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
               
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </NotificationsProvider>
         </StaffAuthProvider>
       </DriverAuthProvider>
     </AuthProvider>
