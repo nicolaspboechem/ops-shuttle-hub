@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, Clock, Car, UserCheck, Trash2, Check } from 'lucide-react';
-import { SwipeableCard } from '@/components/app/SwipeableCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sheet,
   SheetContent,
@@ -377,48 +377,61 @@ export function NotificationsPanel() {
                     exit={{ opacity: 0, x: 20, height: 0, marginBottom: 0 }}
                     transition={{ delay: index * 0.02 }}
                   >
-                    <SwipeableCard
-                      rightAction={!notification.read ? {
-                        icon: <Check className="h-5 w-5" />,
-                        label: 'Lido',
-                        color: 'text-white',
-                        bgColor: 'bg-green-500',
-                        action: () => handleMarkAsRead(notification.id),
-                      } : undefined}
-                      leftAction={{
-                        icon: <Trash2 className="h-5 w-5" />,
-                        label: 'Excluir',
-                        color: 'text-white',
-                        bgColor: 'bg-red-500',
-                        action: () => handleDeleteNotification(notification.id),
-                      }}
-                    >
-                      <div className={`p-3 rounded-lg border ${notification.read ? 'bg-background' : 'bg-muted/50'} transition-colors`}>
-                        <div className="flex items-start gap-3">
-                          <div className={`${notification.color} text-white p-2 rounded-full shrink-0`}>
-                            {notification.icon}
+                    <div className={`p-3 rounded-lg border ${notification.read ? 'bg-background' : 'bg-muted/50'} transition-colors group`}>
+                      <div className="flex items-start gap-3">
+                        <div className={`${notification.color} text-white p-2 rounded-full shrink-0`}>
+                          {notification.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{notification.title}</p>
+                            {!notification.read && (
+                              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-sm">{notification.title}</p>
-                              {!notification.read && (
-                                <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {notification.description}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatDistanceToNow(new Date(notification.timestamp), {
-                                addSuffix: true,
-                                locale: ptBR,
-                              })}
-                            </p>
-                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {notification.description}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDistanceToNow(new Date(notification.timestamp), {
+                              addSuffix: true,
+                              locale: ptBR,
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!notification.read && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                  onClick={() => handleMarkAsRead(notification.id)}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">Marcar como lida</TooltipContent>
+                            </Tooltip>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleDeleteNotification(notification.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">Excluir</TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
-                    </SwipeableCard>
+                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
