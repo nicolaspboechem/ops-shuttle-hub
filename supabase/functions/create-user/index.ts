@@ -76,6 +76,7 @@ serve(async (req) => {
 
     let newUserId: string;
     let phoneFormatted: string | null = null;
+    let existingUser = false;
 
     // Validar campos obrigatórios baseado no tipo de login
     if (login_type === 'phone') {
@@ -98,6 +99,69 @@ serve(async (req) => {
       // Formatar telefone para padrão internacional (+55...)
       phoneFormatted = phoneDigits.startsWith('55') ? `+${phoneDigits}` : `+55${phoneDigits}`;
       
+      // Verificar se o telefone já existe no auth.users
+      const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (!listError && existingUsers?.users) {
+        const userWithPhone = existingUsers.users.find(u => u.phone === phoneFormatted);
+        
+        if (userWithPhone) {
+          console.log(`Phone ${phoneFormatted} already exists for user ${userWithPhone.id}`);
+          
+          // Se evento_id foi fornecido, vincular o usuário existente ao evento
+          if (evento_id) {
+            // Verificar se já está vinculado
+            const { data: existingLink } = await supabaseAdmin
+              .from('evento_usuarios')
+              .select('id')
+              .eq('user_id', userWithPhone.id)
+              .eq('evento_id', evento_id)
+              .single();
+            
+            if (!existingLink) {
+              const eventoRole = user_type === 'motorista' ? 'motorista' : 
+                                 user_type === 'supervisor' ? 'supervisor' :
+                                 user_type === 'coordenador' ? 'coordenador' : 
+                                 user_type === 'cliente' ? 'cliente' : 'operador';
+              
+              await supabaseAdmin.from('evento_usuarios').insert({
+                evento_id: evento_id,
+                user_id: userWithPhone.id,
+                role: eventoRole,
+              });
+              
+              console.log(`Linked existing user ${userWithPhone.id} to event ${evento_id}`);
+            }
+            
+            // Se motorista_id fornecido, vincular também
+            if (motorista_id) {
+              await supabaseAdmin
+                .from('motoristas')
+                .update({ user_id: userWithPhone.id })
+                .eq('id', motorista_id);
+              
+              console.log(`Linked existing user ${userWithPhone.id} to motorista ${motorista_id}`);
+            }
+            
+            return new Response(
+              JSON.stringify({ 
+                user: { id: userWithPhone.id }, 
+                phone: phoneFormatted,
+                user_type: user_type || 'operador',
+                existing: true,
+                message: 'Usuário existente vinculado ao evento'
+              }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          
+          return new Response(
+            JSON.stringify({ error: "Este telefone já está cadastrado. Use outro número ou vincule o usuário existente ao evento." }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      
       // Criar usuário com telefone
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         phone: phoneFormatted,
@@ -110,6 +174,15 @@ serve(async (req) => {
 
       if (error) {
         console.error("Error creating user with phone:", error);
+        
+        // Mensagem de erro mais amigável
+        if (error.code === 'phone_exists') {
+          return new Response(
+            JSON.stringify({ error: "Este telefone já está cadastrado no sistema." }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
         return new Response(
           JSON.stringify({ error: error.message }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
