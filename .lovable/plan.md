@@ -1,279 +1,431 @@
 
-# Plano: Melhorias na Interface Supervisor + Pull to Refresh Global
+# Plano: Hover Animations + Tutorial de Primeiro Login (Apps de Equipe)
 
-## Resumo
+## Objetivo
 
-Este plano aborda 4 melhorias solicitadas:
+Adicionar duas melhorias de UX aos aplicativos de campo (Motorista, Operador, Supervisor, Cliente):
 
-1. **Filtros nas abas Motoristas e Veiculos** - Adicionar cards clicaveis de status como filtros (igual SupervisorViagensTab)
-2. **Remover opcoes do menu "Mais"** - Retirar itens que supervisor nao tem acesso
-3. **Aba Localizador com filtros** - Substituir Kanban horizontal por layout vertical com filtros igual Frota/Viagens
-4. **Pull to Refresh em todos os apps** - Adicionar gesto de puxar para atualizar em todos os aplicativos mobile
+1. **Hover Animations** - Efeitos visuais de interacao em cards e botoes
+2. **Tutorial de Primeiro Login** - Popups guiados que aparecem apenas no primeiro acesso de cada usuario
 
 ---
 
-## Arquitetura Atual vs Proposta
+## Escopo
+
+**Aplicativos afetados:**
+- AppMotorista (`/app/:eventoId/motorista`)
+- AppOperador (`/app/:eventoId/operador`)
+- AppSupervisor (`/app/:eventoId/supervisor`)
+- AppCliente (`/app/:eventoId/cliente`)
+
+**Excluido:** Interface Admin (CCO) - rotas `/evento/...`
+
+---
+
+## Arquitetura
 
 ```text
-ANTES                                   DEPOIS
--------------------------------------------------
-SupervisorFrotaTab                      SupervisorFrotaTab
-  - Cards de stats (apenas exibicao)      - Cards de stats CLICAVEIS (filtros)
-  - Busca texto                           - Busca texto
-  - Lista sem filtro de status            - Lista filtrada por status
+┌─────────────────────────────────────────────────────────────────┐
+│                    HOVER ANIMATIONS                             │
+├─────────────────────────────────────────────────────────────────┤
+│  tailwind.config.ts                                             │
+│    - Novas animacoes: hover-lift, hover-glow, tap-shrink        │
+│                                                                 │
+│  src/index.css                                                  │
+│    - Classes utilitarias: .interactive-card, .interactive-btn   │
+├─────────────────────────────────────────────────────────────────┤
+│  Componentes atualizados:                                       │
+│    - ViagemCardMobile.tsx                                       │
+│    - MissaoCardMobile.tsx                                       │
+│    - SupervisorMotoristaCard.tsx                                │
+│    - VeiculoCardSupervisor.tsx                                  │
+│    - MotoristaBottomNav.tsx                                     │
+│    - OperadorBottomNav.tsx                                      │
+│    - SupervisorBottomNav.tsx                                    │
+│    - ClienteBottomNav.tsx                                       │
+└─────────────────────────────────────────────────────────────────┘
 
-SupervisorLocalizadorTab                SupervisorLocalizadorTab  
-  - Kanban horizontal scroll              - Cards de stats como filtros
-  - Sem filtros                           - Busca texto
-  - Colunas por localizacao               - Lista vertical agrupada
-
-SupervisorMaisTab                       SupervisorMaisTab
-  - Equipe do Evento (navega CCO)         - REMOVER Equipe do Evento
-  - Auditoria (navega CCO)                - REMOVER Auditoria
-  - Conta (trocar evento)                 - Manter Conta
-
-AppCliente                              AppCliente
-  - Sem Pull to Refresh                   - COM Pull to Refresh
-
-AppSupervisor                           AppSupervisor
-  - Sem Pull to Refresh                   - COM Pull to Refresh
+┌─────────────────────────────────────────────────────────────────┐
+│                  TUTORIAL DE PRIMEIRO LOGIN                     │
+├─────────────────────────────────────────────────────────────────┤
+│  src/hooks/useTutorial.ts (NOVO)                                │
+│    - Hook para gerenciar estado do tutorial                     │
+│    - Usa localStorage para persistir "ja visto"                 │
+│    - Chave por role: tutorial_motorista_seen, etc.              │
+├─────────────────────────────────────────────────────────────────┤
+│  src/components/app/TutorialPopover.tsx (NOVO)                  │
+│    - Componente reutilizavel de popover animado                 │
+│    - Suporte a steps multiplos                                  │
+│    - Botoes "Proximo", "Pular", "Concluir"                      │
+├─────────────────────────────────────────────────────────────────┤
+│  src/components/app/TutorialOverlay.tsx (NOVO)                  │
+│    - Overlay escurecido com spotlight no elemento alvo          │
+│    - Suporta diferentes posicoes (top, bottom, left, right)     │
+├─────────────────────────────────────────────────────────────────┤
+│  Integracao nos Apps:                                           │
+│    - AppMotorista.tsx: Tutorial sobre missoes e viagens         │
+│    - AppOperador.tsx: Tutorial sobre criar viagens              │
+│    - AppSupervisor.tsx: Tutorial sobre frota e localizador      │
+│    - AppCliente.tsx: Tutorial sobre dashboard                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/components/app/SupervisorFrotaTab.tsx` | Tornar cards de stats clicaveis como filtros |
-| `src/components/app/SupervisorLocalizadorTab.tsx` | Redesenhar com filtros e lista vertical |
-| `src/components/app/SupervisorMaisTab.tsx` | Remover opcoes de Equipe e Auditoria |
-| `src/pages/app/AppSupervisor.tsx` | Envolver conteudo em PullToRefresh |
-| `src/pages/app/AppCliente.tsx` | Adicionar PullToRefresh |
 
 ---
 
 ## Secao Tecnica
 
-### 1. SupervisorFrotaTab - Filtros por Status
+### 1. Hover Animations - Tailwind Config
 
-**Estado atual:** Cards de stats apenas exibem numeros
-**Proposto:** Cards clicaveis que filtram a lista
+Adicionar novos keyframes e animacoes:
 
 ```typescript
-// Novo state para filtro
-const [motoristaFilter, setMotoristaFilter] = useState<string | null>(null);
-const [veiculoFilter, setVeiculoFilter] = useState<string | null>(null);
-
-// Cards clicaveis (exemplo motoristas)
-<Card 
-  className={cn(
-    "cursor-pointer transition-all active:scale-95",
-    motoristaFilter === 'disponivel' 
-      ? "ring-2 ring-emerald-500" 
-      : "border-emerald-500/30"
-  )}
-  onClick={() => setMotoristaFilter(prev => 
-    prev === 'disponivel' ? null : 'disponivel'
-  )}
->
-  ...
-</Card>
-
-// Filtrar lista baseado no estado
-const displayedMotoristas = motoristaFilter 
-  ? filteredMotoristas.filter(m => {
-      if (motoristaFilter === 'disponivel') return m.status === 'disponivel';
-      if (motoristaFilter === 'em_viagem') return m.status === 'em_viagem';
-      if (motoristaFilter === 'sem_veiculo') return !m.veiculo;
-      return true;
-    })
-  : filteredMotoristas;
+// tailwind.config.ts
+keyframes: {
+  // ... existentes ...
+  "hover-lift": {
+    "0%": { transform: "translateY(0)", boxShadow: "0 0 0 rgba(0,0,0,0)" },
+    "100%": { transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.1)" }
+  },
+  "tap-shrink": {
+    "0%": { transform: "scale(1)" },
+    "50%": { transform: "scale(0.97)" },
+    "100%": { transform: "scale(1)" }
+  },
+},
+animation: {
+  // ... existentes ...
+  "hover-lift": "hover-lift 0.2s ease-out forwards",
+  "tap-shrink": "tap-shrink 0.15s ease-out",
+}
 ```
 
-### 2. SupervisorLocalizadorTab - Novo Layout
+### 2. Classes Utilitarias - index.css
 
-**Estado atual:** Kanban horizontal com scroll lateral
-**Proposto:** Layout vertical com:
-- Cards de stats clicaveis como filtros (Em Transito, Base, Sem Local)
-- Campo de busca
-- Lista agrupada por localizacao (colapsavel opcionalmente)
+```css
+@layer utilities {
+  /* Interactive card with hover effect */
+  .interactive-card {
+    @apply transition-all duration-200 ease-out;
+    @apply hover:shadow-lg hover:-translate-y-0.5;
+    @apply active:scale-[0.98] active:shadow-md;
+  }
+  
+  /* Interactive button with press feedback */
+  .interactive-btn {
+    @apply transition-all duration-150;
+    @apply hover:brightness-110 hover:scale-105;
+    @apply active:scale-95 active:brightness-95;
+  }
+  
+  /* Bottom nav item */
+  .nav-item-interactive {
+    @apply transition-all duration-200;
+    @apply hover:bg-muted/50 active:bg-muted;
+  }
+}
+```
+
+### 3. Hook useTutorial
 
 ```typescript
-// Novo design
-<div className="space-y-4">
-  {/* Stats filter - igual ao Viagens */}
-  <div className="grid grid-cols-3 gap-2">
-    <Card onClick={() => setFilter('em_transito')} ...>
-      Em Transito ({count})
-    </Card>
-    <Card onClick={() => setFilter('base')} ...>
-      Base ({count})
-    </Card>
-    <Card onClick={() => setFilter('outros')} ...>
-      Outros ({count})
-    </Card>
-  </div>
+// src/hooks/useTutorial.ts
+export interface TutorialStep {
+  id: string;
+  title: string;
+  description: string;
+  targetSelector?: string;  // CSS selector do elemento alvo
+  position?: 'top' | 'bottom' | 'left' | 'right';
+}
 
-  {/* Busca */}
-  <Input placeholder="Buscar motorista..." />
+interface UseTutorialReturn {
+  isActive: boolean;
+  currentStep: TutorialStep | null;
+  currentIndex: number;
+  totalSteps: number;
+  next: () => void;
+  skip: () => void;
+  complete: () => void;
+}
 
-  {/* Lista agrupada vertical */}
-  {Object.entries(filteredByGroup).map(([loc, mots]) => (
-    <div key={loc}>
-      <h3>{loc} ({mots.length})</h3>
-      {mots.map(m => <LocalizadorCard />)}
+export function useTutorial(
+  role: 'motorista' | 'operador' | 'supervisor' | 'cliente',
+  steps: TutorialStep[]
+): UseTutorialReturn {
+  const storageKey = `tutorial_${role}_seen`;
+  const [hasSeen, setHasSeen] = useState(() => 
+    localStorage.getItem(storageKey) === 'true'
+  );
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const markAsSeen = () => {
+    localStorage.setItem(storageKey, 'true');
+    setHasSeen(true);
+  };
+
+  // ... lógica de navegação ...
+}
+```
+
+### 4. Componente TutorialPopover
+
+```typescript
+// src/components/app/TutorialPopover.tsx
+interface TutorialPopoverProps {
+  step: TutorialStep;
+  currentIndex: number;
+  totalSteps: number;
+  onNext: () => void;
+  onSkip: () => void;
+  onComplete: () => void;
+}
+
+export function TutorialPopover({ ... }: TutorialPopoverProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="fixed z-[100] bg-card border rounded-lg shadow-xl p-4 max-w-xs"
+    >
+      <div className="space-y-3">
+        <div>
+          <h4 className="font-semibold">{step.title}</h4>
+          <p className="text-sm text-muted-foreground">{step.description}</p>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {currentIndex + 1} de {totalSteps}
+          </span>
+          
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={onSkip}>
+              Pular
+            </Button>
+            {currentIndex < totalSteps - 1 ? (
+              <Button size="sm" onClick={onNext}>
+                Proximo
+              </Button>
+            ) : (
+              <Button size="sm" onClick={onComplete}>
+                Concluir
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+```
+
+### 5. Tutorial Steps por App
+
+**Motorista:**
+```typescript
+const motoristaSteps: TutorialStep[] = [
+  {
+    id: 'welcome',
+    title: 'Bem-vindo ao App Motorista!',
+    description: 'Aqui voce vera suas missoes e viagens designadas.',
+  },
+  {
+    id: 'checkin',
+    title: 'Check-in Diario',
+    description: 'Faca seu check-in para comecar a receber viagens.',
+    targetSelector: '[data-tutorial="checkin"]',
+  },
+  {
+    id: 'viagens',
+    title: 'Suas Viagens',
+    description: 'Deslize para a direita para iniciar uma viagem, ou toque no botao.',
+    targetSelector: '[data-tutorial="viagem-card"]',
+  },
+  {
+    id: 'nav',
+    title: 'Navegacao',
+    description: 'Use a barra inferior para acessar Veiculo, criar Corrida e ver Historico.',
+    targetSelector: 'nav',
+  },
+];
+```
+
+**Supervisor:**
+```typescript
+const supervisorSteps: TutorialStep[] = [
+  {
+    id: 'welcome',
+    title: 'Painel do Supervisor',
+    description: 'Gerencie frota, viagens e localizacao da equipe.',
+  },
+  {
+    id: 'stats',
+    title: 'Filtros Rapidos',
+    description: 'Toque nos cards de status para filtrar motoristas ou veiculos.',
+    targetSelector: '[data-tutorial="stats"]',
+  },
+  {
+    id: 'swipe',
+    title: 'Acoes Rapidas',
+    description: 'Deslize os cards para realizar acoes como editar localizacao ou vincular veiculos.',
+  },
+  {
+    id: 'nova',
+    title: 'Criar Viagem',
+    description: 'Toque no botao central para criar uma nova viagem rapidamente.',
+    targetSelector: '[data-tutorial="nova-btn"]',
+  },
+];
+```
+
+### 6. Integracao nos Apps
+
+Exemplo para AppMotorista:
+
+```typescript
+// AppMotorista.tsx
+import { useTutorial } from '@/hooks/useTutorial';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
+
+const motoristaSteps = [ /* ... */ ];
+
+export default function AppMotorista() {
+  const tutorial = useTutorial('motorista', motoristaSteps);
+  
+  // ... codigo existente ...
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Tutorial Overlay */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
+      
+      {/* Adicionar data-tutorial nos elementos alvo */}
+      <CheckinCheckoutCard data-tutorial="checkin" ... />
+      
+      {/* ... resto do layout ... */}
     </div>
-  ))}
-</div>
+  );
+}
 ```
 
-### 3. SupervisorMaisTab - Remover Opcoes
+---
 
-Remover blocos que direcionam para rotas do CCO:
-- **Equipe do Evento** - redireciona para `/evento/${eventoId}/equipe` (CCO)
-- **Auditoria** - redireciona para `/evento/${eventoId}/viagens-finalizadas` (CCO)
+## Arquivos a Criar/Modificar
 
-Manter apenas:
-- Perfil do Supervisor
-- Cadastros Rapidos (Motorista, Veiculo, KM)
-- Conta (Trocar Evento)
-- Logout
+| Arquivo | Acao | Descricao |
+|---------|------|-----------|
+| `src/hooks/useTutorial.ts` | CRIAR | Hook de estado do tutorial |
+| `src/components/app/TutorialPopover.tsx` | CRIAR | Componente de popup do tutorial |
+| `tailwind.config.ts` | MODIFICAR | Adicionar keyframes de hover |
+| `src/index.css` | MODIFICAR | Adicionar classes utilitarias |
+| `src/components/app/ViagemCardMobile.tsx` | MODIFICAR | Adicionar interactive-card |
+| `src/components/app/MissaoCardMobile.tsx` | MODIFICAR | Adicionar interactive-card |
+| `src/components/app/SupervisorMotoristaCard.tsx` | MODIFICAR | Adicionar interactive-card |
+| `src/components/app/VeiculoCardSupervisor.tsx` | MODIFICAR | Adicionar interactive-card |
+| `src/components/app/MotoristaBottomNav.tsx` | MODIFICAR | Adicionar nav-item-interactive |
+| `src/components/app/OperadorBottomNav.tsx` | MODIFICAR | Adicionar nav-item-interactive |
+| `src/components/app/SupervisorBottomNav.tsx` | MODIFICAR | Adicionar nav-item-interactive |
+| `src/components/app/ClienteBottomNav.tsx` | MODIFICAR | Adicionar nav-item-interactive |
+| `src/pages/app/AppMotorista.tsx` | MODIFICAR | Integrar tutorial |
+| `src/pages/app/AppOperador.tsx` | MODIFICAR | Integrar tutorial |
+| `src/pages/app/AppSupervisor.tsx` | MODIFICAR | Integrar tutorial |
+| `src/pages/app/AppCliente.tsx` | MODIFICAR | Integrar tutorial |
 
-### 4. Pull to Refresh - Implementacao Global
+---
 
-**AppSupervisor:**
-```typescript
-// Adicionar estado e handler
-const handleRefresh = async () => {
-  await Promise.all([
-    refetchViagens(),
-    // outros refetches conforme aba ativa
-  ]);
-};
+## Fluxo do Tutorial
 
-// Envolver main em PullToRefresh
-<PullToRefresh onRefresh={handleRefresh}>
-  <main className="container mx-auto px-4 py-4">
-    {renderTabContent()}
-  </main>
-</PullToRefresh>
-```
-
-**AppCliente:**
-```typescript
-// Importar PullToRefresh
-import { PullToRefresh } from '@/components/app/PullToRefresh';
-
-// Adicionar handler
-const handleRefresh = async () => {
-  // Refetch baseado na aba ativa
-};
-
-// Envolver conteudo mobile
-<PullToRefresh onRefresh={handleRefresh}>
-  <main className="flex-1 overflow-auto">
-    {renderContent()}
-  </main>
-</PullToRefresh>
+```text
+Usuario faz primeiro login
+         │
+         ▼
+┌─────────────────────────────────┐
+│ useTutorial verifica localStorage│
+│ tutorial_${role}_seen === null  │
+└─────────────────────────────────┘
+         │ Nao visto
+         ▼
+┌─────────────────────────────────┐
+│ TutorialPopover aparece         │
+│ com animacao fade-in            │
+└─────────────────────────────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+[Proximo]  [Pular]
+    │         │
+    ▼         └────────────────┐
+Proximo step                   │
+    │                          ▼
+    └───► Ultimo step ───► [Concluir]
+                              │
+                              ▼
+                   localStorage.set(key, 'true')
+                   Tutorial nunca mais aparece
 ```
 
 ---
 
 ## Resultado Visual
 
-### SupervisorFrotaTab - Motoristas
+### Hover Animation em Card
+
 ```text
-┌─────────┐ ┌─────────┐ ┌─────────┐
-│ Disp.   │ │Em Viagem│ │Sem Veic.│  <- Cards CLICAVEIS
-│   12    │ │    5    │ │    3    │
-└─────────┘ └─────────┘ └─────────┘
-                 ↓ clicado = filtrado
-
-[🔍 Buscar motorista...]
-
+Estado normal:
 ┌──────────────────────────────────┐
-│ 🚗 Motorista A  │ Em Viagem      │
-│ Placa ABC-1234                   │
+│ Viagem Card                      │
+│ (shadow normal)                  │
 └──────────────────────────────────┘
+
+Hover/Touch:
+┌──────────────────────────────────┐  ↑ translate -2px
+│ Viagem Card                      │
+│ (shadow increased)               │
+└──────────────────────────────────┘
+      ████████████████████  <- sombra mais pronunciada
 ```
 
-### SupervisorLocalizadorTab - Novo
-```text
-┌─────────┐ ┌─────────┐ ┌─────────┐
-│Transito │ │  Base   │ │ Outros  │  <- Filtros
-│    3    │ │   15    │ │    7    │
-└─────────┘ └─────────┘ └─────────┘
-
-[🔍 Buscar motorista...]
-
-📍 EM TRANSITO (3)
-┌──────────────────────────────────┐
-│ João → Aeroporto → Hotel         │
-└──────────────────────────────────┘
-
-🏠 BASE (15)
-┌──────────────────────────────────┐
-│ Maria - Disponivel               │
-└──────────────────────────────────┘
-```
-
-### SupervisorMaisTab - Simplificado
-```text
-┌──────────────────────────────────┐
-│ 🛡️ Supervisor Operacional        │
-│ Usuario: Nome                    │
-│ Evento: Evento X                 │
-└──────────────────────────────────┘
-
-┌──────────────────────────────────┐
-│ ⚙️ Cadastros Rapidos             │
-│ > Cadastrar Motorista            │
-│ > Cadastrar Veiculo              │
-│ > Registrar KM                   │
-└──────────────────────────────────┘
-
-┌──────────────────────────────────┐
-│ Conta                            │
-│ > Trocar Evento                  │
-└──────────────────────────────────┘
-
-[🚪 Sair do Sistema]
-```
-
----
-
-## Fluxo de Pull to Refresh
+### Tutorial Popover
 
 ```text
-Usuario puxa tela para baixo
-         │
-         ▼
-┌─────────────────────────────────┐
-│ Indicador de refresh aparece    │
-│ (spinner girando)               │
-└─────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│ Chama refetch() dos hooks       │
-│ da aba ativa                    │
-└─────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│ Dados atualizados               │
-│ Indicador desaparece            │
-└─────────────────────────────────┘
+┌─────────────────────────────────────┐
+│                                     │
+│  ┌─────────────────────────┐        │
+│  │ 👋 Bem-vindo!           │        │
+│  │                         │        │
+│  │ Aqui voce vera suas     │        │
+│  │ missoes designadas.     │        │
+│  │                         │        │
+│  │ 1 de 4    [Pular] [▶]   │        │
+│  └─────────────────────────┘        │
+│                                     │
+│  ┌────────────────────────────────┐ │
+│  │ CheckinCard (destacado)        │ │
+│  └────────────────────────────────┘ │
+│                                     │
+└─────────────────────────────────────┘
 ```
 
 ---
 
 ## Ordem de Implementacao
 
-1. **SupervisorFrotaTab** - Adicionar filtros nos cards de stats
-2. **SupervisorLocalizadorTab** - Redesenhar com novo layout
-3. **SupervisorMaisTab** - Remover opcoes de CCO
-4. **AppSupervisor** - Adicionar PullToRefresh
-5. **AppCliente** - Adicionar PullToRefresh
-
+1. Adicionar animacoes no Tailwind config
+2. Criar classes utilitarias no index.css
+3. Aplicar classes nos cards existentes
+4. Aplicar classes nas bottom navs
+5. Criar hook useTutorial
+6. Criar componente TutorialPopover
+7. Integrar tutorial no AppMotorista
+8. Integrar tutorial no AppOperador
+9. Integrar tutorial no AppSupervisor
+10. Integrar tutorial no AppCliente
