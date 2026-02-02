@@ -12,6 +12,7 @@ import { EventRoleRoute } from "@/components/auth/EventRoleRoute";
 import { DriverRoute } from "@/components/auth/DriverRoute";
 import { StaffRoute } from "@/components/auth/StaffRoute";
 import Index from "./pages/Index";
+import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import LoginMotorista from "./pages/LoginMotorista";
 import LoginEquipe from "./pages/LoginEquipe";
@@ -91,6 +92,7 @@ const App = () => (
               } />
               
               {/* Admin Routes (CCO - only for admins) */}
+              <Route path="/home" element={<AdminRoute><Home /></AdminRoute>} />
               <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />
               <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
               <Route path="/suporte" element={<AdminRoute><Suporte /></AdminRoute>} />
