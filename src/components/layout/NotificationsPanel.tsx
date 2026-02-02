@@ -11,6 +11,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,6 +54,8 @@ export function NotificationsPanel() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [hasNewNotification, setHasNewNotification] = useState(false);
+  const [showMarkReadConfirm, setShowMarkReadConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Fetch recent notifications
   const fetchNotifications = useCallback(async () => {
@@ -222,20 +234,56 @@ export function NotificationsPanel() {
     }
   }, [hasNewNotification]);
 
-  const markAllAsRead = () => {
+  const handleMarkAllAsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
+    setShowMarkReadConfirm(false);
   };
 
-  const clearAll = () => {
+  const handleClearAll = () => {
     setNotifications([]);
     setUnreadCount(0);
+    setShowClearConfirm(false);
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>
-        <Button 
+    <>
+      {/* Confirmation dialogs */}
+      <AlertDialog open={showMarkReadConfirm} onOpenChange={setShowMarkReadConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar todas como lidas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas as {unreadCount} notificações não lidas serão marcadas como lidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkAllAsRead}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar todas as notificações?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas as {notifications.length} notificações serão removidas da lista. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Limpar tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetTrigger asChild>
+          <Button
           variant="outline" 
           size="icon" 
           className="relative"
@@ -276,11 +324,11 @@ export function NotificationsPanel() {
             </SheetTitle>
             {notifications.length > 0 && (
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+                <Button variant="ghost" size="sm" onClick={() => setShowMarkReadConfirm(true)} disabled={unreadCount === 0}>
                   <CheckCircle className="h-4 w-4 mr-1" />
                   Marcar lidas
                 </Button>
-                <Button variant="ghost" size="sm" onClick={clearAll}>
+                <Button variant="ghost" size="sm" onClick={() => setShowClearConfirm(true)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -345,5 +393,6 @@ export function NotificationsPanel() {
         </ScrollArea>
       </SheetContent>
     </Sheet>
+    </>
   );
 }
