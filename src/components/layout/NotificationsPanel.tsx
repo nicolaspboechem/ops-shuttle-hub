@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, User, Clock, Car, UserCheck, Trash2 } from 'lucide-react';
+import { Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, Clock, Car, UserCheck, Trash2, Check } from 'lucide-react';
+import { SwipeableCard } from '@/components/app/SwipeableCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -246,6 +247,21 @@ export function NotificationsPanel() {
     setShowClearConfirm(false);
   };
 
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => 
+      n.id === id ? { ...n, read: true } : n
+    ));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    const notification = notifications.find(n => n.id === id);
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (notification && !notification.read) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+  };
+
   return (
     <>
       {/* Confirmation dialogs */}
@@ -358,33 +374,51 @@ export function NotificationsPanel() {
                     key={notification.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`p-3 rounded-lg border ${notification.read ? 'bg-background' : 'bg-muted/50'} transition-colors`}
+                    exit={{ opacity: 0, x: 20, height: 0, marginBottom: 0 }}
+                    transition={{ delay: index * 0.02 }}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className={`${notification.color} text-white p-2 rounded-full shrink-0`}>
-                        {notification.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm">{notification.title}</p>
-                          {!notification.read && (
-                            <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                          )}
+                    <SwipeableCard
+                      rightAction={!notification.read ? {
+                        icon: <Check className="h-5 w-5" />,
+                        label: 'Lido',
+                        color: 'text-white',
+                        bgColor: 'bg-green-500',
+                        action: () => handleMarkAsRead(notification.id),
+                      } : undefined}
+                      leftAction={{
+                        icon: <Trash2 className="h-5 w-5" />,
+                        label: 'Excluir',
+                        color: 'text-white',
+                        bgColor: 'bg-red-500',
+                        action: () => handleDeleteNotification(notification.id),
+                      }}
+                    >
+                      <div className={`p-3 rounded-lg border ${notification.read ? 'bg-background' : 'bg-muted/50'} transition-colors`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`${notification.color} text-white p-2 rounded-full shrink-0`}>
+                            {notification.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">{notification.title}</p>
+                              {!notification.read && (
+                                <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {notification.description}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDistanceToNow(new Date(notification.timestamp), {
+                                addSuffix: true,
+                                locale: ptBR,
+                              })}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {notification.description}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(notification.timestamp), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                        </p>
                       </div>
-                    </div>
+                    </SwipeableCard>
                   </motion.div>
                 ))}
               </AnimatePresence>
