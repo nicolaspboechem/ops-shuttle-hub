@@ -1,335 +1,279 @@
 
-# Plano: Unificar Sistema de Login - Staff Usa Mesmo Padrão de Motoristas
+# Plano: Melhorias na Interface Supervisor + Pull to Refresh Global
 
-## Resumo do Problema
+## Resumo
 
-Atualmente temos **dois sistemas de autenticação diferentes**:
+Este plano aborda 4 melhorias solicitadas:
 
-| Role | Sistema Atual | Problema |
-|------|---------------|----------|
-| **Motorista** | Custom JWT + `motorista_credenciais` | ✅ Funciona bem, fácil de gerenciar |
-| **Supervisor/Operador** | Supabase Auth + `auth.users` | ❌ Difícil excluir, telefone fica "preso" |
-| **Cliente** | Supabase Auth + `auth.users` | ❌ Mesmo problema |
-
-**Solução:** Usar o **mesmo padrão de motoristas** para todos os staff (supervisor, operador, cliente), criando uma tabela `staff_credenciais` e Edge Functions dedicadas.
+1. **Filtros nas abas Motoristas e Veiculos** - Adicionar cards clicaveis de status como filtros (igual SupervisorViagensTab)
+2. **Remover opcoes do menu "Mais"** - Retirar itens que supervisor nao tem acesso
+3. **Aba Localizador com filtros** - Substituir Kanban horizontal por layout vertical com filtros igual Frota/Viagens
+4. **Pull to Refresh em todos os apps** - Adicionar gesto de puxar para atualizar em todos os aplicativos mobile
 
 ---
 
-## Arquitetura Proposta
+## Arquitetura Atual vs Proposta
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                    SISTEMA DE AUTENTICAÇÃO                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────────┐          ┌─────────────────────┐          │
-│  │  ADMIN (CCO)        │          │  FIELD (App)        │          │
-│  │  /auth              │          │  /login/equipe      │          │
-│  │  Supabase Auth      │          │  Custom JWT         │          │
-│  │  Email/Senha        │          │  Telefone/Senha     │          │
-│  └─────────────────────┘          └─────────────────────┘          │
-│                                            │                        │
-│                          ┌─────────────────┴─────────────────┐     │
-│                          │                                   │     │
-│                   ┌──────▼──────┐                    ┌───────▼────┐│
-│                   │ Motorista   │                    │ Staff      ││
-│                   │ driver-login│                    │ staff-login││
-│                   │ motorista_  │                    │ staff_     ││
-│                   │ credenciais │                    │ credenciais││
-│                   └─────────────┘                    └────────────┘│
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+ANTES                                   DEPOIS
+-------------------------------------------------
+SupervisorFrotaTab                      SupervisorFrotaTab
+  - Cards de stats (apenas exibicao)      - Cards de stats CLICAVEIS (filtros)
+  - Busca texto                           - Busca texto
+  - Lista sem filtro de status            - Lista filtrada por status
+
+SupervisorLocalizadorTab                SupervisorLocalizadorTab  
+  - Kanban horizontal scroll              - Cards de stats como filtros
+  - Sem filtros                           - Busca texto
+  - Colunas por localizacao               - Lista vertical agrupada
+
+SupervisorMaisTab                       SupervisorMaisTab
+  - Equipe do Evento (navega CCO)         - REMOVER Equipe do Evento
+  - Auditoria (navega CCO)                - REMOVER Auditoria
+  - Conta (trocar evento)                 - Manter Conta
+
+AppCliente                              AppCliente
+  - Sem Pull to Refresh                   - COM Pull to Refresh
+
+AppSupervisor                           AppSupervisor
+  - Sem Pull to Refresh                   - COM Pull to Refresh
 ```
 
 ---
-
-## Mudanças no Banco de Dados
-
-### Nova Tabela: `staff_credenciais`
-
-Espelha `motorista_credenciais` para operadores, supervisores e clientes:
-
-```sql
-CREATE TABLE staff_credenciais (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL,  -- Referência ao profiles.user_id
-  evento_id UUID NOT NULL, -- Evento associado
-  telefone VARCHAR NOT NULL,
-  senha_hash VARCHAR NOT NULL,
-  role VARCHAR NOT NULL DEFAULT 'operador', -- operador, supervisor, cliente
-  ativo BOOLEAN DEFAULT true,
-  ultimo_login TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  UNIQUE(telefone, evento_id) -- Mesmo telefone pode existir em eventos diferentes
-);
-
--- RLS policies
-ALTER TABLE staff_credenciais ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow anon read for login" ON staff_credenciais
-  FOR SELECT TO anon USING (true);
-
-CREATE POLICY "Allow authenticated manage" ON staff_credenciais
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
-```
-
----
-
-## Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/staff-login/index.ts` | Login de staff (como driver-login) |
-| `supabase/functions/staff-register/index.ts` | Registro de credenciais staff |
-| `supabase/functions/delete-user/index.ts` | Exclusão completa de usuários |
-| `src/lib/auth/StaffAuthContext.tsx` | Context de autenticação staff |
-| `src/pages/LoginEquipe.tsx` | Página de login para equipe |
-| `src/components/equipe/EditStaffModal.tsx` | Modal para editar staff |
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---------|---------|
-| `supabase/config.toml` | Adicionar novas Edge Functions |
-| `src/App.tsx` | Adicionar rota `/login/equipe` e StaffAuthProvider |
-| `src/components/equipe/AddStaffWizard.tsx` | Usar staff-register ao invés de create-user |
-| `src/hooks/useEquipe.ts` | Usar delete-user na exclusão |
-| `src/pages/app/AppHome.tsx` | Ajustar redirecionamento |
-| `src/components/auth/EventRoleRoute.tsx` | Suportar StaffAuthContext |
-| `src/pages/Auth.tsx` | Adicionar link "Sou da equipe de campo" |
+| `src/components/app/SupervisorFrotaTab.tsx` | Tornar cards de stats clicaveis como filtros |
+| `src/components/app/SupervisorLocalizadorTab.tsx` | Redesenhar com filtros e lista vertical |
+| `src/components/app/SupervisorMaisTab.tsx` | Remover opcoes de Equipe e Auditoria |
+| `src/pages/app/AppSupervisor.tsx` | Envolver conteudo em PullToRefresh |
+| `src/pages/app/AppCliente.tsx` | Adicionar PullToRefresh |
 
 ---
 
-## Seção Técnica
+## Secao Tecnica
 
-### Edge Function: staff-login
+### 1. SupervisorFrotaTab - Filtros por Status
 
-Similar a `driver-login`, mas busca em `staff_credenciais` e retorna role no JWT:
+**Estado atual:** Cards de stats apenas exibem numeros
+**Proposto:** Cards clicaveis que filtram a lista
 
 ```typescript
-// supabase/functions/staff-login/index.ts
+// Novo state para filtro
+const [motoristaFilter, setMotoristaFilter] = useState<string | null>(null);
+const [veiculoFilter, setVeiculoFilter] = useState<string | null>(null);
 
-// 1. Recebe telefone e senha
-// 2. Busca em staff_credenciais
-// 3. Verifica hash da senha (SHA-256 com salt)
-// 4. Gera JWT com claims:
-//    - user_id
-//    - user_nome
-//    - evento_id
-//    - role (operador/supervisor/cliente)
-//    - exp (24h)
-// 5. Atualiza ultimo_login
-// 6. Retorna session com token
+// Cards clicaveis (exemplo motoristas)
+<Card 
+  className={cn(
+    "cursor-pointer transition-all active:scale-95",
+    motoristaFilter === 'disponivel' 
+      ? "ring-2 ring-emerald-500" 
+      : "border-emerald-500/30"
+  )}
+  onClick={() => setMotoristaFilter(prev => 
+    prev === 'disponivel' ? null : 'disponivel'
+  )}
+>
+  ...
+</Card>
+
+// Filtrar lista baseado no estado
+const displayedMotoristas = motoristaFilter 
+  ? filteredMotoristas.filter(m => {
+      if (motoristaFilter === 'disponivel') return m.status === 'disponivel';
+      if (motoristaFilter === 'em_viagem') return m.status === 'em_viagem';
+      if (motoristaFilter === 'sem_veiculo') return !m.veiculo;
+      return true;
+    })
+  : filteredMotoristas;
 ```
 
-### Edge Function: staff-register
+### 2. SupervisorLocalizadorTab - Novo Layout
 
-Similar a `driver-register`:
+**Estado atual:** Kanban horizontal com scroll lateral
+**Proposto:** Layout vertical com:
+- Cards de stats clicaveis como filtros (Em Transito, Base, Sem Local)
+- Campo de busca
+- Lista agrupada por localizacao (colapsavel opcionalmente)
 
 ```typescript
-// supabase/functions/staff-register/index.ts
+// Novo design
+<div className="space-y-4">
+  {/* Stats filter - igual ao Viagens */}
+  <div className="grid grid-cols-3 gap-2">
+    <Card onClick={() => setFilter('em_transito')} ...>
+      Em Transito ({count})
+    </Card>
+    <Card onClick={() => setFilter('base')} ...>
+      Base ({count})
+    </Card>
+    <Card onClick={() => setFilter('outros')} ...>
+      Outros ({count})
+    </Card>
+  </div>
 
-// 1. Recebe: user_id, evento_id, telefone, senha, role
-// 2. Valida se user_id existe em profiles
-// 3. Verifica se telefone+evento_id já existe
-// 4. Hash da senha com SHA-256 + salt
-// 5. Insere/atualiza em staff_credenciais
+  {/* Busca */}
+  <Input placeholder="Buscar motorista..." />
+
+  {/* Lista agrupada vertical */}
+  {Object.entries(filteredByGroup).map(([loc, mots]) => (
+    <div key={loc}>
+      <h3>{loc} ({mots.length})</h3>
+      {mots.map(m => <LocalizadorCard />)}
+    </div>
+  ))}
+</div>
 ```
 
-### Edge Function: delete-user
+### 3. SupervisorMaisTab - Remover Opcoes
 
-Exclusão completa de usuários:
+Remover blocos que direcionam para rotas do CCO:
+- **Equipe do Evento** - redireciona para `/evento/${eventoId}/equipe` (CCO)
+- **Auditoria** - redireciona para `/evento/${eventoId}/viagens-finalizadas` (CCO)
 
+Manter apenas:
+- Perfil do Supervisor
+- Cadastros Rapidos (Motorista, Veiculo, KM)
+- Conta (Trocar Evento)
+- Logout
+
+### 4. Pull to Refresh - Implementacao Global
+
+**AppSupervisor:**
 ```typescript
-// supabase/functions/delete-user/index.ts
-
-// 1. Verifica se chamador é admin
-// 2. Se motorista_id:
-//    - Remove de motorista_credenciais
-//    - Remove de motorista_presenca
-//    - Remove de motoristas
-// 3. Se user_id (staff):
-//    - Remove de staff_credenciais
-//    - Remove de evento_usuarios
-//    - Remove de profiles
-// 4. NÃO precisa mais chamar auth.admin.deleteUser()
-//    (staff não estará mais no Supabase Auth)
-```
-
-### StaffAuthContext
-
-Espelha `DriverAuthContext`:
-
-```typescript
-interface StaffSession {
-  token: string;
-  user_id: string;
-  user_nome: string;
-  evento_id: string;
-  role: 'operador' | 'supervisor' | 'cliente';
-  expires_at: number;
-}
-
-// Storage key: 'staff_session'
-// Endpoint: /functions/v1/staff-login
-```
-
-### LoginEquipe.tsx
-
-Página de login para equipe de campo:
-
-- Visual similar a `LoginMotorista.tsx`
-- Cor diferenciada (azul ao invés de verde)
-- Campos: Telefone + Senha
-- Após login, redireciona para `/app/{evento_id}/{role}`
-
-### Atualização do AddStaffWizard
-
-```typescript
-// Ao criar staff, chamar staff-register ao invés de create-user
-
-const handleSubmit = async () => {
-  // 1. Criar profile no banco (sem Supabase Auth)
-  const { data: profile } = await supabase.from('profiles').insert({
-    user_id: crypto.randomUUID(), // Gerar UUID local
-    full_name: nome,
-    telefone: telefone,
-    user_type: staffType,
-  }).select().single();
-
-  // 2. Vincular ao evento
-  await supabase.from('evento_usuarios').insert({
-    user_id: profile.user_id,
-    evento_id: eventoId,
-    role: staffType,
-  });
-
-  // 3. Criar credenciais via Edge Function
-  await supabase.functions.invoke('staff-register', {
-    body: {
-      user_id: profile.user_id,
-      evento_id: eventoId,
-      telefone: telefone.replace(/\D/g, ''),
-      senha: senha,
-      role: staffType,
-    },
-  });
+// Adicionar estado e handler
+const handleRefresh = async () => {
+  await Promise.all([
+    refetchViagens(),
+    // outros refetches conforme aba ativa
+  ]);
 };
+
+// Envolver main em PullToRefresh
+<PullToRefresh onRefresh={handleRefresh}>
+  <main className="container mx-auto px-4 py-4">
+    {renderTabContent()}
+  </main>
+</PullToRefresh>
 ```
 
-### Atualização do EventRoleRoute
-
-Suportar tanto `AuthContext` (admin) quanto `StaffAuthContext` (campo):
-
+**AppCliente:**
 ```typescript
-export function EventRoleRoute({ children, allowedRoles }: Props) {
-  const { user, eventRoles } = useAuth(); // Supabase Auth (admins)
-  const { staffSession, isAuthenticated } = useStaffAuth(); // Custom JWT (field)
-  
-  // Verificar se é staff autenticado pelo sistema customizado
-  if (isAuthenticated && staffSession) {
-    if (allowedRoles.includes(staffSession.role)) {
-      return children;
-    }
-  }
-  
-  // Fallback para admin que pode acessar qualquer role
-  if (user && eventRoles.some(er => allowedRoles.includes(er.role))) {
-    return children;
-  }
-  
-  return <Navigate to="/login/equipe" />;
-}
+// Importar PullToRefresh
+import { PullToRefresh } from '@/components/app/PullToRefresh';
+
+// Adicionar handler
+const handleRefresh = async () => {
+  // Refetch baseado na aba ativa
+};
+
+// Envolver conteudo mobile
+<PullToRefresh onRefresh={handleRefresh}>
+  <main className="flex-1 overflow-auto">
+    {renderContent()}
+  </main>
+</PullToRefresh>
 ```
 
 ---
 
-## Fluxo de Criação de Staff
+## Resultado Visual
+
+### SupervisorFrotaTab - Motoristas
+```text
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│ Disp.   │ │Em Viagem│ │Sem Veic.│  <- Cards CLICAVEIS
+│   12    │ │    5    │ │    3    │
+└─────────┘ └─────────┘ └─────────┘
+                 ↓ clicado = filtrado
+
+[🔍 Buscar motorista...]
+
+┌──────────────────────────────────┐
+│ 🚗 Motorista A  │ Em Viagem      │
+│ Placa ABC-1234                   │
+└──────────────────────────────────┘
+```
+
+### SupervisorLocalizadorTab - Novo
+```text
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│Transito │ │  Base   │ │ Outros  │  <- Filtros
+│    3    │ │   15    │ │    7    │
+└─────────┘ └─────────┘ └─────────┘
+
+[🔍 Buscar motorista...]
+
+📍 EM TRANSITO (3)
+┌──────────────────────────────────┐
+│ João → Aeroporto → Hotel         │
+└──────────────────────────────────┘
+
+🏠 BASE (15)
+┌──────────────────────────────────┐
+│ Maria - Disponivel               │
+└──────────────────────────────────┘
+```
+
+### SupervisorMaisTab - Simplificado
+```text
+┌──────────────────────────────────┐
+│ 🛡️ Supervisor Operacional        │
+│ Usuario: Nome                    │
+│ Evento: Evento X                 │
+└──────────────────────────────────┘
+
+┌──────────────────────────────────┐
+│ ⚙️ Cadastros Rapidos             │
+│ > Cadastrar Motorista            │
+│ > Cadastrar Veiculo              │
+│ > Registrar KM                   │
+└──────────────────────────────────┘
+
+┌──────────────────────────────────┐
+│ Conta                            │
+│ > Trocar Evento                  │
+└──────────────────────────────────┘
+
+[🚪 Sair do Sistema]
+```
+
+---
+
+## Fluxo de Pull to Refresh
 
 ```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Admin abre AddStaffWizard no CCO                                   │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. Cria registro em `profiles` (sem Supabase Auth)                 │
-│  2. Cria registro em `evento_usuarios`                              │
-│  3. Chama staff-register → cria `staff_credenciais`                 │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Supervisor acessa /login/equipe                                    │
-│  Digite: Telefone + Senha                                           │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  staff-login:                                                       │
-│  - Busca em staff_credenciais                                       │
-│  - Verifica senha                                                   │
-│  - Gera JWT com role                                                │
-│  - Retorna session                                                  │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Redireciona para /app/{evento_id}/supervisor                       │
-│  StaffAuthContext gerencia sessão                                   │
-└─────────────────────────────────────────────────────────────────────┘
+Usuario puxa tela para baixo
+         │
+         ▼
+┌─────────────────────────────────┐
+│ Indicador de refresh aparece    │
+│ (spinner girando)               │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│ Chama refetch() dos hooks       │
+│ da aba ativa                    │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│ Dados atualizados               │
+│ Indicador desaparece            │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo de Exclusão
+## Ordem de Implementacao
 
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  Admin clica "Remover da Equipe"                                    │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  delete-user Edge Function:                                         │
-│  - Remove de staff_credenciais                                      │
-│  - Remove de evento_usuarios                                        │
-│  - Remove de profiles                                               │
-│  ✅ Telefone liberado imediatamente!                                │
-└─────────────────────────────────────────────────────────────────────┘
-```
+1. **SupervisorFrotaTab** - Adicionar filtros nos cards de stats
+2. **SupervisorLocalizadorTab** - Redesenhar com novo layout
+3. **SupervisorMaisTab** - Remover opcoes de CCO
+4. **AppSupervisor** - Adicionar PullToRefresh
+5. **AppCliente** - Adicionar PullToRefresh
 
----
-
-## Comparativo: Antes vs Depois
-
-| Aspecto | Antes (Supabase Auth) | Depois (Custom JWT) |
-|---------|----------------------|---------------------|
-| **Criar Staff** | auth.admin.createUser() | INSERT em profiles + staff_credenciais |
-| **Login Staff** | /auth com email/telefone | /login/equipe com telefone/senha |
-| **Excluir Staff** | Precisa auth.admin.deleteUser() | Apenas DELETE nas tabelas |
-| **Telefone "preso"** | ❌ Sim, permanece no Auth | ✅ Não, limpa completamente |
-| **Editar Telefone** | Difícil (Auth API) | ✅ Fácil (UPDATE tabela) |
-| **Complexidade** | Alta (2 sistemas) | ✅ Baixa (1 padrão unificado) |
-
----
-
-## Páginas de Login
-
-| Rota | Usuário | Sistema |
-|------|---------|---------|
-| `/auth` | Administradores (CCO) | Supabase Auth (email) |
-| `/login/motorista` | Motoristas | Custom JWT (telefone) |
-| `/login/equipe` | Supervisores, Operadores, Clientes | Custom JWT (telefone) |
-
----
-
-## Resultado Esperado
-
-1. ✅ **Staff criado sem Supabase Auth** - Apenas tabelas locais
-2. ✅ **Login simplificado** - Telefone + Senha em `/login/equipe`
-3. ✅ **Exclusão completa** - Telefone liberado imediatamente
-4. ✅ **Edição fácil** - UPDATE direto na tabela
-5. ✅ **Mesmo padrão de motoristas** - Código reutilizável
-6. ✅ **Admin preservado** - Continua usando Supabase Auth normalmente
