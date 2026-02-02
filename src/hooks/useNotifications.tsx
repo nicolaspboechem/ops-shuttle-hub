@@ -53,8 +53,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   });
   
   const { playNotificationSound } = useNotificationSound();
-  const previousNotificationCount = useRef<number>(0);
   const isInitialLoad = useRef(true);
+  
+  // Track deleted notification IDs to prevent them from reappearing
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   const setSoundEnabled = useCallback((enabled: boolean) => {
     setSoundEnabledState(enabled);
@@ -160,7 +162,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const finalNotifications = newNotifications.slice(0, 50);
+    
+    // Filter out deleted notifications
+    const filteredNotifications = newNotifications.filter(n => !deletedIdsRef.current.has(n.id));
+    const finalNotifications = filteredNotifications.slice(0, 50);
     
     // Preserve read state from existing notifications
     setNotifications(prev => {
@@ -172,9 +177,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       
       // Play sound for new notifications (only after initial load)
       if (!isInitialLoad.current && soundEnabled) {
-        const newIds = new Set(mergedNotifications.map(n => n.id));
         const prevIds = new Set(prev.map(n => n.id));
-        const hasNew = mergedNotifications.some(n => !prevIds.has(n.id));
+        const hasNew = mergedNotifications.some(n => !prevIds.has(n.id) && !n.read);
         if (hasNew) {
           playNotificationSound();
         }
@@ -196,6 +200,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
+    deletedIdsRef.current.add(id);
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
