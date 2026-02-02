@@ -65,13 +65,20 @@ serve(async (req) => {
     for (const phone of phonesToTry) {
       const { data } = await supabaseAdmin
         .from('staff_credenciais')
-        .select('*, profiles!user_id(user_id, full_name, telefone)')
+        .select('*')
         .eq('telefone', phone)
         .eq('ativo', true)
         .maybeSingle();
       
       if (data) {
-        credencial = data;
+        // Fetch profile separately
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('user_id, full_name, telefone')
+          .eq('user_id', data.user_id)
+          .maybeSingle();
+        
+        credencial = { ...data, profile };
         break;
       }
     }
@@ -113,7 +120,7 @@ serve(async (req) => {
       ["sign", "verify"]
     );
 
-    const profile = credencial.profiles;
+    const profile = credencial.profile;
     const expiresAt = getNumericDate(60 * 60 * 24); // 24 hours
 
     const token = await create(
