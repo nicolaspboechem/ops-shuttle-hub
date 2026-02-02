@@ -3,6 +3,7 @@ import { useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTutorial, clienteSteps } from '@/hooks/useTutorial';
 import { ClienteBottomNav, ClienteTabId } from '@/components/app/ClienteBottomNav';
 import { ClienteHeaderNav } from '@/components/app/ClienteHeaderNav';
 import { ClienteDashboardTab } from '@/components/app/ClienteDashboardTab';
@@ -10,6 +11,7 @@ import { ClienteLocalizadorTab } from '@/components/app/ClienteLocalizadorTab';
 import { ClientePainelTab } from '@/components/app/ClientePainelTab';
 import { MobileHeader } from '@/components/layout/MobileHeader';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { Loader2 } from 'lucide-react';
 import { isValidUUID } from '@/lib/utils/uuid';
 
@@ -27,6 +29,9 @@ export default function AppCliente() {
   const [evento, setEvento] = useState<EventoConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Tutorial system
+  const tutorial = useTutorial('cliente', clienteSteps);
 
   useEffect(() => {
     if (!eventoId || !isValidUUID(eventoId)) {
@@ -97,16 +102,26 @@ export default function AppCliente() {
     return <Navigate to="/app" replace />;
   }
 
-  // Mobile layout
   if (isMobile) {
     return (
       <div className="min-h-screen bg-background flex flex-col pb-16">
+        {/* Tutorial Popover */}
+        {tutorial.isActive && tutorial.currentStep && (
+          <TutorialPopover
+            step={tutorial.currentStep}
+            currentIndex={tutorial.currentIndex}
+            totalSteps={tutorial.totalSteps}
+            onNext={tutorial.next}
+            onSkip={tutorial.skip}
+            onComplete={tutorial.complete}
+          />
+        )}
         <MobileHeader 
           title={evento?.nome_planilha || 'Cliente'} 
           subtitle="Cliente"
         />
         <PullToRefresh onRefresh={handleRefresh}>
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto" data-tutorial="dashboard">
             {renderContent()}
           </main>
         </PullToRefresh>

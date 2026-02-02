@@ -101,12 +101,23 @@ export default {
           from: { transform: "translateX(-10px)", opacity: "0" },
           to: { transform: "translateX(0)", opacity: "1" },
         },
+        "hover-lift": {
+          "0%": { transform: "translateY(0)", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
+          "100%": { transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.12)" },
+        },
+        "tap-shrink": {
+          "0%": { transform: "scale(1)" },
+          "50%": { transform: "scale(0.97)" },
+          "100%": { transform: "scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
         "slide-in": "slide-in 0.3s ease-out",
+        "hover-lift": "hover-lift 0.2s ease-out forwards",
+        "tap-shrink": "tap-shrink 0.15s ease-out",
       },
     },
   },

@@ -66,10 +66,13 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
   const swipeActions = getSwipeActions();
 
   const cardContent = (
-    <Card className={cn(
-      "overflow-hidden transition-all",
-      status === 'em_andamento' && "ring-2 ring-blue-500 shadow-lg"
-    )}>
+    <Card 
+      className={cn(
+        "overflow-hidden transition-all interactive-card",
+        status === 'em_andamento' && "ring-2 ring-blue-500 shadow-lg"
+      )}
+      data-tutorial="viagem-card"
+    >
       <div className={cn("h-2", config.color)} />
       <CardContent className="p-4 space-y-4">
         {/* Header */}

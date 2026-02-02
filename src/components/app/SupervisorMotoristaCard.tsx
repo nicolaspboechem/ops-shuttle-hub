@@ -86,7 +86,7 @@ export function SupervisorMotoristaCard({
   return (
     <SwipeableCard leftAction={leftAction} rightAction={rightAction}>
       <Card className={cn(
-        "transition-all",
+        "transition-all interactive-card",
         status === 'em_viagem' && "border-blue-500/50 bg-blue-500/5",
         !hasVeiculo && "border-amber-500/30 bg-amber-500/5"
       )}>

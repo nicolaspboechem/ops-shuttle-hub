@@ -172,4 +172,24 @@
   .status-critical-soft {
     @apply bg-[hsl(var(--status-critical-bg))] text-[hsl(var(--status-critical))];
   }
+
+  /* Interactive card with hover/tap effects */
+  .interactive-card {
+    @apply transition-all duration-200 ease-out;
+    @apply hover:shadow-lg hover:-translate-y-0.5;
+    @apply active:scale-[0.98] active:shadow-md;
+  }
+  
+  /* Interactive button with press feedback */
+  .interactive-btn {
+    @apply transition-all duration-150;
+    @apply hover:brightness-110 hover:scale-105;
+    @apply active:scale-95 active:brightness-95;
+  }
+  
+  /* Bottom nav item with hover effect */
+  .nav-item-interactive {
+    @apply transition-all duration-200;
+    @apply hover:bg-muted/50 active:bg-muted;
+  }
 }

@@ -7,6 +7,7 @@ import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { useMotoristaPresenca } from '@/hooks/useMotoristaPresenca';
 import { useServerTime } from '@/hooks/useServerTime';
+import { useTutorial, motoristaSteps } from '@/hooks/useTutorial';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -21,6 +22,7 @@ import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBottomNav';
 import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
 import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
@@ -44,6 +46,9 @@ export default function AppMotorista() {
   
   const [operando, setOperando] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
+  
+  // Tutorial system
+  const tutorial = useTutorial('motorista', motoristaSteps);
 
   const evento = eventos.find(e => e.id === eventoId);
   
@@ -422,6 +427,18 @@ export default function AppMotorista() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Tutorial Popover */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-4">

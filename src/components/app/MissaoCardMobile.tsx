@@ -76,12 +76,14 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
 
   const cardContent = (
     <Card className={cn(
-      "transition-all",
+      "transition-all interactive-card",
       config.cardBorder,
       missao.status === 'pendente' && "border-primary/30 shadow-sm",
       missao.status === 'aceita' && "border-blue-500/30 bg-blue-500/5",
       missao.status === 'em_andamento' && "border-amber-500/30 bg-amber-500/5",
-    )}>
+    )}
+    data-tutorial="missao-card"
+    >
       <CardContent className="p-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-2 mb-3">
