@@ -55,7 +55,7 @@ export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottom
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full nav-item-interactive rounded-lg",
                 isActive 
                   ? "text-primary" 
                   : "text-muted-foreground"

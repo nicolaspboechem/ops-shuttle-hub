@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
+import { useTutorial, supervisorSteps } from '@/hooks/useTutorial';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +27,7 @@ import { SupervisorLocalizadorTab } from '@/components/app/SupervisorLocalizador
 import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
 
 export default function AppSupervisor() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -36,6 +38,9 @@ export default function AppSupervisor() {
   const [evento, setEvento] = useState<{ nome_planilha: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNovaViagem, setShowNovaViagem] = useState(false);
+  
+  // Tutorial system
+  const tutorial = useTutorial('supervisor', supervisorSteps);
   
   const { refetch: refetchViagens } = useViagens(eventoId);
   const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
@@ -110,6 +115,17 @@ export default function AppSupervisor() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col pb-16">
+      {/* Tutorial Popover */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-3">

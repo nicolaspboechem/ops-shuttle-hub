@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useTutorial, operadorSteps } from '@/hooks/useTutorial';
 import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
@@ -12,6 +13,7 @@ import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWi
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
 import { OperadorMotoristasTab } from '@/components/app/OperadorMotoristasTab';
 import { OperadorHistoricoTab } from '@/components/app/OperadorHistoricoTab';
@@ -43,6 +45,9 @@ export default function AppOperador() {
   const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
+  
+  // Tutorial system
+  const tutorial = useTutorial('operador', operadorSteps);
 
   const handleRefresh = async () => {
     await refetch();
@@ -202,6 +207,18 @@ export default function AppOperador() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Tutorial Popover */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
+
       {/* Header simplificado */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-3">

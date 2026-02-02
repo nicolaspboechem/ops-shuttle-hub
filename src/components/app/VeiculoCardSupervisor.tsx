@@ -109,7 +109,7 @@ export function VeiculoCardSupervisor({
       leftAction={swipeActions.leftAction}
       rightAction={swipeActions.rightAction}
     >
-      <Card className={cn('transition-all', status.border, status.bg)}>
+      <Card className={cn('transition-all interactive-card', status.border, status.bg)}>
         <CardContent className="p-3">
           <div className="flex items-start gap-3">
             {/* Vehicle Icon */}
