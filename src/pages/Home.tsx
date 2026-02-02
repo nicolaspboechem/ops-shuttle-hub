@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -14,14 +13,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, 
   Clock, Car, UserCheck, Activity, Calendar, Users, 
-  TrendingUp, RefreshCw, Truck, Filter, X
+  TrendingUp, RefreshCw, Truck, Filter, X, Check, Trash2,
+  Volume2, VolumeX
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { toast } from 'sonner';
 
 interface Notification {
   id: string;
@@ -63,6 +71,14 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [filtroMotorista, setFiltroMotorista] = useState<string>('todos');
   const [filtroVeiculo, setFiltroVeiculo] = useState<string>('todos');
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('notification-sound-enabled');
+    return saved !== 'false';
+  });
+  
+  const { playNotificationSound } = useNotificationSound();
+  const previousNotificationCount = useRef<number>(0);
+  const isInitialLoad = useRef(true);
 
   // Extract unique motoristas and placas from notifications
   const { motoristas, placas } = useMemo(() => {
@@ -94,6 +110,23 @@ export default function Home() {
   const clearFilters = () => {
     setFiltroMotorista('todos');
     setFiltroVeiculo('todos');
+  };
+
+  const toggleSound = () => {
+    const newValue = !soundEnabled;
+    setSoundEnabled(newValue);
+    localStorage.setItem('notification-sound-enabled', String(newValue));
+    toast.success(newValue ? 'Som de notificações ativado' : 'Som de notificações desativado');
+  };
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev => 
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    );
+  };
+
+  const handleDeleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
   const fetchStats = useCallback(async () => {
@@ -210,8 +243,16 @@ export default function Home() {
     });
 
     newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    setNotifications(newNotifications.slice(0, 50));
-  }, []);
+    const finalNotifications = newNotifications.slice(0, 50);
+    
+    // Play sound for new notifications (only after initial load)
+    if (!isInitialLoad.current && soundEnabled && finalNotifications.length > previousNotificationCount.current) {
+      playNotificationSound();
+    }
+    
+    previousNotificationCount.current = finalNotifications.length;
+    setNotifications(finalNotifications);
+  }, [soundEnabled, playNotificationSound]);
 
   const fetchAll = useCallback(async () => {
     await Promise.all([fetchStats(), fetchNotifications()]);
@@ -225,8 +266,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchAll();
-
+    fetchAll().then(() => {
+      isInitialLoad.current = false;
+    });
     // Realtime subscriptions
     const viagemLogsChannel = supabase
       .channel('home-viagem-logs')
@@ -284,10 +326,29 @@ export default function Home() {
             <h1 className="text-2xl font-semibold text-foreground">Central de Controle</h1>
             <p className="text-muted-foreground">Monitoramento em tempo real das operações</p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={toggleSound}
+                    className={soundEnabled ? '' : 'text-muted-foreground'}
+                  >
+                    {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {soundEnabled ? 'Desativar som' : 'Ativar som'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -421,30 +482,69 @@ export default function Home() {
                         key={notification.id}
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
+                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
                         transition={{ delay: index * 0.02 }}
-                        className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                        className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
+                          notification.read ? 'bg-muted/30 opacity-60' : 'bg-card hover:bg-muted/50'
+                        }`}
                       >
                         <div className={`${notification.color} text-white p-2.5 rounded-full shrink-0`}>
                           {notification.icon}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">{notification.title}</p>
+                            <p className={`font-medium ${notification.read ? 'text-muted-foreground' : ''}`}>
+                              {notification.title}
+                            </p>
                             <Badge variant="secondary" className="text-xs">
                               {notification.type}
                             </Badge>
+                            {!notification.read && (
+                              <span className="h-2 w-2 rounded-full bg-primary" />
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-0.5">
                             {notification.description}
                           </p>
                         </div>
-                        <div className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1 shrink-0">
-                          <Clock className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(notification.timestamp), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDistanceToNow(new Date(notification.timestamp), {
+                              addSuffix: true,
+                              locale: ptBR,
+                            })}
+                          </span>
+                          <TooltipProvider>
+                            {!notification.read && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-green-500"
+                                    onClick={() => handleMarkAsRead(notification.id)}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Marcar como lido</TooltipContent>
+                              </Tooltip>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDeleteNotification(notification.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Excluir</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </motion.div>
                     ))}
