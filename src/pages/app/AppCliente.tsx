@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +9,7 @@ import { ClienteDashboardTab } from '@/components/app/ClienteDashboardTab';
 import { ClienteLocalizadorTab } from '@/components/app/ClienteLocalizadorTab';
 import { ClientePainelTab } from '@/components/app/ClientePainelTab';
 import { MobileHeader } from '@/components/layout/MobileHeader';
+import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { Loader2 } from 'lucide-react';
 import { isValidUUID } from '@/lib/utils/uuid';
 
@@ -25,6 +26,7 @@ export default function AppCliente() {
   const [activeTab, setActiveTab] = useState<ClienteTabId>('dashboard');
   const [evento, setEvento] = useState<EventoConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!eventoId || !isValidUUID(eventoId)) {
@@ -57,18 +59,25 @@ export default function AppCliente() {
     }
   }, [availableTabs, activeTab]);
 
+  const handleRefresh = useCallback(async () => {
+    // Trigger refresh by updating key
+    setRefreshKey(prev => prev + 1);
+    // Small delay to ensure components re-fetch
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }, []);
+
   const renderContent = () => {
     if (!eventoId) return null;
     
     switch (activeTab) {
       case 'dashboard':
-        return <ClienteDashboardTab eventoId={eventoId} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} />;
       case 'localizador':
-        return <ClienteLocalizadorTab eventoId={eventoId} />;
+        return <ClienteLocalizadorTab key={refreshKey} eventoId={eventoId} />;
       case 'painel':
-        return <ClientePainelTab eventoId={eventoId} />;
+        return <ClientePainelTab key={refreshKey} eventoId={eventoId} />;
       default:
-        return <ClienteDashboardTab eventoId={eventoId} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} />;
     }
   };
 
@@ -96,9 +105,11 @@ export default function AppCliente() {
           title={evento?.nome_planilha || 'Cliente'} 
           subtitle="Cliente"
         />
-        <main className="flex-1 overflow-auto">
-          {renderContent()}
-        </main>
+        <PullToRefresh onRefresh={handleRefresh}>
+          <main className="flex-1 overflow-auto">
+            {renderContent()}
+          </main>
+        </PullToRefresh>
         <ClienteBottomNav 
           activeTab={activeTab} 
           onTabChange={setActiveTab}

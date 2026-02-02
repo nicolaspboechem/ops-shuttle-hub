@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
+import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +25,7 @@ import { SupervisorViagensTab } from '@/components/app/SupervisorViagensTab';
 import { SupervisorLocalizadorTab } from '@/components/app/SupervisorLocalizadorTab';
 import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
+import { PullToRefresh } from '@/components/app/PullToRefresh';
 
 export default function AppSupervisor() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -36,6 +38,7 @@ export default function AppSupervisor() {
   const [showNovaViagem, setShowNovaViagem] = useState(false);
   
   const { refetch: refetchViagens } = useViagens(eventoId);
+  const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
 
   useEffect(() => {
     if (eventoId) {
@@ -61,6 +64,14 @@ export default function AppSupervisor() {
       setActiveTab(tab);
     }
   };
+
+  const handleRefresh = useCallback(async () => {
+    // Refetch data based on active tab
+    await Promise.all([
+      refetchViagens(),
+      refetchMotoristas(),
+    ]);
+  }, [refetchViagens, refetchMotoristas]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -147,10 +158,12 @@ export default function AppSupervisor() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-4">
-        {renderTabContent()}
-      </main>
+      {/* Main Content with Pull to Refresh */}
+      <PullToRefresh onRefresh={handleRefresh}>
+        <main className="flex-1 container mx-auto px-4 py-4">
+          {renderTabContent()}
+        </main>
+      </PullToRefresh>
 
       {/* Bottom Navigation */}
       <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
