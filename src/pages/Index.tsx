@@ -86,6 +86,15 @@ const Index = () => {
               </div> : <EventosGrid eventos={filteredEventos} onSelect={id => navigate(`/painel/${id}`)} />}
           </>}
       </main>
+
+      {/* Footer - Controle Interno */}
+      <footer className="border-t bg-muted/30 py-4 mt-auto">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-xs text-muted-foreground">
+            Sistema de Controle Interno • Uso restrito à equipe operacional
+          </p>
+        </div>
+      </footer>
     </div>;
 };
 export default Index;
