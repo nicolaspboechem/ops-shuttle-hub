@@ -1,120 +1,78 @@
 
-# Plano: Criação da Role "Cliente" - Dashboard Estratégico
+# Plano: Unificar Sistema de Login - Staff Usa Mesmo Padrão de Motoristas
 
-## Resumo Executivo
+## Resumo do Problema
 
-Criar uma nova role "cliente" no sistema de evento_usuarios com uma interface dedicada focada em **análise estratégica de público e comportamento**. O cliente terá acesso condicional ao Dashboard, Localizador e Painel de Horários baseado nas configurações do evento no CCO.
+Atualmente temos **dois sistemas de autenticação diferentes**:
 
----
+| Role | Sistema Atual | Problema |
+|------|---------------|----------|
+| **Motorista** | Custom JWT + `motorista_credenciais` | ✅ Funciona bem, fácil de gerenciar |
+| **Supervisor/Operador** | Supabase Auth + `auth.users` | ❌ Difícil excluir, telefone fica "preso" |
+| **Cliente** | Supabase Auth + `auth.users` | ❌ Mesmo problema |
 
-## Análise da Arquitetura Atual
-
-### Sistema de Roles Existente
-
-| Role | Tabela | Interface | Acesso |
-|------|--------|-----------|--------|
-| `admin` | user_roles | CCO Desktop | Completo |
-| `motorista` | evento_usuarios | App Mobile | Viagens próprias |
-| `operador` | evento_usuarios | App Mobile | Gerenciar viagens |
-| `supervisor` | evento_usuarios | App Mobile | Master de campo |
-
-### Configurações de Evento (tabela `eventos`)
-- `habilitar_localizador: boolean` - Controla visibilidade do painel localizador
-- `visivel_publico: boolean` - Controla visibilidade do painel de horários
+**Solução:** Usar o **mesmo padrão de motoristas** para todos os staff (supervisor, operador, cliente), criando uma tabela `staff_credenciais` e Edge Functions dedicadas.
 
 ---
 
-## Estrutura da Nova Role
-
-### Role: `cliente`
-
-**Características:**
-- Armazenado em `evento_usuarios` com role = 'cliente'
-- Acesso somente leitura (sem ações de criação/edição)
-- Dashboard estratégico sem alertas operacionais
-- Acesso condicional ao Localizador e Painel
-
-### Abas Disponíveis
-
-| Aba | Condição | Descrição |
-|-----|----------|-----------|
-| **Dashboard** | Sempre visível | Versão estratégica focada em métricas de público |
-| **Localizador** | Se `habilitar_localizador = true` | Visualização do Kanban de motoristas |
-| **Painel** | Se `visivel_publico = true` | Horários de rotas shuttle |
-
----
-
-## Implementação
-
-### Fase 1: Atualização do AuthContext
-
-**Arquivo:** `src/lib/auth/AuthContext.tsx`
-
-Adicionar 'cliente' ao tipo EventRole:
-
-```typescript
-type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
-```
-
-### Fase 2: Criação dos Componentes de Layout
-
-**Novos Arquivos:**
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/app/ClienteBottomNav.tsx` | Navegação inferior mobile (3 tabs) |
-| `src/components/app/ClienteHeaderNav.tsx` | Header desktop com abas fixas |
-| `src/components/app/ClienteDashboardTab.tsx` | Dashboard estratégico |
-| `src/pages/app/AppCliente.tsx` | Página principal do cliente |
-
-### Fase 3: ClienteBottomNav (Mobile)
-
-Navegação inferior com 3 abas:
+## Arquitetura Proposta
 
 ```text
-┌──────────────────────────────────────────┐
-│                                          │
-│          [CONTEÚDO DA TAB]               │
-│                                          │
-├──────────────────────────────────────────┤
-│  [📊]      [📍]      [🕐]               │
-│ Dashboard  Local*    Painel*            │
-│                                          │
-│  * Exibido condicionalmente              │
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SISTEMA DE AUTENTICAÇÃO                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────┐          ┌─────────────────────┐          │
+│  │  ADMIN (CCO)        │          │  FIELD (App)        │          │
+│  │  /auth              │          │  /login/equipe      │          │
+│  │  Supabase Auth      │          │  Custom JWT         │          │
+│  │  Email/Senha        │          │  Telefone/Senha     │          │
+│  └─────────────────────┘          └─────────────────────┘          │
+│                                            │                        │
+│                          ┌─────────────────┴─────────────────┐     │
+│                          │                                   │     │
+│                   ┌──────▼──────┐                    ┌───────▼────┐│
+│                   │ Motorista   │                    │ Staff      ││
+│                   │ driver-login│                    │ staff-login││
+│                   │ motorista_  │                    │ staff_     ││
+│                   │ credenciais │                    │ credenciais││
+│                   └─────────────┘                    └────────────┘│
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Fase 4: ClienteHeaderNav (Desktop)
+---
 
-Header fixo com abas horizontais:
+## Mudanças no Banco de Dados
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│  🏢 AS Brasil │ Evento XYZ │ Dashboard │ Local* │ Painel*│
-└──────────────────────────────────────────────────────────┘
+### Nova Tabela: `staff_credenciais`
+
+Espelha `motorista_credenciais` para operadores, supervisores e clientes:
+
+```sql
+CREATE TABLE staff_credenciais (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,  -- Referência ao profiles.user_id
+  evento_id UUID NOT NULL, -- Evento associado
+  telefone VARCHAR NOT NULL,
+  senha_hash VARCHAR NOT NULL,
+  role VARCHAR NOT NULL DEFAULT 'operador', -- operador, supervisor, cliente
+  ativo BOOLEAN DEFAULT true,
+  ultimo_login TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE(telefone, evento_id) -- Mesmo telefone pode existir em eventos diferentes
+);
+
+-- RLS policies
+ALTER TABLE staff_credenciais ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow anon read for login" ON staff_credenciais
+  FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Allow authenticated manage" ON staff_credenciais
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
 ```
-
-### Fase 5: ClienteDashboardTab - Dashboard Estratégico
-
-**Removido do Dashboard Original:**
-- ❌ AlertsPanel (alertas e críticos)
-- ❌ Top Motoristas
-- ❌ Top Veículos
-- ❌ Cards de Status (OK, Alerta, Crítico)
-
-**Mantido/Expandido:**
-- ✅ Métricas de PAX em tempo real
-- ✅ Viagens por hora (gráfico)
-- ✅ PAX por hora (gráfico)
-- ✅ Desempenho por Rota
-- ✅ Filtros por tipo de operação e ponto de embarque
-- ✅ Indicadores de tempo médio
-
-**Novas Métricas Estratégicas:**
-- Total de PAX transportados no dia
-- Pico de demanda (horário)
-- Rota mais utilizada
-- Ocupação média dos veículos
 
 ---
 
@@ -122,377 +80,256 @@ Header fixo com abas horizontais:
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/app/ClienteBottomNav.tsx` | Navegação mobile |
-| `src/components/app/ClienteHeaderNav.tsx` | Header desktop |
-| `src/components/app/ClienteDashboardTab.tsx` | Dashboard estratégico |
-| `src/components/app/ClienteLocalizadorTab.tsx` | Wrapper do localizador |
-| `src/components/app/ClientePainelTab.tsx` | Wrapper do painel de horários |
-| `src/pages/app/AppCliente.tsx` | Página principal |
+| `supabase/functions/staff-login/index.ts` | Login de staff (como driver-login) |
+| `supabase/functions/staff-register/index.ts` | Registro de credenciais staff |
+| `supabase/functions/delete-user/index.ts` | Exclusão completa de usuários |
+| `src/lib/auth/StaffAuthContext.tsx` | Context de autenticação staff |
+| `src/pages/LoginEquipe.tsx` | Página de login para equipe |
+| `src/components/equipe/EditStaffModal.tsx` | Modal para editar staff |
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/lib/auth/AuthContext.tsx` | Adicionar 'cliente' ao EventRole |
-| `src/App.tsx` | Adicionar rota `/app/:eventoId/cliente` |
-| `src/pages/app/AppHome.tsx` | Redirecionar cliente para sua interface |
+| `supabase/config.toml` | Adicionar novas Edge Functions |
+| `src/App.tsx` | Adicionar rota `/login/equipe` e StaffAuthProvider |
+| `src/components/equipe/AddStaffWizard.tsx` | Usar staff-register ao invés de create-user |
+| `src/hooks/useEquipe.ts` | Usar delete-user na exclusão |
+| `src/pages/app/AppHome.tsx` | Ajustar redirecionamento |
+| `src/components/auth/EventRoleRoute.tsx` | Suportar StaffAuthContext |
+| `src/pages/Auth.tsx` | Adicionar link "Sou da equipe de campo" |
 
 ---
 
 ## Seção Técnica
 
-### Estrutura do AppCliente
+### Edge Function: staff-login
+
+Similar a `driver-login`, mas busca em `staff_credenciais` e retorna role no JWT:
 
 ```typescript
-// src/pages/app/AppCliente.tsx
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { useAuth } from '@/lib/auth/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { ClienteBottomNav, ClienteTabId } from '@/components/app/ClienteBottomNav';
-import { ClienteHeaderNav } from '@/components/app/ClienteHeaderNav';
-import { ClienteDashboardTab } from '@/components/app/ClienteDashboardTab';
-import { ClienteLocalizadorTab } from '@/components/app/ClienteLocalizadorTab';
-import { ClientePainelTab } from '@/components/app/ClientePainelTab';
+// supabase/functions/staff-login/index.ts
 
-export default function AppCliente() {
-  const { eventoId } = useParams<{ eventoId: string }>();
-  const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState<ClienteTabId>('dashboard');
-  const [evento, setEvento] = useState<{
-    nome_planilha: string;
-    habilitar_localizador: boolean;
-    visivel_publico: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    // Fetch event settings
-    supabase
-      .from('eventos')
-      .select('nome_planilha, habilitar_localizador, visivel_publico')
-      .eq('id', eventoId)
-      .single()
-      .then(({ data }) => setEvento(data));
-  }, [eventoId]);
-
-  const tabs = useMemo(() => {
-    const available: ClienteTabId[] = ['dashboard'];
-    if (evento?.habilitar_localizador) available.push('localizador');
-    if (evento?.visivel_publico) available.push('painel');
-    return available;
-  }, [evento]);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <ClienteDashboardTab eventoId={eventoId!} />;
-      case 'localizador':
-        return <ClienteLocalizadorTab eventoId={eventoId!} />;
-      case 'painel':
-        return <ClientePainelTab eventoId={eventoId!} />;
-    }
-  };
-
-  if (isMobile) {
-    return (
-      <div className="min-h-screen pb-16">
-        <MobileHeader title={evento?.nome_planilha || 'Cliente'} />
-        {renderContent()}
-        <ClienteBottomNav 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab}
-          availableTabs={tabs}
-        />
-      </div>
-    );
-  }
-
-  // Desktop
-  return (
-    <div className="min-h-screen">
-      <ClienteHeaderNav 
-        eventoNome={evento?.nome_planilha}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        availableTabs={tabs}
-      />
-      <main className="container mx-auto px-6 py-6">
-        {renderContent()}
-      </main>
-    </div>
-  );
-}
+// 1. Recebe telefone e senha
+// 2. Busca em staff_credenciais
+// 3. Verifica hash da senha (SHA-256 com salt)
+// 4. Gera JWT com claims:
+//    - user_id
+//    - user_nome
+//    - evento_id
+//    - role (operador/supervisor/cliente)
+//    - exp (24h)
+// 5. Atualiza ultimo_login
+// 6. Retorna session com token
 ```
 
-### ClienteBottomNav
+### Edge Function: staff-register
+
+Similar a `driver-register`:
 
 ```typescript
-export type ClienteTabId = 'dashboard' | 'localizador' | 'painel';
+// supabase/functions/staff-register/index.ts
 
-interface ClienteBottomNavProps {
-  activeTab: ClienteTabId;
-  onTabChange: (tab: ClienteTabId) => void;
-  availableTabs: ClienteTabId[];
+// 1. Recebe: user_id, evento_id, telefone, senha, role
+// 2. Valida se user_id existe em profiles
+// 3. Verifica se telefone+evento_id já existe
+// 4. Hash da senha com SHA-256 + salt
+// 5. Insere/atualiza em staff_credenciais
+```
+
+### Edge Function: delete-user
+
+Exclusão completa de usuários:
+
+```typescript
+// supabase/functions/delete-user/index.ts
+
+// 1. Verifica se chamador é admin
+// 2. Se motorista_id:
+//    - Remove de motorista_credenciais
+//    - Remove de motorista_presenca
+//    - Remove de motoristas
+// 3. Se user_id (staff):
+//    - Remove de staff_credenciais
+//    - Remove de evento_usuarios
+//    - Remove de profiles
+// 4. NÃO precisa mais chamar auth.admin.deleteUser()
+//    (staff não estará mais no Supabase Auth)
+```
+
+### StaffAuthContext
+
+Espelha `DriverAuthContext`:
+
+```typescript
+interface StaffSession {
+  token: string;
+  user_id: string;
+  user_nome: string;
+  evento_id: string;
+  role: 'operador' | 'supervisor' | 'cliente';
+  expires_at: number;
 }
 
-const allTabs = [
-  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-  { id: 'localizador', label: 'Localizador', icon: MapPin },
-  { id: 'painel', label: 'Painel', icon: Clock },
-];
+// Storage key: 'staff_session'
+// Endpoint: /functions/v1/staff-login
+```
 
-export function ClienteBottomNav({ activeTab, onTabChange, availableTabs }: ClienteBottomNavProps) {
-  const visibleTabs = allTabs.filter(t => availableTabs.includes(t.id));
+### LoginEquipe.tsx
+
+Página de login para equipe de campo:
+
+- Visual similar a `LoginMotorista.tsx`
+- Cor diferenciada (azul ao invés de verde)
+- Campos: Telefone + Senha
+- Após login, redireciona para `/app/{evento_id}/{role}`
+
+### Atualização do AddStaffWizard
+
+```typescript
+// Ao criar staff, chamar staff-register ao invés de create-user
+
+const handleSubmit = async () => {
+  // 1. Criar profile no banco (sem Supabase Auth)
+  const { data: profile } = await supabase.from('profiles').insert({
+    user_id: crypto.randomUUID(), // Gerar UUID local
+    full_name: nome,
+    telefone: telefone,
+    user_type: staffType,
+  }).select().single();
+
+  // 2. Vincular ao evento
+  await supabase.from('evento_usuarios').insert({
+    user_id: profile.user_id,
+    evento_id: eventoId,
+    role: staffType,
+  });
+
+  // 3. Criar credenciais via Edge Function
+  await supabase.functions.invoke('staff-register', {
+    body: {
+      user_id: profile.user_id,
+      evento_id: eventoId,
+      telefone: telefone.replace(/\D/g, ''),
+      senha: senha,
+      role: staffType,
+    },
+  });
+};
+```
+
+### Atualização do EventRoleRoute
+
+Suportar tanto `AuthContext` (admin) quanto `StaffAuthContext` (campo):
+
+```typescript
+export function EventRoleRoute({ children, allowedRoles }: Props) {
+  const { user, eventRoles } = useAuth(); // Supabase Auth (admins)
+  const { staffSession, isAuthenticated } = useStaffAuth(); // Custom JWT (field)
   
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t">
-      <div className="flex items-center justify-around h-16">
-        {visibleTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={cn(
-              "flex flex-col items-center justify-center gap-0.5 flex-1 h-full",
-              activeTab === tab.id ? "text-primary" : "text-muted-foreground"
-            )}
-          >
-            <tab.icon className="w-5 h-5" />
-            <span className="text-[10px] font-medium">{tab.label}</span>
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
-}
-```
-
-### ClienteHeaderNav (Desktop)
-
-```typescript
-export function ClienteHeaderNav({ 
-  eventoNome, 
-  activeTab, 
-  onTabChange, 
-  availableTabs 
-}: Props) {
-  return (
-    <header className="sticky top-0 z-50 border-b bg-background">
-      <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-4">
-            <img src={logoAS} alt="AS Brasil" className="h-10" />
-            <div>
-              <h1 className="font-semibold">{eventoNome}</h1>
-              <Badge variant="secondary">Cliente</Badge>
-            </div>
-          </div>
-          
-          {/* Tabs */}
-          <div className="flex items-center gap-1">
-            {availableTabs.map(tabId => (
-              <Button
-                key={tabId}
-                variant={activeTab === tabId ? "default" : "ghost"}
-                onClick={() => onTabChange(tabId)}
-              >
-                {tabId === 'dashboard' && <><BarChart3 className="mr-2" />Dashboard</>}
-                {tabId === 'localizador' && <><MapPin className="mr-2" />Localizador</>}
-                {tabId === 'painel' && <><Clock className="mr-2" />Painel</>}
-              </Button>
-            ))}
-          </div>
-          
-          <Button variant="ghost" size="icon" onClick={signOut}>
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
-```
-
-### ClienteDashboardTab (Dashboard Estratégico)
-
-Dashboard focado em análise de público, **sem elementos operacionais**:
-
-```typescript
-export function ClienteDashboardTab({ eventoId }: { eventoId: string }) {
-  const { viagens } = useViagens(eventoId);
-  const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas } = useCalculos(viagens);
-
-  // Métricas estratégicas
-  const totalPaxDia = useMemo(() => 
-    viagens.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0)
-  , [viagens]);
-
-  const horarioPico = useMemo(() => {
-    if (!metricasPorHora.length) return null;
-    return metricasPorHora.reduce((max, h) => h.pax > max.pax ? h : max);
-  }, [metricasPorHora]);
-
-  return (
-    <div className="space-y-6">
-      {/* Header com última atualização */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Análise Estratégica</h2>
-        <Badge variant="outline">{format(new Date(), 'HH:mm:ss')}</Badge>
-      </div>
-
-      {/* KPIs Estratégicos - Sem alertas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard 
-          title="Total PAX Dia" 
-          value={totalPaxDia} 
-          icon={<Users />} 
-        />
-        <MetricCard 
-          title="Viagens Realizadas" 
-          value={viagensFinalizadas.length} 
-          icon={<CheckCircle />} 
-        />
-        <MetricCard 
-          title="Em Trânsito" 
-          value={viagensAtivas.length} 
-          icon={<Bus />} 
-        />
-        <MetricCard 
-          title="Tempo Médio" 
-          value={formatarMinutos(kpis?.tempoMedioGeral || 0)} 
-          icon={<Clock />} 
-        />
-      </div>
-
-      {/* Gráficos - Foco em comportamento */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <PassengersChart data={metricasPorHora} />
-        <RoutePerformanceChart viagens={viagens} />
-      </div>
-
-      {/* Insights */}
-      {horarioPico && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Insights</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>
-              <strong>Horário de Pico:</strong> {horarioPico.hora}h 
-              com {horarioPico.pax} passageiros
-            </p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+  // Verificar se é staff autenticado pelo sistema customizado
+  if (isAuthenticated && staffSession) {
+    if (allowedRoles.includes(staffSession.role)) {
+      return children;
+    }
+  }
+  
+  // Fallback para admin que pode acessar qualquer role
+  if (user && eventRoles.some(er => allowedRoles.includes(er.role))) {
+    return children;
+  }
+  
+  return <Navigate to="/login/equipe" />;
 }
 ```
 
 ---
 
-## Rotas e Proteção
+## Fluxo de Criação de Staff
 
-### Nova Rota no App.tsx
-
-```typescript
-// Adicionar após as rotas do supervisor
-<Route path="/app/:eventoId/cliente" element={
-  <EventRoleRoute allowedRoles={['cliente']}>
-    <AppCliente />
-  </EventRoleRoute>
-} />
-```
-
-### Atualização do AppHome.tsx
-
-Adicionar redirecionamento para clientes:
-
-```typescript
-// Em handleSelectEvento
-if (role === 'cliente') {
-  navigate(`/app/${evento.id}/cliente`);
-}
-
-// Em auto-redirect (single event)
-if (role === 'cliente') {
-  navigate(`/app/${evento.id}/cliente`);
-  return;
-}
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│  Admin abre AddStaffWizard no CCO                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. Cria registro em `profiles` (sem Supabase Auth)                 │
+│  2. Cria registro em `evento_usuarios`                              │
+│  3. Chama staff-register → cria `staff_credenciais`                 │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Supervisor acessa /login/equipe                                    │
+│  Digite: Telefone + Senha                                           │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  staff-login:                                                       │
+│  - Busca em staff_credenciais                                       │
+│  - Verifica senha                                                   │
+│  - Gera JWT com role                                                │
+│  - Retorna session                                                  │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Redireciona para /app/{evento_id}/supervisor                       │
+│  StaffAuthContext gerencia sessão                                   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Fluxo Visual
-
-### Desktop
+## Fluxo de Exclusão
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│  🏢 AS Brasil  │  Rio Open 2026  │  [Dashboard]  [Local]  [Painel] │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌──────────────────┐  ┌──────────────────┐                    │
-│   │ Total PAX Dia    │  │ Viagens Realizadas│                    │
-│   │      1,234       │  │        56         │                    │
-│   └──────────────────┘  └──────────────────┘                    │
-│                                                                  │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │                 Gráfico PAX por Hora                     │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│   ┌─────────────────────────────────────────────────────────┐   │
-│   │              Desempenho por Rota                         │   │
-│   └─────────────────────────────────────────────────────────┘   │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Admin clica "Remover da Equipe"                                    │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  delete-user Edge Function:                                         │
+│  - Remove de staff_credenciais                                      │
+│  - Remove de evento_usuarios                                        │
+│  - Remove de profiles                                               │
+│  ✅ Telefone liberado imediatamente!                                │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Mobile
+---
 
-```text
-┌─────────────────────────────┐
-│  Rio Open 2026    [⚙️]      │
-├─────────────────────────────┤
-│                             │
-│  ┌─────────┐ ┌─────────┐   │
-│  │PAX Dia  │ │Viagens  │   │
-│  │  1,234  │ │   56    │   │
-│  └─────────┘ └─────────┘   │
-│                             │
-│  ┌─────────┐ ┌─────────┐   │
-│  │Trânsito │ │Tempo Méd│   │
-│  │    8    │ │  45min  │   │
-│  └─────────┘ └─────────┘   │
-│                             │
-│  ┌───────────────────────┐ │
-│  │ [Gráfico PAX/Hora]    │ │
-│  └───────────────────────┘ │
-│                             │
-├─────────────────────────────┤
-│  [📊]      [📍]     [🕐]   │
-│ Dashboard  Local   Painel  │
-└─────────────────────────────┘
-```
+## Comparativo: Antes vs Depois
+
+| Aspecto | Antes (Supabase Auth) | Depois (Custom JWT) |
+|---------|----------------------|---------------------|
+| **Criar Staff** | auth.admin.createUser() | INSERT em profiles + staff_credenciais |
+| **Login Staff** | /auth com email/telefone | /login/equipe com telefone/senha |
+| **Excluir Staff** | Precisa auth.admin.deleteUser() | Apenas DELETE nas tabelas |
+| **Telefone "preso"** | ❌ Sim, permanece no Auth | ✅ Não, limpa completamente |
+| **Editar Telefone** | Difícil (Auth API) | ✅ Fácil (UPDATE tabela) |
+| **Complexidade** | Alta (2 sistemas) | ✅ Baixa (1 padrão unificado) |
+
+---
+
+## Páginas de Login
+
+| Rota | Usuário | Sistema |
+|------|---------|---------|
+| `/auth` | Administradores (CCO) | Supabase Auth (email) |
+| `/login/motorista` | Motoristas | Custom JWT (telefone) |
+| `/login/equipe` | Supervisores, Operadores, Clientes | Custom JWT (telefone) |
 
 ---
 
 ## Resultado Esperado
 
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| ✅ Dashboard Estratégico | Métricas de público sem alertas operacionais |
-| ✅ Localizador Condicional | Visível se `habilitar_localizador = true` |
-| ✅ Painel Condicional | Visível se `visivel_publico = true` |
-| ✅ Desktop com Header | Abas fixas no topo |
-| ✅ Mobile com Bottom Nav | Navegação inferior |
-| ✅ Sem impacto nas roles existentes | Sistema atual preservado |
-
----
-
-## Próximos Passos (Pós-Implementação)
-
-1. Criar usuários de teste com role 'cliente'
-2. Vincular ao evento via `evento_usuarios`
-3. Testar visibilidade condicional das tabs
-4. Validar responsividade desktop/mobile
+1. ✅ **Staff criado sem Supabase Auth** - Apenas tabelas locais
+2. ✅ **Login simplificado** - Telefone + Senha em `/login/equipe`
+3. ✅ **Exclusão completa** - Telefone liberado imediatamente
+4. ✅ **Edição fácil** - UPDATE direto na tabela
+5. ✅ **Mesmo padrão de motoristas** - Código reutilizável
+6. ✅ **Admin preservado** - Continua usando Supabase Auth normalmente
