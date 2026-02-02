@@ -1,10 +1,11 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, LogOut, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { Calendar, Users, LogOut, ChevronLeft, ChevronRight, HelpCircle, Home, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { NotificationsPanel } from '@/components/layout/NotificationsPanel';
 import logoASBranca from '@/assets/as_logo_reduzida_branca.png';
 
 interface MainLayoutProps {
@@ -29,6 +30,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   };
 
   const navigation = [
+    { name: 'Home', href: '/home', icon: Home },
     { name: 'Eventos', href: '/eventos', icon: Calendar },
     { name: 'Usuários', href: '/usuarios', icon: Users, adminOnly: true },
     { name: 'Suporte', href: '/suporte', icon: HelpCircle },
@@ -62,18 +64,33 @@ export function MainLayout({ children }: MainLayoutProps) {
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           {filteredNav.map((item) => (
-            <NavLink key={item.name} to={item.href}
-              className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent", collapsed && "justify-center px-2")}
-              activeClassName="bg-sidebar-primary text-sidebar-primary-foreground">
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && item.name}
-            </NavLink>
+            <Tooltip key={item.name}>
+              <TooltipTrigger asChild>
+                <NavLink to={item.href}
+                  className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent", collapsed && "justify-center px-2")}
+                  activeClassName="bg-sidebar-primary text-sidebar-primary-foreground">
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {!collapsed && item.name}
+                </NavLink>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right">
+                  {item.name}
+                </TooltipContent>
+              )}
+            </Tooltip>
           ))}
         </nav>
 
-        <div className="px-3 py-4 border-t border-sidebar-border">
+        {/* Notifications & User section */}
+        <div className="px-3 py-4 border-t border-sidebar-border space-y-3">
+          {/* Notifications button */}
+          <div className={cn("flex", collapsed ? "justify-center" : "px-3")}>
+            <NotificationsPanel />
+          </div>
+          
           {!collapsed && profile && (
-            <div className="px-3 py-2 mb-2">
+            <div className="px-3 py-2">
               <p className="text-sm font-medium truncate">{profile.full_name || profile.email}</p>
               <p className="text-xs text-sidebar-foreground/60">{isAdmin ? 'Admin' : 'Usuário'}</p>
             </div>
