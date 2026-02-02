@@ -98,19 +98,32 @@ export function useEquipe(eventoId?: string) {
         presencas = presencaData || [];
       }
 
+      // Fetch staff_credenciais to check who has login
+      let staffCredenciais: any[] = [];
+      if (staffUserIds.length > 0) {
+        const { data: staffCredData } = await supabase
+          .from('staff_credenciais')
+          .select('user_id, telefone, ativo, role')
+          .in('user_id', staffUserIds)
+          .eq('evento_id', eventoId)
+          .eq('ativo', true);
+        staffCredenciais = staffCredData || [];
+      }
+
       // Map staff members (not motoristas)
       const staffMembros: EquipeMembro[] = (eventUsuarios || [])
         .filter(eu => eu.role !== 'motorista') // Staff only
         .map(eu => {
           const profile = profiles.find(p => p.user_id === eu.user_id);
+          const staffCred = staffCredenciais.find(sc => sc.user_id === eu.user_id);
           return {
             id: eu.id,
             tipo: 'staff' as const,
             user_id: eu.user_id,
             nome: profile?.full_name || profile?.email || 'Sem nome',
-            telefone: profile?.telefone || undefined,
+            telefone: staffCred?.telefone || profile?.telefone || undefined,
             role: eu.role,
-            has_login: true,
+            has_login: !!staffCred, // Check staff_credenciais instead of always true
             created_at: eu.created_at,
           };
         });
@@ -235,17 +248,27 @@ export function useEquipe(eventoId?: string) {
 
   const handleRemoveMembro = async (membro: EquipeMembro) => {
     try {
-      if (membro.tipo === 'staff') {
-        await supabase
-          .from('evento_usuarios')
-          .delete()
-          .eq('id', membro.id);
-      } else {
-        await supabase
-          .from('motoristas')
-          .delete()
-          .eq('id', membro.id);
+      const { data: session } = await supabase.auth.getSession();
+      
+      if (!session.session?.access_token) {
+        toast.error('Você precisa estar logado para remover membros');
+        return;
       }
+
+      const response = await supabase.functions.invoke('delete-user', {
+        body: membro.tipo === 'motorista' 
+          ? { motorista_id: membro.id, evento_id: eventoId }
+          : { user_id: membro.user_id, evento_id: eventoId },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        toast.error(`Erro ao remover: ${response.error.message}`);
+        return;
+      }
+
       toast.success('Membro removido da equipe');
       fetchEquipe();
     } catch (error: any) {

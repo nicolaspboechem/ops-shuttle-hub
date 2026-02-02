@@ -1,46 +1,47 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, Loader2, Mail, Truck, Users } from 'lucide-react';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { Eye, EyeOff, AlertCircle, Loader2, Phone, ArrowLeft, Users } from 'lucide-react';
+import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
+import { maskPhone } from '@/lib/utils/formatPhone';
 
-export default function Auth() {
-  const [email, setEmail] = useState('');
+export default function LoginEquipe() {
+  const [telefone, setTelefone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, user, loading: authLoading, isAdmin, eventRoles } = useAuth();
+  const { signIn, isAuthenticated, staffSession, loading: authLoading } = useStaffAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && !authLoading) {
-      if (isAdmin) {
-        navigate('/eventos', { replace: true });
-      } else if (eventRoles.length > 0) {
-        navigate('/app', { replace: true });
-      } else {
-        navigate('/app', { replace: true });
-      }
+    if (isAuthenticated && staffSession) {
+      // Redirect to appropriate app based on role
+      navigate(`/app/${staffSession.evento_id}/${staffSession.role}`, { replace: true });
     }
-  }, [user, authLoading, navigate, isAdmin, eventRoles]);
+  }, [isAuthenticated, staffSession, navigate]);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTelefone(maskPhone(e.target.value));
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error } = await signIn(email, password, 'email');
+    const phoneDigits = telefone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setError('Digite um número de celular válido');
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await signIn(phoneDigits, password);
     
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        setError('Email ou senha inválidos');
-      } else if (error.message.includes('Email not confirmed')) {
-        setError('Email não confirmado. Verifique sua caixa de entrada.');
-      } else {
-        setError(error.message);
-      }
+      setError(error.message || 'Celular ou senha inválidos');
     }
     
     setLoading(false);
@@ -59,7 +60,7 @@ export default function Auth() {
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-[#4361ee]/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#7c3aed]/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#4361ee]/15 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4361ee]/5 rounded-full blur-[150px]" />
       </div>
 
@@ -78,7 +79,7 @@ export default function Auth() {
       {/* Card with glowing border */}
       <div className="w-full max-w-[420px] relative z-10">
         <div 
-          className="relative rounded-2xl p-8 border border-[#2a3f6f]/60"
+          className="relative rounded-2xl p-8 border border-[#4361ee]/30"
           style={{
             background: 'linear-gradient(145deg, rgba(15, 22, 40, 0.95) 0%, rgba(10, 14, 26, 0.98) 100%)',
             boxShadow: '0 0 30px rgba(67, 97, 238, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
@@ -91,14 +92,14 @@ export default function Auth() {
           <div className="relative mb-6">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-full bg-[#4361ee]/20 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-[#4361ee]" />
+                <Users className="w-5 h-5 text-[#4361ee]" />
               </div>
               <div>
                 <h2 className="text-[22px] font-bold text-white">
-                  Área Administrativa
+                  Equipe de Campo
                 </h2>
                 <p className="text-sm text-gray-400">
-                  Centro de Controle Operacional
+                  Supervisores e Operadores
                 </p>
               </div>
             </div>
@@ -113,21 +114,24 @@ export default function Auth() {
 
           <form onSubmit={handleSignIn} className="space-y-5 relative">
             <div className="space-y-2">
-              <label htmlFor="email-login" className="block text-[13px] font-medium text-gray-400">
-                E-mail
+              <label htmlFor="phone-login" className="block text-[13px] font-medium text-gray-400">
+                Celular
               </label>
-              <input
-                id="email-login"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
-                required
-                autoComplete="email"
-                disabled={loading}
-                className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
-              />
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <input
+                  id="phone-login"
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  value={telefone}
+                  onChange={handlePhoneChange}
+                  style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
+                  required
+                  autoComplete="tel"
+                  disabled={loading}
+                  className="w-full h-12 pl-11 pr-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#4361ee]/30 text-base placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -145,7 +149,7 @@ export default function Auth() {
                   autoComplete="current-password"
                   disabled={loading}
                   style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
-                  className="w-full h-11 px-4 pr-11 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
+                  className="w-full h-12 px-4 pr-11 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#4361ee]/30 text-base placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
                 />
                 <button
                   type="button"
@@ -160,9 +164,9 @@ export default function Auth() {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full h-11 rounded-lg bg-[#4361ee] hover:bg-[#3651de] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold uppercase tracking-wider transition-colors flex items-center justify-center mt-6"
+              className="w-full h-12 rounded-lg bg-[#4361ee] hover:bg-[#3651d4] disabled:opacity-50 disabled:cursor-not-allowed text-white text-base font-semibold uppercase tracking-wider transition-colors flex items-center justify-center mt-6"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
               Entrar
             </button>
           </form>
@@ -170,18 +174,17 @@ export default function Auth() {
           {/* Other login options */}
           <div className="mt-6 pt-5 border-t border-[#2a3f6f]/40 space-y-3">
             <Link 
-              to="/login/equipe" 
-              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-[#4361ee] transition-colors"
+              to="/login/motorista" 
+              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-white transition-colors"
             >
-              <Users className="w-4 h-4" />
-              Equipe de campo (Supervisores/Operadores)
+              Sou motorista
             </Link>
             <Link 
-              to="/login/motorista" 
-              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-[#22c55e] transition-colors"
+              to="/auth" 
+              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-white transition-colors"
             >
-              <Truck className="w-4 h-4" />
-              Sou motorista
+              <ArrowLeft className="w-4 h-4" />
+              Sou administrador
             </Link>
           </div>
         </div>
