@@ -18,6 +18,7 @@ import { useVeiculos } from '@/hooks/useCadastros';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { AddStaffWizard } from '@/components/equipe/AddStaffWizard';
 import { EditMotoristaLoginModal } from '@/components/equipe/EditMotoristaLoginModal';
+import { EditStaffLoginModal } from '@/components/equipe/EditStaffLoginModal';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EventoUsuarios() {
@@ -171,12 +172,13 @@ export default function EventoUsuarios() {
                     WhatsApp
                   </DropdownMenuItem>
                 )}
-                {isMotorista && (
-                  <DropdownMenuItem onClick={() => setLoginModalMembro(membro)}>
-                    <KeyRound className="w-4 h-4 mr-2" />
-                    {membro.has_login ? "Gerenciar Login" : "Criar Login"}
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onClick={() => setLoginModalMembro(membro)}>
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  {isMotorista 
+                    ? (membro.has_login ? "Gerenciar Login" : "Criar Login")
+                    : "Gerenciar Acesso"
+                  }
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -266,6 +268,30 @@ export default function EventoUsuarios() {
               </div>
 
               {/* Botão Criar Login - visível apenas se motorista não tem login */}
+              {!membro.has_login && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="w-full mt-2 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                  onClick={() => setLoginModalMembro(membro)}
+                >
+                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                  Criar Login de Acesso
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Info adicional para staff (operadores/supervisores) */}
+          {!isMotorista && (
+            <div className="mt-3 pt-3 border-t space-y-2">
+              {membro.telefone && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>{membro.telefone}</span>
+                </div>
+              )}
+              
               {!membro.has_login && (
                 <Button 
                   size="sm" 
@@ -483,7 +509,7 @@ export default function EventoUsuarios() {
           onSuccess={refetch}
         />
 
-        {loginModalMembro && (
+        {loginModalMembro && loginModalMembro.tipo === 'motorista' && (
           <EditMotoristaLoginModal
             open={!!loginModalMembro}
             onOpenChange={(open) => !open && setLoginModalMembro(null)}
@@ -491,6 +517,23 @@ export default function EventoUsuarios() {
               id: loginModalMembro.id,
               nome: loginModalMembro.nome,
               telefone: loginModalMembro.telefone,
+              has_login: loginModalMembro.has_login,
+            }}
+            eventoId={eventoId}
+            onSuccess={refetch}
+          />
+        )}
+
+        {loginModalMembro && loginModalMembro.tipo === 'staff' && (
+          <EditStaffLoginModal
+            open={!!loginModalMembro}
+            onOpenChange={(open) => !open && setLoginModalMembro(null)}
+            staff={{
+              id: loginModalMembro.id,
+              user_id: loginModalMembro.user_id,
+              nome: loginModalMembro.nome,
+              telefone: loginModalMembro.telefone,
+              role: loginModalMembro.role,
               has_login: loginModalMembro.has_login,
             }}
             eventoId={eventoId}
