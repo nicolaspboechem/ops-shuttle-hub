@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
@@ -11,10 +11,14 @@ import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/Operation
 import { DashboardMobile } from '@/components/dashboard/DashboardMobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
+import { useTutorial, adminEventoSteps } from '@/hooks/useTutorial';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
+import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
@@ -29,8 +33,12 @@ export default function Dashboard() {
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
+  const [showHelp, setShowHelp] = useState(false);
 
   const evento = eventoId ? getEventoById(eventoId) : null;
+  
+  // Tutorial for admin inside event
+  const tutorial = useTutorial('admin_evento', adminEventoSteps);
 
   // Extrair pontos de embarque únicos
   const pontosEmbarque = useMemo(() => {
@@ -148,6 +156,14 @@ export default function Dashboard() {
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setShowHelp(true)}
+              title="Central de Ajuda"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </Button>
           </div>
         </div>
         
@@ -188,7 +204,7 @@ export default function Dashboard() {
         </div>
 
         {/* Cards de Métricas em Tempo Real - Grid responsivo */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
+        <div data-tutorial="metrics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
           <MetricCard 
             title="Viagens Ativas" 
             value={metricsRealTime.viagensAtivas} 
@@ -339,6 +355,25 @@ export default function Dashboard() {
           <PassengersChart data={metricasPorHora} />
           <RoutePerformanceChart viagens={viagensFiltradas} />
         </div>
+
+        {/* Tutorial Popover */}
+        {tutorial.isActive && tutorial.currentStep && (
+          <TutorialPopover
+            step={tutorial.currentStep}
+            currentIndex={tutorial.currentIndex}
+            totalSteps={tutorial.totalSteps}
+            onNext={tutorial.next}
+            onSkip={tutorial.skip}
+            onComplete={tutorial.complete}
+          />
+        )}
+
+        {/* Help Drawer */}
+        <HelpDrawer 
+          open={showHelp} 
+          onOpenChange={setShowHelp} 
+          role="admin" 
+        />
       </div>
     </EventLayout>
   );

@@ -49,40 +49,44 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
 
   const evento = eventoId ? getEventoById(eventoId) : null;
 
-  // Seções organizadas logicamente
+  // Seções organizadas logicamente com data-tutorial para onboarding
   const sections = [
     {
       title: 'Monitoramento',
+      dataTutorial: null,
       items: [
-        { name: 'Dashboard', href: `/evento/${eventoId}/dashboard`, icon: LayoutDashboard },
-        { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus },
-        { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle },
+        { name: 'Dashboard', href: `/evento/${eventoId}/dashboard`, icon: LayoutDashboard, dataTutorial: null },
+        { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus, dataTutorial: 'viagens' },
+        { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle, dataTutorial: null },
       ]
     },
     {
       title: 'Cadastros',
+      dataTutorial: 'cadastros',
       items: [
-        { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users },
-        { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck },
-        { name: 'Rotas Shuttle', href: `/evento/${eventoId}/rotas-shuttle`, icon: Route },
+        { name: 'Motoristas', href: `/evento/${eventoId}/motoristas`, icon: Users, dataTutorial: null },
+        { name: 'Veículos', href: `/evento/${eventoId}/veiculos`, icon: Truck, dataTutorial: null },
+        { name: 'Rotas Shuttle', href: `/evento/${eventoId}/rotas-shuttle`, icon: Route, dataTutorial: null },
       ]
     },
     {
       title: 'Análise',
+      dataTutorial: null,
       items: [
-        { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart },
+        { name: 'Auditoria', href: `/evento/${eventoId}/auditoria`, icon: FileBarChart, dataTutorial: null },
       ]
     },
     {
       title: 'Administração',
+      dataTutorial: null,
       items: [
-        { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users },
+        { name: 'Equipe', href: `/evento/${eventoId}/equipe`, icon: Users, dataTutorial: 'equipe' },
       ]
     },
   ];
 
   const bottomNav = [
-    { name: 'Configurações', href: `/evento/${eventoId}/configuracoes`, icon: Settings },
+    { name: 'Configurações', href: `/evento/${eventoId}/configuracoes`, icon: Settings, dataTutorial: 'configuracoes' },
   ];
 
   const handleLogout = async () => {
@@ -90,10 +94,11 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
     navigate('/auth', { replace: true });
   };
 
-  const NavItem = ({ item, isBottom = false }: { item: { name: string; href: string; icon: any }, isBottom?: boolean }) => {
+  const NavItem = ({ item, isBottom = false }: { item: { name: string; href: string; icon: any; dataTutorial?: string | null }, isBottom?: boolean }) => {
     const content = (
       <NavLink
         to={item.href}
+        data-tutorial={item.dataTutorial || undefined}
         className={cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
           "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -208,7 +213,7 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
         collapsed ? "px-2" : "px-3"
       )}>
         {sections.map((section) => (
-          <div key={section.title}>
+          <div key={section.title} data-tutorial={section.dataTutorial || undefined}>
             {!collapsed && (
               <p className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                 {section.title}
