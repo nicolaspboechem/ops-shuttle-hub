@@ -1,6 +1,8 @@
 /**
  * Calcula as próximas saídas de shuttle baseado na frequência e horários
  */
+import { format } from 'date-fns';
+
 export function calcularProximasSaidas(
   horarioInicio: string | null,  // "07:00:00"
   horarioFim: string | null,      // "22:00:00"
@@ -13,7 +15,7 @@ export function calcularProximasSaidas(
   }
 
   const agora = horaAtual || new Date();
-  const hoje = agora.toISOString().split('T')[0];
+  const hoje = format(agora, 'yyyy-MM-dd');
   
   // Parse horários
   const [inicioH, inicioM] = horarioInicio.split(':').map(Number);
@@ -77,7 +79,7 @@ export function rotaEstaAtiva(horarioFim: string | null, horaAtual?: Date): bool
   if (!horarioFim) return true; // Sem horário definido = sempre ativa
   
   const agora = horaAtual || new Date();
-  const hoje = agora.toISOString().split('T')[0];
+  const hoje = format(agora, 'yyyy-MM-dd');
   const fimDate = new Date(`${hoje}T${horarioFim}`);
   
   return agora <= fimDate;

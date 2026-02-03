@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { useServerTime } from '@/hooks/useServerTime';
 
 export interface ViagemPublica {
   id: string;
@@ -15,6 +17,7 @@ export interface ViagemPublica {
 export function useViagensPublicas(eventoId: string | null) {
   const [viagens, setViagens] = useState<ViagemPublica[]>([]);
   const [loading, setLoading] = useState(true);
+  const { getAgoraSync } = useServerTime();
 
   const fetchViagens = useCallback(async () => {
     if (!eventoId) {
@@ -25,14 +28,11 @@ export function useViagensPublicas(eventoId: string | null) {
 
     setLoading(true);
 
-    // Get today's date in local timezone
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStart = today.toISOString();
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const todayEnd = tomorrow.toISOString();
+    // Get today's date using synchronized server time
+    const agora = getAgoraSync();
+    const hoje = format(agora, 'yyyy-MM-dd');
+    const todayStart = `${hoje}T00:00:00`;
+    const todayEnd = `${hoje}T23:59:59`;
 
     const { data, error } = await supabase
       .from('viagens')
