@@ -71,8 +71,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           id,
           acao,
           created_at,
-          viagem:viagens!viagem_id(motorista, placa, evento_id),
-          profile:profiles!user_id(full_name)
+          viagem:viagens!viagem_id(motorista, placa, evento_id)
         `)
         .order('created_at', { ascending: false })
         .limit(30),
@@ -116,7 +115,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         type: 'viagem',
         action: log.acao,
         title: config.label,
-        description: `${motoristaNome} (${placaVeiculo || 'Sem placa'}) - por ${log.profile?.full_name || 'Sistema'}`,
+        description: `${motoristaNome}${placaVeiculo ? ` (${placaVeiculo})` : ''}`,
         timestamp: log.created_at,
         read: false,
         icon: config.icon,
