@@ -21,8 +21,12 @@ import { Database } from '@/integrations/supabase/types';
 type EventoRow = Database['public']['Tables']['eventos']['Row'];
 type EventoUpdate = Database['public']['Tables']['eventos']['Update'];
 
+// Partial evento type for compatibility with different sources
+type PartialEvento = Pick<EventoRow, 'id' | 'nome_planilha' | 'data_criacao' | 'data_ultima_sync'> & 
+  Partial<Omit<EventoRow, 'id' | 'nome_planilha' | 'data_criacao' | 'data_ultima_sync'>>;
+
 interface EditEventoModalProps {
-  evento: EventoRow;
+  evento: PartialEvento;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
