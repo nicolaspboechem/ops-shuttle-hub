@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
+import { NavigationLinks } from './NavigationLinks';
 
 interface ViagemCardOperadorProps {
   viagem: Viagem & { veiculo?: { nome: string | null; placa: string; tipo_veiculo: string } | null };
@@ -281,6 +282,13 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
               </div>
             )}
           </div>
+
+          {/* Links de Navegação */}
+          <NavigationLinks 
+            origem={viagem.ponto_embarque}
+            destino={viagem.ponto_desembarque}
+            compact
+          />
 
           {/* Observação */}
           {viagem.observacao && (

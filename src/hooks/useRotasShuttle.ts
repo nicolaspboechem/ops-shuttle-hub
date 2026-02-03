@@ -14,6 +14,10 @@ export interface RotaShuttle {
   observacoes: string | null;
   ativo: boolean;
   created_at: string;
+  link_maps: string | null;
+  link_waze: string | null;
+  ponto_origem_id: string | null;
+  ponto_destino_id: string | null;
 }
 
 export interface RotaShuttleInput {
@@ -25,6 +29,10 @@ export interface RotaShuttleInput {
   horario_fim?: string | null;
   observacoes?: string | null;
   ativo?: boolean;
+  link_maps?: string | null;
+  link_waze?: string | null;
+  ponto_origem_id?: string | null;
+  ponto_destino_id?: string | null;
 }
 
 export function useRotasShuttle(eventoId: string | undefined) {
