@@ -27,6 +27,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import { NavigationModal } from '@/components/app/NavigationModal';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
 
@@ -45,6 +46,10 @@ export default function AppOperador() {
   const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
+  
+  // Estado para modal de navegação
+  const [navModalOpen, setNavModalOpen] = useState(false);
+  const [navModalData, setNavModalData] = useState<{origem?: string | null; destino?: string | null} | null>(null);
   
   // Tutorial system
   const tutorial = useTutorial('operador', operadorSteps);
@@ -175,6 +180,10 @@ export default function AppOperador() {
                     key={viagem.id} 
                     viagem={viagem} 
                     onUpdate={refetch}
+                    onTripStarted={(origem, destino) => {
+                      setNavModalData({ origem, destino });
+                      setNavModalOpen(true);
+                    }}
                   />
                 ))
               )}
@@ -189,13 +198,21 @@ export default function AppOperador() {
         return <OperadorHistoricoTab viagens={viagens} />;
 
       case 'mais':
+        // Encontrar viagem ativa para navegação
+        const viagemAtivaNav = viagens.find(v => v.status === 'em_andamento');
+        
         return (
           <OperadorMaisTab
             userName={user?.email}
             eventoNome={evento?.nome_planilha}
+            viagemAtiva={viagemAtivaNav}
             onCadastrarMotorista={() => setShowMotoristaForm(true)}
             onCadastrarVeiculo={() => setShowVeiculoForm(true)}
             onRegistrarKm={() => setShowKmModal(true)}
+            onOpenNavigation={(origem, destino) => {
+              setNavModalData({ origem, destino });
+              setNavModalOpen(true);
+            }}
             onLogout={handleLogout}
           />
         );
@@ -317,6 +334,14 @@ export default function AppOperador() {
         onOpenChange={setShowKmModal}
         eventoId={eventoId!}
         onUpdated={() => refetchVeiculos()}
+      />
+
+      {/* Modal de Navegação */}
+      <NavigationModal
+        open={navModalOpen}
+        onOpenChange={setNavModalOpen}
+        origem={navModalData?.origem}
+        destino={navModalData?.destino}
       />
     </div>
   );

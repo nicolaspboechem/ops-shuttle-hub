@@ -43,6 +43,7 @@ import { NavigationLinks } from './NavigationLinks';
 interface ViagemCardOperadorProps {
   viagem: Viagem & { veiculo?: { nome: string | null; placa: string; tipo_veiculo: string } | null };
   onUpdate: () => void;
+  onTripStarted?: (origem?: string | null, destino?: string | null) => void;
 }
 
 const statusConfig: Record<StatusViagemOperacao, { label: string; className: string; icon: React.ElementType }> = {
@@ -73,7 +74,7 @@ const statusConfig: Record<StatusViagemOperacao, { label: string; className: str
   }
 };
 
-export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps) {
+export function ViagemCardOperador({ viagem, onUpdate, onTripStarted }: ViagemCardOperadorProps) {
   const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem } = useViagemOperacao();
   
   const [loading, setLoading] = useState(false);
@@ -93,9 +94,13 @@ export function ViagemCardOperador({ viagem, onUpdate }: ViagemCardOperadorProps
 
   const handleIniciar = async () => {
     setLoading(true);
-    await iniciarViagem(viagem);
+    const success = await iniciarViagem(viagem);
     onUpdate();
     setLoading(false);
+    
+    if (success && onTripStarted) {
+      onTripStarted(viagem.ponto_embarque, viagem.ponto_desembarque);
+    }
   };
 
   const handleChegada = () => {

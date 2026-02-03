@@ -29,8 +29,9 @@ import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
 import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car, HelpCircle, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car, HelpCircle, ChevronRight, MapPin, Navigation } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import { NavigationModal } from '@/components/app/NavigationModal';
 
 export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -49,6 +50,10 @@ export default function AppMotorista() {
   const [operando, setOperando] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
   const [showHelp, setShowHelp] = useState(false);
+  
+  // Estado para modal de navegação
+  const [navModalOpen, setNavModalOpen] = useState(false);
+  const [navModalData, setNavModalData] = useState<{origem?: string | null; destino?: string | null} | null>(null);
   
   // Tutorial system
   const tutorial = useTutorial('motorista', motoristaSteps);
@@ -198,6 +203,13 @@ export default function AppMotorista() {
           .update({ status: 'em_viagem' })
           .eq('id', missao.motorista_id);
 
+        // Abrir modal de navegação
+        setNavModalData({
+          origem: missao.ponto_embarque,
+          destino: missao.ponto_desembarque
+        });
+        setNavModalOpen(true);
+
         refetchMissoes();
         refetch(); // Refetch viagens
       } else if (action === 'finalizar') {
@@ -266,7 +278,17 @@ export default function AppMotorista() {
 
     setOperando(viagemId);
     try {
-      if (action === 'iniciar') await iniciarViagem(viagem);
+      if (action === 'iniciar') {
+        const sucesso = await iniciarViagem(viagem);
+        if (sucesso) {
+          // Abrir modal de navegação
+          setNavModalData({
+            origem: viagem.ponto_embarque,
+            destino: viagem.ponto_desembarque
+          });
+          setNavModalOpen(true);
+        }
+      }
       if (action === 'chegada') await registrarChegada(viagem);
       refetch();
     } finally {
@@ -405,8 +427,45 @@ export default function AppMotorista() {
         );
 
       case 'mais':
+        // Encontrar viagem ativa para mostrar navegação
+        const viagemAtivaEmAndamento = minhasViagensAtivas.find(v => v.status === 'em_andamento');
+        
         return (
           <div className="space-y-4">
+            {/* Card de Navegação (só aparece com viagem ativa em andamento) */}
+            {viagemAtivaEmAndamento && (
+              <Card className="border-primary/30 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Navigation className="h-4 w-4 text-primary" />
+                    Navegação da Viagem
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Abrir rota no app de navegação
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-between h-12"
+                    onClick={() => {
+                      setNavModalData({
+                        origem: viagemAtivaEmAndamento.ponto_embarque,
+                        destino: viagemAtivaEmAndamento.ponto_desembarque
+                      });
+                      setNavModalOpen(true);
+                    }}
+                  >
+                    <div className="flex items-center">
+                      <MapPin className="h-5 w-5 mr-3" />
+                      Abrir Navegação
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Suporte */}
             <Card>
               <CardHeader className="pb-3">
@@ -533,6 +592,14 @@ export default function AppMotorista() {
       <MotoristaBottomNav 
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
+      />
+
+      {/* Modal de Navegação */}
+      <NavigationModal
+        open={navModalOpen}
+        onOpenChange={setNavModalOpen}
+        origem={navModalData?.origem}
+        destino={navModalData?.destino}
       />
     </div>
   );
