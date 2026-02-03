@@ -1,234 +1,277 @@
 
-
-# Plano: Tutorial de Onboarding para Admin dentro do Evento
+# Plano: Links de Navegação (Maps/Waze) para Rotas Shuttle
 
 ## Visão Geral
 
-Adicionar um tutorial guiado para administradores quando acessam um evento pela primeira vez. O tutorial explicará as funcionalidades específicas do contexto de evento: Dashboard, Viagens, Motoristas, Veículos, Auditoria e Equipe.
+Adicionar campos de links de navegação (Google Maps e Waze) no cadastro de rotas shuttle, permitindo que motoristas e operadores abram diretamente os aplicativos de navegação para seguir a rota correta. Os links serão exibidos nos cards de viagem e missão nos apps mobile.
 
-## Diferença do Tutorial Atual
+## Benefícios
 
-| Tutorial | Contexto | Quando aparece |
-|----------|----------|----------------|
-| **Admin CCO** (existente) | Página Home (/eventos) | 1º acesso ao sistema |
-| **Admin Evento** (novo) | Dashboard do evento | 1º acesso a qualquer evento |
+- Motoristas saberão exatamente qual caminho seguir
+- Redução de erros de rota
+- Integração com apps de navegação que os motoristas já usam
+- Compartilhamento fácil da rota com novos motoristas
 
-## Fluxo do Tutorial
+## Fluxo de Uso
 
 ```text
-Admin entra no evento pela 1ª vez
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Tutorial "Bem-vindo ao Evento!"       │
-│   Step 1: Visão geral do Dashboard      │
-└─────────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Step 2: Menu lateral                  │
-│   "Navegue pelas seções do evento"      │
-└─────────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Step 3: Viagens Ativas                │
-│   "Acompanhe todas as viagens"          │
-└─────────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Step 4: Cadastros                     │
-│   "Gerencie motoristas e veículos"      │
-└─────────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Step 5: Equipe                        │
-│   "Adicione operadores e supervisores"  │
-└─────────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────┐
-│   Step 6: Configurações                 │
-│   "Personalize a operação"              │
-└─────────────────────────────────────────┘
+Admin cadastra rota
+       │
+       ▼
+┌─────────────────────────────┐
+│ Adiciona links Maps/Waze   │
+│ (cola links ou gera auto)  │
+└─────────────────────────────┘
+       │
+       ▼
+Viagem criada com essa rota
+       │
+       ▼
+┌─────────────────────────────┐
+│ Card da Viagem/Missão      │
+│ exibe botões:              │
+│                            │
+│  🗺️ Maps   📍 Waze         │
+│                            │
+└─────────────────────────────┘
+       │
+       ▼
+Motorista toca no botão
+       │
+       ▼
+Abre app de navegação
 ```
 
-## Steps do Tutorial
+---
 
-1. **Bem-vindo ao Evento**
-   - Posição: Center
-   - "Este é o painel de controle do evento. Aqui você monitora e gerencia toda a operação."
+## 1. Mudanças no Banco de Dados
 
-2. **Dashboard em Tempo Real**
-   - Target: Cards de métricas
-   - "Acompanhe viagens ativas, motoristas online e veículos em operação em tempo real."
+Adicionar 3 novas colunas na tabela `rotas_shuttle`:
 
-3. **Viagens**
-   - Target: Link "Viagens Ativas" no menu
-   - "Veja todas as viagens em andamento e finalizadas. Use os filtros para encontrar rapidamente."
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `link_maps` | text | URL do Google Maps para a rota |
+| `link_waze` | text | URL do Waze para a rota |
+| `ponto_origem_id` | uuid (FK) | Referência ao ponto de embarque de origem |
+| `ponto_destino_id` | uuid (FK) | Referência ao ponto de embarque de destino |
 
-4. **Cadastros**
-   - Target: Seção "Cadastros" no menu
-   - "Cadastre e gerencie motoristas, veículos e rotas shuttle."
+**Migration SQL:**
+```sql
+ALTER TABLE rotas_shuttle 
+ADD COLUMN link_maps text,
+ADD COLUMN link_waze text,
+ADD COLUMN ponto_origem_id uuid REFERENCES pontos_embarque(id),
+ADD COLUMN ponto_destino_id uuid REFERENCES pontos_embarque(id);
+```
 
-5. **Equipe do Evento**
-   - Target: Link "Equipe" no menu
-   - "Adicione operadores e supervisores. Eles terão acesso apenas a este evento."
+---
 
-6. **Configurações**
-   - Target: Link "Configurações" no menu
-   - "Personalize horários, alertas e módulos ativos da operação."
+## 2. Modificações no Modal de Rota
 
-7. **Central de Ajuda**
-   - Posição: Center
-   - "Precisa de ajuda? Use o botão de ajuda (?) para ver guias e FAQs."
+Atualizar `RotaShuttleModal.tsx` para incluir:
 
-## Arquivos a Modificar
+- Seletor de Ponto de Origem (dropdown com pontos cadastrados)
+- Seletor de Ponto de Destino (dropdown com pontos cadastrados)
+- Campo para Link do Google Maps
+- Campo para Link do Waze
+- Botão "Gerar Link" que cria URLs automaticamente baseado nos endereços
 
+### Geração Automática de Links
+
+Se os pontos de embarque tiverem endereços cadastrados:
+
+```typescript
+// Google Maps - rota de A para B
+const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`;
+
+// Waze - navegação para destino
+const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`;
+```
+
+---
+
+## 3. Exibição nos Cards de Viagem
+
+Adicionar botões de navegação nos componentes:
+
+- `ViagemCardMobile.tsx` (app motorista)
+- `ViagemCardOperador.tsx` (app operador)
+- `MissaoCardMobile.tsx` (missões)
+
+### Design dos Botões
+
+Linha adicional no card com dois botões:
+
+```
+┌─────────────────────────────────────┐
+│ 🗺️ Abrir no Maps  │ 📍 Abrir no Waze│
+└─────────────────────────────────────┘
+```
+
+Os botões só aparecem se a rota tiver os links configurados.
+
+---
+
+## 4. Componente Reutilizável
+
+Criar `NavigationLinks.tsx`:
+
+```typescript
+interface NavigationLinksProps {
+  linkMaps?: string | null;
+  linkWaze?: string | null;
+  origem?: string;
+  destino?: string;
+  compact?: boolean; // para exibição menor
+}
+```
+
+Features:
+- Abre links em nova aba/app nativo
+- Fallback: se não tiver link mas tiver endereços, gera dinamicamente
+- Ícones reconhecíveis (Google Maps, Waze)
+
+---
+
+## 5. Vinculação com Viagens
+
+Quando uma viagem do tipo `shuttle` for criada:
+- Buscar a rota shuttle correspondente pelo `ponto_embarque_id` e `ponto_destino_id`
+- Copiar os links de navegação para a viagem (ou referenciar a rota)
+
+Para viagens de `transfer`:
+- Gerar links dinamicamente baseado nos pontos de embarque/desembarque
+
+---
+
+## Arquivos a Modificar/Criar
+
+### Novos Arquivos
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/app/NavigationLinks.tsx` | Componente de botões Maps/Waze |
+
+### Arquivos a Modificar
 | Arquivo | Mudança |
 |---------|---------|
-| `src/hooks/useTutorial.ts` | Adicionar `adminEventoSteps` |
-| `src/pages/Dashboard.tsx` | Integrar tutorial + botão de ajuda |
-| `src/components/layout/AppSidebar.tsx` | Adicionar `data-tutorial` nos links |
-
-## Estrutura do localStorage
-
-```text
-tutorial_admin_seen = "true"        // Tutorial do CCO (já existe)
-tutorial_admin_evento_seen = "true" // Tutorial do Evento (novo)
-```
-
-Usar chave diferente para que o tutorial do evento apareça independentemente do tutorial do CCO.
+| `src/hooks/useRotasShuttle.ts` | Adicionar campos link_maps, link_waze |
+| `src/components/eventos/RotaShuttleModal.tsx` | Adicionar campos de link e seletores de ponto |
+| `src/components/app/ViagemCardMobile.tsx` | Adicionar NavigationLinks |
+| `src/components/app/ViagemCardOperador.tsx` | Adicionar NavigationLinks |
+| `src/components/app/MissaoCardMobile.tsx` | Adicionar NavigationLinks |
+| `src/integrations/supabase/types.ts` | Atualizar após migration |
 
 ---
 
 ## Seção Técnica
 
-### Novos Steps para Admin Evento
+### Estrutura do NavigationLinks
 
 ```typescript
-export const adminEventoSteps: TutorialStep[] = [
-  {
-    id: 'welcome-evento',
-    title: 'Bem-vindo ao Evento!',
-    description: 'Este é o painel de controle da operação. Aqui você monitora viagens, gerencia equipe e acompanha métricas em tempo real.',
-    position: 'center',
-  },
-  {
-    id: 'dashboard-metricas',
-    title: 'Métricas em Tempo Real',
-    description: 'Os cards mostram viagens ativas, motoristas online, veículos em operação e tempo médio. Tudo atualiza automaticamente.',
-    targetSelector: '[data-tutorial="metrics"]',
-    position: 'bottom',
-  },
-  {
-    id: 'viagens',
-    title: 'Viagens',
-    description: 'Acompanhe viagens ativas e finalizadas. Use filtros por status, tipo de operação e motorista.',
-    targetSelector: '[data-tutorial="viagens"]',
-    position: 'right',
-  },
-  {
-    id: 'cadastros',
-    title: 'Cadastros',
-    description: 'Gerencie motoristas, veículos e rotas shuttle. Todos os cadastros são específicos deste evento.',
-    targetSelector: '[data-tutorial="cadastros"]',
-    position: 'right',
-  },
-  {
-    id: 'equipe',
-    title: 'Equipe do Evento',
-    description: 'Adicione operadores e supervisores. Eles poderão acessar apenas este evento com suas funções específicas.',
-    targetSelector: '[data-tutorial="equipe"]',
-    position: 'right',
-  },
-  {
-    id: 'configuracoes-evento',
-    title: 'Configurações',
-    description: 'Personalize horário de virada do dia, alertas de atraso e módulos ativos (Missões, Shuttle, Transfer).',
-    targetSelector: '[data-tutorial="configuracoes"]',
-    position: 'right',
-  },
-  {
-    id: 'ajuda-evento',
-    title: 'Precisa de Ajuda?',
-    description: 'Use o botão de ajuda para ver guias, FAQs e entrar em contato com o suporte quando precisar.',
-    position: 'center',
-  },
-];
-```
+export function NavigationLinks({ 
+  linkMaps, 
+  linkWaze, 
+  origem, 
+  destino,
+  compact = false 
+}: NavigationLinksProps) {
+  // Gerar links dinamicamente se não existirem mas tiver endereços
+  const mapsUrl = linkMaps || (origem && destino 
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`
+    : null
+  );
+  
+  const wazeUrl = linkWaze || (destino
+    ? `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`
+    : null
+  );
 
-### Modificações no AppSidebar
-
-Adicionar atributos `data-tutorial` para os seletores:
-
-```tsx
-// Seção Monitoramento
-{ name: 'Viagens Ativas', href: '...', icon: Bus, dataTutorial: 'viagens' },
-
-// Seção Cadastros
-<div data-tutorial="cadastros">...</div>
-
-// Seção Administração
-{ name: 'Equipe', href: '...', icon: Users, dataTutorial: 'equipe' },
-
-// Configurações
-{ name: 'Configurações', href: '...', icon: Settings, dataTutorial: 'configuracoes' },
-```
-
-### Integração no Dashboard
-
-```tsx
-import { useTutorial, adminEventoSteps } from '@/hooks/useTutorial';
-import { TutorialPopover } from '@/components/app/TutorialPopover';
-import { HelpDrawer } from '@/components/app/HelpDrawer';
-
-export default function Dashboard() {
-  const tutorial = useTutorial('admin_evento', adminEventoSteps);
-  const [showHelp, setShowHelp] = useState(false);
+  if (!mapsUrl && !wazeUrl) return null;
 
   return (
-    <EventLayout>
-      {/* Botão de ajuda no header */}
-      <Button onClick={() => setShowHelp(true)}>
-        <HelpCircle className="h-4 w-4" />
-      </Button>
-
-      {/* Cards de métricas */}
-      <div data-tutorial="metrics">
-        ...
-      </div>
-
-      {/* Tutorial Popover */}
-      {tutorial.isActive && tutorial.currentStep && (
-        <TutorialPopover
-          step={tutorial.currentStep}
-          currentIndex={tutorial.currentIndex}
-          totalSteps={tutorial.totalSteps}
-          onNext={tutorial.next}
-          onSkip={tutorial.skip}
-          onComplete={tutorial.complete}
-        />
+    <div className={cn("flex gap-2", compact ? "pt-2" : "pt-3 border-t")}>
+      {mapsUrl && (
+        <Button 
+          variant="outline" 
+          size={compact ? "sm" : "default"}
+          className="flex-1"
+          onClick={() => window.open(mapsUrl, '_blank')}
+        >
+          <Map className="h-4 w-4 mr-2" />
+          Maps
+        </Button>
       )}
-
-      {/* Drawer de ajuda */}
-      <HelpDrawer 
-        open={showHelp} 
-        onOpenChange={setShowHelp} 
-        role="admin" 
-      />
-    </EventLayout>
+      {wazeUrl && (
+        <Button 
+          variant="outline" 
+          size={compact ? "sm" : "default"}
+          className="flex-1"
+          onClick={() => window.open(wazeUrl, '_blank')}
+        >
+          <Navigation className="h-4 w-4 mr-2" />
+          Waze
+        </Button>
+      )}
+    </div>
   );
 }
 ```
 
-### Atualização do Hook useTutorial
-
-Atualizar o tipo `TutorialRole` para incluir o novo papel:
+### Atualização do RotaShuttleModal
 
 ```typescript
-export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente' | 'admin' | 'admin_evento';
+// Novos campos no formulário
+const [linkMaps, setLinkMaps] = useState('');
+const [linkWaze, setLinkWaze] = useState('');
+const [pontoOrigemId, setPontoOrigemId] = useState<string | null>(null);
+const [pontoDestinoId, setPontoDestinoId] = useState<string | null>(null);
+
+// Função para gerar links automaticamente
+const gerarLinks = () => {
+  const pontoOrigem = pontos.find(p => p.id === pontoOrigemId);
+  const pontoDestino = pontos.find(p => p.id === pontoDestinoId);
+  
+  if (pontoOrigem?.endereco && pontoDestino?.endereco) {
+    setLinkMaps(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pontoOrigem.endereco)}&destination=${encodeURIComponent(pontoDestino.endereco)}&travelmode=driving`);
+    setLinkWaze(`https://waze.com/ul?q=${encodeURIComponent(pontoDestino.endereco)}&navigate=yes`);
+    toast.success('Links gerados automaticamente');
+  } else {
+    toast.error('Cadastre endereços nos pontos para gerar links');
+  }
+};
 ```
 
+### Interface Atualizada do RotaShuttleInput
+
+```typescript
+export interface RotaShuttleInput {
+  nome: string;
+  origem: string;
+  destino: string;
+  frequencia_minutos?: number | null;
+  horario_inicio?: string | null;
+  horario_fim?: string | null;
+  observacoes?: string | null;
+  ativo?: boolean;
+  // Novos campos
+  link_maps?: string | null;
+  link_waze?: string | null;
+  ponto_origem_id?: string | null;
+  ponto_destino_id?: string | null;
+}
+```
+
+### SQL Migration Completa
+
+```sql
+-- Adicionar colunas de navegação na tabela rotas_shuttle
+ALTER TABLE rotas_shuttle 
+ADD COLUMN IF NOT EXISTS link_maps text,
+ADD COLUMN IF NOT EXISTS link_waze text,
+ADD COLUMN IF NOT EXISTS ponto_origem_id uuid REFERENCES pontos_embarque(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS ponto_destino_id uuid REFERENCES pontos_embarque(id) ON DELETE SET NULL;
+
+-- Índice para busca por pontos
+CREATE INDEX IF NOT EXISTS idx_rotas_shuttle_pontos 
+ON rotas_shuttle(ponto_origem_id, ponto_destino_id);
+```
