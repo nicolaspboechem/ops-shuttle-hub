@@ -15,10 +15,14 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Evento } from '@/lib/types/viagem';
+import { Database } from '@/integrations/supabase/types';
+
+// Use proper types from Supabase
+type EventoRow = Database['public']['Tables']['eventos']['Row'];
+type EventoUpdate = Database['public']['Tables']['eventos']['Update'];
 
 interface EditEventoModalProps {
-  evento: Evento;
+  evento: EventoRow;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
 }
@@ -30,10 +34,10 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
 
   // General
   const [nome, setNome] = useState(evento.nome_planilha);
-  const [local, setLocal] = useState((evento as any).local || '');
+  const [local, setLocal] = useState(evento.local || '');
   const [tipoOperacao, setTipoOperacao] = useState(evento.tipo_operacao || 'transfer');
   const [status, setStatus] = useState(evento.status || 'ativo');
-  const [descricao, setDescricao] = useState((evento as any).descricao || '');
+  const [descricao, setDescricao] = useState(evento.descricao || '');
 
   // Dates
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
@@ -41,25 +45,25 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   const [horarioVirada, setHorarioVirada] = useState('04:00');
 
   // Images
-  const [imagemBanner, setImagemBanner] = useState<string | null>((evento as any).imagem_banner || null);
-  const [imagemLogo, setImagemLogo] = useState<string | null>((evento as any).imagem_logo || null);
+  const [imagemBanner, setImagemBanner] = useState<string | null>(evento.imagem_banner || null);
+  const [imagemLogo, setImagemLogo] = useState<string | null>(evento.imagem_logo || null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Configurations
-  const [habilitarMissoes, setHabilitarMissoes] = useState((evento as any).habilitar_missoes ?? false);
-  const [visivelPublico, setVisivelPublico] = useState((evento as any).visivel_publico ?? true);
+  const [habilitarMissoes, setHabilitarMissoes] = useState(evento.habilitar_missoes ?? false);
+  const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico ?? true);
 
   useEffect(() => {
     // Parse dates from evento if they exist
-    if ((evento as any).data_inicio) {
-      setDataInicio(new Date((evento as any).data_inicio));
+    if (evento.data_inicio) {
+      setDataInicio(new Date(evento.data_inicio));
     }
-    if ((evento as any).data_fim) {
-      setDataFim(new Date((evento as any).data_fim));
+    if (evento.data_fim) {
+      setDataFim(new Date(evento.data_fim));
     }
-    if ((evento as any).horario_virada_dia) {
-      setHorarioVirada((evento as any).horario_virada_dia.substring(0, 5));
+    if (evento.horario_virada_dia) {
+      setHorarioVirada(evento.horario_virada_dia.substring(0, 5));
     }
   }, [evento]);
 
@@ -102,8 +106,9 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
         setImagemLogo(publicUrl);
       }
       toast.success('Imagem enviada com sucesso');
-    } catch (error: any) {
-      console.error('Erro no upload:', error);
+    } catch (error) {
+      const err = error as Error;
+      console.error('Erro no upload:', err);
       toast.error('Erro ao enviar imagem');
     } finally {
       setUploadingImage(false);
@@ -118,7 +123,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
 
     setLoading(true);
     try {
-      const updateData: any = {
+      const updateData: EventoUpdate = {
         nome_planilha: nome,
         local: local.trim() || null,
         tipo_operacao: tipoOperacao,
@@ -148,8 +153,9 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
       toast.success('Evento atualizado com sucesso!');
       setOpen(false);
       onSuccess?.();
-    } catch (error: any) {
-      toast.error(`Erro ao atualizar: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Erro ao atualizar: ${err.message}`);
     } finally {
       setLoading(false);
     }

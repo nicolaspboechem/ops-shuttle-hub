@@ -197,7 +197,7 @@ export default function AppOperador() {
       case 'historico':
         return <OperadorHistoricoTab viagens={viagens} />;
 
-      case 'mais':
+      case 'mais': {
         // Encontrar viagem ativa para navegação
         const viagemAtivaNav = viagens.find(v => v.status === 'em_andamento');
         
@@ -216,6 +216,7 @@ export default function AppOperador() {
             onLogout={handleLogout}
           />
         );
+      }
 
       default:
         return null;

@@ -2,9 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { toast } from 'sonner';
+import { Database } from '@/integrations/supabase/types';
 
 export type MissaoStatus = 'pendente' | 'aceita' | 'em_andamento' | 'concluida' | 'cancelada';
 export type MissaoPrioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+// Type from Supabase
+type MissaoRow = Database['public']['Tables']['missoes']['Row'];
+
+// Extended type with motorista relation
+interface MissaoWithMotorista extends MissaoRow {
+  motorista: { nome: string } | null;
+}
 
 export interface Missao {
   id: string;
@@ -62,7 +71,7 @@ export function useMissoes(eventoId: string | undefined) {
 
     try {
       const { data, error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .select(`
           *,
           motorista:motoristas(nome)
@@ -74,11 +83,14 @@ export function useMissoes(eventoId: string | undefined) {
         console.error('Erro ao buscar missões:', error);
         setMissoes([]);
       } else {
-        const missoesFormatadas = (data || []).map((m: any) => ({
+        const missoesFormatadas = ((data || []) as unknown as MissaoWithMotorista[]).map((m) => ({
           ...m,
           motorista_nome: m.motorista?.nome,
+          status: m.status as MissaoStatus,
+          prioridade: (m.prioridade || 'normal') as MissaoPrioridade,
+          data_atualizacao: m.data_atualizacao || m.created_at || new Date().toISOString(),
         }));
-        setMissoes(missoesFormatadas);
+        setMissoes(missoesFormatadas as Missao[]);
       }
     } catch (err) {
       console.error('Tabela missoes pode não existir:', err);
@@ -121,7 +133,7 @@ export function useMissoes(eventoId: string | undefined) {
 
     try {
       const { data, error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .insert({
           evento_id: eventoId,
           motorista_id: input.motorista_id,
@@ -161,7 +173,7 @@ export function useMissoes(eventoId: string | undefined) {
   const updateMissao = async (id: string, input: Partial<MissaoInput & { status?: MissaoStatus }>) => {
     try {
       const { data, error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .update({
           ...input,
           atualizado_por: user?.id,
@@ -188,7 +200,7 @@ export function useMissoes(eventoId: string | undefined) {
   const deleteMissao = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .delete()
         .eq('id', id);
 
@@ -271,7 +283,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
 
     try {
       const { data, error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .select('*')
         .eq('evento_id', eventoId)
         .eq('motorista_id', motoristaId)
@@ -282,7 +294,13 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
         console.error('Erro ao buscar missões:', error);
         setMissoes([]);
       } else if (data) {
-        setMissoes(data as unknown as Missao[]);
+        const missoesFormatadas = (data as MissaoRow[]).map((m) => ({
+          ...m,
+          status: m.status as MissaoStatus,
+          prioridade: (m.prioridade || 'normal') as MissaoPrioridade,
+          data_atualizacao: m.data_atualizacao || m.created_at || new Date().toISOString(),
+        }));
+        setMissoes(missoesFormatadas as Missao[]);
       }
     } catch (err) {
       setMissoes([]);
@@ -326,7 +344,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   const aceitarMissao = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .update({ status: 'aceita', atualizado_por: user?.id })
         .eq('id', id);
 
@@ -346,7 +364,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   const recusarMissao = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('missoes' as any)
+        .from('missoes')
         .update({ status: 'cancelada', atualizado_por: user?.id })
         .eq('id', id);
 

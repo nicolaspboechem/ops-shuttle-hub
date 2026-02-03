@@ -12,7 +12,7 @@ import { Evento } from '@/lib/types/viagem';
 // Extract base name from event name (remove dates and specific identifiers)
 function getEventBaseName(nome: string): string {
   // Remove date patterns like "2025-12-05", "05 de Dezembro", "04/12", etc.
-  let baseName = nome
+  const baseName = nome
     .replace(/\d{4}-\d{2}-\d{2}/g, '')
     .replace(/\d{2}\s+de\s+\w+/gi, '')
     .replace(/\d{2}\/\d{2}/g, '')

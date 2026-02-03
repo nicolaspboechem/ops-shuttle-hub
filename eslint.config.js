@@ -21,6 +21,12 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Allow explicit any for Supabase query results and catch blocks
+      "@typescript-eslint/no-explicit-any": "warn",
+      // Allow empty interfaces that extend other types
+      "@typescript-eslint/no-empty-object-type": "off",
+      // Allow exhaustive-deps warnings but not errors
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
 );

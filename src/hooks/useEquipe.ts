@@ -3,6 +3,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
+import { Database } from '@/integrations/supabase/types';
+
+// Type definitions
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type MotoristaRow = Database['public']['Tables']['motoristas']['Row'];
+type MotoristaPresencaRow = Database['public']['Tables']['motorista_presenca']['Row'];
+type EventoUsuarioRow = Database['public']['Tables']['evento_usuarios']['Row'];
+
+interface MotoristaCredencial {
+  motorista_id: string;
+  telefone: string;
+  ativo: boolean | null;
+}
+
+interface StaffCredencial {
+  user_id: string;
+  telefone: string;
+  ativo: boolean | null;
+  role: string;
+}
+
+interface MotoristaWithVeiculo extends MotoristaRow {
+  veiculos: { placa: string } | null;
+}
 
 export interface EquipeMembro {
   id: string;
@@ -56,11 +80,11 @@ export function useEquipe(eventoId?: string) {
 
       // Fetch profiles for staff members
       const staffUserIds = (eventUsuarios || []).map(eu => eu.user_id);
-      let profiles: any[] = [];
+      let profiles: ProfileRow[] = [];
       if (staffUserIds.length > 0) {
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('user_id, email, full_name, telefone')
+          .select('*')
           .in('user_id', staffUserIds);
         profiles = profilesData || [];
       }
@@ -76,18 +100,18 @@ export function useEquipe(eventoId?: string) {
 
       // Fetch motorista_credenciais to check who has login
       const motoristaIds = (motoristas || []).map(m => m.id);
-      let credenciais: any[] = [];
+      let credenciais: MotoristaCredencial[] = [];
       if (motoristaIds.length > 0) {
         const { data: credenciaisData } = await supabase
           .from('motorista_credenciais')
           .select('motorista_id, telefone, ativo')
           .in('motorista_id', motoristaIds)
           .eq('ativo', true);
-        credenciais = credenciaisData || [];
+        credenciais = (credenciaisData || []) as MotoristaCredencial[];
       }
 
       // Fetch today's presença using synced date
-      let presencas: any[] = [];
+      let presencas: MotoristaPresencaRow[] = [];
       if (motoristaIds.length > 0) {
         const { data: presencaData } = await supabase
           .from('motorista_presenca')
@@ -99,7 +123,7 @@ export function useEquipe(eventoId?: string) {
       }
 
       // Fetch staff_credenciais to check who has login
-      let staffCredenciais: any[] = [];
+      let staffCredenciais: StaffCredencial[] = [];
       if (staffUserIds.length > 0) {
         const { data: staffCredData } = await supabase
           .from('staff_credenciais')
@@ -107,11 +131,11 @@ export function useEquipe(eventoId?: string) {
           .in('user_id', staffUserIds)
           .eq('evento_id', eventoId)
           .eq('ativo', true);
-        staffCredenciais = staffCredData || [];
+        staffCredenciais = (staffCredData || []) as StaffCredencial[];
       }
 
       // Map staff members (not motoristas)
-      const staffMembros: EquipeMembro[] = (eventUsuarios || [])
+      const staffMembros: EquipeMembro[] = ((eventUsuarios || []) as EventoUsuarioRow[])
         .filter(eu => eu.role !== 'motorista') // Staff only
         .map(eu => {
           const profile = profiles.find(p => p.user_id === eu.user_id);
@@ -124,12 +148,12 @@ export function useEquipe(eventoId?: string) {
             telefone: staffCred?.telefone || profile?.telefone || undefined,
             role: eu.role,
             has_login: !!staffCred, // Check staff_credenciais instead of always true
-            created_at: eu.created_at,
+            created_at: eu.created_at || new Date().toISOString(),
           };
         });
 
       // Map motoristas - check has_login from motorista_credenciais
-      const motoristaMembros: EquipeMembro[] = (motoristas || []).map(m => {
+      const motoristaMembros: EquipeMembro[] = ((motoristas || []) as unknown as MotoristaWithVeiculo[]).map(m => {
         const presenca = presencas.find(p => p.motorista_id === m.id);
         const credencial = credenciais.find(c => c.motorista_id === m.id);
         return {
@@ -150,8 +174,9 @@ export function useEquipe(eventoId?: string) {
       });
 
       setMembros([...staffMembros, ...motoristaMembros]);
-    } catch (error: any) {
-      toast.error(`Erro ao carregar equipe: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Erro ao carregar equipe: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -205,8 +230,9 @@ export function useEquipe(eventoId?: string) {
 
       toast.success('Check-in realizado!');
       fetchEquipe();
-    } catch (error: any) {
-      toast.error(`Erro no check-in: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Erro no check-in: ${err.message}`);
     }
   };
 
@@ -241,8 +267,9 @@ export function useEquipe(eventoId?: string) {
 
       toast.success('Check-out realizado!');
       fetchEquipe();
-    } catch (error: any) {
-      toast.error(`Erro no check-out: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Erro no check-out: ${err.message}`);
     }
   };
 
@@ -271,8 +298,9 @@ export function useEquipe(eventoId?: string) {
 
       toast.success('Membro removido da equipe');
       fetchEquipe();
-    } catch (error: any) {
-      toast.error(`Erro ao remover: ${error.message}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(`Erro ao remover: ${err.message}`);
     }
   };
 

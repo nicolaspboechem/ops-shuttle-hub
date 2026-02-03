@@ -426,7 +426,7 @@ export default function AppMotorista() {
           />
         );
 
-      case 'mais':
+      case 'mais': {
         // Encontrar viagem ativa para mostrar navegação
         const viagemAtivaEmAndamento = minhasViagensAtivas.find(v => v.status === 'em_andamento');
         
@@ -509,6 +509,7 @@ export default function AppMotorista() {
             />
           </div>
         );
+      }
     }
   };
 

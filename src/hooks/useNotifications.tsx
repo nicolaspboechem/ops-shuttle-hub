@@ -30,6 +30,39 @@ interface NotificationsContextType {
   refresh: () => Promise<void>;
 }
 
+// Type definitions for Supabase query results
+interface ViagemLogResult {
+  id: string;
+  acao: string;
+  created_at: string | null;
+  viagem: {
+    motorista: string;
+    placa: string | null;
+    evento_id: string | null;
+  } | null;
+}
+
+interface PresencaLogResult {
+  id: string;
+  checkin_at: string | null;
+  checkout_at: string | null;
+  updated_at: string;
+  motorista: {
+    nome: string;
+  } | null;
+}
+
+interface VistoriaLogResult {
+  id: string;
+  tipo_vistoria: string;
+  status_novo: string;
+  created_at: string;
+  veiculo: {
+    placa: string;
+  } | null;
+  realizado_por_nome: string | null;
+}
+
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 const actionConfig: Record<string, { label: string; icon: ReactNode; color: string }> = {
@@ -100,13 +133,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .limit(15),
     ]);
 
-    const viagemLogs = viagemLogsRes.data || [];
-    const presencaLogs = presencaLogsRes.data || [];
-    const vistoriaLogs = vistoriaLogsRes.data || [];
+    const viagemLogs = (viagemLogsRes.data || []) as unknown as ViagemLogResult[];
+    const presencaLogs = (presencaLogsRes.data || []) as unknown as PresencaLogResult[];
+    const vistoriaLogs = (vistoriaLogsRes.data || []) as unknown as VistoriaLogResult[];
 
     const newNotifications: Notification[] = [];
 
-    viagemLogs.forEach((log: any) => {
+    viagemLogs.forEach((log) => {
       const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
       const motoristaNome = log.viagem?.motorista || 'Motorista';
       const placaVeiculo = log.viagem?.placa || '';
@@ -116,7 +149,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         action: log.acao,
         title: config.label,
         description: `${motoristaNome}${placaVeiculo ? ` (${placaVeiculo})` : ''}`,
-        timestamp: log.created_at,
+        timestamp: log.created_at || new Date().toISOString(),
         read: false,
         icon: config.icon,
         color: config.color,
@@ -125,7 +158,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    presencaLogs.forEach((log: any) => {
+    presencaLogs.forEach((log) => {
       const isCheckout = log.checkout_at && new Date(log.checkout_at) > new Date(log.checkin_at || 0);
       const config = isCheckout ? actionConfig.checkout : actionConfig.checkin;
       const motoristaNome = log.motorista?.nome || 'Motorista';
@@ -143,7 +176,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    vistoriaLogs.forEach((log: any) => {
+    vistoriaLogs.forEach((log) => {
       const config = log.status_novo === 'liberado' ? actionConfig.liberacao : actionConfig.inspecao;
       const placaVeiculo = log.veiculo?.placa || 'Veículo';
       newNotifications.push({

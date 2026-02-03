@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useServerTime } from '@/hooks/useServerTime';
@@ -18,6 +18,10 @@ export function useViagensPublicas(eventoId: string | null) {
   const [viagens, setViagens] = useState<ViagemPublica[]>([]);
   const [loading, setLoading] = useState(true);
   const { getAgoraSync } = useServerTime();
+  
+  // Use ref to avoid dependency issues with getAgoraSync
+  const getAgoraSyncRef = useRef(getAgoraSync);
+  getAgoraSyncRef.current = getAgoraSync;
 
   const fetchViagens = useCallback(async () => {
     if (!eventoId) {
@@ -29,7 +33,7 @@ export function useViagensPublicas(eventoId: string | null) {
     setLoading(true);
 
     // Get today's date using synchronized server time
-    const agora = getAgoraSync();
+    const agora = getAgoraSyncRef.current();
     const hoje = format(agora, 'yyyy-MM-dd');
     const todayStart = `${hoje}T00:00:00`;
     const todayEnd = `${hoje}T23:59:59`;
