@@ -1,277 +1,142 @@
 
-# Plano: Links de Navegação (Maps/Waze) para Rotas Shuttle
 
-## Visão Geral
+# Plano: Ajustar Layout do Tutorial para Mobile
 
-Adicionar campos de links de navegação (Google Maps e Waze) no cadastro de rotas shuttle, permitindo que motoristas e operadores abram diretamente os aplicativos de navegação para seguir a rota correta. Os links serão exibidos nos cards de viagem e missão nos apps mobile.
+## Problema Identificado
 
-## Benefícios
+O componente `TutorialPopover` apresenta problemas de layout em dispositivos móveis:
 
-- Motoristas saberão exatamente qual caminho seguir
-- Redução de erros de rota
-- Integração com apps de navegação que os motoristas já usam
-- Compartilhamento fácil da rota com novos motoristas
+1. O popover pode sair da área visível da tela
+2. Não considera o espaço ocupado pelo header e bottom nav dos apps mobile
+3. A largura fixa de 320px pode ser muito grande em telas pequenas
+4. O cálculo de posicionamento horizontal está incorreto para viewports estreitos
 
-## Fluxo de Uso
+## Mudanças Propostas
 
-```text
-Admin cadastra rota
-       │
-       ▼
-┌─────────────────────────────┐
-│ Adiciona links Maps/Waze   │
-│ (cola links ou gera auto)  │
-└─────────────────────────────┘
-       │
-       ▼
-Viagem criada com essa rota
-       │
-       ▼
-┌─────────────────────────────┐
-│ Card da Viagem/Missão      │
-│ exibe botões:              │
-│                            │
-│  🗺️ Maps   📍 Waze         │
-│                            │
-└─────────────────────────────┘
-       │
-       ▼
-Motorista toca no botão
-       │
-       ▼
-Abre app de navegação
-```
+### 1. Melhorar Responsividade do Popover
 
----
+- Usar largura adaptativa: `max-w-[min(320px,_calc(100vw-32px))]`
+- Centralizar horizontalmente de forma mais simples e confiável
+- Garantir margens seguras (16px) em todos os lados
 
-## 1. Mudanças no Banco de Dados
+### 2. Considerar Safe Areas
 
-Adicionar 3 novas colunas na tabela `rotas_shuttle`:
+- Detectar se há bottom nav (mobile) e ajustar posição `top: 'top'` para ficar acima dela
+- Considerar o header fixo ao calcular posição `bottom`
+- Usar `safe-area-inset` para dispositivos com notch
 
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `link_maps` | text | URL do Google Maps para a rota |
-| `link_waze` | text | URL do Waze para a rota |
-| `ponto_origem_id` | uuid (FK) | Referência ao ponto de embarque de origem |
-| `ponto_destino_id` | uuid (FK) | Referência ao ponto de embarque de destino |
+### 3. Simplificar Lógica de Posicionamento
 
-**Migration SQL:**
-```sql
-ALTER TABLE rotas_shuttle 
-ADD COLUMN link_maps text,
-ADD COLUMN link_waze text,
-ADD COLUMN ponto_origem_id uuid REFERENCES pontos_embarque(id),
-ADD COLUMN ponto_destino_id uuid REFERENCES pontos_embarque(id);
-```
+**Antes**: Cálculos complexos com `style` inline
+**Depois**: Classes Tailwind + posicionamento simplificado
 
----
+### 4. Ajustar para Contexto Mobile
 
-## 2. Modificações no Modal de Rota
+- Posição padrão `center` quando não encontrar target
+- Padding extra na parte inferior para não sobrepor a bottom nav (80px)
 
-Atualizar `RotaShuttleModal.tsx` para incluir:
+## Arquivos a Modificar
 
-- Seletor de Ponto de Origem (dropdown com pontos cadastrados)
-- Seletor de Ponto de Destino (dropdown com pontos cadastrados)
-- Campo para Link do Google Maps
-- Campo para Link do Waze
-- Botão "Gerar Link" que cria URLs automaticamente baseado nos endereços
-
-### Geração Automática de Links
-
-Se os pontos de embarque tiverem endereços cadastrados:
-
-```typescript
-// Google Maps - rota de A para B
-const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`;
-
-// Waze - navegação para destino
-const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`;
-```
-
----
-
-## 3. Exibição nos Cards de Viagem
-
-Adicionar botões de navegação nos componentes:
-
-- `ViagemCardMobile.tsx` (app motorista)
-- `ViagemCardOperador.tsx` (app operador)
-- `MissaoCardMobile.tsx` (missões)
-
-### Design dos Botões
-
-Linha adicional no card com dois botões:
-
-```
-┌─────────────────────────────────────┐
-│ 🗺️ Abrir no Maps  │ 📍 Abrir no Waze│
-└─────────────────────────────────────┘
-```
-
-Os botões só aparecem se a rota tiver os links configurados.
-
----
-
-## 4. Componente Reutilizável
-
-Criar `NavigationLinks.tsx`:
-
-```typescript
-interface NavigationLinksProps {
-  linkMaps?: string | null;
-  linkWaze?: string | null;
-  origem?: string;
-  destino?: string;
-  compact?: boolean; // para exibição menor
-}
-```
-
-Features:
-- Abre links em nova aba/app nativo
-- Fallback: se não tiver link mas tiver endereços, gera dinamicamente
-- Ícones reconhecíveis (Google Maps, Waze)
-
----
-
-## 5. Vinculação com Viagens
-
-Quando uma viagem do tipo `shuttle` for criada:
-- Buscar a rota shuttle correspondente pelo `ponto_embarque_id` e `ponto_destino_id`
-- Copiar os links de navegação para a viagem (ou referenciar a rota)
-
-Para viagens de `transfer`:
-- Gerar links dinamicamente baseado nos pontos de embarque/desembarque
-
----
-
-## Arquivos a Modificar/Criar
-
-### Novos Arquivos
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/app/NavigationLinks.tsx` | Componente de botões Maps/Waze |
-
-### Arquivos a Modificar
 | Arquivo | Mudança |
 |---------|---------|
-| `src/hooks/useRotasShuttle.ts` | Adicionar campos link_maps, link_waze |
-| `src/components/eventos/RotaShuttleModal.tsx` | Adicionar campos de link e seletores de ponto |
-| `src/components/app/ViagemCardMobile.tsx` | Adicionar NavigationLinks |
-| `src/components/app/ViagemCardOperador.tsx` | Adicionar NavigationLinks |
-| `src/components/app/MissaoCardMobile.tsx` | Adicionar NavigationLinks |
-| `src/integrations/supabase/types.ts` | Atualizar após migration |
+| `src/components/app/TutorialPopover.tsx` | Refatorar posicionamento para mobile-first |
 
 ---
 
 ## Seção Técnica
 
-### Estrutura do NavigationLinks
+### Novo Código do TutorialPopover
 
-```typescript
-export function NavigationLinks({ 
-  linkMaps, 
-  linkWaze, 
-  origem, 
-  destino,
-  compact = false 
-}: NavigationLinksProps) {
-  // Gerar links dinamicamente se não existirem mas tiver endereços
-  const mapsUrl = linkMaps || (origem && destino 
-    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origem)}&destination=${encodeURIComponent(destino)}&travelmode=driving`
-    : null
-  );
-  
-  const wazeUrl = linkWaze || (destino
-    ? `https://waze.com/ul?q=${encodeURIComponent(destino)}&navigate=yes`
-    : null
-  );
+```tsx
+// Ajustes principais:
 
-  if (!mapsUrl && !wazeUrl) return null;
+// 1. Largura responsiva
+className="absolute pointer-events-auto w-[calc(100vw-32px)] max-w-[320px]"
 
-  return (
-    <div className={cn("flex gap-2", compact ? "pt-2" : "pt-3 border-t")}>
-      {mapsUrl && (
-        <Button 
-          variant="outline" 
-          size={compact ? "sm" : "default"}
-          className="flex-1"
-          onClick={() => window.open(mapsUrl, '_blank')}
-        >
-          <Map className="h-4 w-4 mr-2" />
-          Maps
-        </Button>
-      )}
-      {wazeUrl && (
-        <Button 
-          variant="outline" 
-          size={compact ? "sm" : "default"}
-          className="flex-1"
-          onClick={() => window.open(wazeUrl, '_blank')}
-        >
-          <Navigation className="h-4 w-4 mr-2" />
-          Waze
-        </Button>
-      )}
-    </div>
-  );
+// 2. Posicionamento central simplificado (sempre centralizado horizontalmente)
+style={{
+  left: '50%',
+  transform: 'translateX(-50%)',
+  ...positionStyles
+}}
+
+// 3. Safe area para bottom nav em mobile
+const bottomOffset = 80; // Altura da bottom nav + margem
+
+// 4. Cálculo de posição vertical melhorado
+if (calculatedPosition === 'top') {
+  positionStyles = {
+    bottom: `${window.innerHeight - position.y + 16}px`,
+  };
+} else if (calculatedPosition === 'bottom') {
+  positionStyles = {
+    top: `${position.y + 16}px`,
+  };
+} else {
+  // Center - considera a bottom nav
+  positionStyles = {
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    marginBottom: `${bottomOffset}px`,
+  };
 }
 ```
 
-### Atualização do RotaShuttleModal
+### Lógica de Cálculo de Posição Atualizada
 
 ```typescript
-// Novos campos no formulário
-const [linkMaps, setLinkMaps] = useState('');
-const [linkWaze, setLinkWaze] = useState('');
-const [pontoOrigemId, setPontoOrigemId] = useState<string | null>(null);
-const [pontoDestinoId, setPontoDestinoId] = useState<string | null>(null);
+const calculatePosition = () => {
+  // Para posição center, não precisa de target
+  if (step.position === 'center' || !step.targetSelector) {
+    setCalculatedPosition('center');
+    return;
+  }
 
-// Função para gerar links automaticamente
-const gerarLinks = () => {
-  const pontoOrigem = pontos.find(p => p.id === pontoOrigemId);
-  const pontoDestino = pontos.find(p => p.id === pontoDestinoId);
+  const target = document.querySelector(step.targetSelector);
+  if (!target) {
+    setCalculatedPosition('center');
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const popoverHeight = 200; // Altura aproximada com padding
+  const headerHeight = 60; // Altura do header mobile
+  const bottomNavHeight = 80; // Altura da bottom nav
   
-  if (pontoOrigem?.endereco && pontoDestino?.endereco) {
-    setLinkMaps(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pontoOrigem.endereco)}&destination=${encodeURIComponent(pontoDestino.endereco)}&travelmode=driving`);
-    setLinkWaze(`https://waze.com/ul?q=${encodeURIComponent(pontoDestino.endereco)}&navigate=yes`);
-    toast.success('Links gerados automaticamente');
+  const availableTop = rect.top - headerHeight;
+  const availableBottom = window.innerHeight - rect.bottom - bottomNavHeight;
+  
+  // Priorizar posição que tenha mais espaço
+  if (step.position === 'top' && availableTop >= popoverHeight) {
+    setCalculatedPosition('top');
+    setPosition({ x: 0, y: rect.top });
+  } else if (availableBottom >= popoverHeight) {
+    setCalculatedPosition('bottom');
+    setPosition({ x: 0, y: rect.bottom });
+  } else if (availableTop >= popoverHeight) {
+    setCalculatedPosition('top');
+    setPosition({ x: 0, y: rect.top });
   } else {
-    toast.error('Cadastre endereços nos pontos para gerar links');
+    // Fallback para center se não couber
+    setCalculatedPosition('center');
   }
 };
 ```
 
-### Interface Atualizada do RotaShuttleInput
+### CSS Classes Ajustadas
 
-```typescript
-export interface RotaShuttleInput {
-  nome: string;
-  origem: string;
-  destino: string;
-  frequencia_minutos?: number | null;
-  horario_inicio?: string | null;
-  horario_fim?: string | null;
-  observacoes?: string | null;
-  ativo?: boolean;
-  // Novos campos
-  link_maps?: string | null;
-  link_waze?: string | null;
-  ponto_origem_id?: string | null;
-  ponto_destino_id?: string | null;
-}
+```tsx
+<motion.div
+  className={cn(
+    "fixed pointer-events-auto mx-4",
+    "w-[calc(100vw-32px)] max-w-[320px]",
+    "left-1/2 -translate-x-1/2",
+    calculatedPosition === 'center' && "top-1/2 -translate-y-1/2 mb-10"
+  )}
+  style={calculatedPosition !== 'center' ? {
+    top: calculatedPosition === 'bottom' ? `${position.y + 12}px` : 'auto',
+    bottom: calculatedPosition === 'top' ? `${window.innerHeight - position.y + 12}px` : 'auto',
+  } : undefined}
+>
 ```
 
-### SQL Migration Completa
-
-```sql
--- Adicionar colunas de navegação na tabela rotas_shuttle
-ALTER TABLE rotas_shuttle 
-ADD COLUMN IF NOT EXISTS link_maps text,
-ADD COLUMN IF NOT EXISTS link_waze text,
-ADD COLUMN IF NOT EXISTS ponto_origem_id uuid REFERENCES pontos_embarque(id) ON DELETE SET NULL,
-ADD COLUMN IF NOT EXISTS ponto_destino_id uuid REFERENCES pontos_embarque(id) ON DELETE SET NULL;
-
--- Índice para busca por pontos
-CREATE INDEX IF NOT EXISTS idx_rotas_shuttle_pontos 
-ON rotas_shuttle(ponto_origem_id, ponto_destino_id);
-```
