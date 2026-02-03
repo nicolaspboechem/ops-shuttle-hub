@@ -29,6 +29,8 @@ import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '@/hooks/useNotifications';
 import { toast } from 'sonner';
+import { useTutorial, adminSteps } from '@/hooks/useTutorial';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
 
 interface Stats {
   eventosAtivos: number;
@@ -53,6 +55,9 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [filtroMotorista, setFiltroMotorista] = useState<string>('todos');
   const [filtroVeiculo, setFiltroVeiculo] = useState<string>('todos');
+
+  // Tutorial for admin on first access
+  const tutorial = useTutorial('admin', adminSteps);
 
   // Extract unique motoristas and placas from notifications
   const { motoristas, placas } = useMemo(() => {
@@ -156,6 +161,17 @@ export default function Home() {
 
   return (
     <MainLayout>
+      {/* Tutorial Popover for Admin */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
       <div className="p-8 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -236,7 +252,7 @@ export default function Home() {
         </div>
 
         {/* Activity Feed */}
-        <Card>
+        <Card data-tutorial="activity">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2">

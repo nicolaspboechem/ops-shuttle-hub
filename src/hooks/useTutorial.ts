@@ -19,7 +19,7 @@ interface UseTutorialReturn {
   reset: () => void;
 }
 
-export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
+export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente' | 'admin';
 
 export function useTutorial(
   role: TutorialRole,
@@ -189,5 +189,36 @@ export const clienteSteps: TutorialStep[] = [
     description: 'Use a barra inferior para alternar entre Dashboard, Localizador e Painel.',
     targetSelector: 'nav',
     position: 'top',
+  },
+];
+
+// Tutorial steps for Admin (CCO)
+export const adminSteps: TutorialStep[] = [
+  {
+    id: 'welcome',
+    title: 'Bem-vindo ao CCO! 🎛️',
+    description: 'Este é o Centro de Controle Operacional. Aqui você gerencia todos os eventos e acompanha as operações em tempo real.',
+    position: 'center',
+  },
+  {
+    id: 'eventos',
+    title: 'Eventos',
+    description: 'No menu lateral, acesse "Eventos" para criar e gerenciar suas operações. Cada evento é uma operação independente.',
+    targetSelector: '[href="/eventos"]',
+    position: 'right',
+  },
+  {
+    id: 'atividade',
+    title: 'Atividade em Tempo Real',
+    description: 'Aqui você vê todas as ações do sistema: viagens iniciadas, check-ins, finalizações e muito mais.',
+    targetSelector: '[data-tutorial="activity"]',
+    position: 'bottom',
+  },
+  {
+    id: 'suporte',
+    title: 'Precisa de Ajuda?',
+    description: 'Acesse "Suporte" no menu para ver guias completos, FAQ e tutoriais sobre todas as funcionalidades.',
+    targetSelector: '[href="/suporte"]',
+    position: 'right',
   },
 ];
