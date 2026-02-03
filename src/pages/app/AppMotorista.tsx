@@ -26,8 +26,10 @@ import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBottomNav';
 import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
 import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
+import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car, HelpCircle, ChevronRight } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_preta.png';
 
 export default function AppMotorista() {
@@ -46,6 +48,7 @@ export default function AppMotorista() {
   
   const [operando, setOperando] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
+  const [showHelp, setShowHelp] = useState(false);
   
   // Tutorial system
   const tutorial = useTutorial('motorista', motoristaSteps);
@@ -404,6 +407,32 @@ export default function AppMotorista() {
       case 'mais':
         return (
           <div className="space-y-4">
+            {/* Suporte */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4" />
+                  Suporte
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Precisa de ajuda? Acesse nossa central de suporte.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between h-12"
+                  onClick={() => setShowHelp(true)}
+                >
+                  <div className="flex items-center">
+                    <HelpCircle className="h-5 w-5 mr-3" />
+                    Central de Ajuda
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </CardContent>
+            </Card>
+
             <Button 
               variant="destructive" 
               className="w-full gap-2"
@@ -412,6 +441,13 @@ export default function AppMotorista() {
               <LogOut className="h-4 w-4" />
               Sair do Aplicativo
             </Button>
+
+            {/* Help Drawer */}
+            <HelpDrawer 
+              open={showHelp} 
+              onOpenChange={setShowHelp}
+              role="motorista"
+            />
           </div>
         );
     }

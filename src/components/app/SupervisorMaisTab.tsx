@@ -12,11 +12,13 @@ import {
   LogOut,
   Settings,
   Shield,
-  ChevronRight
+  ChevronRight,
+  HelpCircle
 } from 'lucide-react';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from './VeiculoKmModal';
+import { HelpDrawer } from './HelpDrawer';
 
 interface SupervisorMaisTabProps {
   eventoId: string;
@@ -37,6 +39,7 @@ export function SupervisorMaisTab({
   const [showMotoristaWizard, setShowMotoristaWizard] = useState(false);
   const [showVeiculoWizard, setShowVeiculoWizard] = useState(false);
   const [showKmModal, setShowKmModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const handleCadastroSuccess = () => {
     onCadastroComplete?.();
@@ -107,6 +110,32 @@ export function SupervisorMaisTab({
             <div className="flex items-center">
               <Gauge className="h-5 w-5 mr-3" />
               Registrar KM
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Suporte */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <HelpCircle className="h-4 w-4" />
+            Suporte
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Precisa de ajuda? Acesse nossa central de suporte.
+          </p>
+          <Button 
+            variant="outline" 
+            className="w-full justify-between h-12"
+            onClick={() => setShowHelp(true)}
+          >
+            <div className="flex items-center">
+              <HelpCircle className="h-5 w-5 mr-3" />
+              Central de Ajuda
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -187,6 +216,13 @@ export function SupervisorMaisTab({
         open={showKmModal}
         onOpenChange={setShowKmModal}
         eventoId={eventoId}
+      />
+
+      {/* Help Drawer */}
+      <HelpDrawer 
+        open={showHelp} 
+        onOpenChange={setShowHelp}
+        role="supervisor"
       />
     </div>
   );

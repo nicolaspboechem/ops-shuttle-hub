@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -8,8 +9,10 @@ import {
   LogOut,
   Settings,
   HelpCircle,
-  Shield
+  Shield,
+  ChevronRight
 } from 'lucide-react';
+import { HelpDrawer } from './HelpDrawer';
 
 interface OperadorMaisTabProps {
   userName?: string;
@@ -28,6 +31,8 @@ export function OperadorMaisTab({
   onRegistrarKm,
   onLogout,
 }: OperadorMaisTabProps) {
+  const [showHelp, setShowHelp] = useState(false);
+
   return (
     <div className="space-y-6">
       {/* Perfil */}
@@ -63,29 +68,38 @@ export function OperadorMaisTab({
         <CardContent className="space-y-2">
           <Button 
             variant="outline" 
-            className="w-full justify-start h-12"
+            className="w-full justify-between h-12"
             onClick={onCadastrarMotorista}
           >
-            <User className="h-5 w-5 mr-3" />
-            Cadastrar Motorista
+            <div className="flex items-center">
+              <User className="h-5 w-5 mr-3" />
+              Cadastrar Motorista
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
           
           <Button 
             variant="outline" 
-            className="w-full justify-start h-12"
+            className="w-full justify-between h-12"
             onClick={onCadastrarVeiculo}
           >
-            <Car className="h-5 w-5 mr-3" />
-            Cadastrar Veículo
+            <div className="flex items-center">
+              <Car className="h-5 w-5 mr-3" />
+              Cadastrar Veículo
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
           
           <Button 
             variant="outline" 
-            className="w-full justify-start h-12"
+            className="w-full justify-between h-12"
             onClick={onRegistrarKm}
           >
-            <Gauge className="h-5 w-5 mr-3" />
-            Registrar KM
+            <div className="flex items-center">
+              <Gauge className="h-5 w-5 mr-3" />
+              Registrar KM
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </Button>
         </CardContent>
       </Card>
@@ -100,8 +114,19 @@ export function OperadorMaisTab({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-3">
-            Precisa de ajuda? Entre em contato com o CCO.
+            Precisa de ajuda? Acesse nossa central de suporte.
           </p>
+          <Button 
+            variant="outline" 
+            className="w-full justify-between h-12"
+            onClick={() => setShowHelp(true)}
+          >
+            <div className="flex items-center">
+              <HelpCircle className="h-5 w-5 mr-3" />
+              Central de Ajuda
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </Button>
         </CardContent>
       </Card>
 
@@ -116,6 +141,13 @@ export function OperadorMaisTab({
         <LogOut className="h-5 w-5 mr-3" />
         Sair do Sistema
       </Button>
+
+      {/* Help Drawer */}
+      <HelpDrawer 
+        open={showHelp} 
+        onOpenChange={setShowHelp}
+        role="operador"
+      />
     </div>
   );
 }
