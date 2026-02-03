@@ -1,300 +1,234 @@
 
-# Plano: Tutorial de Onboarding + Sistema de Suporte/FAQ para Todos os Papéis
+
+# Plano: Tutorial de Onboarding para Admin dentro do Evento
 
 ## Visão Geral
 
-Criar um sistema completo de onboarding e suporte para **todos os papéis** do sistema:
-- **Admin (CCO)**: Tutorial no primeiro acesso + Central de Suporte expandida
-- **Motorista**: Tutorial existente + aba de Ajuda com FAQ e contato
-- **Operador**: Tutorial existente + aba de Ajuda com FAQ e contato
-- **Supervisor**: Tutorial existente + aba de Ajuda com FAQ e contato
-- **Cliente**: Tutorial existente + seção de Ajuda
+Adicionar um tutorial guiado para administradores quando acessam um evento pela primeira vez. O tutorial explicará as funcionalidades específicas do contexto de evento: Dashboard, Viagens, Motoristas, Veículos, Auditoria e Equipe.
 
-## Estrutura da Solução
+## Diferença do Tutorial Atual
 
-```text
-┌────────────────────────────────────────────────────────────────┐
-│                    SISTEMA DE SUPORTE                          │
-├────────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │   Tutorial   │  │     FAQ      │  │   Contato    │         │
-│  │  (1º acesso) │  │  (Por papel) │  │  (WhatsApp)  │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
-│         │                 │                  │                 │
-│         ▼                 ▼                  ▼                 │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │                Componente: HelpDrawer                  │   │
-│  │  - FAQ com perguntas frequentes por papel              │   │
-│  │  - Guia rápido de ações                                │   │
-│  │  - Escalação: "Se nada resolver, fale conosco"         │   │
-│  │  - Botão WhatsApp para contato direto                  │   │
-│  └────────────────────────────────────────────────────────┘   │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
-```
+| Tutorial | Contexto | Quando aparece |
+|----------|----------|----------------|
+| **Admin CCO** (existente) | Página Home (/eventos) | 1º acesso ao sistema |
+| **Admin Evento** (novo) | Dashboard do evento | 1º acesso a qualquer evento |
 
----
-
-## 1. Tutorial Admin (Novo)
-
-Adicionar tutorial para administradores no primeiro acesso à página Home (CCO).
-
-### Steps do Tutorial Admin:
-1. **Bem-vindo ao CCO** - Visão geral do painel de controle
-2. **Eventos** - Como criar e gerenciar eventos
-3. **Dashboard** - Monitoramento em tempo real
-4. **Equipe** - Cadastro de motoristas, veículos e membros
-5. **Suporte** - Onde encontrar ajuda
-
----
-
-## 2. Central de Ajuda/FAQ (Componente Reutilizável)
-
-### HelpDrawer - Drawer lateral de ajuda
-
-Um componente que pode ser usado em qualquer tela, com conteúdo adaptado por papel:
-
-| Papel | Conteúdo do FAQ |
-|-------|-----------------|
-| **Admin** | Criar evento, cadastrar equipe, configurar módulos, gerar relatórios |
-| **Motorista** | Check-in, aceitar missões, iniciar viagens, problemas comuns |
-| **Operador** | Criar viagens, gerenciar status, cadastrar motoristas |
-| **Supervisor** | Gerenciar frota, vincular veículos, localizar motoristas |
-| **Cliente** | Visualizar dashboard, acompanhar operação |
-
-### Estrutura do FAQ por Papel
-
-**Motorista:**
-- "Não consigo fazer check-in" → Verificar se módulo está ativo + veículo atribuído
-- "Minha viagem não aparece" → Pull-to-refresh ou verificar status
-- "Como cancelar uma viagem?" → Contatar operador
-- "O app está travando" → Recarregar página
-
-**Operador:**
-- "Como criar uma viagem?" → Botão + na barra inferior
-- "Motorista não aparece na lista" → Verificar se está cadastrado no evento
-- "Como editar uma viagem?" → Deslizar card ou tocar para editar
-
-**Supervisor:**
-- "Como vincular veículo?" → Deslizar card do motorista
-- "Motorista não aparece no localizador" → Check-in necessário
-- "Como alterar localização?" → Deslizar e usar "Editar Local"
-
-**Admin (CCO):**
-- "Por que motoristas não conseguem check-in?" → Módulo de missões desativado
-- "Evento não aparece no painel público" → Visibilidade desativada
-- "Como resetar senha de motorista?" → Equipe > Motorista > Resetar
-- "Relatórios não batem" → Verificar dia operacional
-
----
-
-## 3. Escalação de Contato
-
-Quando nenhuma opção do FAQ resolver:
+## Fluxo do Tutorial
 
 ```text
-┌─────────────────────────────────────────────────┐
-│  🆘 Ainda precisa de ajuda?                     │
-│                                                 │
-│  Se as opções acima não resolveram seu         │
-│  problema, entre em contato diretamente:        │
-│                                                 │
-│  ┌─────────────────────────────────────────┐   │
-│  │  💬 Falar com Suporte                   │   │
-│  │     WhatsApp: (XX) XXXXX-XXXX           │   │
-│  └─────────────────────────────────────────┘   │
-│                                                 │
-│  Horário: 08:00 - 22:00 (todos os dias)        │
-└─────────────────────────────────────────────────┘
+Admin entra no evento pela 1ª vez
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Tutorial "Bem-vindo ao Evento!"       │
+│   Step 1: Visão geral do Dashboard      │
+└─────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Step 2: Menu lateral                  │
+│   "Navegue pelas seções do evento"      │
+└─────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Step 3: Viagens Ativas                │
+│   "Acompanhe todas as viagens"          │
+└─────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Step 4: Cadastros                     │
+│   "Gerencie motoristas e veículos"      │
+└─────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Step 5: Equipe                        │
+│   "Adicione operadores e supervisores"  │
+└─────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────┐
+│   Step 6: Configurações                 │
+│   "Personalize a operação"              │
+└─────────────────────────────────────────┘
 ```
 
----
+## Steps do Tutorial
 
-## 4. Arquivos a Criar/Modificar
+1. **Bem-vindo ao Evento**
+   - Posição: Center
+   - "Este é o painel de controle do evento. Aqui você monitora e gerencia toda a operação."
 
-### Novos Arquivos
+2. **Dashboard em Tempo Real**
+   - Target: Cards de métricas
+   - "Acompanhe viagens ativas, motoristas online e veículos em operação em tempo real."
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/app/HelpDrawer.tsx` | Drawer de ajuda reutilizável com FAQ |
-| `src/lib/data/faqData.ts` | Dados estruturados do FAQ por papel |
-| `src/hooks/useTutorial.ts` | Adicionar `adminSteps` |
+3. **Viagens**
+   - Target: Link "Viagens Ativas" no menu
+   - "Veja todas as viagens em andamento e finalizadas. Use os filtros para encontrar rapidamente."
 
-### Arquivos a Modificar
+4. **Cadastros**
+   - Target: Seção "Cadastros" no menu
+   - "Cadastre e gerencie motoristas, veículos e rotas shuttle."
 
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/pages/Home.tsx` | Adicionar tutorial no primeiro acesso |
-| `src/components/app/OperadorMaisTab.tsx` | Adicionar botão de Ajuda/FAQ |
-| `src/components/app/SupervisorMaisTab.tsx` | Adicionar botão de Ajuda/FAQ |
-| `src/pages/app/AppMotorista.tsx` | Adicionar botão de ajuda no menu ou aba |
-| `src/pages/app/AppCliente.tsx` | Adicionar acesso à ajuda |
-| `src/pages/Suporte.tsx` | Expandir FAQ e adicionar seção de contato |
+5. **Equipe do Evento**
+   - Target: Link "Equipe" no menu
+   - "Adicione operadores e supervisores. Eles terão acesso apenas a este evento."
 
----
+6. **Configurações**
+   - Target: Link "Configurações" no menu
+   - "Personalize horários, alertas e módulos ativos da operação."
 
-## 5. Fluxo de Ajuda
+7. **Central de Ajuda**
+   - Posição: Center
+   - "Precisa de ajuda? Use o botão de ajuda (?) para ver guias e FAQs."
+
+## Arquivos a Modificar
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/hooks/useTutorial.ts` | Adicionar `adminEventoSteps` |
+| `src/pages/Dashboard.tsx` | Integrar tutorial + botão de ajuda |
+| `src/components/layout/AppSidebar.tsx` | Adicionar `data-tutorial` nos links |
+
+## Estrutura do localStorage
 
 ```text
-Usuário com dúvida
-       │
-       ▼
-┌─────────────────┐
-│ Botão de Ajuda  │ ← Em todas as telas (ícone ?)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   HelpDrawer    │
-│   (FAQ rápido)  │
-└────────┬────────┘
-         │
-         ├── Problema resolvido? ✅ → Fecha drawer
-         │
-         ▼
-┌─────────────────┐
-│  Não resolveu?  │
-│  ▼              │
-│ Botão WhatsApp  │ ← Abre conversa direta
-└─────────────────┘
+tutorial_admin_seen = "true"        // Tutorial do CCO (já existe)
+tutorial_admin_evento_seen = "true" // Tutorial do Evento (novo)
 ```
 
----
-
-## 6. Conteúdo do FAQ Expandido
-
-### Para Admin (página Suporte.tsx)
-
-**Seção: Problemas Comuns**
-- Login de motorista não funciona → Verificar credenciais / Resetar senha
-- Viagens não sincronizam → Verificar conexão / Recarregar
-- Dados antigos aparecendo → Limpar cache do navegador
-- Erro ao criar evento → Verificar campos obrigatórios
-
-**Seção: Configurações Avançadas**
-- Horário de virada do dia operacional
-- Intervalo de atualização automática
-- Configuração de alertas de atraso
-
-**Seção: Relatórios e Auditoria**
-- Como exportar dados
-- Entendendo as métricas
-- Histórico de presença
-
-### Para Campo (Mobile)
-
-FAQ simplificado e visual:
-
-1. **Login/Acesso**
-   - Esqueci minha senha
-   - Meu login não funciona
-   
-2. **Operação**
-   - Como fazer check-in
-   - Como iniciar/finalizar viagem
-   - Como aceitar/recusar missão
-
-3. **Problemas Técnicos**
-   - App não carrega
-   - Dados não atualizam
-   - Erro ao enviar informação
-
-4. **Contato**
-   - Falar com CCO
-   - Falar com Suporte Técnico
-
----
-
-## 7. Dados de Contato
-
-O sistema usará uma variável de configuração para o contato de suporte:
-
-```typescript
-export const SUPPORT_CONFIG = {
-  whatsappNumber: '5511999999999', // Número para contato
-  supportHours: '08:00 - 22:00',
-  supportEmail: 'suporte@asbrasil.com.br', // Opcional
-};
-```
+Usar chave diferente para que o tutorial do evento apareça independentemente do tutorial do CCO.
 
 ---
 
 ## Seção Técnica
 
-### Estrutura do FAQ (faqData.ts)
+### Novos Steps para Admin Evento
 
 ```typescript
-interface FAQItem {
-  question: string;
-  answer: string;
-  keywords: string[]; // Para busca
-}
-
-interface FAQSection {
-  title: string;
-  icon: LucideIcon;
-  items: FAQItem[];
-}
-
-type RoleFAQ = Record<TutorialRole | 'admin', FAQSection[]>;
-```
-
-### HelpDrawer Component
-
-```typescript
-interface HelpDrawerProps {
-  role: 'admin' | 'motorista' | 'operador' | 'supervisor' | 'cliente';
-  trigger?: ReactNode; // Botão customizado
-}
-```
-
-### Admin Tutorial Steps
-
-```typescript
-export const adminSteps: TutorialStep[] = [
+export const adminEventoSteps: TutorialStep[] = [
   {
-    id: 'welcome',
-    title: 'Bem-vindo ao CCO! 🎛️',
-    description: 'Este é o Centro de Controle Operacional. Aqui você gerencia todos os eventos e acompanha as operações em tempo real.',
+    id: 'welcome-evento',
+    title: 'Bem-vindo ao Evento!',
+    description: 'Este é o painel de controle da operação. Aqui você monitora viagens, gerencia equipe e acompanha métricas em tempo real.',
     position: 'center',
   },
   {
-    id: 'eventos',
-    title: 'Eventos',
-    description: 'No menu lateral, acesse "Eventos" para criar e gerenciar suas operações.',
-    targetSelector: '[href="/eventos"]',
-    position: 'right',
-  },
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    description: 'Dentro de cada evento, o Dashboard mostra métricas e atividades em tempo real.',
-    targetSelector: '[data-tutorial="stats"]',
+    id: 'dashboard-metricas',
+    title: 'Métricas em Tempo Real',
+    description: 'Os cards mostram viagens ativas, motoristas online, veículos em operação e tempo médio. Tudo atualiza automaticamente.',
+    targetSelector: '[data-tutorial="metrics"]',
     position: 'bottom',
   },
   {
-    id: 'suporte',
-    title: 'Suporte',
-    description: 'Precisa de ajuda? Acesse "Suporte" no menu para ver guias e FAQs completos.',
-    targetSelector: '[href="/suporte"]',
+    id: 'viagens',
+    title: 'Viagens',
+    description: 'Acompanhe viagens ativas e finalizadas. Use filtros por status, tipo de operação e motorista.',
+    targetSelector: '[data-tutorial="viagens"]',
     position: 'right',
+  },
+  {
+    id: 'cadastros',
+    title: 'Cadastros',
+    description: 'Gerencie motoristas, veículos e rotas shuttle. Todos os cadastros são específicos deste evento.',
+    targetSelector: '[data-tutorial="cadastros"]',
+    position: 'right',
+  },
+  {
+    id: 'equipe',
+    title: 'Equipe do Evento',
+    description: 'Adicione operadores e supervisores. Eles poderão acessar apenas este evento com suas funções específicas.',
+    targetSelector: '[data-tutorial="equipe"]',
+    position: 'right',
+  },
+  {
+    id: 'configuracoes-evento',
+    title: 'Configurações',
+    description: 'Personalize horário de virada do dia, alertas de atraso e módulos ativos (Missões, Shuttle, Transfer).',
+    targetSelector: '[data-tutorial="configuracoes"]',
+    position: 'right',
+  },
+  {
+    id: 'ajuda-evento',
+    title: 'Precisa de Ajuda?',
+    description: 'Use o botão de ajuda para ver guias, FAQs e entrar em contato com o suporte quando precisar.',
+    position: 'center',
   },
 ];
 ```
 
-### Integração com Apps Mobile
+### Modificações no AppSidebar
 
-Adicionar ícone de ajuda no header ou na aba "Mais":
+Adicionar atributos `data-tutorial` para os seletores:
 
 ```tsx
-<Button variant="ghost" size="icon" onClick={() => setShowHelp(true)}>
-  <HelpCircle className="h-5 w-5" />
-</Button>
+// Seção Monitoramento
+{ name: 'Viagens Ativas', href: '...', icon: Bus, dataTutorial: 'viagens' },
 
-<HelpDrawer 
-  open={showHelp} 
-  onOpenChange={setShowHelp}
-  role="motorista" 
-/>
+// Seção Cadastros
+<div data-tutorial="cadastros">...</div>
+
+// Seção Administração
+{ name: 'Equipe', href: '...', icon: Users, dataTutorial: 'equipe' },
+
+// Configurações
+{ name: 'Configurações', href: '...', icon: Settings, dataTutorial: 'configuracoes' },
 ```
+
+### Integração no Dashboard
+
+```tsx
+import { useTutorial, adminEventoSteps } from '@/hooks/useTutorial';
+import { TutorialPopover } from '@/components/app/TutorialPopover';
+import { HelpDrawer } from '@/components/app/HelpDrawer';
+
+export default function Dashboard() {
+  const tutorial = useTutorial('admin_evento', adminEventoSteps);
+  const [showHelp, setShowHelp] = useState(false);
+
+  return (
+    <EventLayout>
+      {/* Botão de ajuda no header */}
+      <Button onClick={() => setShowHelp(true)}>
+        <HelpCircle className="h-4 w-4" />
+      </Button>
+
+      {/* Cards de métricas */}
+      <div data-tutorial="metrics">
+        ...
+      </div>
+
+      {/* Tutorial Popover */}
+      {tutorial.isActive && tutorial.currentStep && (
+        <TutorialPopover
+          step={tutorial.currentStep}
+          currentIndex={tutorial.currentIndex}
+          totalSteps={tutorial.totalSteps}
+          onNext={tutorial.next}
+          onSkip={tutorial.skip}
+          onComplete={tutorial.complete}
+        />
+      )}
+
+      {/* Drawer de ajuda */}
+      <HelpDrawer 
+        open={showHelp} 
+        onOpenChange={setShowHelp} 
+        role="admin" 
+      />
+    </EventLayout>
+  );
+}
+```
+
+### Atualização do Hook useTutorial
+
+Atualizar o tipo `TutorialRole` para incluir o novo papel:
+
+```typescript
+export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente' | 'admin' | 'admin_evento';
+```
+
