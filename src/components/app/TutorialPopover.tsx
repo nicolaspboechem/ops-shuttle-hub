@@ -15,6 +15,11 @@ interface TutorialPopoverProps {
   onComplete: () => void;
 }
 
+const HEADER_HEIGHT = 60;
+const BOTTOM_NAV_HEIGHT = 80;
+const POPOVER_HEIGHT = 200;
+const GAP = 12;
+
 export function TutorialPopover({
   step,
   currentIndex,
@@ -23,51 +28,41 @@ export function TutorialPopover({
   onSkip,
   onComplete,
 }: TutorialPopoverProps) {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState({ y: 0 });
   const [calculatedPosition, setCalculatedPosition] = useState<'top' | 'bottom' | 'center'>('center');
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const calculatePosition = () => {
+      // Para posição center, não precisa de target
       if (step.position === 'center' || !step.targetSelector) {
-        // Center position
         setCalculatedPosition('center');
-        setPosition({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
-        });
         return;
       }
 
       const target = document.querySelector(step.targetSelector);
       if (!target) {
         setCalculatedPosition('center');
-        setPosition({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
-        });
         return;
       }
 
       const rect = target.getBoundingClientRect();
-      const popoverHeight = 180; // Approximate height
-      
-      // Determine if popover should be above or below
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      
-      if (step.position === 'top' || (spaceBelow < popoverHeight && spaceAbove > popoverHeight)) {
+      const availableTop = rect.top - HEADER_HEIGHT;
+      const availableBottom = window.innerHeight - rect.bottom - BOTTOM_NAV_HEIGHT;
+
+      // Priorizar posição que tenha mais espaço
+      if (step.position === 'top' && availableTop >= POPOVER_HEIGHT) {
         setCalculatedPosition('top');
-        setPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.top - 16,
-        });
-      } else {
+        setPosition({ y: rect.top });
+      } else if (availableBottom >= POPOVER_HEIGHT) {
         setCalculatedPosition('bottom');
-        setPosition({
-          x: rect.left + rect.width / 2,
-          y: rect.bottom + 16,
-        });
+        setPosition({ y: rect.bottom });
+      } else if (availableTop >= POPOVER_HEIGHT) {
+        setCalculatedPosition('top');
+        setPosition({ y: rect.top });
+      } else {
+        // Fallback para center se não couber
+        setCalculatedPosition('center');
       }
     };
 
@@ -77,6 +72,23 @@ export function TutorialPopover({
   }, [step]);
 
   const isLastStep = currentIndex === totalSteps - 1;
+
+  // Calcular estilos de posição
+  const getPositionStyles = () => {
+    if (calculatedPosition === 'center') {
+      return undefined; // Usa classes Tailwind
+    }
+    
+    if (calculatedPosition === 'bottom') {
+      return { top: `${position.y + GAP}px` };
+    }
+    
+    if (calculatedPosition === 'top') {
+      return { bottom: `${window.innerHeight - position.y + GAP}px` };
+    }
+    
+    return undefined;
+  };
 
   return (
     <AnimatePresence mode="wait">
@@ -101,17 +113,12 @@ export function TutorialPopover({
           exit={{ opacity: 0, scale: 0.9 }}
           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
           className={cn(
-            "absolute pointer-events-auto max-w-[320px] w-[calc(100%-32px)]",
-            calculatedPosition === 'center' && "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-            calculatedPosition === 'top' && "left-1/2 -translate-x-1/2",
-            calculatedPosition === 'bottom' && "left-1/2 -translate-x-1/2"
+            "fixed pointer-events-auto",
+            "w-[calc(100vw-32px)] max-w-[320px]",
+            "left-1/2 -translate-x-1/2",
+            calculatedPosition === 'center' && "top-1/2 -translate-y-1/2 mb-10"
           )}
-          style={calculatedPosition !== 'center' ? {
-            left: `min(max(16px, ${position.x}px - 160px), calc(100% - 336px))`,
-            top: calculatedPosition === 'top' ? `${position.y}px` : undefined,
-            bottom: calculatedPosition === 'bottom' ? `${window.innerHeight - position.y}px` : undefined,
-            transform: calculatedPosition === 'top' ? 'translateY(-100%)' : 'translateY(0)',
-          } : undefined}
+          style={getPositionStyles()}
         >
           <Card className="shadow-2xl border-primary/20 overflow-hidden">
             {/* Progress bar */}
