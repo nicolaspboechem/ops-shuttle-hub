@@ -1,157 +1,300 @@
 
+# Plano: Tutorial de Onboarding + Sistema de Suporte/FAQ para Todos os Papéis
 
-# Plano: Correção do Fuso Horário do App
+## Visão Geral
 
-## Problema Identificado
+Criar um sistema completo de onboarding e suporte para **todos os papéis** do sistema:
+- **Admin (CCO)**: Tutorial no primeiro acesso + Central de Suporte expandida
+- **Motorista**: Tutorial existente + aba de Ajuda com FAQ e contato
+- **Operador**: Tutorial existente + aba de Ajuda com FAQ e contato
+- **Supervisor**: Tutorial existente + aba de Ajuda com FAQ e contato
+- **Cliente**: Tutorial existente + seção de Ajuda
 
-O relógio do Painel Localizador (e outras partes do app) está mostrando horário incorreto porque a função `get_server_time()` no banco de dados retorna o horário de forma ambígua.
-
-### Causa Raiz
-
-A função atual:
-```sql
-SELECT NOW() AT TIME ZONE 'America/Sao_Paulo';
-```
-
-**O que acontece:**
-1. `NOW()` retorna `2026-02-03 16:39:39+00` (UTC)
-2. `AT TIME ZONE 'America/Sao_Paulo'` converte para `2026-02-03 13:39:39` (SEM timezone!)
-3. O JavaScript recebe `"2026-02-03 13:39:39"` e interpreta como UTC
-4. O relógio exibe 3 horas à frente (ou com erro dependendo do navegador)
-
-### Evidência
-Consulta atual:
-- `NOW()` = `16:39 UTC`
-- `get_server_time()` = `13:39` (correto, mas sem indicador de timezone)
-- JavaScript interpreta `13:39` como UTC → exibe errado
-
----
-
-## Solução
-
-### 1. Corrigir a função `get_server_time()` no Supabase
-
-Alterar a função para retornar um timestamp que o JavaScript interprete corretamente:
-
-```sql
-CREATE OR REPLACE FUNCTION public.get_server_time()
-RETURNS TEXT
-LANGUAGE SQL
-STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  -- Retorna ISO 8601 com offset explícito de São Paulo
-  SELECT to_char(
-    NOW() AT TIME ZONE 'America/Sao_Paulo',
-    'YYYY-MM-DD"T"HH24:MI:SS.MS"-03:00"'
-  );
-$$;
-```
-
-**Por que TEXT?** Porque garante que o JavaScript receba exatamente a string `2026-02-03T13:39:39.123-03:00`, que ele parseia corretamente como horário de Brasília.
-
-**Nota sobre horário de verão:** O Brasil atualmente não pratica horário de verão, então `-03:00` é fixo. Se o horário de verão for reinstituído no futuro, essa função precisaria ser ajustada.
-
-### 2. Ajustar o hook `useServerTime.ts`
-
-O hook precisa garantir que o parsing do timestamp retornado seja feito corretamente:
-
-```typescript
-// Parsing atual (problemático)
-const serverDate = new Date(data); 
-
-// Parsing corrigido (aceita a string ISO)
-const serverDate = new Date(data);
-// Com o novo formato, isso funcionará corretamente
-```
-
-O `new Date()` do JavaScript aceita strings ISO 8601 com offset, então a correção no banco é suficiente.
-
-### 3. Corrigir usos de `toISOString()` para datas locais
-
-Em alguns locais, o código usa `toISOString().split('T')[0]` para obter a data. Isso pode causar problemas de fuso. Locais identificados:
-
-- `src/lib/utils/calcularProximasSaidas.ts` → usar `format(date, 'yyyy-MM-dd')`
-- `src/hooks/useViagensPublicas.ts` → usar hora sincronizada
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/migrations/...` | Nova migration corrigindo `get_server_time()` |
-| `src/integrations/supabase/types.ts` | Atualizar tipo de retorno |
-| `src/lib/utils/calcularProximasSaidas.ts` | Usar `format()` em vez de `toISOString()` |
-| `src/hooks/useViagensPublicas.ts` | Usar hora sincronizada via hook |
-
----
-
-## Resumo Visual
+## Estrutura da Solução
 
 ```text
-ANTES (Bugado):
-┌──────────────┐      ┌───────────────┐      ┌──────────────┐
-│  PostgreSQL  │ ───▶ │ "13:39:39"    │ ───▶ │  JavaScript  │
-│  NOW() -3h   │      │ (sem timezone)│      │  = 13:39 UTC │
-└──────────────┘      └───────────────┘      └──────────────┘
-                                                    │
-                                            Exibe: 10:39 BRT ❌
-
-DEPOIS (Correto):
-┌──────────────┐      ┌─────────────────────┐      ┌──────────────┐
-│  PostgreSQL  │ ───▶ │ "13:39:39-03:00"    │ ───▶ │  JavaScript  │
-│  NOW() -3h   │      │ (com offset)        │      │  = 13:39 BRT │
-└──────────────┘      └─────────────────────┘      └──────────────┘
-                                                          │
-                                                  Exibe: 13:39 BRT ✅
+┌────────────────────────────────────────────────────────────────┐
+│                    SISTEMA DE SUPORTE                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│  │   Tutorial   │  │     FAQ      │  │   Contato    │         │
+│  │  (1º acesso) │  │  (Por papel) │  │  (WhatsApp)  │         │
+│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│         │                 │                  │                 │
+│         ▼                 ▼                  ▼                 │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │                Componente: HelpDrawer                  │   │
+│  │  - FAQ com perguntas frequentes por papel              │   │
+│  │  - Guia rápido de ações                                │   │
+│  │  - Escalação: "Se nada resolver, fale conosco"         │   │
+│  │  - Botão WhatsApp para contato direto                  │   │
+│  └────────────────────────────────────────────────────────┘   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Instruções Manuais (Caso Queira Fazer Você Mesmo)
+## 1. Tutorial Admin (Novo)
 
-Se preferir corrigir manualmente no Supabase:
+Adicionar tutorial para administradores no primeiro acesso à página Home (CCO).
 
-1. Vá para **Cloud View** → **Run SQL**
-2. Execute:
+### Steps do Tutorial Admin:
+1. **Bem-vindo ao CCO** - Visão geral do painel de controle
+2. **Eventos** - Como criar e gerenciar eventos
+3. **Dashboard** - Monitoramento em tempo real
+4. **Equipe** - Cadastro de motoristas, veículos e membros
+5. **Suporte** - Onde encontrar ajuda
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_server_time()
-RETURNS TEXT
-LANGUAGE SQL
-STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT to_char(
-    NOW() AT TIME ZONE 'America/Sao_Paulo',
-    'YYYY-MM-DD"T"HH24:MI:SS.MS"-03:00"'
-  );
-$$;
+---
+
+## 2. Central de Ajuda/FAQ (Componente Reutilizável)
+
+### HelpDrawer - Drawer lateral de ajuda
+
+Um componente que pode ser usado em qualquer tela, com conteúdo adaptado por papel:
+
+| Papel | Conteúdo do FAQ |
+|-------|-----------------|
+| **Admin** | Criar evento, cadastrar equipe, configurar módulos, gerar relatórios |
+| **Motorista** | Check-in, aceitar missões, iniciar viagens, problemas comuns |
+| **Operador** | Criar viagens, gerenciar status, cadastrar motoristas |
+| **Supervisor** | Gerenciar frota, vincular veículos, localizar motoristas |
+| **Cliente** | Visualizar dashboard, acompanhar operação |
+
+### Estrutura do FAQ por Papel
+
+**Motorista:**
+- "Não consigo fazer check-in" → Verificar se módulo está ativo + veículo atribuído
+- "Minha viagem não aparece" → Pull-to-refresh ou verificar status
+- "Como cancelar uma viagem?" → Contatar operador
+- "O app está travando" → Recarregar página
+
+**Operador:**
+- "Como criar uma viagem?" → Botão + na barra inferior
+- "Motorista não aparece na lista" → Verificar se está cadastrado no evento
+- "Como editar uma viagem?" → Deslizar card ou tocar para editar
+
+**Supervisor:**
+- "Como vincular veículo?" → Deslizar card do motorista
+- "Motorista não aparece no localizador" → Check-in necessário
+- "Como alterar localização?" → Deslizar e usar "Editar Local"
+
+**Admin (CCO):**
+- "Por que motoristas não conseguem check-in?" → Módulo de missões desativado
+- "Evento não aparece no painel público" → Visibilidade desativada
+- "Como resetar senha de motorista?" → Equipe > Motorista > Resetar
+- "Relatórios não batem" → Verificar dia operacional
+
+---
+
+## 3. Escalação de Contato
+
+Quando nenhuma opção do FAQ resolver:
+
+```text
+┌─────────────────────────────────────────────────┐
+│  🆘 Ainda precisa de ajuda?                     │
+│                                                 │
+│  Se as opções acima não resolveram seu         │
+│  problema, entre em contato diretamente:        │
+│                                                 │
+│  ┌─────────────────────────────────────────┐   │
+│  │  💬 Falar com Suporte                   │   │
+│  │     WhatsApp: (XX) XXXXX-XXXX           │   │
+│  └─────────────────────────────────────────┘   │
+│                                                 │
+│  Horário: 08:00 - 22:00 (todos os dias)        │
+└─────────────────────────────────────────────────┘
 ```
 
-3. Teste com: `SELECT get_server_time();`
-   - Deve retornar algo como: `2026-02-03T13:39:39.123-03:00`
+---
+
+## 4. Arquivos a Criar/Modificar
+
+### Novos Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/app/HelpDrawer.tsx` | Drawer de ajuda reutilizável com FAQ |
+| `src/lib/data/faqData.ts` | Dados estruturados do FAQ por papel |
+| `src/hooks/useTutorial.ts` | Adicionar `adminSteps` |
+
+### Arquivos a Modificar
+
+| Arquivo | Modificação |
+|---------|-------------|
+| `src/pages/Home.tsx` | Adicionar tutorial no primeiro acesso |
+| `src/components/app/OperadorMaisTab.tsx` | Adicionar botão de Ajuda/FAQ |
+| `src/components/app/SupervisorMaisTab.tsx` | Adicionar botão de Ajuda/FAQ |
+| `src/pages/app/AppMotorista.tsx` | Adicionar botão de ajuda no menu ou aba |
+| `src/pages/app/AppCliente.tsx` | Adicionar acesso à ajuda |
+| `src/pages/Suporte.tsx` | Expandir FAQ e adicionar seção de contato |
+
+---
+
+## 5. Fluxo de Ajuda
+
+```text
+Usuário com dúvida
+       │
+       ▼
+┌─────────────────┐
+│ Botão de Ajuda  │ ← Em todas as telas (ícone ?)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   HelpDrawer    │
+│   (FAQ rápido)  │
+└────────┬────────┘
+         │
+         ├── Problema resolvido? ✅ → Fecha drawer
+         │
+         ▼
+┌─────────────────┐
+│  Não resolveu?  │
+│  ▼              │
+│ Botão WhatsApp  │ ← Abre conversa direta
+└─────────────────┘
+```
+
+---
+
+## 6. Conteúdo do FAQ Expandido
+
+### Para Admin (página Suporte.tsx)
+
+**Seção: Problemas Comuns**
+- Login de motorista não funciona → Verificar credenciais / Resetar senha
+- Viagens não sincronizam → Verificar conexão / Recarregar
+- Dados antigos aparecendo → Limpar cache do navegador
+- Erro ao criar evento → Verificar campos obrigatórios
+
+**Seção: Configurações Avançadas**
+- Horário de virada do dia operacional
+- Intervalo de atualização automática
+- Configuração de alertas de atraso
+
+**Seção: Relatórios e Auditoria**
+- Como exportar dados
+- Entendendo as métricas
+- Histórico de presença
+
+### Para Campo (Mobile)
+
+FAQ simplificado e visual:
+
+1. **Login/Acesso**
+   - Esqueci minha senha
+   - Meu login não funciona
+   
+2. **Operação**
+   - Como fazer check-in
+   - Como iniciar/finalizar viagem
+   - Como aceitar/recusar missão
+
+3. **Problemas Técnicos**
+   - App não carrega
+   - Dados não atualizam
+   - Erro ao enviar informação
+
+4. **Contato**
+   - Falar com CCO
+   - Falar com Suporte Técnico
+
+---
+
+## 7. Dados de Contato
+
+O sistema usará uma variável de configuração para o contato de suporte:
+
+```typescript
+export const SUPPORT_CONFIG = {
+  whatsappNumber: '5511999999999', // Número para contato
+  supportHours: '08:00 - 22:00',
+  supportEmail: 'suporte@asbrasil.com.br', // Opcional
+};
+```
 
 ---
 
 ## Seção Técnica
 
-### Detalhes da correção do PostgreSQL
+### Estrutura do FAQ (faqData.ts)
 
-A expressão `NOW() AT TIME ZONE 'America/Sao_Paulo'` retorna um `timestamp without time zone` porque você está extraindo a "hora local" daquele timezone. Quando isso é enviado via JSON para o frontend, o JavaScript não tem como saber que é horário de Brasília.
+```typescript
+interface FAQItem {
+  question: string;
+  answer: string;
+  keywords: string[]; // Para busca
+}
 
-A solução usa `to_char()` para formatar a string com o offset `-03:00` explícito, que o `new Date()` do JavaScript interpreta corretamente.
+interface FAQSection {
+  title: string;
+  icon: LucideIcon;
+  items: FAQItem[];
+}
 
-### Locais com uso de `toISOString()` que precisam atenção
+type RoleFAQ = Record<TutorialRole | 'admin', FAQSection[]>;
+```
 
-1. **`calcularProximasSaidas.ts`**: Usa `agora.toISOString().split('T')[0]` para pegar a data do dia. Se o usuário estiver em fuso diferente, isso pode dar a data errada. Solução: usar `format(agora, 'yyyy-MM-dd')`.
+### HelpDrawer Component
 
-2. **`useViagensPublicas.ts`**: Cria `new Date()` local e converte para ISO. Deveria usar `getAgoraSync()` do hook de tempo sincronizado.
+```typescript
+interface HelpDrawerProps {
+  role: 'admin' | 'motorista' | 'operador' | 'supervisor' | 'cliente';
+  trigger?: ReactNode; // Botão customizado
+}
+```
 
-### Tipos TypeScript
+### Admin Tutorial Steps
 
-O retorno da função muda de `string` (interpretado como timestamp) para `string` (ISO explícito), mas o tipo no TypeScript já é `string`, então não precisa de mudança no type.
+```typescript
+export const adminSteps: TutorialStep[] = [
+  {
+    id: 'welcome',
+    title: 'Bem-vindo ao CCO! 🎛️',
+    description: 'Este é o Centro de Controle Operacional. Aqui você gerencia todos os eventos e acompanha as operações em tempo real.',
+    position: 'center',
+  },
+  {
+    id: 'eventos',
+    title: 'Eventos',
+    description: 'No menu lateral, acesse "Eventos" para criar e gerenciar suas operações.',
+    targetSelector: '[href="/eventos"]',
+    position: 'right',
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    description: 'Dentro de cada evento, o Dashboard mostra métricas e atividades em tempo real.',
+    targetSelector: '[data-tutorial="stats"]',
+    position: 'bottom',
+  },
+  {
+    id: 'suporte',
+    title: 'Suporte',
+    description: 'Precisa de ajuda? Acesse "Suporte" no menu para ver guias e FAQs completos.',
+    targetSelector: '[href="/suporte"]',
+    position: 'right',
+  },
+];
+```
 
+### Integração com Apps Mobile
+
+Adicionar ícone de ajuda no header ou na aba "Mais":
+
+```tsx
+<Button variant="ghost" size="icon" onClick={() => setShowHelp(true)}>
+  <HelpCircle className="h-5 w-5" />
+</Button>
+
+<HelpDrawer 
+  open={showHelp} 
+  onOpenChange={setShowHelp}
+  role="motorista" 
+/>
+```
