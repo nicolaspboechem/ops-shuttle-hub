@@ -19,7 +19,7 @@ interface UseTutorialReturn {
   reset: () => void;
 }
 
-export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente' | 'admin';
+export type TutorialRole = 'motorista' | 'operador' | 'supervisor' | 'cliente' | 'admin' | 'admin_evento';
 
 export function useTutorial(
   role: TutorialRole,
@@ -220,5 +220,56 @@ export const adminSteps: TutorialStep[] = [
     description: 'Acesse "Suporte" no menu para ver guias completos, FAQ e tutoriais sobre todas as funcionalidades.',
     targetSelector: '[href="/suporte"]',
     position: 'right',
+  },
+];
+
+// Tutorial steps for Admin inside Event (Dashboard)
+export const adminEventoSteps: TutorialStep[] = [
+  {
+    id: 'welcome-evento',
+    title: 'Bem-vindo ao Evento! 🚀',
+    description: 'Este é o painel de controle da operação. Aqui você monitora viagens, gerencia equipe e acompanha métricas em tempo real.',
+    position: 'center',
+  },
+  {
+    id: 'dashboard-metricas',
+    title: 'Métricas em Tempo Real',
+    description: 'Os cards mostram viagens ativas, motoristas online, veículos em operação e tempo médio. Tudo atualiza automaticamente.',
+    targetSelector: '[data-tutorial="metrics"]',
+    position: 'bottom',
+  },
+  {
+    id: 'viagens',
+    title: 'Viagens',
+    description: 'Acompanhe viagens ativas e finalizadas. Use filtros por status, tipo de operação e motorista.',
+    targetSelector: '[data-tutorial="viagens"]',
+    position: 'right',
+  },
+  {
+    id: 'cadastros',
+    title: 'Cadastros',
+    description: 'Gerencie motoristas, veículos e rotas shuttle. Todos os cadastros são específicos deste evento.',
+    targetSelector: '[data-tutorial="cadastros"]',
+    position: 'right',
+  },
+  {
+    id: 'equipe',
+    title: 'Equipe do Evento',
+    description: 'Adicione operadores e supervisores. Eles poderão acessar apenas este evento com suas funções específicas.',
+    targetSelector: '[data-tutorial="equipe"]',
+    position: 'right',
+  },
+  {
+    id: 'configuracoes-evento',
+    title: 'Configurações',
+    description: 'Personalize horário de virada do dia, alertas de atraso e módulos ativos (Missões, Shuttle, Transfer).',
+    targetSelector: '[data-tutorial="configuracoes"]',
+    position: 'right',
+  },
+  {
+    id: 'ajuda-evento',
+    title: 'Precisa de Ajuda?',
+    description: 'Use o botão de ajuda para ver guias, FAQs e entrar em contato com o suporte quando precisar.',
+    position: 'center',
   },
 ];
