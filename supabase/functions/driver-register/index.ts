@@ -79,14 +79,13 @@ serve(async (req) => {
     const senhaHash = await hashPassword(senha);
 
     if (existingCred) {
-      // Update existing credentials
+      // Update existing credentials - only update fields that exist
       const { error: updateError } = await supabaseAdmin
         .from('motorista_credenciais')
         .update({
           telefone: phoneDigits,
           senha_hash: senhaHash,
           ativo: true,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', existingCred.id);
 
