@@ -163,12 +163,12 @@ export function RotaShuttleModal({ open, onOpenChange, rota, onSave }: RotaShutt
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Ponto de Origem</Label>
-              <Select value={pontoOrigemId} onValueChange={setPontoOrigemId}>
+              <Select value={pontoOrigemId || "_none_"} onValueChange={(v) => setPontoOrigemId(v === "_none_" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="_none_">Nenhum</SelectItem>
                   {pontosAtivos.map(ponto => (
                     <SelectItem key={ponto.id} value={ponto.id}>
                       {ponto.nome}
@@ -179,12 +179,12 @@ export function RotaShuttleModal({ open, onOpenChange, rota, onSave }: RotaShutt
             </div>
             <div className="space-y-2">
               <Label>Ponto de Destino</Label>
-              <Select value={pontoDestinoId} onValueChange={setPontoDestinoId}>
+              <Select value={pontoDestinoId || "_none_"} onValueChange={(v) => setPontoDestinoId(v === "_none_" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="_none_">Nenhum</SelectItem>
                   {pontosAtivos.map(ponto => (
                     <SelectItem key={ponto.id} value={ponto.id}>
                       {ponto.nome}
