@@ -35,6 +35,8 @@ serve(async (req) => {
 
   try {
     const { telefone, senha } = await req.json();
+    
+    console.log('Driver login attempt:', { telefone });
 
     if (!telefone || !senha) {
       return new Response(
@@ -45,11 +47,26 @@ serve(async (req) => {
 
     // Normalize phone number - remove all non-digits
     const phoneDigits = telefone.replace(/\D/g, '');
+    console.log('Phone digits:', phoneDigits);
     
     // Create Supabase client with service role
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.log('Supabase URL exists:', !!supabaseUrl);
+    console.log('Service key exists:', !!supabaseServiceKey);
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Erro de configuração do servidor' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      supabaseServiceKey,
       { auth: { persistSession: false } }
     );
 
@@ -60,38 +77,54 @@ serve(async (req) => {
       `+55${phoneDigits}`,
       `+${phoneDigits}`,
     ];
+    
+    console.log('Phones to try:', phonesToTry);
 
     let credencial = null;
     for (const phone of phonesToTry) {
-      const { data } = await supabaseAdmin
+      console.log('Trying phone:', phone);
+      const { data, error } = await supabaseAdmin
         .from('motorista_credenciais')
         .select('*, motoristas(id, nome, evento_id, telefone)')
         .eq('telefone', phone)
         .eq('ativo', true)
         .maybeSingle();
       
+      if (error) {
+        console.error('Query error:', error);
+      }
+      
       if (data) {
+        console.log('Found credentials for phone:', phone);
         credencial = data;
         break;
       }
     }
 
     if (!credencial) {
+      console.log('No credentials found for any phone variation');
       return new Response(
         JSON.stringify({ error: 'Credenciais inválidas' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Credentials found, verifying password...');
+    console.log('Stored hash format:', credencial.senha_hash.substring(0, 20) + '...');
 
     // Verify password using our custom verifier
     const senhaValida = await verifyPassword(senha, credencial.senha_hash);
+    console.log('Password valid:', senhaValida);
     
     if (!senhaValida) {
+      console.log('Password verification failed');
       return new Response(
         JSON.stringify({ error: 'Credenciais inválidas' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Password verified successfully');
 
     // Update last login
     await supabaseAdmin
