@@ -2,11 +2,12 @@ import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus, ClipboardList } from 'lucide-react';
+import { Play, MapPin, CheckCircle, Clock, Users, Bus, Car, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserNames } from '@/hooks/useUserNames';
 import { MissaoBadge } from '@/components/viagens/MissaoBadge';
 import { SwipeableCard } from './SwipeableCard';
+import { NavigationLinks } from './NavigationLinks';
 
 interface ViagemCardMobileProps {
   viagem: Viagem;
@@ -118,6 +119,13 @@ export function ViagemCardMobile({ viagem, onIniciar, onChegada, loading }: Viag
             </div>
           )}
         </div>
+
+        {/* Links de Navegação */}
+        <NavigationLinks 
+          origem={viagem.ponto_embarque}
+          destino={viagem.ponto_desembarque}
+          compact
+        />
 
         {/* Tempo de chegada registrado */}
         {viagem.h_chegada && (

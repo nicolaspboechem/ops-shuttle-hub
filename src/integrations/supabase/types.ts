@@ -523,9 +523,13 @@ export type Database = {
           horario_fim: string | null
           horario_inicio: string | null
           id: string
+          link_maps: string | null
+          link_waze: string | null
           nome: string
           observacoes: string | null
           origem: string
+          ponto_destino_id: string | null
+          ponto_origem_id: string | null
         }
         Insert: {
           ativo?: boolean | null
@@ -539,9 +543,13 @@ export type Database = {
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          link_maps?: string | null
+          link_waze?: string | null
           nome: string
           observacoes?: string | null
           origem: string
+          ponto_destino_id?: string | null
+          ponto_origem_id?: string | null
         }
         Update: {
           ativo?: boolean | null
@@ -555,9 +563,13 @@ export type Database = {
           horario_fim?: string | null
           horario_inicio?: string | null
           id?: string
+          link_maps?: string | null
+          link_waze?: string | null
           nome?: string
           observacoes?: string | null
           origem?: string
+          ponto_destino_id?: string | null
+          ponto_origem_id?: string | null
         }
         Relationships: [
           {
@@ -565,6 +577,20 @@ export type Database = {
             columns: ["evento_id"]
             isOneToOne: false
             referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rotas_shuttle_ponto_destino_id_fkey"
+            columns: ["ponto_destino_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rotas_shuttle_ponto_origem_id_fkey"
+            columns: ["ponto_origem_id"]
+            isOneToOne: false
+            referencedRelation: "pontos_embarque"
             referencedColumns: ["id"]
           },
         ]
