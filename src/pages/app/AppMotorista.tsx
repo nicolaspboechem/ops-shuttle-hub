@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useEventos } from '@/hooks/useEventos';
-import { ViagemCardMobile } from '@/components/app/ViagemCardMobile';
+
 import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
 import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
@@ -296,8 +296,8 @@ export default function AppMotorista() {
     }
   };
 
-  // Check if there's anything to show (missions or active trips)
-  const hasContent = minhasMissoes.length > 0 || minhasViagensAtivas.length > 0;
+  // Check if there's anything to show (missions only - active trips shown elsewhere)
+  const hasContent = minhasMissoes.length > 0;
   const isIdentified = !!motoristaData;
 
   // Driver status indicator
@@ -352,25 +352,6 @@ export default function AppMotorista() {
                     onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
                     onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
                     onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Viagens Ativas */}
-            {minhasViagensAtivas.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Car className="h-4 w-4 text-primary" />
-                  <span>Viagens Ativas ({minhasViagensAtivas.length})</span>
-                </div>
-                {minhasViagensAtivas.map(viagem => (
-                  <ViagemCardMobile
-                    key={viagem.id}
-                    viagem={viagem}
-                    loading={operando === viagem.id}
-                    onIniciar={() => handleAction(viagem.id, 'iniciar')}
-                    onChegada={() => handleAction(viagem.id, 'chegada')}
                   />
                 ))}
               </div>
