@@ -8,7 +8,7 @@ import { Evento } from '@/lib/types/viagem';
 import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck, ShieldCheck, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { Badge } from '@/components/ui/badge';
 
 interface EventoWithCount extends Evento {
@@ -206,7 +206,7 @@ export default function AppHome() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -217,20 +217,20 @@ export default function AppHome() {
               />
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-semibold">Controle Operacional</h1>
+                  <h1 className="text-lg font-semibold text-primary-foreground">Controle Operacional</h1>
                   {getRoleLabel() && (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs bg-white/20 text-primary-foreground border-0">
                       {getRoleLabel()}
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-primary-foreground/70">
                   {profile?.full_name || user?.email}
                 </p>
               </div>
             </div>
 
-            <Button variant="ghost" size="icon" onClick={signOut}>
+            <Button variant="ghost" size="icon" onClick={signOut} className="text-primary-foreground hover:bg-white/10">
               <LogOut className="h-5 w-5" />
             </Button>
           </div>

@@ -29,7 +29,7 @@ import {
   CheckCircle,
   RefreshCw
 } from 'lucide-react';
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { NavigationModal } from '@/components/app/NavigationModal';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
@@ -291,11 +291,11 @@ export default function AppOperador() {
       )}
 
       {/* Header simplificado */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/app')}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/app')} className="text-primary-foreground hover:bg-white/10">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <img 
@@ -304,8 +304,8 @@ export default function AppOperador() {
                 className="h-9 w-9 rounded-lg object-contain"
               />
               <div>
-                <h1 className="text-base font-semibold">Operador</h1>
-                <p className="text-xs text-muted-foreground truncate max-w-[160px]">
+                <h1 className="text-base font-semibold text-primary-foreground">Operador</h1>
+                <p className="text-xs text-primary-foreground/70 truncate max-w-[160px]">
                   {evento?.nome_planilha || 'Carregando...'}
                 </p>
               </div>
@@ -317,6 +317,7 @@ export default function AppOperador() {
               size="icon"
               onClick={handleRefresh}
               disabled={refreshing}
+              className="text-primary-foreground hover:bg-white/10"
             >
               <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>

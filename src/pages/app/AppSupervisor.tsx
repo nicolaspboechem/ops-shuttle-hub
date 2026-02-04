@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { SupervisorBottomNav, SupervisorTabId } from '@/components/app/SupervisorBottomNav';
 import { SupervisorFrotaTab } from '@/components/app/SupervisorFrotaTab';
 import { SupervisorViagensTab } from '@/components/app/SupervisorViagensTab';
@@ -190,7 +190,7 @@ export default function AppSupervisor() {
         />
       )}
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -198,6 +198,7 @@ export default function AppSupervisor() {
                 variant="ghost" 
                 size="icon" 
                 onClick={() => navigate('/app')}
+                className="text-primary-foreground hover:bg-white/10"
               >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
@@ -208,10 +209,10 @@ export default function AppSupervisor() {
               />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-base font-semibold truncate">Supervisor</h1>
-                  <Badge variant="secondary" className="text-xs">Master</Badge>
+                  <h1 className="text-base font-semibold truncate text-primary-foreground">Supervisor</h1>
+                  <Badge variant="secondary" className="text-xs bg-white/20 text-primary-foreground border-0">Master</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-primary-foreground/70 truncate">
                   {evento?.nome_planilha || 'Carregando...'}
                 </p>
               </div>
@@ -219,7 +220,7 @@ export default function AppSupervisor() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
                   <MoreVertical className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>

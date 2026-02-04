@@ -31,7 +31,7 @@ import { VersionBadge } from '@/components/ui/version-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car, HelpCircle, ChevronRight, MapPin, Navigation } from 'lucide-react';
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
+import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { NavigationModal } from '@/components/app/NavigationModal';
 
 export default function AppMotorista() {
@@ -525,11 +525,11 @@ export default function AppMotorista() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/login/motorista')}>
+              <Button variant="ghost" size="icon" onClick={() => navigate('/login/motorista')} className="text-primary-foreground hover:bg-white/10">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <img 
@@ -539,20 +539,20 @@ export default function AppMotorista() {
               />
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-semibold">{nomeMotorista || 'Motorista'}</h1>
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${statusInfo.dot} animate-pulse`} />
+                  <h1 className="text-lg font-semibold text-primary-foreground">{nomeMotorista || 'Motorista'}</h1>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-white/20 text-primary-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
                     {statusInfo.label}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">{evento?.nome_planilha}</p>
+                <p className="text-xs text-primary-foreground/70">{evento?.nome_planilha}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
                     <MoreVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
