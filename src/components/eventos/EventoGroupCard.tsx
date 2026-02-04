@@ -152,28 +152,42 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
   const deleteEvent = async () => {
     setActionLoading(true);
     
-    // Delete all related data first
-    for (const evento of eventos) {
-      await supabase.from('viagens').delete().eq('evento_id', evento.id);
-      await supabase.from('motoristas').delete().eq('evento_id', evento.id);
-      await supabase.from('veiculos').delete().eq('evento_id', evento.id);
-      await supabase.from('pontos_embarque').delete().eq('evento_id', evento.id);
-      await supabase.from('rotas_shuttle').delete().eq('evento_id', evento.id);
-      await supabase.from('evento_usuarios').delete().eq('evento_id', evento.id);
-    }
+    try {
+      // Delete all related data first - in dependency order
+      for (const evento of eventos) {
+        // 1. Tabelas que dependem de outras tabelas principais
+        await supabase.from('missoes').delete().eq('evento_id', evento.id);
+        await supabase.from('motorista_presenca').delete().eq('evento_id', evento.id);
+        await supabase.from('veiculo_vistoria_historico').delete().eq('evento_id', evento.id);
+        await supabase.from('staff_credenciais').delete().eq('evento_id', evento.id);
+        
+        // 2. Tabelas principais
+        await supabase.from('viagens').delete().eq('evento_id', evento.id);
+        await supabase.from('motoristas').delete().eq('evento_id', evento.id);
+        await supabase.from('veiculos').delete().eq('evento_id', evento.id);
+        await supabase.from('pontos_embarque').delete().eq('evento_id', evento.id);
+        await supabase.from('rotas_shuttle').delete().eq('evento_id', evento.id);
+        await supabase.from('evento_usuarios').delete().eq('evento_id', evento.id);
+      }
 
-    // Delete the event
-    const { error } = await supabase
-      .from('eventos')
-      .delete()
-      .eq('id', primaryEvento.id);
+      // 3. Delete the event itself
+      const { error } = await supabase
+        .from('eventos')
+        .delete()
+        .eq('id', primaryEvento.id);
 
-    if (error) {
-      toast.error('Erro ao excluir evento');
-    } else {
-      toast.success('Evento excluído permanentemente');
-      onUpdate?.();
+      if (error) {
+        console.error('Erro ao excluir evento:', error);
+        toast.error('Erro ao excluir evento: ' + error.message);
+      } else {
+        toast.success('Evento excluído permanentemente');
+        onUpdate?.();
+      }
+    } catch (err) {
+      console.error('Erro inesperado ao excluir evento:', err);
+      toast.error('Erro inesperado ao excluir evento');
     }
+    
     setActionLoading(false);
     setDeleteDialogOpen(false);
   };
