@@ -505,7 +505,7 @@ export default function AppMotorista() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
       {/* Tutorial Popover */}
       {tutorial.isActive && tutorial.currentStep && (
         <TutorialPopover
