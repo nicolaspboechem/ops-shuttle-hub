@@ -165,7 +165,7 @@ export default function AppSupervisor() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-16">
+    <div className="min-h-screen bg-background flex flex-col pb-16 overflow-x-hidden w-full max-w-full">
       {/* Tutorial Popover */}
       {tutorial.isActive && tutorial.currentStep && (
         <TutorialPopover
