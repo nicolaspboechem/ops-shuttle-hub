@@ -1,21 +1,25 @@
 
-# Plano: Remover Viagens Ativas do App Motorista
+# Plano: Corrigir Erro de Check-out no App Motorista
 
-## Problema
+## Problema Identificado
 
-Quando o motorista aceita e inicia uma missão, aparecem **dois cards**:
-1. Card da Missão com botão "Finalizar Missão" ✅
-2. Card de Viagem Ativa com botão "CHEGOU" ❌
+O `CheckoutModal` usa `useAuth()` (Supabase Auth) para obter dados do usuário:
 
-O botão "CHEGOU" é funcionalidade de **coordenador/operador/admin/supervisor** para registrar chegada e retorno do veículo. Motoristas não devem ver viagens ativas - isso gera confusão e duplicidade.
+```typescript
+const { user, profile } = useAuth();  // linha 42
+```
 
----
+Porém, no app do motorista, a autenticação é feita via **sistema customizado** (`useDriverAuth()`), não via Supabase Auth. Resultado:
+- `user` e `profile` retornam `null`
+- Ao tentar registrar histórico de vistoria com `user?.id = null`, pode haver erro de constraint ou RLS
+- O modal pode falhar silenciosamente ou mostrar erro genérico
 
 ## Solução
 
-Remover a seção "Viagens Ativas" do app do motorista completamente. O motorista trabalhará apenas com:
-- **Missões designadas** → Aceitar → Iniciar → Finalizar
-- **Criar viagem manual** (aba "Corrida") se necessário
+Modificar o `CheckoutModal` para:
+1. Receber dados do motorista via props (opcionais)
+2. Usar esses dados ao invés de depender de `useAuth()`
+3. Tornar o registro de vistoria resiliente quando não há sessão Supabase
 
 ---
 
@@ -23,67 +27,104 @@ Remover a seção "Viagens Ativas" do app do motorista completamente. O motorist
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/app/AppMotorista.tsx` | Remover seção "Viagens Ativas" da aba "Início" |
+| `src/components/app/CheckoutModal.tsx` | Usar props ao invés de useAuth() |
+| `src/components/app/MotoristaHistoricoTab.tsx` | Passar dados do motorista para o modal |
+| `src/pages/app/AppMotorista.tsx` | Passar eventoId e nome do motorista para o MotoristaHistoricoTab |
 
 ---
 
 ## Seção Técnica
 
-### Mudanças no AppMotorista.tsx
+### 1. Modificar CheckoutModal.tsx
 
-**Remover as seguintes linhas (360-377):**
+**Remover dependência do useAuth():**
 
 ```typescript
-{/* Viagens Ativas */}
-{minhasViagensAtivas.length > 0 && (
-  <div className="space-y-3">
-    <div className="flex items-center gap-2 text-sm font-medium">
-      <Car className="h-4 w-4 text-primary" />
-      <span>Viagens Ativas ({minhasViagensAtivas.length})</span>
-    </div>
-    {minhasViagensAtivas.map(viagem => (
-      <ViagemCardMobile
-        key={viagem.id}
-        viagem={viagem}
-        loading={operando === viagem.id}
-        onIniciar={() => handleAction(viagem.id, 'iniciar')}
-        onChegada={() => handleAction(viagem.id, 'chegada')}
-      />
-    ))}
-  </div>
-)}
+// ANTES (linha 42)
+const { user, profile } = useAuth();
+
+// DEPOIS - usar props que já existem
+// eventoId e motoristaNome já são props recebidas!
+// Apenas usar elas e remover o useAuth
 ```
 
-**Ajustar também:**
+**Ajustar insert do histórico:**
 
-1. **Variável `hasContent`** (linha 300): Remover referência a viagens ativas
-   - De: `minhasMissoes.length > 0 || minhasViagensAtivas.length > 0`
-   - Para: `minhasMissoes.length > 0`
+```typescript
+// ANTES
+realizado_por: user?.id || null,
+realizado_por_nome: profile?.full_name || null,
 
-2. **Remover imports não utilizados** (se necessário): `ViagemCardMobile`
+// DEPOIS - usar motorista_id da presença
+realizado_por: presenca?.motorista_id || null,
+realizado_por_nome: motoristaNome || null,
+```
 
-3. **Manter `minhasViagensAtivas`** apenas para:
-   - A aba "Mais" onde exibe navegação da viagem em andamento (linhas 431-467)
-   - Isso é útil porque o motorista pode querer reabrir a navegação
+### 2. Modificar MotoristaHistoricoTab.tsx
+
+**Adicionar props para eventoId e motoristaNome:**
+
+```typescript
+interface MotoristaHistoricoTabProps {
+  viagensFinalizadas: Viagem[];
+  presenca: MotoristaPresencaComVeiculo | null;
+  onCheckout: (observacao?: string) => Promise<boolean>;
+  loadingCheckout?: boolean;
+  eventoId?: string;          // Nova prop
+  motoristaNome?: string;     // Nova prop
+}
+```
+
+**Passar para o CheckoutModal:**
+
+```typescript
+<CheckoutModal
+  open={showCheckoutModal}
+  onOpenChange={setShowCheckoutModal}
+  presenca={presenca}
+  viagensHoje={estatisticas.finalizadas}
+  onConfirm={onCheckout}
+  loading={loadingCheckout}
+  eventoId={eventoId}           // Adicionar
+  motoristaNome={motoristaNome} // Adicionar
+/>
+```
+
+### 3. Modificar AppMotorista.tsx
+
+**Passar props para MotoristaHistoricoTab:**
+
+```typescript
+case 'historico':
+  return (
+    <MotoristaHistoricoTab
+      viagensFinalizadas={minhasViagensFinalizadas}
+      presenca={presenca}
+      onCheckout={realizarCheckout}
+      loadingCheckout={loadingPresenca}
+      eventoId={eventoId}              // Adicionar
+      motoristaNome={nomeMotorista}    // Adicionar
+    />
+  );
+```
 
 ---
 
-## Fluxo Correto (Após Correção)
+## Fluxo Corrigido
 
 ```text
-MOTORISTA recebe Missão → Aceitar → Iniciar → Finalizar Missão
-                                    ↓
-                             (viagem é criada automaticamente)
-                             (mas NÃO aparece como card separado)
+1. Motorista clica em "Encerrar Expediente" 
+2. MotoristaHistoricoTab abre CheckoutModal com props (eventoId, motoristaNome)
+3. CheckoutModal usa presenca.motorista_id para registrar histórico
+4. Checkout é realizado com sucesso via realizarCheckout()
+5. Modal fecha e estado é atualizado
 ```
-
-**Coordenador/Operador** pode ver a viagem no seu respectivo app e usar "CHEGOU" para registrar.
 
 ---
 
 ## Resultado Esperado
 
-1. App do Motorista mostra **apenas Missões Designadas** na aba Início
-2. Sem duplicidade de cards ou botões
-3. Navegação da viagem ativa continua acessível na aba "Mais"
-4. Coordenadores/Operadores/Admins mantêm acesso total às viagens ativas
+1. Check-out funciona corretamente no app do motorista
+2. Histórico de vistoria é registrado com motorista_id correto
+3. Sem dependência de useAuth() que não existe no contexto do motorista
+4. Modal fecha após sucesso e mostra mensagem de confirmação
