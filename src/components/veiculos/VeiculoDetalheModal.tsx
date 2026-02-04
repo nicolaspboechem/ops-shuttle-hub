@@ -57,6 +57,7 @@ interface Veiculo {
   data_atualizacao?: string;
   liberado_em?: string | null;
   inspecao_data?: string | null;
+  inspecao_dados?: any;
 }
 
 interface VeiculoDetalheModalProps {
@@ -318,6 +319,68 @@ export function VeiculoDetalheModal({
                       <span className="text-sm">
                         {format(parseISO(veiculo.liberado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                       </span>
+                    </div>
+                  )}
+
+                  {/* Avarias Ativas */}
+                  {veiculo.possui_avarias && (
+                    <div className="space-y-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+                      <h4 className="font-medium flex items-center gap-2 text-destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        Avarias Ativas
+                      </h4>
+                      
+                      {(() => {
+                        const dados = veiculo.inspecao_dados;
+                        const areasComAvaria = dados?.areas?.filter((a: any) => a.possuiAvaria) || [];
+                        
+                        return areasComAvaria.length > 0 ? (
+                          <div className="space-y-3">
+                            {areasComAvaria.map((area: any, idx: number) => (
+                              <div 
+                                key={idx}
+                                className="p-3 rounded-lg border border-destructive/20 bg-background"
+                              >
+                                <Badge variant="destructive" className="flex items-center gap-1 w-fit mb-2">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {area.nome}
+                                </Badge>
+                                {area.descricao && (
+                                  <p className="text-sm text-muted-foreground">{area.descricao}</p>
+                                )}
+                                {area.fotos?.length > 0 && (
+                                  <div className="flex gap-2 mt-2">
+                                    {area.fotos.slice(0, 4).map((url: string, i: number) => (
+                                      <img 
+                                        key={i}
+                                        src={url} 
+                                        alt=""
+                                        className="w-12 h-12 rounded object-cover border"
+                                      />
+                                    ))}
+                                    {area.fotos.length > 4 && (
+                                      <span className="text-xs text-muted-foreground flex items-center">
+                                        +{area.fotos.length - 4}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Veículo marcado com avarias, mas sem detalhes registrados.
+                          </p>
+                        );
+                      })()}
+                      
+                      {/* Mostrar data do registro e quem registrou */}
+                      {veiculo.inspecao_data && (
+                        <p className="text-xs text-muted-foreground pt-2 border-t border-destructive/20">
+                          Registrado em {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </p>
+                      )}
                     </div>
                   )}
 
