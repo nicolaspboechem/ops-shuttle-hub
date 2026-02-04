@@ -6,8 +6,14 @@ import {
   calcularMetricasPorHora, 
   calcularMetricasMotorista 
 } from '@/lib/utils/calculadores';
+import { getLimitesDiaOperacional } from '@/lib/utils/diaOperacional';
 
-export function useViagens(eventoId?: string) {
+export interface UseViagensOptions {
+  dataOperacional?: string;  // "YYYY-MM-DD"
+  horarioVirada?: string;    // "HH:mm" (default: "04:00")
+}
+
+export function useViagens(eventoId?: string, options?: UseViagensOptions) {
   const [viagens, setViagens] = useState<Viagem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,6 +56,17 @@ export function useViagens(eventoId?: string) {
       query = query.eq('evento_id', eventoId);
     }
 
+    // Filtro por dia operacional
+    if (options?.dataOperacional) {
+      const { inicio, fim } = getLimitesDiaOperacional(
+        options.dataOperacional,
+        options.horarioVirada || '04:00'
+      );
+      query = query
+        .gte('data_criacao', inicio.toISOString())
+        .lte('data_criacao', fim.toISOString());
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -64,7 +81,7 @@ export function useViagens(eventoId?: string) {
     setLoading(false);
     setRefreshing(false);
     setIsInitialLoad(false);
-  }, [eventoId]);
+  }, [eventoId, options?.dataOperacional, options?.horarioVirada]);
 
   useEffect(() => {
     fetchViagens(true); // Carregamento inicial com loading

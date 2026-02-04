@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
 import { useTutorial, operadorSteps } from '@/hooks/useTutorial';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
@@ -14,6 +16,7 @@ import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
+import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
 import { OperadorMotoristasTab } from '@/components/app/OperadorMotoristasTab';
 import { OperadorHistoricoTab } from '@/components/app/OperadorHistoricoTab';
@@ -35,10 +38,8 @@ export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { viagens, loading, refreshing, refetch } = useViagens(eventoId);
+  const { getAgoraSync } = useServerTime();
   
-  const { refetch: refetchMotoristas } = useMotoristas(eventoId);
-  const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const [evento, setEvento] = useState<Evento | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showMotoristaForm, setShowMotoristaForm] = useState(false);
@@ -46,6 +47,33 @@ export default function AppOperador() {
   const [showKmModal, setShowKmModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
+  
+  // Dia operacional (padrão: hoje)
+  const [dataOperacional, setDataOperacional] = useState<string>(() => 
+    getDataOperacional(new Date(), '04:00')
+  );
+  const [verTodosDias, setVerTodosDias] = useState(false);
+  
+  // Atualizar data operacional quando evento carregar com horário de virada customizado
+  useEffect(() => {
+    if (evento?.horario_virada_dia) {
+      setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
+    }
+  }, [evento?.horario_virada_dia, getAgoraSync]);
+
+  // Buscar viagens com filtro de data
+  const viagensOptions = useMemo(() => {
+    if (verTodosDias) return undefined;
+    return {
+      dataOperacional,
+      horarioVirada: evento?.horario_virada_dia || '04:00',
+    };
+  }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
+
+  const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
+  
+  const { refetch: refetchMotoristas } = useMotoristas(eventoId);
+  const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   
   // Estado para modal de navegação
   const [navModalOpen, setNavModalOpen] = useState(false);
@@ -113,7 +141,7 @@ export default function AppOperador() {
     return null;
   }
 
-  if (loading) {
+  if (loading && !viagens.length) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -126,6 +154,17 @@ export default function AppOperador() {
       case 'viagens':
         return (
           <div className="space-y-4">
+            {/* Seletor de Dia */}
+            <DiaSeletor
+              dataOperacional={dataOperacional}
+              onChange={setDataOperacional}
+              dataInicio={evento?.data_inicio}
+              dataFim={evento?.data_fim}
+              showToggleAll={true}
+              verTodosDias={verTodosDias}
+              onToggleTodosDias={setVerTodosDias}
+            />
+
             {/* Status Cards */}
             <div className="grid grid-cols-4 gap-2">
               <div 

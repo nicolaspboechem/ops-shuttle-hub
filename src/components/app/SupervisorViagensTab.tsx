@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useViagens } from '@/hooks/useViagens';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,8 +9,6 @@ import {
   Clock, 
   Play, 
   PauseCircle,
-  CheckCircle,
-  XCircle,
   Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,10 +18,23 @@ import { EditViagemMobileModal } from './EditViagemMobileModal';
 interface SupervisorViagensTabProps {
   eventoId: string;
   onRefresh: () => void;
+  dataOperacional?: string;
+  horarioVirada?: string;
 }
 
-export function SupervisorViagensTab({ eventoId, onRefresh }: SupervisorViagensTabProps) {
-  const { viagens, loading, refetch } = useViagens(eventoId);
+export function SupervisorViagensTab({ 
+  eventoId, 
+  onRefresh,
+  dataOperacional,
+  horarioVirada
+}: SupervisorViagensTabProps) {
+  // Preparar options para useViagens
+  const viagensOptions = useMemo(() => {
+    if (!dataOperacional) return undefined;
+    return { dataOperacional, horarioVirada };
+  }, [dataOperacional, horarioVirada]);
+
+  const { viagens, loading, refetch } = useViagens(eventoId, viagensOptions);
   const [statusFilter, setStatusFilter] = useState<StatusViagemOperacao | null>(null);
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
 
