@@ -1,25 +1,17 @@
 
-# Plano: Corrigir Erro de Check-out no App Motorista
+# Plano: Adicionar Evento às Notificações
 
-## Problema Identificado
+## Contexto
 
-O `CheckoutModal` usa `useAuth()` (Supabase Auth) para obter dados do usuário:
+O sistema atualmente busca notificações globalmente de todas as fontes sem filtrar por evento. Como teremos múltiplos eventos simultâneos, cada notificação precisa mostrar de qual evento ela se origina.
 
-```typescript
-const { user, profile } = useAuth();  // linha 42
-```
-
-Porém, no app do motorista, a autenticação é feita via **sistema customizado** (`useDriverAuth()`), não via Supabase Auth. Resultado:
-- `user` e `profile` retornam `null`
-- Ao tentar registrar histórico de vistoria com `user?.id = null`, pode haver erro de constraint ou RLS
-- O modal pode falhar silenciosamente ou mostrar erro genérico
+---
 
 ## Solução
 
-Modificar o `CheckoutModal` para:
-1. Receber dados do motorista via props (opcionais)
-2. Usar esses dados ao invés de depender de `useAuth()`
-3. Tornar o registro de vistoria resiliente quando não há sessão Supabase
+1. **Incluir informação do evento em cada notificação** - Buscar nome do evento junto com os dados
+2. **Exibir badge/tag do evento** na notificação para identificação visual
+3. **Adicionar filtro por evento** no painel de notificações e na Home
 
 ---
 
@@ -27,104 +19,265 @@ Modificar o `CheckoutModal` para:
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/app/CheckoutModal.tsx` | Usar props ao invés de useAuth() |
-| `src/components/app/MotoristaHistoricoTab.tsx` | Passar dados do motorista para o modal |
-| `src/pages/app/AppMotorista.tsx` | Passar eventoId e nome do motorista para o MotoristaHistoricoTab |
+| `src/hooks/useNotifications.tsx` | Incluir evento_id e nome_evento nos dados e buscar info do evento |
+| `src/components/layout/NotificationsPanel.tsx` | Exibir badge do evento em cada notificação |
+| `src/pages/Home.tsx` | Adicionar filtro por evento no feed de atividades |
 
 ---
 
 ## Seção Técnica
 
-### 1. Modificar CheckoutModal.tsx
-
-**Remover dependência do useAuth():**
+### 1. Modificar Interface Notification
 
 ```typescript
-// ANTES (linha 42)
-const { user, profile } = useAuth();
-
-// DEPOIS - usar props que já existem
-// eventoId e motoristaNome já são props recebidas!
-// Apenas usar elas e remover o useAuth
-```
-
-**Ajustar insert do histórico:**
-
-```typescript
-// ANTES
-realizado_por: user?.id || null,
-realizado_por_nome: profile?.full_name || null,
-
-// DEPOIS - usar motorista_id da presença
-realizado_por: presenca?.motorista_id || null,
-realizado_por_nome: motoristaNome || null,
-```
-
-### 2. Modificar MotoristaHistoricoTab.tsx
-
-**Adicionar props para eventoId e motoristaNome:**
-
-```typescript
-interface MotoristaHistoricoTabProps {
-  viagensFinalizadas: Viagem[];
-  presenca: MotoristaPresencaComVeiculo | null;
-  onCheckout: (observacao?: string) => Promise<boolean>;
-  loadingCheckout?: boolean;
-  eventoId?: string;          // Nova prop
-  motoristaNome?: string;     // Nova prop
+export interface Notification {
+  id: string;
+  type: 'viagem' | 'veiculo' | 'motorista' | 'presenca' | 'vistoria';
+  action: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  read: boolean;
+  icon: ReactNode;
+  color: string;
+  motorista?: string;
+  placa?: string;
+  eventoId?: string;       // NOVO
+  eventoNome?: string;     // NOVO
 }
 ```
 
-**Passar para o CheckoutModal:**
+### 2. Modificar Tipos de Resultado das Queries
 
+**ViagemLogResult:**
 ```typescript
-<CheckoutModal
-  open={showCheckoutModal}
-  onOpenChange={setShowCheckoutModal}
-  presenca={presenca}
-  viagensHoje={estatisticas.finalizadas}
-  onConfirm={onCheckout}
-  loading={loadingCheckout}
-  eventoId={eventoId}           // Adicionar
-  motoristaNome={motoristaNome} // Adicionar
-/>
+interface ViagemLogResult {
+  id: string;
+  acao: string;
+  created_at: string | null;
+  viagem: {
+    motorista: string;
+    placa: string | null;
+    evento_id: string | null;
+    evento: {                    // NOVO - join
+      nome_planilha: string;
+    } | null;
+  } | null;
+}
 ```
 
-### 3. Modificar AppMotorista.tsx
+**PresencaLogResult:**
+```typescript
+interface PresencaLogResult {
+  id: string;
+  checkin_at: string | null;
+  checkout_at: string | null;
+  updated_at: string;
+  evento_id: string | null;      // NOVO
+  motorista: {
+    nome: string;
+  } | null;
+  evento: {                      // NOVO - join
+    nome_planilha: string;
+  } | null;
+}
+```
 
-**Passar props para MotoristaHistoricoTab:**
+**VistoriaLogResult:**
+```typescript
+interface VistoriaLogResult {
+  id: string;
+  tipo_vistoria: string;
+  status_novo: string;
+  created_at: string;
+  evento_id: string | null;      // NOVO
+  veiculo: {
+    placa: string;
+  } | null;
+  realizado_por_nome: string | null;
+  evento: {                      // NOVO - join
+    nome_planilha: string;
+  } | null;
+}
+```
+
+### 3. Modificar Queries no fetchNotifications
+
+**viagem_logs:**
+```typescript
+supabase
+  .from('viagem_logs')
+  .select(`
+    id,
+    acao,
+    created_at,
+    viagem:viagens!viagem_id(
+      motorista, 
+      placa, 
+      evento_id,
+      evento:eventos!evento_id(nome_planilha)
+    )
+  `)
+  .order('created_at', { ascending: false })
+  .limit(30)
+```
+
+**motorista_presenca:**
+```typescript
+supabase
+  .from('motorista_presenca')
+  .select(`
+    id,
+    checkin_at,
+    checkout_at,
+    updated_at,
+    evento_id,
+    motorista:motoristas!motorista_id(nome),
+    evento:eventos!evento_id(nome_planilha)
+  `)
+  .order('updated_at', { ascending: false })
+  .limit(15)
+```
+
+**veiculo_vistoria_historico:**
+```typescript
+supabase
+  .from('veiculo_vistoria_historico')
+  .select(`
+    id,
+    tipo_vistoria,
+    status_novo,
+    created_at,
+    evento_id,
+    veiculo:veiculos!veiculo_id(placa),
+    realizado_por_nome,
+    evento:eventos!evento_id(nome_planilha)
+  `)
+  .order('created_at', { ascending: false })
+  .limit(15)
+```
+
+### 4. Incluir Dados do Evento ao Criar Notificação
 
 ```typescript
-case 'historico':
-  return (
-    <MotoristaHistoricoTab
-      viagensFinalizadas={minhasViagensFinalizadas}
-      presenca={presenca}
-      onCheckout={realizarCheckout}
-      loadingCheckout={loadingPresenca}
-      eventoId={eventoId}              // Adicionar
-      motoristaNome={nomeMotorista}    // Adicionar
-    />
-  );
+// Para viagem logs
+newNotifications.push({
+  id: `viagem-${log.id}`,
+  type: 'viagem',
+  // ... outros campos
+  eventoId: log.viagem?.evento_id || undefined,
+  eventoNome: log.viagem?.evento?.nome_planilha || undefined,
+});
+
+// Para presença logs
+newNotifications.push({
+  id: `presenca-${log.id}`,
+  type: 'presenca',
+  // ... outros campos
+  eventoId: log.evento_id || undefined,
+  eventoNome: log.evento?.nome_planilha || undefined,
+});
+
+// Para vistoria logs
+newNotifications.push({
+  id: `vistoria-${log.id}`,
+  type: 'vistoria',
+  // ... outros campos
+  eventoId: log.evento_id || undefined,
+  eventoNome: log.evento?.nome_planilha || undefined,
+});
+```
+
+### 5. Exibir Evento no NotificationsPanel
+
+Na renderização do card, adicionar badge do evento:
+
+```tsx
+<div className="flex items-center gap-2">
+  <p className="font-medium text-sm">{notification.title}</p>
+  {notification.eventoNome && (
+    <Badge variant="outline" className="text-xs">
+      {notification.eventoNome}
+    </Badge>
+  )}
+  {!notification.read && (
+    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+  )}
+</div>
+```
+
+### 6. Adicionar Filtro por Evento na Home
+
+Extrair eventos únicos das notificações:
+
+```typescript
+const { motoristas, placas, eventos } = useMemo(() => {
+  const motoristasSet = new Set<string>();
+  const placasSet = new Set<string>();
+  const eventosMap = new Map<string, string>(); // id -> nome
+  
+  notifications.forEach(n => {
+    if (n.motorista) motoristasSet.add(n.motorista);
+    if (n.placa) placasSet.add(n.placa);
+    if (n.eventoId && n.eventoNome) {
+      eventosMap.set(n.eventoId, n.eventoNome);
+    }
+  });
+  
+  return {
+    motoristas: Array.from(motoristasSet).sort(),
+    placas: Array.from(placasSet).sort(),
+    eventos: Array.from(eventosMap.entries())
+  };
+}, [notifications]);
+```
+
+Adicionar estado e select para filtro de evento:
+
+```typescript
+const [filtroEvento, setFiltroEvento] = useState<string>('todos');
+
+// No filter
+const matchEvento = filtroEvento === 'todos' || n.eventoId === filtroEvento;
+
+// No JSX - novo select
+<Select value={filtroEvento} onValueChange={setFiltroEvento}>
+  <SelectTrigger className="w-[180px]">
+    <Calendar className="h-4 w-4 mr-2" />
+    <SelectValue placeholder="Evento" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="todos">Todos Eventos</SelectItem>
+    {eventos.map(([id, nome]) => (
+      <SelectItem key={id} value={id}>{nome}</SelectItem>
+    ))}
+  </SelectContent>
+</Select>
 ```
 
 ---
 
-## Fluxo Corrigido
+## Resultado Visual
 
+Cada notificação exibirá:
 ```text
-1. Motorista clica em "Encerrar Expediente" 
-2. MotoristaHistoricoTab abre CheckoutModal com props (eventoId, motoristaNome)
-3. CheckoutModal usa presenca.motorista_id para registrar histórico
-4. Checkout é realizado com sucesso via realizarCheckout()
-5. Modal fecha e estado é atualizado
+┌─────────────────────────────────────────────────┐
+│ 🚗  Viagem Iniciada  [Evento ABC]  ●            │
+│     João Silva (ABC-1234)                       │
+│     ⏰ há 2 minutos                             │
+└─────────────────────────────────────────────────┘
 ```
+
+E os filtros na Home incluirão:
+- Motorista
+- Veículo  
+- **Evento** (novo)
 
 ---
 
 ## Resultado Esperado
 
-1. Check-out funciona corretamente no app do motorista
-2. Histórico de vistoria é registrado com motorista_id correto
-3. Sem dependência de useAuth() que não existe no contexto do motorista
-4. Modal fecha após sucesso e mostra mensagem de confirmação
+1. Cada notificação exibe de qual evento ela pertence
+2. Admins podem filtrar atividades por evento específico
+3. Melhor organização quando há múltiplos eventos simultâneos
+4. Identificação visual clara da origem de cada ação
