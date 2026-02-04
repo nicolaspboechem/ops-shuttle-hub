@@ -15,6 +15,8 @@ export interface Notification {
   color: string;
   motorista?: string;
   placa?: string;
+  eventoId?: string;
+  eventoNome?: string;
 }
 
 interface NotificationsContextType {
@@ -39,6 +41,9 @@ interface ViagemLogResult {
     motorista: string;
     placa: string | null;
     evento_id: string | null;
+    evento: {
+      nome_planilha: string;
+    } | null;
   } | null;
 }
 
@@ -47,8 +52,12 @@ interface PresencaLogResult {
   checkin_at: string | null;
   checkout_at: string | null;
   updated_at: string;
+  evento_id: string | null;
   motorista: {
     nome: string;
+  } | null;
+  evento: {
+    nome_planilha: string;
   } | null;
 }
 
@@ -57,10 +66,14 @@ interface VistoriaLogResult {
   tipo_vistoria: string;
   status_novo: string;
   created_at: string;
+  evento_id: string | null;
   veiculo: {
     placa: string;
   } | null;
   realizado_por_nome: string | null;
+  evento: {
+    nome_planilha: string;
+  } | null;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -104,7 +117,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           id,
           acao,
           created_at,
-          viagem:viagens!viagem_id(motorista, placa, evento_id)
+          viagem:viagens!viagem_id(
+            motorista, 
+            placa, 
+            evento_id,
+            evento:eventos!evento_id(nome_planilha)
+          )
         `)
         .order('created_at', { ascending: false })
         .limit(30),
@@ -115,7 +133,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           checkin_at,
           checkout_at,
           updated_at,
-          motorista:motoristas!motorista_id(nome)
+          evento_id,
+          motorista:motoristas!motorista_id(nome),
+          evento:eventos!evento_id(nome_planilha)
         `)
         .order('updated_at', { ascending: false })
         .limit(15),
@@ -126,8 +146,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           tipo_vistoria,
           status_novo,
           created_at,
+          evento_id,
           veiculo:veiculos!veiculo_id(placa),
-          realizado_por_nome
+          realizado_por_nome,
+          evento:eventos!evento_id(nome_planilha)
         `)
         .order('created_at', { ascending: false })
         .limit(15),
@@ -155,6 +177,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         color: config.color,
         motorista: motoristaNome,
         placa: placaVeiculo,
+        eventoId: log.viagem?.evento_id || undefined,
+        eventoNome: log.viagem?.evento?.nome_planilha || undefined,
       });
     });
 
@@ -173,6 +197,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         icon: config.icon,
         color: config.color,
         motorista: motoristaNome,
+        eventoId: log.evento_id || undefined,
+        eventoNome: log.evento?.nome_planilha || undefined,
       });
     });
 
@@ -190,6 +216,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         icon: config.icon,
         color: config.color,
         placa: placaVeiculo,
+        eventoId: log.evento_id || undefined,
+        eventoNome: log.evento?.nome_planilha || undefined,
       });
     });
 

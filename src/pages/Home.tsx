@@ -55,23 +55,29 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [filtroMotorista, setFiltroMotorista] = useState<string>('todos');
   const [filtroVeiculo, setFiltroVeiculo] = useState<string>('todos');
+  const [filtroEvento, setFiltroEvento] = useState<string>('todos');
 
   // Tutorial for admin on first access
   const tutorial = useTutorial('admin', adminSteps);
 
-  // Extract unique motoristas and placas from notifications
-  const { motoristas, placas } = useMemo(() => {
+  // Extract unique motoristas, placas and eventos from notifications
+  const { motoristas, placas, eventos } = useMemo(() => {
     const motoristasSet = new Set<string>();
     const placasSet = new Set<string>();
+    const eventosMap = new Map<string, string>();
     
     notifications.forEach(n => {
       if (n.motorista) motoristasSet.add(n.motorista);
       if (n.placa) placasSet.add(n.placa);
+      if (n.eventoId && n.eventoNome) {
+        eventosMap.set(n.eventoId, n.eventoNome);
+      }
     });
     
     return {
       motoristas: Array.from(motoristasSet).sort(),
-      placas: Array.from(placasSet).sort()
+      placas: Array.from(placasSet).sort(),
+      eventos: Array.from(eventosMap.entries())
     };
   }, [notifications]);
 
@@ -80,15 +86,17 @@ export default function Home() {
     return notifications.filter(n => {
       const matchMotorista = filtroMotorista === 'todos' || n.motorista === filtroMotorista;
       const matchVeiculo = filtroVeiculo === 'todos' || n.placa === filtroVeiculo;
-      return matchMotorista && matchVeiculo;
+      const matchEvento = filtroEvento === 'todos' || n.eventoId === filtroEvento;
+      return matchMotorista && matchVeiculo && matchEvento;
     });
-  }, [notifications, filtroMotorista, filtroVeiculo]);
+  }, [notifications, filtroMotorista, filtroVeiculo, filtroEvento]);
 
-  const hasActiveFilters = filtroMotorista !== 'todos' || filtroVeiculo !== 'todos';
+  const hasActiveFilters = filtroMotorista !== 'todos' || filtroVeiculo !== 'todos' || filtroEvento !== 'todos';
 
   const clearFilters = () => {
     setFiltroMotorista('todos');
     setFiltroVeiculo('todos');
+    setFiltroEvento('todos');
   };
 
   const toggleSound = () => {
@@ -288,6 +296,19 @@ export default function Home() {
                 </SelectContent>
               </Select>
 
+              <Select value={filtroEvento} onValueChange={setFiltroEvento}>
+                <SelectTrigger className="w-[180px]">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos Eventos</SelectItem>
+                  {eventos.map(([id, nome]) => (
+                    <SelectItem key={id} value={id}>{nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={filtroVeiculo} onValueChange={setFiltroVeiculo}>
                 <SelectTrigger className="w-[150px]">
                   <Car className="h-4 w-4 mr-2" />
@@ -349,6 +370,11 @@ export default function Home() {
                             <p className={`font-medium ${notification.read ? 'text-muted-foreground' : ''}`}>
                               {notification.title}
                             </p>
+                            {notification.eventoNome && (
+                              <Badge variant="outline" className="text-xs">
+                                {notification.eventoNome}
+                              </Badge>
+                            )}
                             <Badge variant="secondary" className="text-xs">
                               {notification.type}
                             </Badge>
