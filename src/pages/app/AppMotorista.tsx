@@ -404,6 +404,8 @@ export default function AppMotorista() {
             presenca={presenca}
             onCheckout={realizarCheckout}
             loadingCheckout={loadingPresenca}
+            eventoId={eventoId}
+            motoristaNome={nomeMotorista}
           />
         );
 

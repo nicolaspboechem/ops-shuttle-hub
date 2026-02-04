@@ -24,13 +24,17 @@ interface MotoristaHistoricoTabProps {
   presenca: MotoristaPresencaComVeiculo | null;
   onCheckout: (observacao?: string) => Promise<boolean>;
   loadingCheckout?: boolean;
+  eventoId?: string;
+  motoristaNome?: string;
 }
 
 export function MotoristaHistoricoTab({ 
   viagensFinalizadas, 
   presenca,
   onCheckout,
-  loadingCheckout
+  loadingCheckout,
+  eventoId,
+  motoristaNome
 }: MotoristaHistoricoTabProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
@@ -232,6 +236,8 @@ export function MotoristaHistoricoTab({
         viagensHoje={estatisticas.finalizadas}
         onConfirm={onCheckout}
         loading={loadingCheckout}
+        eventoId={eventoId}
+        motoristaNome={motoristaNome}
       />
     </div>
   );

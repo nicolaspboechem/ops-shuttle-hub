@@ -13,10 +13,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { LogOut, Clock, Car, Route, Loader2 } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -39,7 +37,6 @@ export function CheckoutModal({
   eventoId,
   motoristaNome
 }: CheckoutModalProps) {
-  const { user, profile } = useAuth();
   const [observacao, setObservacao] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -61,8 +58,8 @@ export function CheckoutModal({
           nivel_combustivel: null,
           km_registrado: null,
           observacoes: observacao.trim(),
-          realizado_por: user?.id || null,
-          realizado_por_nome: profile?.full_name || null,
+          realizado_por: presenca.motorista_id || null,
+          realizado_por_nome: motoristaNome || null,
           motorista_id: presenca.motorista_id,
           motorista_nome: motoristaNome || null
         });
