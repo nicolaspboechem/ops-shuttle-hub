@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { HelpDrawer } from './HelpDrawer';
 import { Viagem } from '@/lib/types/viagem';
+import { APP_VERSION, APP_NAME } from '@/lib/version';
 
 interface OperadorMaisTabProps {
   userName?: string;
@@ -183,6 +184,13 @@ export function OperadorMaisTab({
         onOpenChange={setShowHelp}
         role="operador"
       />
+
+      {/* Version Footer */}
+      <div className="text-center py-4">
+        <span className="text-[10px] text-muted-foreground/50">
+          {APP_NAME} · V{APP_VERSION}
+        </span>
+      </div>
     </div>
   );
 }

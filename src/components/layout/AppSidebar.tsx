@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useEventos } from '@/hooks/useEventos';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { APP_VERSION } from '@/lib/version';
 import logoASBranca from '@/assets/as_logo_reduzida_branca.png';
 
 interface AppSidebarProps {
@@ -259,6 +260,12 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
           </button>
         )}
 
+        {/* Version */}
+        <div className="pt-2 text-center border-t border-sidebar-border/50 mt-2">
+          <span className="text-[10px] text-sidebar-foreground/40">
+            V{APP_VERSION}
+          </span>
+        </div>
       </div>
     </aside>
   );
