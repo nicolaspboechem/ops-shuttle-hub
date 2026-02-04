@@ -1,4 +1,4 @@
-import { format, subDays } from 'date-fns';
+import { format, subDays, addDays, parseISO } from 'date-fns';
 
 /**
  * Calcula a data operacional considerando o horário de virada.
@@ -48,4 +48,34 @@ export function pertenceAoDiaOperacional(
   horarioVirada: string = '04:00'
 ): boolean {
   return getDataOperacional(timestamp, horarioVirada) === dataOperacional;
+}
+
+/**
+ * Retorna os limites de timestamp (início e fim) para um dia operacional.
+ * 
+ * Exemplo: 
+ * - Data operacional: 2025-01-14
+ * - Horário virada: 04:00
+ * - Início: 2025-01-14 04:00:00
+ * - Fim: 2025-01-15 03:59:59.999
+ * 
+ * @param dataOperacional - Data no formato "YYYY-MM-DD"
+ * @param horarioVirada - Horário de corte no formato "HH:mm" (default: "04:00")
+ * @returns Objeto com { inicio: Date, fim: Date }
+ */
+export function getLimitesDiaOperacional(
+  dataOperacional: string,
+  horarioVirada: string = '04:00'
+): { inicio: Date; fim: Date } {
+  const [horaVirada, minVirada] = horarioVirada.split(':').map(Number);
+  
+  // Início: data + horário virada
+  const inicio = parseISO(dataOperacional);
+  inicio.setHours(horaVirada, minVirada || 0, 0, 0);
+  
+  // Fim: próximo dia + horário virada - 1 milissegundo
+  const fim = addDays(inicio, 1);
+  fim.setMilliseconds(fim.getMilliseconds() - 1);
+  
+  return { inicio, fim };
 }

@@ -1,17 +1,46 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { ViagensTable } from '@/components/viagens/ViagensTable';
 import { FilterBar, Filtros } from '@/components/viagens/FilterBar';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
+import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ViagensAtivas() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading, updateViagem } = useViagens(eventoId);
+  const { getEventoById } = useEventos();
+  const { getAgoraSync } = useServerTime();
+  const evento = eventoId ? getEventoById(eventoId) : null;
+  
+  // Dia operacional
+  const [dataOperacional, setDataOperacional] = useState<string>(() => 
+    getDataOperacional(new Date(), '04:00')
+  );
+  const [verTodosDias, setVerTodosDias] = useState(false);
+
+  // Atualizar data operacional quando evento carregar
+  useEffect(() => {
+    if (evento?.horario_virada_dia) {
+      setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
+    }
+  }, [evento?.horario_virada_dia, getAgoraSync]);
+
+  // Preparar options para useViagens
+  const viagensOptions = useMemo(() => {
+    if (verTodosDias) return undefined;
+    return {
+      dataOperacional,
+      horarioVirada: evento?.horario_virada_dia || '04:00',
+    };
+  }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
+
+  const { viagens, loading, updateViagem } = useViagens(eventoId, viagensOptions);
   const { kpis, viagensAtivas } = useCalculos(viagens);
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
@@ -69,8 +98,19 @@ export default function ViagensAtivas() {
     <EventLayout>
       <div className="p-8 space-y-4">
         <h1 className="text-2xl font-bold">Viagens Ativas</h1>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <DiaSeletor
+              dataOperacional={dataOperacional}
+              onChange={setDataOperacional}
+              dataInicio={evento?.data_inicio}
+              dataFim={evento?.data_fim}
+              showToggleAll={true}
+              verTodosDias={verTodosDias}
+              onToggleTodosDias={setVerTodosDias}
+            />
+            <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+          </div>
           <Badge variant="outline">{viagensFiltradas.length} resultados</Badge>
         </div>
         <FilterBar filtros={filtros} onChange={setFiltros} motoristas={motoristas} />

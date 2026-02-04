@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
+import { useServerTime } from '@/hooks/useServerTime';
 import { useTutorial, supervisorSteps } from '@/hooks/useTutorial';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,21 +30,52 @@ import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
+import { DiaSeletor } from '@/components/app/DiaSeletor';
+
+interface Evento {
+  nome_planilha: string;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+  horario_virada_dia?: string | null;
+}
 
 export default function AppSupervisor() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const { user, signOut, profile } = useAuth();
+  const { getAgoraSync } = useServerTime();
   
   const [activeTab, setActiveTab] = useState<SupervisorTabId>('frota');
-  const [evento, setEvento] = useState<{ nome_planilha: string } | null>(null);
+  const [evento, setEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNovaViagem, setShowNovaViagem] = useState(false);
   
+  // Dia operacional
+  const [dataOperacional, setDataOperacional] = useState<string>(() => 
+    getDataOperacional(new Date(), '04:00')
+  );
+  const [verTodosDias, setVerTodosDias] = useState(false);
+  
   // Tutorial system
   const tutorial = useTutorial('supervisor', supervisorSteps);
-  
-  const { refetch: refetchViagens } = useViagens(eventoId);
+
+  // Atualizar data operacional quando evento carregar
+  useEffect(() => {
+    if (evento?.horario_virada_dia) {
+      setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
+    }
+  }, [evento?.horario_virada_dia, getAgoraSync]);
+
+  // Buscar viagens com filtro de data
+  const viagensOptions = useMemo(() => {
+    if (verTodosDias) return undefined;
+    return {
+      dataOperacional,
+      horarioVirada: evento?.horario_virada_dia || '04:00',
+    };
+  }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
+
+  const { refetch: refetchViagens } = useViagens(eventoId, viagensOptions);
   const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
 
   useEffect(() => {
@@ -54,7 +87,7 @@ export default function AppSupervisor() {
   const fetchEvento = async () => {
     const { data } = await supabase
       .from('eventos')
-      .select('nome_planilha')
+      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia')
       .eq('id', eventoId)
       .single();
     
@@ -83,7 +116,25 @@ export default function AppSupervisor() {
       case 'frota':
         return <SupervisorFrotaTab eventoId={eventoId!} />;
       case 'viagens':
-        return <SupervisorViagensTab eventoId={eventoId!} onRefresh={refetchViagens} />;
+        return (
+          <div className="space-y-4">
+            <DiaSeletor
+              dataOperacional={dataOperacional}
+              onChange={setDataOperacional}
+              dataInicio={evento?.data_inicio}
+              dataFim={evento?.data_fim}
+              showToggleAll={true}
+              verTodosDias={verTodosDias}
+              onToggleTodosDias={setVerTodosDias}
+            />
+            <SupervisorViagensTab 
+              eventoId={eventoId!} 
+              onRefresh={refetchViagens}
+              dataOperacional={verTodosDias ? undefined : dataOperacional}
+              horarioVirada={evento?.horario_virada_dia || undefined}
+            />
+          </div>
+        );
       case 'localizador':
         return <SupervisorLocalizadorTab eventoId={eventoId!} />;
       case 'mais':

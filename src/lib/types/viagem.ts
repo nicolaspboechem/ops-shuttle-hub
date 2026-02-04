@@ -19,6 +19,11 @@ export interface Evento {
   imagem_logo?: string | null;
   descricao?: string | null;
   local?: string | null;
+  horario_virada_dia?: string | null;
+  alerta_limiar_amarelo?: number | null;
+  alerta_limiar_vermelho?: number | null;
+  habilitar_localizador?: boolean | null;
+  habilitar_missoes?: boolean | null;
 }
 
 export interface EventoUsuario {

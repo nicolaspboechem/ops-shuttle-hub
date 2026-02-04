@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
@@ -9,6 +9,7 @@ import { PassengersChart } from '@/components/dashboard/PassengersChart';
 import { RoutePerformanceChart } from '@/components/dashboard/RoutePerformanceChart';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { DashboardMobile } from '@/components/dashboard/DashboardMobile';
+import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,26 +17,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
+import { useServerTime } from '@/hooks/useServerTime';
 import { useTutorial, adminEventoSteps } from '@/hooks/useTutorial';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { formatarMinutos } from '@/lib/utils/calculadores';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId);
+  const { getEventoById } = useEventos();
+  const { getAgoraSync } = useServerTime();
+  const evento = eventoId ? getEventoById(eventoId) : null;
+  
+  // Dia operacional
+  const [dataOperacional, setDataOperacional] = useState<string>(() => 
+    getDataOperacional(new Date(), '04:00')
+  );
+  const [verTodosDias, setVerTodosDias] = useState(false);
+
+  // Atualizar data operacional quando evento carregar
+  useEffect(() => {
+    if (evento?.horario_virada_dia) {
+      setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
+    }
+  }, [evento?.horario_virada_dia, getAgoraSync]);
+
+  // Preparar options para useViagens
+  const viagensOptions = useMemo(() => {
+    if (verTodosDias) return undefined;
+    return {
+      dataOperacional,
+      horarioVirada: evento?.horario_virada_dia || '04:00',
+    };
+  }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
+
+  const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId, viagensOptions);
   const { veiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
-  const { getEventoById } = useEventos();
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
   const [showHelp, setShowHelp] = useState(false);
-
-  const evento = eventoId ? getEventoById(eventoId) : null;
   
   // Tutorial for admin inside event
   const tutorial = useTutorial('admin_evento', adminEventoSteps);
@@ -166,9 +192,19 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
-        
-        {/* Filtros */}
+
+        {/* Seletor de Dia + Filtros */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3">
+          <DiaSeletor
+            dataOperacional={dataOperacional}
+            onChange={setDataOperacional}
+            dataInicio={evento?.data_inicio}
+            dataFim={evento?.data_fim}
+            showToggleAll={true}
+            verTodosDias={verTodosDias}
+            onToggleTodosDias={setVerTodosDias}
+          />
+          
           <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
           
           {pontosEmbarque.length > 0 && (
