@@ -25,7 +25,7 @@ interface SupervisorBottomNavProps {
 
 export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottomNavProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-primary safe-area-bottom">
       <div className="flex items-center justify-around h-16">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -39,11 +39,7 @@ export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottom
                 onClick={() => onTabChange(tab.id)}
                 className="flex items-center justify-center -mt-6"
               >
-                <div className={cn(
-                  "h-14 w-14 rounded-full flex items-center justify-center shadow-lg transition-all",
-                  "bg-primary text-primary-foreground",
-                  "active:scale-95"
-                )}>
+                <div className="h-14 w-14 rounded-full flex items-center justify-center shadow-lg transition-all bg-white text-primary active:scale-95">
                   <Icon className="h-6 w-6" />
                 </div>
               </button>
@@ -55,14 +51,16 @@ export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottom
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full nav-item-interactive rounded-lg",
+                "flex flex-col items-center justify-center gap-0.5 flex-1 h-full rounded-lg transition-colors",
                 isActive 
-                  ? "text-primary" 
-                  : "text-muted-foreground"
+                  ? "text-primary-foreground" 
+                  : "text-primary-foreground/70"
               )}
             >
-              <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <Icon className="w-5 h-5" />
+              <span className={cn("text-[10px]", isActive ? "font-semibold" : "font-medium")}>
+                {tab.label}
+              </span>
             </button>
           );
         })}
