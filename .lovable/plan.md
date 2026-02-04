@@ -1,94 +1,98 @@
 
 
-# Plano: Corrigir Exibição de Avarias no App Motorista + Histórico no CCO
+# Plano: Corrigir Exclusão de Eventos
 
-## Problemas Identificados
+## Problema Principal
 
-### Problema 1: Parser de avarias incorreto no App Motorista
+A exclusão de eventos está **falhando silenciosamente** por dois motivos:
 
-O código em `MotoristaVeiculoTab.tsx` e `VistoriaConfirmModal.tsx` usa uma estrutura de dados antiga/incorreta para buscar avarias.
+### 1. Tabela `eventos` não tem política de DELETE
 
-**Estrutura REAL dos dados (verificada no banco):**
-```json
-{
-  "areas": [
-    { "id": "frente", "nome": "Frente", "possuiAvaria": true, "descricao": "Farol quebrado", "fotos": [...] },
-    { "id": "lateral_esquerda", "nome": "Lateral Esquerda", "possuiAvaria": false, ... }
-  ],
-  "fotosGerais": [],
-  "observacoes": ""
-}
+Conforme documentado nas políticas RLS:
+```
+Currently users **can't** do any of the following actions on the table eventos: 
+- Can't DELETE records from the table
 ```
 
-**Código ERRADO em MotoristaVeiculoTab:**
-```typescript
-const areaData = dados[area] as Record<string, unknown>;
-if (areaData?.temAvaria && areaData?.descricao) { ... }
-// Busca dados.frente.temAvaria - NÃO EXISTE!
-```
+### 2. Tabelas relacionadas não estão sendo limpas
 
-**Código ERRADO em VistoriaConfirmModal:**
-```typescript
-const dados = veiculo.inspecao_dados as AreaInspecao[];
-if (Array.isArray(dados)) { ... }
-// Espera array no root - MAS É UM OBJETO COM .areas!
-```
+O código atual limpa apenas **6 das 10 tabelas** que referenciam `evento_id`:
 
-### Problema 2: Falta data/hora na exibição de avarias
-
-Atualmente as avarias são mostradas sem indicação de quando foram registradas. O motorista precisa saber quando cada avaria foi documentada.
-
-### Problema 3: Histórico no CCO não mostra quem registrou e com quem estava o veículo
-
-Já existe `realizado_por_nome` e `motorista_nome` no banco, mas precisa verificar se está sendo salvo e exibido corretamente.
+| Tabela | Limpa no código? |
+|--------|------------------|
+| `evento_usuarios` | ✅ Sim |
+| `viagens` | ✅ Sim |
+| `motoristas` | ✅ Sim |
+| `veiculos` | ✅ Sim |
+| `pontos_embarque` | ✅ Sim |
+| `rotas_shuttle` | ✅ Sim |
+| `missoes` | ❌ **NÃO** |
+| `motorista_presenca` | ❌ **NÃO** |
+| `staff_credenciais` | ❌ **NÃO** |
+| `veiculo_vistoria_historico` | ❌ **NÃO** |
 
 ---
 
-## Soluções
+## Solução
 
-### 1. Corrigir parser de avarias em `MotoristaVeiculoTab.tsx`
+### Parte 1: Adicionar política de DELETE na tabela `eventos`
 
-Atualizar a função `getAvarias()` para usar a estrutura correta `dados.areas[]`:
+Criar uma migration para adicionar a política RLS de DELETE:
 
-```typescript
-const getAvarias = (): { area: string; descricao: string }[] => {
-  if (!veiculo?.inspecao_dados) return [];
-  const dados = veiculo.inspecao_dados as { areas?: Array<{ id: string; nome: string; possuiAvaria: boolean; descricao: string; fotos: string[] }> };
-  
-  if (!dados.areas || !Array.isArray(dados.areas)) return [];
-  
-  return dados.areas
-    .filter(a => a.possuiAvaria)
-    .map(a => ({
-      area: a.nome,
-      descricao: a.descricao
-    }));
-};
+```sql
+CREATE POLICY "Allow all delete on eventos"
+ON public.eventos
+FOR DELETE
+USING (true);
 ```
 
-### 2. Corrigir parser de avarias em `VistoriaConfirmModal.tsx`
+### Parte 2: Completar a limpeza de dados relacionados
 
-Atualizar para buscar dentro de `dados.areas`:
+Atualizar `EventoGroupCard.tsx` para limpar **todas as 10 tabelas** antes de deletar o evento, na ordem correta (considerando dependências):
 
 ```typescript
-const getAvarias = (): AreaInspecao[] => {
-  if (!veiculo?.inspecao_dados) return [];
+const deleteEvent = async () => {
+  setActionLoading(true);
   
-  const dados = veiculo.inspecao_dados as { areas?: AreaInspecao[] };
-  if (dados.areas && Array.isArray(dados.areas)) {
-    return dados.areas.filter(area => area.possuiAvaria);
+  try {
+    for (const evento of eventos) {
+      // 1. Limpar tabelas que dependem de outras
+      await supabase.from('missoes').delete().eq('evento_id', evento.id);
+      await supabase.from('motorista_presenca').delete().eq('evento_id', evento.id);
+      await supabase.from('veiculo_vistoria_historico').delete().eq('evento_id', evento.id);
+      await supabase.from('staff_credenciais').delete().eq('evento_id', evento.id);
+      
+      // 2. Limpar tabelas principais
+      await supabase.from('viagens').delete().eq('evento_id', evento.id);
+      await supabase.from('motoristas').delete().eq('evento_id', evento.id);
+      await supabase.from('veiculos').delete().eq('evento_id', evento.id);
+      await supabase.from('pontos_embarque').delete().eq('evento_id', evento.id);
+      await supabase.from('rotas_shuttle').delete().eq('evento_id', evento.id);
+      await supabase.from('evento_usuarios').delete().eq('evento_id', evento.id);
+    }
+
+    // 3. Deletar o evento
+    const { error } = await supabase
+      .from('eventos')
+      .delete()
+      .eq('id', primaryEvento.id);
+
+    if (error) {
+      console.error('Erro ao excluir evento:', error);
+      toast.error('Erro ao excluir evento: ' + error.message);
+    } else {
+      toast.success('Evento excluído permanentemente');
+      onUpdate?.();
+    }
+  } catch (err) {
+    console.error('Erro inesperado:', err);
+    toast.error('Erro inesperado ao excluir evento');
   }
-  return [];
+  
+  setActionLoading(false);
+  setDeleteDialogOpen(false);
 };
 ```
-
-### 3. Adicionar data/hora na aba de veículo do motorista
-
-Mostrar a data da última vistoria junto às avarias e incluir informação de quando foram registradas.
-
-### 4. Verificar exibição no histórico do CCO
-
-O `VistoriaHistoricoCard` já exibe `realizado_por_nome` e `motorista_nome`, mas precisamos garantir que o registro está sendo salvo corretamente.
 
 ---
 
@@ -96,115 +100,64 @@ O `VistoriaHistoricoCard` já exibe `realizado_por_nome` e `motorista_nome`, mas
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/app/MotoristaVeiculoTab.tsx` | Corrigir parser de avarias + adicionar data/hora |
-| `src/components/app/VistoriaConfirmModal.tsx` | Corrigir parser de avarias |
+| Nova migration | Adicionar política de DELETE em `eventos` |
+| `src/components/eventos/EventoGroupCard.tsx` | Limpar todas as 10 tabelas + melhor tratamento de erro |
 
 ---
 
 ## Seção Técnica
 
-### Código Corrigido - MotoristaVeiculoTab.tsx
+### Migration SQL
 
-```typescript
-// Interface para tipagem correta
-interface AreaInspecao {
-  id: string;
-  nome: string;
-  possuiAvaria: boolean;
-  descricao: string;
-  fotos: string[];
-}
-
-interface InspecaoDados {
-  areas?: AreaInspecao[];
-  fotosGerais?: string[];
-  observacoes?: string;
-}
-
-// Função getAvarias corrigida
-const getAvarias = (): { area: string; descricao: string }[] => {
-  if (!veiculo?.inspecao_dados) return [];
-  
-  const dados = veiculo.inspecao_dados as InspecaoDados;
-  
-  if (!dados.areas || !Array.isArray(dados.areas)) return [];
-  
-  return dados.areas
-    .filter(a => a.possuiAvaria)
-    .map(a => ({
-      area: a.nome,
-      descricao: a.descricao
-    }));
-};
+```sql
+-- Adicionar política de DELETE na tabela eventos
+CREATE POLICY "Allow all delete on eventos"
+ON public.eventos
+FOR DELETE
+USING (true);
 ```
 
-### Código Corrigido - VistoriaConfirmModal.tsx
+### Ordem de Exclusão (respeitando dependências)
+
+```text
+1. missoes              (depende de motoristas, viagens)
+2. motorista_presenca   (depende de motoristas, veiculos)
+3. veiculo_vistoria_historico (depende de veiculos, motoristas)
+4. staff_credenciais    (depende de evento_usuarios)
+5. viagens              (tabela principal)
+6. motoristas           (tabela principal)
+7. veiculos             (tabela principal)
+8. pontos_embarque      (tabela principal)
+9. rotas_shuttle        (tabela principal)
+10. evento_usuarios     (tabela principal)
+11. eventos             (tabela pai - por último)
+```
+
+### Log para Debug
+
+Adicionar logs para identificar qual tabela está falhando:
 
 ```typescript
-interface InspecaoDados {
-  areas?: AreaInspecao[];
-  fotosGerais?: string[];
-  observacoes?: string;
-}
-
-const getAvarias = (): AreaInspecao[] => {
-  if (!veiculo?.inspecao_dados) return [];
+const deleteFromTable = async (table: string, eventoId: string) => {
+  const { error, count } = await supabase
+    .from(table)
+    .delete()
+    .eq('evento_id', eventoId);
   
-  const dados = veiculo.inspecao_dados as InspecaoDados;
-  
-  if (dados.areas && Array.isArray(dados.areas)) {
-    return dados.areas.filter(area => area.possuiAvaria);
+  if (error) {
+    console.error(`Erro ao limpar ${table}:`, error);
+    throw error;
   }
-  return [];
+  console.log(`[Delete] ${table}: ${count || 0} registros removidos`);
 };
 ```
-
-### Exibição de Data na Seção de Avarias
-
-Adicionar a data da última vistoria no card de avarias:
-
-```tsx
-{/* Card de Avarias com data */}
-<Card className={veiculo.possui_avarias ? 'border-amber-500/30' : ''}>
-  <CardHeader className="pb-3">
-    <div className="flex items-center justify-between">
-      <CardTitle className="flex items-center gap-2 text-base">
-        <AlertTriangle className={`h-4 w-4 ${veiculo.possui_avarias ? 'text-amber-500' : ''}`} />
-        Avarias Registradas
-      </CardTitle>
-      {veiculo.possui_avarias && (
-        <Badge variant="outline" className="border-amber-500/50 text-amber-600">
-          {avarias.length}
-        </Badge>
-      )}
-    </div>
-    {/* Mostrar data da última vistoria */}
-    {veiculo.inspecao_data && (
-      <p className="text-xs text-muted-foreground">
-        Registrado em {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-      </p>
-    )}
-  </CardHeader>
-  ...
-</Card>
-```
-
----
-
-## Verificação do Histórico no CCO
-
-O `VistoriaHistoricoCard` já mostra corretamente:
-- **Quem registrou**: `realizado_por_nome` (linha 55, 155-159)
-- **Motorista em uso**: `motorista_nome` (linhas 101-109)
-
-Esses campos são salvos no `VistoriaVeiculoWizard.tsx` (linhas 206-209), então a funcionalidade já existe - só precisamos garantir que os parsers no app motorista estão corretos.
 
 ---
 
 ## Resultado Esperado
 
-1. **Motorista verá avarias corretamente** na aba "Veículo" do app
-2. **Modal de check-in mostrará avarias** para o motorista confirmar antes de assumir o veículo
-3. **Data e hora** de quando as avarias foram registradas serão visíveis
-4. **Histórico no CCO** continua mostrando quem registrou e com quem estava o veículo
+1. **Exclusão funciona** - eventos são removidos do banco
+2. **Dados relacionados excluídos** - todas as 10 tabelas são limpas
+3. **UI atualiza imediatamente** - o `onUpdate()` dispara refetch
+4. **Feedback claro** - erros são mostrados ao usuário com detalhes
 
