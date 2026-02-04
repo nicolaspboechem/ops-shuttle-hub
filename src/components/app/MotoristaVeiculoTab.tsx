@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,13 +11,16 @@ import {
   Camera, 
   AlertTriangle,
   Bus,
-  ImageIcon
+  ImageIcon,
+  User
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Veiculo } from '@/hooks/useCadastros';
 import { VeiculoFotosModal } from './VeiculoFotosModal';
 import { supabase } from '@/integrations/supabase/client';
+import { useVistoriaHistorico } from '@/hooks/useVistoriaHistorico';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 interface MotoristaVeiculoTabProps {
   veiculo: Veiculo | null;
@@ -30,10 +33,30 @@ interface VeiculoFoto {
   descricao: string | null;
 }
 
+// Interface para avaria completa com todos os dados
+interface AvariaCompleta {
+  area: string;
+  descricao: string;
+  fotos: string[];
+  dataRegistro: string;
+  registradoPor: string;
+  motoristaEmUso: string | null;
+}
+
 export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
   const [showFotosModal, setShowFotosModal] = useState(false);
   const [fotos, setFotos] = useState<VeiculoFoto[]>([]);
   const [loadingFotos, setLoadingFotos] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  // Buscar histórico de vistorias para obter detalhes das avarias
+  const { data: vistoriasHistorico } = useVistoriaHistorico(veiculo?.id || null);
+
+  // Pegar a última vistoria que registrou avarias
+  const ultimaVistoriaComAvarias = useMemo(() => {
+    if (!vistoriasHistorico || !veiculo?.possui_avarias) return null;
+    return vistoriasHistorico.find(v => v.possui_avarias);
+  }, [vistoriasHistorico, veiculo?.possui_avarias]);
 
   useEffect(() => {
     if (veiculo?.id) {
@@ -89,8 +112,28 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
     observacoes?: string;
   }
 
-  // Parse avarias from inspecao_dados - estrutura correta: { areas: [...] }
-  const getAvarias = (): { area: string; descricao: string }[] => {
+  // Extrair avarias com todos os dados completos
+  const avariasCompletas = useMemo((): AvariaCompleta[] => {
+    // Se temos histórico de vistoria com avarias, usar os dados completos
+    if (ultimaVistoriaComAvarias) {
+      const dados = ultimaVistoriaComAvarias.inspecao_dados as InspecaoDados;
+      if (!dados?.areas) return [];
+      
+      return dados.areas
+        .filter(a => a.possuiAvaria)
+        .map(a => ({
+          area: a.nome,
+          descricao: a.descricao || '',
+          fotos: a.fotos || [],
+          dataRegistro: ultimaVistoriaComAvarias.created_at,
+          registradoPor: ultimaVistoriaComAvarias.realizado_por_nome || 
+                         ultimaVistoriaComAvarias.profile?.full_name || 
+                         'Coordenação',
+          motoristaEmUso: ultimaVistoriaComAvarias.motorista_nome
+        }));
+    }
+
+    // Fallback para dados do veículo atual (sem histórico)
     if (!veiculo?.inspecao_dados) return [];
     
     const dados = veiculo.inspecao_dados as InspecaoDados;
@@ -101,11 +144,13 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
       .filter(a => a.possuiAvaria)
       .map(a => ({
         area: a.nome,
-        descricao: a.descricao
+        descricao: a.descricao || '',
+        fotos: a.fotos || [],
+        dataRegistro: veiculo.inspecao_data || '',
+        registradoPor: 'Sistema',
+        motoristaEmUso: null
       }));
-  };
-
-  const avarias = getAvarias();
+  }, [ultimaVistoriaComAvarias, veiculo?.inspecao_dados, veiculo?.inspecao_data]);
 
   // Estado sem veículo
   if (!veiculo) {
@@ -255,31 +300,73 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
             </CardTitle>
             {veiculo.possui_avarias && (
               <Badge variant="outline" className="border-amber-500/50 text-amber-600">
-                {avarias.length}
+                {avariasCompletas.length}
               </Badge>
             )}
           </div>
-          {/* Mostrar data da última vistoria */}
-          {veiculo.inspecao_data && veiculo.possui_avarias && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Registrado em {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-            </p>
-          )}
         </CardHeader>
         <CardContent>
-          {avarias.length > 0 ? (
-            <div className="space-y-2">
-              {avarias.map((avaria, index) => (
+          {avariasCompletas.length > 0 ? (
+            <div className="space-y-4">
+              {avariasCompletas.map((avaria, index) => (
                 <div 
                   key={index}
-                  className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20"
+                  className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-3"
                 >
-                  <p className="text-sm font-medium capitalize text-amber-700 dark:text-amber-400">
-                    {avaria.area}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {avaria.descricao}
-                  </p>
+                  {/* Área e descrição */}
+                  <div>
+                    <p className="text-sm font-semibold capitalize text-amber-700 dark:text-amber-400">
+                      {avaria.area}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {avaria.descricao || 'Avaria registrada sem descrição detalhada'}
+                    </p>
+                  </div>
+                  
+                  <Separator className="bg-amber-500/20" />
+                  
+                  {/* Metadados */}
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    {avaria.dataRegistro && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {format(parseISO(avaria.dataRegistro), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <User className="h-3 w-3" />
+                      <span>Registrado por: <strong>{avaria.registradoPor}</strong></span>
+                    </div>
+                    {avaria.motoristaEmUso && (
+                      <div className="flex items-center gap-2">
+                        <Car className="h-3 w-3" />
+                        <span>Veículo estava com: <strong>{avaria.motoristaEmUso}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Fotos da avaria */}
+                  {avaria.fotos.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                        <Camera className="h-3 w-3" />
+                        Fotos da avaria ({avaria.fotos.length})
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {avaria.fotos.map((foto, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedPhoto(foto)}
+                            className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-amber-500/30 hover:border-amber-500 transition-colors"
+                          >
+                            <img src={foto} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -293,12 +380,25 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
         </CardContent>
       </Card>
 
-      {/* Modal de Fotos */}
+      {/* Modal de Fotos do Veículo */}
       <VeiculoFotosModal
         open={showFotosModal}
         onOpenChange={setShowFotosModal}
         veiculo={veiculo}
       />
+
+      {/* Modal de Foto da Avaria Ampliada */}
+      <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
+        <DialogContent className="max-w-3xl p-1 bg-black/90">
+          {selectedPhoto && (
+            <img 
+              src={selectedPhoto} 
+              alt="Foto da avaria" 
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
