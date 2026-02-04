@@ -3,16 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck, GripVertical, Eye } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Gauge, UserCheck, GripVertical, Eye, ClipboardCheck, AlertTriangle } from "lucide-react";
 import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from "./VeiculoStatusBadge";
 import { VeiculoModal } from "@/components/cadastros/CadastroModals";
 import { formatarMinutos } from "@/lib/utils/calculadores";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "framer-motion";
+
+interface VeiculoPerfil {
+  full_name: string | null;
+}
 
 interface Veiculo {
   id: string;
@@ -28,6 +32,9 @@ interface Veiculo {
   km_final?: number | null;
   atualizado_por?: string | null;
   data_atualizacao?: string;
+  inspecao_data?: string | null;
+  inspecao_dados?: any;
+  inspecao_perfil?: VeiculoPerfil | null;
 }
 
 interface VeiculoStats {
@@ -239,6 +246,29 @@ export function VeiculoKanbanCardFull({
                   ({(veiculo.km_final - veiculo.km_inicial).toLocaleString('pt-BR')} km)
                 </span>
               )}
+            </span>
+          </div>
+        )}
+
+        {/* Última Inspeção */}
+        {veiculo.inspecao_data && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
+            <ClipboardCheck className="h-3.5 w-3.5 text-blue-500" />
+            <span>
+              Inspeção: {format(parseISO(veiculo.inspecao_data), "dd/MM HH:mm")}
+              {veiculo.inspecao_perfil?.full_name && (
+                <span className="font-medium"> por {veiculo.inspecao_perfil.full_name}</span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Contagem de avarias */}
+        {veiculo.possui_avarias && veiculo.inspecao_dados?.areas && (
+          <div className="text-xs text-destructive flex items-center gap-1.5">
+            <AlertTriangle className="h-3 w-3" />
+            <span>
+              {veiculo.inspecao_dados.areas.filter((a: any) => a.possuiAvaria).length} avaria(s) registrada(s)
             </span>
           </div>
         )}
