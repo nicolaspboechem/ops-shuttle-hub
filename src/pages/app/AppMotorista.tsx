@@ -27,6 +27,7 @@ import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBo
 import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
 import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
 import { HelpDrawer } from '@/components/app/HelpDrawer';
+import { VersionBadge } from '@/components/ui/version-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Loader2, CheckCircle2, MoreVertical, LogOut, ClipboardList, Car, HelpCircle, ChevronRight, MapPin, Navigation } from 'lucide-react';
@@ -490,6 +491,11 @@ export default function AppMotorista() {
               onOpenChange={setShowHelp}
               role="motorista"
             />
+
+            {/* Version Badge */}
+            <div className="text-center pt-4">
+              <VersionBadge variant="footer" showAppName />
+            </div>
           </div>
         );
       }
