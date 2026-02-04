@@ -42,11 +42,12 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Credenciais de login (Step 3)
-  const [criarLogin, setCriarLogin] = useState(false);
+  const [criarLogin, setCriarLogin] = useState(true); // Ativado por padrão
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Agrupar veículos por status
   const veiculosPorStatus = veiculos.reduce((acc, v) => {
@@ -71,6 +72,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
   const handleSubmit = async () => {
     if (!nome.trim()) return;
     setIsSubmitting(true);
+    setLoginError(null); // Limpar erro anterior
     
     try {
       // Primeiro criar o motorista e obter o ID
@@ -80,10 +82,19 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
         veiculo_id: selectedVeiculoId || undefined,
       });
       
-      // Se criarLogin está ativo e temos o motoristaId, criar credenciais via driver-register
-      if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
+      // Se criarLogin está ativo, precisamos do motoristaId
+      if (criarLogin && telefone.trim() && senha.trim()) {
+        if (!motoristaId) {
+          toast.error("Motorista criado, mas não foi possível obter o ID para gerar o login.");
+          // NÃO fecha - usuário pode tentar novamente
+          setIsSubmitting(false);
+          return;
+        }
+        
         // Limpar telefone - apenas dígitos
         const telefoneDigits = telefone.replace(/\D/g, '');
+        
+        console.log("[CreateMotoristaWizard] Chamando driver-register:", { motoristaId, telefoneDigits });
         
         // CORRETO: usar driver-register (sistema customizado de motoristas)
         const response = await supabase.functions.invoke('driver-register', {
@@ -94,25 +105,38 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
           },
         });
 
+        console.log("[CreateMotoristaWizard] Resposta driver-register:", response);
+
+        // Verificar se é erro HTTP (como 409)
         if (response.error) {
-          toast.error(`Motorista criado, mas erro ao criar login: ${response.error.message}`);
-          handleClose();
+          const errorMsg = response.error.message || 'Erro ao criar login';
+          setLoginError(errorMsg);
+          toast.error(`Motorista criado! Mas erro no login: ${errorMsg}`);
+          // NÃO fecha - volta para step 3 para correção
+          setStep(3);
+          setIsSubmitting(false);
           return;
         }
 
+        // Verificar erro no corpo da resposta (409 retorna { error: "..." })
         if (response.data?.error) {
-          toast.error(`Motorista criado, mas erro ao criar login: ${response.data.error}`);
-          handleClose();
+          setLoginError(response.data.error);
+          toast.error(`Motorista criado! ${response.data.error}`);
+          // NÃO fecha - volta para step 3 para correção
+          setStep(3);
+          setIsSubmitting(false);
           return;
         }
         
-        // Guardar credenciais para mostrar (apenas dígitos, sem +55)
+        // Sucesso - mostrar credenciais
         setCreatedCredentials({
           login: telefoneDigits,
           password: senha.trim(),
         });
         setShowCredentialsModal(true);
       } else {
+        // Sem login - fechar normalmente
+        toast.success("Motorista criado com sucesso!");
         handleClose();
       }
     } catch (err: any) {
@@ -132,10 +156,11 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
     setNome("");
     setTelefone("");
     setSelectedVeiculoId(null);
-    setCriarLogin(false);
+    setCriarLogin(true); // Manter ativado por padrão
     setSenha("");
     setCreatedCredentials(null);
     setShowCredentialsModal(false);
+    setLoginError(null);
     setStep(1);
     onOpenChange(false);
   };
@@ -146,7 +171,12 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
   };
 
   const canProceedStep1 = nome.trim().length > 0;
-  const canProceedStep3 = !criarLogin || (telefone.trim().length >= 4 && senha.trim().length >= 4);
+  const telefoneDigits = telefone.replace(/\D/g, '');
+  const canProceedStep3 = !criarLogin || (
+    telefoneDigits.length >= 10 && 
+    telefoneDigits.length <= 11 && 
+    senha.trim().length >= 4
+  );
   
   const totalSteps = 4;
 
@@ -419,20 +449,41 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-4"
                   >
+                    {/* Mostrar erro de login se houver */}
+                    {loginError && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <p className="text-sm text-destructive flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          {loginError}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Corrija o telefone e tente novamente
+                        </p>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
-                      <Label>Telefone (usado como login)</Label>
+                      <Label>Telefone (usado como login) *</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           value={telefone}
-                          onChange={(e) => setTelefone(e.target.value)}
+                          onChange={(e) => {
+                            setTelefone(e.target.value);
+                            setLoginError(null); // Limpar erro ao editar
+                          }}
                           placeholder="(11) 99999-9999"
-                          className="pl-10"
+                          className={cn("pl-10", loginError && "border-destructive")}
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        O motorista usará o telefone {telefone.replace(/\D/g, '')} para fazer login
-                      </p>
+                      {telefoneDigits.length > 0 && telefoneDigits.length < 10 && (
+                        <p className="text-xs text-destructive">Telefone deve ter 10 ou 11 dígitos</p>
+                      )}
+                      {telefoneDigits.length >= 10 && (
+                        <p className="text-xs text-muted-foreground">
+                          O motorista usará o telefone {telefoneDigits} para fazer login
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
