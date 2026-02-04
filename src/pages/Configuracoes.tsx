@@ -11,8 +11,11 @@ import {
   ExternalLink,
   Settings as SettingsIcon,
   Save,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useEventos } from '@/hooks/useEventos';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { APP_VERSION, APP_BUILD_DATE, APP_NAME } from '@/lib/version';
 
 export default function Configuracoes() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -327,6 +331,32 @@ export default function Configuracoes() {
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sobre o Sistema */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Info className="w-5 h-5 text-primary" />
+                <div>
+                  <CardTitle className="text-base">Sobre o Sistema</CardTitle>
+                  <CardDescription>Informações da versão atual</CardDescription>
+                </div>
+              </div>
+              <Badge variant="secondary" className="font-mono">
+                V{APP_VERSION}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {APP_NAME} - Centro de Controle Operacional
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Atualizado em {format(parseISO(APP_BUILD_DATE), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </p>
           </CardContent>
         </Card>
       </div>

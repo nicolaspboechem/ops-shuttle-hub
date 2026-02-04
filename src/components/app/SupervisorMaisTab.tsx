@@ -19,6 +19,7 @@ import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWi
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from './VeiculoKmModal';
 import { HelpDrawer } from './HelpDrawer';
+import { APP_VERSION, APP_NAME } from '@/lib/version';
 
 interface SupervisorMaisTabProps {
   eventoId: string;
@@ -224,6 +225,13 @@ export function SupervisorMaisTab({
         onOpenChange={setShowHelp}
         role="supervisor"
       />
+
+      {/* Version Footer */}
+      <div className="text-center py-4">
+        <span className="text-[10px] text-muted-foreground/50">
+          {APP_NAME} · V{APP_VERSION}
+        </span>
+      </div>
     </div>
   );
 }
