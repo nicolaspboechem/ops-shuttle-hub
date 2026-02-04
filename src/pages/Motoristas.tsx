@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +70,9 @@ export default function Motoristas() {
   const [showMissaoModal, setShowMissaoModal] = useState(false);
   const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
+  const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
+  const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list'>('card');
+  const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
   
   // Realtime subscription para atualização automática do status
   useEffect(() => {
@@ -217,7 +220,7 @@ export default function Motoristas() {
     }
   };
 
-  // Group motoristas by status for kanban
+  // Group motoristas by status for kanban - applying search filters
   const motoristasByStatus = useMemo(() => {
     const grouped: Record<string, Motorista[]> = {
       disponivel: [],
@@ -226,7 +229,29 @@ export default function Motoristas() {
       inativo: [],
     };
 
-    motoristasCadastrados.forEach(m => {
+    // Apply the same filters as filteredCadastrados
+    let filtered = [...motoristasCadastrados];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.nome.toLowerCase().includes(term) ||
+        m.telefone?.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterTipoVeiculo !== 'all') {
+      filtered = filtered.filter(m => {
+        const veiculo = getVeiculoDoMotorista(m.id);
+        return veiculo?.tipo_veiculo === filterTipoVeiculo;
+      });
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(m => (m.status || 'disponivel') === filterStatus);
+    }
+
+    filtered.forEach(m => {
       const status = m.status || 'disponivel';
       if (grouped[status]) {
         grouped[status].push(m);
@@ -236,7 +261,7 @@ export default function Motoristas() {
     });
 
     return grouped;
-  }, [motoristasCadastrados]);
+  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, filterStatus, veiculos]);
 
   // Calcular última localização de cada motorista baseada em viagens encerradas
   const ultimasLocalizacoes = useMemo(() => {
@@ -815,9 +840,31 @@ export default function Motoristas() {
 
   // Conteúdo da seção Missões - hooks já declarados no topo do componente
   const filteredMissoes = useMemo(() => {
-    if (missaoFilter === 'all') return missoes;
-    return missoes.filter(m => m.status === missaoFilter);
-  }, [missoes, missaoFilter]);
+    let filtered = [...missoes];
+    
+    // Filtro por status
+    if (missaoFilter !== 'all') {
+      filtered = filtered.filter(m => m.status === missaoFilter);
+    }
+    
+    // Filtro por motorista
+    if (missaoMotoristaFilter !== 'all') {
+      filtered = filtered.filter(m => m.motorista_id === missaoMotoristaFilter);
+    }
+    
+    // Filtro por busca (título ou descrição)
+    if (missaoSearchTerm) {
+      const term = missaoSearchTerm.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.titulo.toLowerCase().includes(term) ||
+        m.descricao?.toLowerCase().includes(term) ||
+        m.ponto_embarque?.toLowerCase().includes(term) ||
+        m.ponto_desembarque?.toLowerCase().includes(term)
+      );
+    }
+    
+    return filtered;
+  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoSearchTerm]);
 
   const handleSaveMissao = async (data: any) => {
     if (editingMissao) {
@@ -832,6 +879,14 @@ export default function Motoristas() {
   const handleDeleteMissao = async (id: string) => {
     await deleteMissao(id);
   };
+
+  const clearMissaoFilters = () => {
+    setMissaoFilter('all');
+    setMissaoMotoristaFilter('all');
+    setMissaoSearchTerm('');
+  };
+
+  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm;
 
   const MissoesContent = () => (
     <div className="space-y-6">
@@ -848,21 +903,68 @@ export default function Motoristas() {
         </Button>
       </div>
 
-      <div className="flex gap-3">
-        <Select value={missaoFilter} onValueChange={setMissaoFilter}>
-          <SelectTrigger className="w-[180px]">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            <SelectItem value="pendente">Pendentes</SelectItem>
-            <SelectItem value="aceita">Aceitas</SelectItem>
-            <SelectItem value="em_andamento">Em Andamento</SelectItem>
-            <SelectItem value="concluida">Concluídas</SelectItem>
-            <SelectItem value="cancelada">Canceladas</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar missão..."
+            value={missaoSearchTerm}
+            onChange={(e) => setMissaoSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Select value={missaoFilter} onValueChange={setMissaoFilter}>
+            <SelectTrigger className="w-[150px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="pendente">Pendentes</SelectItem>
+              <SelectItem value="aceita">Aceitas</SelectItem>
+              <SelectItem value="em_andamento">Em Andamento</SelectItem>
+              <SelectItem value="concluida">Concluídas</SelectItem>
+              <SelectItem value="cancelada">Canceladas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={missaoMotoristaFilter} onValueChange={setMissaoMotoristaFilter}>
+            <SelectTrigger className="w-[180px]">
+              <User className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Motorista" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos motoristas</SelectItem>
+              {motoristasCadastrados.filter(m => m.ativo).map(m => (
+                <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveMissaoFilters && (
+            <Button variant="ghost" size="icon" onClick={clearMissaoFilters}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+          <div className="flex items-center border rounded-md ml-2">
+            <Button
+              variant={missaoViewMode === 'card' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setMissaoViewMode('card')}
+              className="rounded-r-none"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={missaoViewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setMissaoViewMode('list')}
+              className="rounded-l-none"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {loadingMissoes ? (
@@ -875,9 +977,11 @@ export default function Motoristas() {
         <div className="text-center py-16 text-muted-foreground">
           <ClipboardList className="h-16 w-16 mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium">Nenhuma missão encontrada</p>
-          <p className="text-sm">Crie uma missão para designar um motorista</p>
+          <p className="text-sm">
+            {hasActiveMissaoFilters ? 'Tente ajustar os filtros' : 'Crie uma missão para designar um motorista'}
+          </p>
         </div>
-      ) : (
+      ) : missaoViewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMissoes.map(missao => {
             const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
@@ -893,6 +997,119 @@ export default function Motoristas() {
             );
           })}
         </div>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Motorista</TableHead>
+                <TableHead>Rota</TableHead>
+                <TableHead>Horário</TableHead>
+                <TableHead>PAX</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[50px]">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMissoes.map(missao => {
+                const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+                const prioridadeColors: Record<string, string> = {
+                  baixa: 'bg-muted text-muted-foreground',
+                  normal: 'bg-primary/10 text-primary',
+                  alta: 'bg-amber-500/10 text-amber-600',
+                  urgente: 'bg-destructive/10 text-destructive',
+                };
+                const statusColors: Record<string, string> = {
+                  pendente: 'bg-muted text-muted-foreground',
+                  aceita: 'bg-blue-500/10 text-blue-600',
+                  em_andamento: 'bg-amber-500/10 text-amber-600',
+                  concluida: 'bg-green-500/10 text-green-600',
+                  cancelada: 'bg-destructive/10 text-destructive',
+                };
+                
+                return (
+                  <TableRow key={missao.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{missao.titulo}</p>
+                        {missao.descricao && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">{missao.descricao}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
+                          {motorista?.nome?.charAt(0) || '?'}
+                        </div>
+                        <span className="text-sm">{motorista?.nome || 'N/A'}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {missao.ponto_embarque && missao.ponto_desembarque ? (
+                        <span>{missao.ponto_embarque} → {missao.ponto_desembarque}</span>
+                      ) : missao.ponto_embarque || missao.ponto_desembarque || '-'}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {missao.horario_previsto?.slice(0, 5) || '-'}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium">
+                      {missao.qtd_pax || 0}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={prioridadeColors[missao.prioridade]}>
+                        {missao.prioridade === 'baixa' ? 'Baixa' : 
+                         missao.prioridade === 'normal' ? 'Normal' :
+                         missao.prioridade === 'alta' ? 'Alta' : 'Urgente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusColors[missao.status]}>
+                        {missao.status === 'pendente' ? 'Pendente' :
+                         missao.status === 'aceita' ? 'Aceita' :
+                         missao.status === 'em_andamento' ? 'Em Andamento' :
+                         missao.status === 'concluida' ? 'Concluída' : 'Cancelada'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setEditingMissao(missao); setShowMissaoModal(true); }}>
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          {missao.status !== 'concluida' && (
+                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'concluida' })}>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Concluir
+                            </DropdownMenuItem>
+                          )}
+                          {missao.status !== 'cancelada' && (
+                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'cancelada' })} className="text-destructive">
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Cancelar
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleDeleteMissao(missao.id)} className="text-destructive">
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       <MissaoModal
