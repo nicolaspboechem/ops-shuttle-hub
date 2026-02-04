@@ -125,9 +125,47 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     }
   }, [eventoId, motoristaId, getAgoraSync]);
 
+  // Initial fetch
   useEffect(() => {
     fetchPresenca();
   }, [fetchPresenca]);
+
+  // Realtime subscription + polling fallback for sync
+  useEffect(() => {
+    if (!eventoId || !motoristaId) return;
+
+    // Realtime subscription para mudanças de presença
+    const channel = supabase
+      .channel(`presenca-${motoristaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'motorista_presenca',
+          filter: `motorista_id=eq.${motoristaId}`
+        },
+        (payload) => {
+          console.log('[Presença] Realtime update:', payload.eventType, payload);
+          // Refetch para garantir dados atualizados
+          fetchPresenca();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Presença] Subscription status:', status);
+      });
+
+    // Polling fallback (a cada 30s) caso Realtime falhe silenciosamente
+    const pollInterval = setInterval(() => {
+      console.log('[Presença] Polling fallback...');
+      fetchPresenca();
+    }, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+    };
+  }, [eventoId, motoristaId, fetchPresenca]);
 
   const realizarCheckin = async () => {
     if (!eventoId || !motoristaId) return false;
