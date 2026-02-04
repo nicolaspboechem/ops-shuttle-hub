@@ -128,6 +128,7 @@ export type Database = {
           ponto_embarque: string | null
           ponto_embarque_id: string | null
           prioridade: string | null
+          qtd_pax: number | null
           status: string | null
           titulo: string
           viagem_id: string | null
@@ -147,6 +148,7 @@ export type Database = {
           ponto_embarque?: string | null
           ponto_embarque_id?: string | null
           prioridade?: string | null
+          qtd_pax?: number | null
           status?: string | null
           titulo: string
           viagem_id?: string | null
@@ -166,6 +168,7 @@ export type Database = {
           ponto_embarque?: string | null
           ponto_embarque_id?: string | null
           prioridade?: string | null
+          qtd_pax?: number | null
           status?: string | null
           titulo?: string
           viagem_id?: string | null

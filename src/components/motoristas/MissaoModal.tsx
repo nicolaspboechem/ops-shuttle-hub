@@ -52,6 +52,7 @@ export function MissaoModal({
   const [pontoDesembarque, setPontoDesembarque] = useState('');
   const [horarioPrevisto, setHorarioPrevisto] = useState('');
   const [prioridade, setPrioridade] = useState<MissaoPrioridade>('normal');
+  const [qtdPax, setQtdPax] = useState<number>(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export function MissaoModal({
         setPontoDesembarque(missao.ponto_desembarque || '');
         setHorarioPrevisto(missao.horario_previsto?.slice(0, 5) || '');
         setPrioridade(missao.prioridade);
+        setQtdPax(missao.qtd_pax || 0);
       } else {
         setMotoristaId('');
         setTitulo('');
@@ -72,6 +74,7 @@ export function MissaoModal({
         setPontoDesembarque('');
         setHorarioPrevisto('');
         setPrioridade('normal');
+        setQtdPax(0);
       }
     }
   }, [open, missao]);
@@ -98,6 +101,7 @@ export function MissaoModal({
       ponto_desembarque_id: pontoDesembarqueData?.id || null,
       horario_previsto: horarioPrevisto ? `${horarioPrevisto}:00` : null,
       prioridade,
+      qtd_pax: qtdPax,
     });
     setSaving(false);
     onOpenChange(false);
@@ -192,8 +196,8 @@ export function MissaoModal({
             </div>
           </div>
 
-          {/* Horário e Prioridade */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Horário, PAX e Prioridade */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label htmlFor="horario">Horário Previsto</Label>
               <Input
@@ -201,6 +205,19 @@ export function MissaoModal({
                 type="time"
                 value={horarioPrevisto}
                 onChange={(e) => setHorarioPrevisto(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="qtd_pax">Qtd PAX</Label>
+              <Input
+                id="qtd_pax"
+                type="number"
+                min={0}
+                max={99}
+                value={qtdPax}
+                onChange={(e) => setQtdPax(parseInt(e.target.value) || 0)}
+                placeholder="0"
               />
             </div>
 

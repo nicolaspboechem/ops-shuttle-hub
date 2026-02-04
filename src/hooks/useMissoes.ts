@@ -31,6 +31,7 @@ export interface Missao {
   horario_previsto: string | null;
   status: MissaoStatus;
   prioridade: MissaoPrioridade;
+  qtd_pax: number;
   criado_por: string | null;
   atualizado_por: string | null;
   created_at: string;
@@ -49,6 +50,7 @@ export interface MissaoInput {
   ponto_desembarque_id?: string | null;
   horario_previsto?: string | null;
   prioridade?: MissaoPrioridade;
+  qtd_pax?: number;
 }
 
 export function useMissoes(eventoId: string | undefined) {
@@ -88,6 +90,7 @@ export function useMissoes(eventoId: string | undefined) {
           motorista_nome: m.motorista?.nome,
           status: m.status as MissaoStatus,
           prioridade: (m.prioridade || 'normal') as MissaoPrioridade,
+          qtd_pax: (m as any).qtd_pax || 0,
           data_atualizacao: m.data_atualizacao || m.created_at || new Date().toISOString(),
         }));
         setMissoes(missoesFormatadas as Missao[]);
@@ -147,6 +150,7 @@ export function useMissoes(eventoId: string | undefined) {
           ponto_desembarque_id: input.ponto_desembarque_id || null,
           horario_previsto: input.horario_previsto || null,
           prioridade: input.prioridade || 'normal',
+          qtd_pax: input.qtd_pax || 0,
           status: 'pendente',
           criado_por: user?.id,
           atualizado_por: user?.id,
@@ -298,6 +302,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
           ...m,
           status: m.status as MissaoStatus,
           prioridade: (m.prioridade || 'normal') as MissaoPrioridade,
+          qtd_pax: (m as any).qtd_pax || 0,
           data_atualizacao: m.data_atualizacao || m.created_at || new Date().toISOString(),
         }));
         setMissoes(missoesFormatadas as Missao[]);
