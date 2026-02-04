@@ -74,23 +74,35 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
     return Car;
   };
 
-  // Parse avarias from inspecao_dados
+  // Interface para tipagem correta
+  interface AreaInspecaoData {
+    id: string;
+    nome: string;
+    possuiAvaria: boolean;
+    descricao: string;
+    fotos?: string[];
+  }
+
+  interface InspecaoDados {
+    areas?: AreaInspecaoData[];
+    fotosGerais?: string[];
+    observacoes?: string;
+  }
+
+  // Parse avarias from inspecao_dados - estrutura correta: { areas: [...] }
   const getAvarias = (): { area: string; descricao: string }[] => {
     if (!veiculo?.inspecao_dados) return [];
-    const dados = veiculo.inspecao_dados as Record<string, unknown>;
-    const avarias: { area: string; descricao: string }[] = [];
     
-    const areas = ['frente', 'traseira', 'lateral_esquerda', 'lateral_direita', 'interior', 'teto'];
-    for (const area of areas) {
-      const areaData = dados[area] as Record<string, unknown> | undefined;
-      if (areaData?.temAvaria && areaData?.descricao) {
-        avarias.push({
-          area: area.replace('_', ' '),
-          descricao: areaData.descricao as string
-        });
-      }
-    }
-    return avarias;
+    const dados = veiculo.inspecao_dados as InspecaoDados;
+    
+    if (!dados.areas || !Array.isArray(dados.areas)) return [];
+    
+    return dados.areas
+      .filter(a => a.possuiAvaria)
+      .map(a => ({
+        area: a.nome,
+        descricao: a.descricao
+      }));
   };
 
   const avarias = getAvarias();
@@ -247,6 +259,12 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
               </Badge>
             )}
           </div>
+          {/* Mostrar data da última vistoria */}
+          {veiculo.inspecao_data && veiculo.possui_avarias && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Registrado em {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {avarias.length > 0 ? (
