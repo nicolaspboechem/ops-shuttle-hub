@@ -36,6 +36,13 @@ interface AreaInspecao {
   nome: string;
   possuiAvaria: boolean;
   descricao: string;
+  fotos?: string[];
+}
+
+interface InspecaoDados {
+  areas?: AreaInspecao[];
+  fotosGerais?: string[];
+  observacoes?: string;
 }
 
 interface VistoriaConfirmModalProps {
@@ -91,14 +98,14 @@ export function VistoriaConfirmModal({
     }
   };
 
-  // Parse inspection data from JSON
+  // Parse inspection data from JSON - estrutura correta: { areas: [...] }
   const getAvarias = (): AreaInspecao[] => {
     if (!veiculo?.inspecao_dados) return [];
     
     try {
-      const dados = veiculo.inspecao_dados as AreaInspecao[];
-      if (Array.isArray(dados)) {
-        return dados.filter(area => area.possuiAvaria);
+      const dados = veiculo.inspecao_dados as InspecaoDados;
+      if (dados.areas && Array.isArray(dados.areas)) {
+        return dados.areas.filter(area => area.possuiAvaria);
       }
     } catch {
       // Invalid JSON
