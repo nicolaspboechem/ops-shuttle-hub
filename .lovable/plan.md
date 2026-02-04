@@ -1,241 +1,201 @@
 
 
-# Plano: Sistema de Versionamento do App - V1.0.0
+# Plano: Interface Azul - Header e Navegação Inferior
 
 ## Objetivo
 
-Criar um sistema centralizado de versionamento que exiba a versão atual (V1.0.0) em todas as interfaces do app (desktop e mobile), facilitando o controle e acompanhamento de atualizações.
+Aplicar fundo azul (`bg-primary`) tanto na **barra de navegação inferior** quanto no **header superior** de todos os apps mobile, garantindo consistência visual em qualquer dispositivo, independente do tema (claro/escuro).
 
 ---
 
-## Estratégia de Versionamento
+## Componentes Afetados
 
-### Padrão Semântico (SemVer)
-Seguir o padrão **MAJOR.MINOR.PATCH**:
+### Navegação Inferior (Bottom Nav)
+| Arquivo | App |
+|---------|-----|
+| `src/components/app/MotoristaBottomNav.tsx` | Motorista |
+| `src/components/app/OperadorBottomNav.tsx` | Operador |
+| `src/components/app/SupervisorBottomNav.tsx` | Supervisor |
+| `src/components/app/ClienteBottomNav.tsx` | Cliente |
 
-| Tipo | Quando incrementar | Exemplo |
-|------|-------------------|---------|
-| **MAJOR** | Mudanças que quebram compatibilidade ou redesigns completos | 1.0.0 → 2.0.0 |
-| **MINOR** | Novas funcionalidades sem quebrar compatibilidade | 1.0.0 → 1.1.0 |
-| **PATCH** | Correções de bugs e pequenas melhorias | 1.0.0 → 1.0.1 |
-
-### Como Atualizar
-Para atualizar a versão, basta editar **um único arquivo** (`src/lib/version.ts`) e a mudança reflete automaticamente em todas as interfaces.
-
----
-
-## Onde a Versão Será Exibida
-
-| Interface | Localização | Formato |
-|-----------|-------------|---------|
-| **Sidebar Desktop** | Rodapé, abaixo do botão Sair | `V1.0.0` discreto |
-| **Configurações** | Card informativo no topo | Badge com versão |
-| **App Motorista** | Aba "Mais" | Texto discreto no rodapé |
-| **App Operador** | Aba "Mais" | Texto discreto no rodapé |
-| **App Supervisor** | Aba "Mais" | Texto discreto no rodapé |
+### Header Superior
+| Arquivo | App |
+|---------|-----|
+| `src/pages/app/AppMotorista.tsx` | Motorista |
+| `src/pages/app/AppOperador.tsx` | Operador |
+| `src/pages/app/AppSupervisor.tsx` | Supervisor |
+| `src/pages/app/AppHome.tsx` | Seleção de Evento |
+| `src/components/app/ClienteHeaderNav.tsx` | Cliente (desktop) |
 
 ---
 
-## Arquivos a Criar/Modificar
+## Mudanças Visuais
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/lib/version.ts` | **CRIAR** | Arquivo central com constante de versão |
-| `src/components/layout/AppSidebar.tsx` | Modificar | Exibir versão no rodapé |
-| `src/pages/Configuracoes.tsx` | Modificar | Adicionar card de versão |
-| `src/components/app/SupervisorMaisTab.tsx` | Modificar | Exibir versão no rodapé |
-| `src/components/app/OperadorMaisTab.tsx` | Modificar | Exibir versão no rodapé |
-| `package.json` | Modificar | Sincronizar versão para 1.0.0 |
-
----
-
-## Seção Técnica
-
-### 1. Arquivo Central de Versão
-
-Criar `src/lib/version.ts`:
-
-```typescript
-/**
- * Versão do aplicativo CCO AS Brasil
- * 
- * Seguir padrão SemVer (MAJOR.MINOR.PATCH):
- * - MAJOR: Mudanças que quebram compatibilidade ou redesigns
- * - MINOR: Novas funcionalidades sem quebrar compatibilidade  
- * - PATCH: Correções de bugs e pequenas melhorias
- * 
- * Atualizar este arquivo a cada nova versão!
- */
-export const APP_VERSION = '1.0.0';
-
-// Informações adicionais opcionais
-export const APP_BUILD_DATE = '2026-02-04';
-export const APP_NAME = 'CCO AS Brasil';
-```
-
-### 2. Componente de Exibição da Versão
-
-Criar componente reutilizável para consistência visual:
-
-```typescript
-// src/components/ui/version-badge.tsx
-import { APP_VERSION } from '@/lib/version';
-
-interface VersionBadgeProps {
-  className?: string;
-  variant?: 'default' | 'subtle';
-}
-
-export function VersionBadge({ className, variant = 'default' }: VersionBadgeProps) {
-  if (variant === 'subtle') {
-    return (
-      <span className={cn("text-[10px] text-muted-foreground/50", className)}>
-        V{APP_VERSION}
-      </span>
-    );
-  }
-  
-  return (
-    <span className={cn("text-xs text-muted-foreground", className)}>
-      V{APP_VERSION}
-    </span>
-  );
-}
-```
-
-### 3. Sidebar Desktop - Rodapé
-
-Adicionar no `AppSidebar.tsx`, após o botão de logout:
-
-```tsx
-import { APP_VERSION } from '@/lib/version';
-
-// No rodapé da sidebar, após o botão Sair
-<div className="py-2 text-center">
-  <span className="text-[10px] text-sidebar-foreground/40">
-    V{APP_VERSION}
-  </span>
-</div>
-```
-
-### 4. Página de Configurações - Card de Versão
-
-Adicionar card no final da página:
-
-```tsx
-import { APP_VERSION, APP_BUILD_DATE } from '@/lib/version';
-import { Info } from 'lucide-react';
-
-// Após os outros cards
-<Card>
-  <CardHeader>
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Info className="w-5 h-5 text-primary" />
-        <div>
-          <CardTitle className="text-base">Sobre o Sistema</CardTitle>
-          <CardDescription>Informações da versão atual</CardDescription>
-        </div>
-      </div>
-      <Badge variant="secondary" className="font-mono">
-        V{APP_VERSION}
-      </Badge>
-    </div>
-  </CardHeader>
-  <CardContent>
-    <p className="text-sm text-muted-foreground">
-      CCO AS Brasil - Centro de Controle Operacional
-    </p>
-    <p className="text-xs text-muted-foreground mt-1">
-      Atualizado em {format(parseISO(APP_BUILD_DATE), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-    </p>
-  </CardContent>
-</Card>
-```
-
-### 5. Tabs "Mais" dos Apps Mobile
-
-Adicionar no rodapé de cada aba:
-
-```tsx
-import { APP_VERSION } from '@/lib/version';
-
-// No final do componente, antes do fechamento
-<div className="text-center py-4">
-  <span className="text-[10px] text-muted-foreground/50">
-    CCO AS Brasil · V{APP_VERSION}
-  </span>
-</div>
-```
-
-### 6. Sincronizar package.json
-
-Atualizar a versão no package.json para consistência:
-
-```json
-{
-  "name": "vite_react_shadcn_ts",
-  "private": true,
-  "version": "1.0.0",
-  ...
-}
-```
-
----
-
-## Interface Visual
-
-### Sidebar Desktop (Colapsada e Expandida)
-```
-┌─────────────────────────────┐    ┌────────┐
-│ AS BRASIL                   │    │ [logo] │
-│ CCO                         │    ├────────┤
-├─────────────────────────────┤    │  ...   │
-│ ...navegação...             │    ├────────┤
-├─────────────────────────────┤    │ [⚙️]   │
-│ ⚙️ Configurações            │    │ [🚪]   │
-│ 🚪 Sair                     │    ├────────┤
-├─────────────────────────────┤    │ V1.0.0 │
-│         V1.0.0              │    └────────┘
-└─────────────────────────────┘
-```
-
-### Aba "Mais" Mobile
-```
+```text
 ┌─────────────────────────────────────┐
-│ 🛡️ Perfil Supervisor               │
-│ Usuário: João                       │
-│ Evento: Operação XYZ                │
+│ ████████████ AZUL ████████████████  │ ← Header azul
+│ [Logo]  Evento XYZ        [Menu] ⋯  │
 ├─────────────────────────────────────┤
-│ ...outras opções...                 │
+│                                     │
+│         Conteúdo do App             │
+│         (área branca/escura)        │
+│                                     │
 ├─────────────────────────────────────┤
-│ [🚪 Sair do Sistema]                │
-├─────────────────────────────────────┤
-│      CCO AS Brasil · V1.0.0         │
+│ ████████████ AZUL ████████████████  │ ← Bottom nav azul
+│ 🏠      🚗      ⚪      📋      ⋯   │
+│ Início  Veículo [+]  Histórico Mais │
 └─────────────────────────────────────┘
 ```
 
 ---
 
-## Resultado Esperado
+## Seção Técnica
 
-1. **Versão centralizada** - Um único arquivo para atualizar
-2. **Visível em todas as interfaces** - Desktop e mobile
-3. **Formato consistente** - Mesmo padrão visual em todos os lugares
-4. **Fácil de atualizar** - Apenas editar `src/lib/version.ts`
-5. **Rastreabilidade** - Usuários e equipe sabem qual versão estão usando
+### 1. Bottom Navigation - Mudanças
+
+**Container `<nav>`:**
+```tsx
+// Antes
+<nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-bottom">
+
+// Depois
+<nav className="fixed bottom-0 left-0 right-0 z-50 bg-primary safe-area-bottom">
+```
+
+**Botões normais:**
+```tsx
+// Antes
+className={cn(
+  "flex flex-col items-center justify-center gap-0.5 flex-1 h-full nav-item-interactive rounded-lg",
+  isActive ? "text-primary" : "text-muted-foreground"
+)}
+
+// Depois
+className={cn(
+  "flex flex-col items-center justify-center gap-0.5 flex-1 h-full rounded-lg transition-colors",
+  isActive 
+    ? "text-primary-foreground" 
+    : "text-primary-foreground/70 hover:text-primary-foreground/90"
+)}
+```
+
+**Ícones (simplificar):**
+```tsx
+// Antes
+<Icon className={cn("w-5 h-5", isActive && "text-primary")} />
+
+// Depois
+<Icon className="w-5 h-5" />
+```
+
+**Labels:**
+```tsx
+// Antes
+<span className="text-[10px] font-medium">{tab.label}</span>
+
+// Depois
+<span className={cn("text-[10px]", isActive ? "font-semibold" : "font-medium")}>
+  {tab.label}
+</span>
+```
+
+**Botão central (Nova/Corrida) - Inverter cores:**
+```tsx
+// Antes
+<div className={cn(
+  "w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg",
+  "bg-primary text-primary-foreground"
+)}>
+
+// Depois - Círculo branco com ícone azul
+<div className="w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg bg-white text-primary">
+```
+
+### 2. Header Superior - Mudanças
+
+**Container `<header>`:**
+```tsx
+// Antes
+<header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+
+// Depois
+<header className="sticky top-0 z-50 bg-primary safe-area-top">
+```
+
+**Logo (usar versão branca):**
+```tsx
+// Antes
+import logoAS from '@/assets/as_logo_reduzida_preta.png';
+
+// Depois
+import logoAS from '@/assets/as_logo_reduzida_branca.png';
+```
+
+**Textos do header:**
+```tsx
+// Antes
+<h1 className="text-base font-semibold">{eventoNome}</h1>
+<span className="text-xs text-muted-foreground">{role}</span>
+
+// Depois
+<h1 className="text-base font-semibold text-primary-foreground">{eventoNome}</h1>
+<span className="text-xs text-primary-foreground/70">{role}</span>
+```
+
+**Botões/ícones do header:**
+```tsx
+// Antes
+<Button variant="ghost" size="icon">
+  <MoreVertical className="w-5 h-5" />
+</Button>
+
+// Depois
+<Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
+  <MoreVertical className="w-5 h-5" />
+</Button>
+```
+
+### 3. ClienteHeaderNav (Desktop)
+
+Similar ao header mobile, mas mantendo os botões de tab:
+```tsx
+// Header
+<header className="sticky top-0 z-50 bg-primary">
+
+// Botões de tab
+<Button
+  variant={isActive ? "secondary" : "ghost"}
+  className={cn(
+    isActive 
+      ? "bg-white text-primary" 
+      : "text-primary-foreground hover:bg-white/10"
+  )}
+>
+```
 
 ---
 
-## Processo de Atualização Futuro
+## Arquivos a Modificar
 
-Sempre que fizer uma nova versão:
+| Arquivo | Mudança |
+|---------|---------|
+| `MotoristaBottomNav.tsx` | Nav azul + textos brancos |
+| `OperadorBottomNav.tsx` | Nav azul + textos brancos |
+| `SupervisorBottomNav.tsx` | Nav azul + textos brancos |
+| `ClienteBottomNav.tsx` | Nav azul + textos brancos |
+| `AppMotorista.tsx` | Header azul + logo branca |
+| `AppOperador.tsx` | Header azul + logo branca |
+| `AppSupervisor.tsx` | Header azul + logo branca |
+| `AppHome.tsx` | Header azul + logo branca |
+| `ClienteHeaderNav.tsx` | Header azul + logo branca |
 
-1. Editar `src/lib/version.ts`:
-   - Incrementar `APP_VERSION` seguindo SemVer
-   - Atualizar `APP_BUILD_DATE`
-   
-2. Opcional: Atualizar `package.json` para manter sincronizado
+---
 
-3. A versão será atualizada automaticamente em todas as interfaces
+## Resultado Esperado
+
+1. **Identidade visual forte** - Azul primário presente em header e navegação
+2. **Consistência entre temas** - Mesmo visual em modo claro e escuro
+3. **Delimitação clara** - Header e nav bem definidos em qualquer dispositivo
+4. **Contraste adequado** - Texto branco sobre azul garante legibilidade
+5. **Botão central destacado** - Inversão de cores (branco/azul) para ação principal
 
