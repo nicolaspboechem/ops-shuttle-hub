@@ -1,136 +1,194 @@
 
-# Plano: Corrigir Criação de Login no Wizard de Motorista
+# Plano: Corrigir Erro 409 e Garantir Criação de Login no Wizard e Card
 
 ## Problema Identificado
 
-O `CreateMotoristaWizard` está chamando a Edge Function **errada**:
-
-| Situação Atual | Situação Correta |
-|----------------|------------------|
-| Chama `create-user` (Supabase Auth) | Deve chamar `driver-register` (sistema customizado) |
-| Cria usuário em `auth.users` | Deve criar em `motorista_credenciais` |
-| Motorista não consegue logar em `/login/motorista` | Login funciona corretamente |
-
-### Código Problemático (linhas 84-103)
+O erro **409 (Conflict)** ocorre quando o telefone informado **já está em uso por outro motorista** no sistema. A Edge Function `driver-register` retorna esse código na linha 117-122:
 
 ```typescript
-// ERRADO: usa create-user (Supabase Auth)
-const response = await supabase.functions.invoke('create-user', {
-  body: {
-    telefone: telefoneDigits,
-    login_type: 'phone',
-    password: senha.trim(),
-    full_name: nome.trim(),
-    user_type: 'motorista',
-    evento_id: eventoId,
-    motorista_id: motoristaId,
-  },
-  headers: {
-    Authorization: `Bearer ${sessionData.session?.access_token}`,
-  },
-});
+if (phoneExists) {
+  return new Response(
+    JSON.stringify({ error: 'Este telefone já está em uso por outro motorista' }),
+    { status: 409, ... }
+  );
+}
 ```
 
-### Código do `EditMotoristaLoginModal` (funciona corretamente)
+### Comportamento Atual (Problemático)
 
-```typescript
-// CORRETO: usa driver-register (tabela motorista_credenciais)
-const response = await supabase.functions.invoke('driver-register', {
-  body: {
-    motorista_id: motorista.id,
-    telefone: telefoneDigits,
-    senha: senha.trim(),
-  },
-});
-```
+1. Quando há erro 409, o wizard mostra toast genérico e **fecha imediatamente**
+2. O usuário perde o contexto e precisa recomeçar do zero
+3. Não há feedback claro sobre qual telefone está duplicado
 
 ---
 
 ## Solução
 
-Substituir a chamada de `create-user` por `driver-register` no `CreateMotoristaWizard`, igual ao `EditMotoristaLoginModal`.
+### 1. Tratar Erro 409 de Forma Amigável
+
+Quando o `driver-register` retornar status 409:
+- Mostrar mensagem clara: "Este telefone já está cadastrado para outro motorista"
+- **NÃO fechar o wizard** - manter aberto no Step 3 para o usuário corrigir o telefone
+- Destacar visualmente o campo de telefone com erro
+
+### 2. Melhorar Tratamento de Erros no Wizard
+
+| Situação | Comportamento Atual | Comportamento Novo |
+|----------|--------------------|--------------------|
+| Erro 409 (telefone duplicado) | Fecha wizard | Mantém aberto, destaca erro |
+| Erro genérico | Fecha wizard | Mantém aberto, permite retry |
+| Sucesso | Mostra credenciais | Mantém igual |
+
+### 3. Manter Login Funcionando em Ambos os Lugares
+
+- **Wizard (preferência)**: Criar login durante cadastro do motorista
+- **Card/Modal (fallback)**: Se não criou pelo wizard, criar depois via `EditMotoristaLoginModal`
 
 ---
 
-## Arquivo a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/motoristas/CreateMotoristaWizard.tsx` | Trocar `create-user` por `driver-register` |
+| `src/components/motoristas/CreateMotoristaWizard.tsx` | Tratar erro 409, não fechar em erro, ativar login por padrão |
 
 ---
 
 ## Seção Técnica
 
-### Código Corrigido
+### Mudanças no CreateMotoristaWizard.tsx
+
+#### 1. Estado para controle de erro
 
 ```typescript
-// Se criarLogin está ativo e temos o motoristaId, criar credenciais
-if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
-  const telefoneDigits = telefone.replace(/\D/g, '');
-  
-  // CORRETO: usar driver-register (sistema customizado de motoristas)
-  const response = await supabase.functions.invoke('driver-register', {
-    body: {
-      motorista_id: motoristaId,
-      telefone: telefoneDigits,
-      senha: senha.trim(),
-    },
-  });
-
-  if (response.error) {
-    toast.error(`Motorista criado, mas erro ao criar login: ${response.error.message}`);
-    handleClose();
-    return;
-  }
-
-  if (response.data?.error) {
-    toast.error(`Motorista criado, mas erro ao criar login: ${response.data.error}`);
-    handleClose();
-    return;
-  }
-  
-  // Guardar credenciais para mostrar
-  setCreatedCredentials({
-    login: telefoneDigits,
-    password: senha.trim(),
-  });
-  setShowCredentialsModal(true);
-} else {
-  handleClose();
-}
+const [loginError, setLoginError] = useState<string | null>(null);
 ```
 
-### Mudanças Adicionais
+#### 2. handleSubmit com tratamento de 409
 
-1. **Validação de senha**: Alterar de 6 para 4 caracteres (igual ao `EditMotoristaLoginModal`)
-   - Linha 153: `senha.trim().length >= 4` (era 6)
-   - Linha 450: Placeholder "Mínimo 4 caracteres" (era 6)
-   - Linha 463-464: Mensagem de erro para 4 caracteres (era 6)
+```typescript
+const handleSubmit = async () => {
+  if (!nome.trim()) return;
+  setIsSubmitting(true);
+  setLoginError(null); // Limpar erro anterior
+  
+  try {
+    const motoristaId = await onSubmit({
+      nome: nome.trim(),
+      telefone: telefone.trim(),
+      veiculo_id: selectedVeiculoId || undefined,
+    });
+    
+    if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
+      const telefoneDigits = telefone.replace(/\D/g, '');
+      
+      const response = await supabase.functions.invoke('driver-register', {
+        body: {
+          motorista_id: motoristaId,
+          telefone: telefoneDigits,
+          senha: senha.trim(),
+        },
+      });
 
-2. **Formato do login exibido**: Mostrar apenas os dígitos (sem +55)
-   - O sistema customizado usa apenas dígitos, não o formato internacional
+      // Verificar se é erro HTTP (como 409)
+      if (response.error) {
+        // Erro de rede ou função
+        const errorMsg = response.error.message || 'Erro ao criar login';
+        setLoginError(errorMsg);
+        toast.error(`Motorista criado! Mas erro no login: ${errorMsg}`);
+        // NÃO fecha - usuário pode corrigir e tentar novamente
+        return;
+      }
+
+      // Verificar erro no corpo da resposta (409 retorna { error: "..." })
+      if (response.data?.error) {
+        setLoginError(response.data.error);
+        toast.error(`Motorista criado! ${response.data.error}`);
+        // NÃO fecha - volta para step 3 para correção
+        setStep(3);
+        return;
+      }
+      
+      // Sucesso - mostrar credenciais
+      setCreatedCredentials({
+        login: telefoneDigits,
+        password: senha.trim(),
+      });
+      setShowCredentialsModal(true);
+    } else {
+      // Sem login - fechar normalmente
+      toast.success("Motorista criado com sucesso!");
+      handleClose();
+    }
+  } catch (err: any) {
+    console.error("Erro ao criar motorista:", err);
+    toast.error("Erro ao criar motorista");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+```
+
+#### 3. Iniciar com "Criar login" ativado por padrão
+
+```typescript
+const [criarLogin, setCriarLogin] = useState(true); // Era false
+```
+
+#### 4. Exibir erro no Step 3
+
+No Step 3, adicionar feedback visual quando há erro:
+
+```typescript
+{loginError && (
+  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+    <p className="text-sm text-destructive flex items-center gap-2">
+      <AlertTriangle className="h-4 w-4" />
+      {loginError}
+    </p>
+    <p className="text-xs text-muted-foreground mt-1">
+      Corrija o telefone e tente novamente
+    </p>
+  </div>
+)}
+```
+
+#### 5. Validação de telefone mais rigorosa
+
+```typescript
+const telefoneDigits = telefone.replace(/\D/g, '');
+const canProceedStep3 = !criarLogin || (
+  telefoneDigits.length >= 10 && 
+  telefoneDigits.length <= 11 && 
+  senha.trim().length >= 4
+);
+```
 
 ---
 
 ## Fluxo Corrigido
 
 ```text
-1. Usuário preenche dados do motorista
-2. Usuário ativa "Criar login" e define telefone + senha
-3. handleSubmit() é chamado:
-   a) Cria motorista na tabela `motoristas` → retorna motoristaId
-   b) Chama `driver-register` com motorista_id, telefone, senha
-   c) Edge Function cria registro em `motorista_credenciais` com hash SHA-256
-4. Modal de credenciais é exibido
-5. Motorista pode logar via `/login/motorista`
+1. Usuário abre wizard - "Criar login" já vem ativado por padrão
+2. Preenche dados e avança
+3. No Step 4, clica "Criar Motorista"
+4. Sistema cria motorista na tabela
+5. Sistema chama driver-register:
+   
+   SE sucesso (201) → Mostra modal de credenciais → Fecha
+   
+   SE erro 409 → Mostra toast + mantém wizard aberto no Step 3
+                  → Usuário corrige telefone e clica novamente
+   
+   SE outro erro → Mostra toast + mantém aberto para retry
 ```
 
 ---
 
 ## Resultado Esperado
 
-1. Login é criado corretamente na tabela `motorista_credenciais`
-2. Modal fecha após criação bem-sucedida
-3. Credenciais são exibidas para o admin copiar
-4. Motorista consegue fazer login em `/login/motorista`
+1. Erro 409 mostra mensagem clara: "Este telefone já está em uso por outro motorista"
+2. Wizard **não fecha** em caso de erro - usuário pode corrigir
+3. "Criar login" vem **ativado por padrão**
+4. Validação de telefone exige 10-11 dígitos
+5. Login continua funcionando pelo card/modal como fallback
