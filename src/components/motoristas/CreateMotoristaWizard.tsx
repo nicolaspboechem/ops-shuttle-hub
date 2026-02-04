@@ -80,25 +80,17 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
         veiculo_id: selectedVeiculoId || undefined,
       });
       
-      // Se criarLogin está ativo e temos o motoristaId, criar usuário vinculado
+      // Se criarLogin está ativo e temos o motoristaId, criar credenciais via driver-register
       if (criarLogin && telefone.trim() && senha.trim() && motoristaId) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        
-        // Limpar telefone - apenas dígitos (10-11 dígitos, sem código de país)
+        // Limpar telefone - apenas dígitos
         const telefoneDigits = telefone.replace(/\D/g, '');
         
-        const response = await supabase.functions.invoke('create-user', {
+        // CORRETO: usar driver-register (sistema customizado de motoristas)
+        const response = await supabase.functions.invoke('driver-register', {
           body: {
-            telefone: telefoneDigits,
-            login_type: 'phone',
-            password: senha.trim(),
-            full_name: nome.trim(),
-            user_type: 'motorista',
-            evento_id: eventoId,
             motorista_id: motoristaId,
-          },
-          headers: {
-            Authorization: `Bearer ${sessionData.session?.access_token}`,
+            telefone: telefoneDigits,
+            senha: senha.trim(),
           },
         });
 
@@ -107,12 +99,16 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
           handleClose();
           return;
         }
+
+        if (response.data?.error) {
+          toast.error(`Motorista criado, mas erro ao criar login: ${response.data.error}`);
+          handleClose();
+          return;
+        }
         
-        const phoneFormatted = response.data?.phone || `+55${telefone.replace(/\D/g, '')}`;
-        
-        // Guardar credenciais para mostrar
+        // Guardar credenciais para mostrar (apenas dígitos, sem +55)
         setCreatedCredentials({
-          login: phoneFormatted,
+          login: telefoneDigits,
           password: senha.trim(),
         });
         setShowCredentialsModal(true);
@@ -150,7 +146,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
   };
 
   const canProceedStep1 = nome.trim().length > 0;
-  const canProceedStep3 = !criarLogin || (telefone.trim().length >= 10 && senha.trim().length >= 6);
+  const canProceedStep3 = !criarLogin || (telefone.trim().length >= 4 && senha.trim().length >= 4);
   
   const totalSteps = 4;
 
@@ -435,7 +431,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        O motorista usará o telefone +55{telefone.replace(/\D/g, '')} para fazer login
+                        O motorista usará o telefone {telefone.replace(/\D/g, '')} para fazer login
                       </p>
                     </div>
 
@@ -447,7 +443,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                           type={showPassword ? "text" : "password"}
                           value={senha}
                           onChange={(e) => setSenha(e.target.value)}
-                          placeholder="Mínimo 6 caracteres"
+                          placeholder="Mínimo 4 caracteres"
                           className="pl-10 pr-10"
                         />
                         <Button
@@ -460,8 +456,8 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
-                      {senha.length > 0 && senha.length < 6 && (
-                        <p className="text-xs text-destructive">Senha deve ter pelo menos 6 caracteres</p>
+                      {senha.length > 0 && senha.length < 4 && (
+                        <p className="text-xs text-destructive">Senha deve ter pelo menos 4 caracteres</p>
                       )}
                     </div>
                   </motion.div>
@@ -535,7 +531,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                       <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
                         <KeyRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                         <div>
-                          <p className="text-sm">Login: <span className="font-mono">+55{telefone.replace(/\D/g, '')}</span></p>
+                          <p className="text-sm">Login: <span className="font-mono">{telefone.replace(/\D/g, '')}</span></p>
                           <p className="text-xs text-muted-foreground">Senha definida pelo admin</p>
                         </div>
                       </div>
