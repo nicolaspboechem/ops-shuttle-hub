@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,6 +31,12 @@ import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
+
+// Memoized tab components
+const MemoizedFrotaTab = memo(SupervisorFrotaTab);
+const MemoizedViagensTab = memo(SupervisorViagensTab);
+const MemoizedLocalizadorTab = memo(SupervisorLocalizadorTab);
+const MemoizedMaisTab = memo(SupervisorMaisTab);
 
 interface Evento {
   nome_planilha: string;
@@ -111,45 +117,51 @@ export default function AppSupervisor() {
     ]);
   }, [refetchViagens, refetchMotoristas]);
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'frota':
-        return <SupervisorFrotaTab eventoId={eventoId!} />;
-      case 'viagens':
-        return (
-          <div className="space-y-4">
-            <DiaSeletor
-              dataOperacional={dataOperacional}
-              onChange={setDataOperacional}
-              dataInicio={evento?.data_inicio}
-              dataFim={evento?.data_fim}
-              showToggleAll={true}
-              verTodosDias={verTodosDias}
-              onToggleTodosDias={setVerTodosDias}
-            />
-            <SupervisorViagensTab 
-              eventoId={eventoId!} 
-              onRefresh={refetchViagens}
-              dataOperacional={verTodosDias ? undefined : dataOperacional}
-              horarioVirada={evento?.horario_virada_dia || undefined}
-            />
-          </div>
-        );
-      case 'localizador':
-        return <SupervisorLocalizadorTab eventoId={eventoId!} />;
-      case 'mais':
-        return (
-          <SupervisorMaisTab 
-            eventoId={eventoId!} 
-            eventoNome={evento?.nome_planilha}
-            userName={profile?.full_name || user?.email}
-            onLogout={signOut}
+  // Keep all tabs mounted but hidden for instant switching
+  const renderAllTabs = () => (
+    <>
+      {/* Tab: Frota */}
+      <div className={activeTab === 'frota' ? 'block' : 'hidden'}>
+        <MemoizedFrotaTab eventoId={eventoId!} />
+      </div>
+
+      {/* Tab: Viagens */}
+      <div className={activeTab === 'viagens' ? 'block' : 'hidden'}>
+        <div className="space-y-4">
+          <DiaSeletor
+            dataOperacional={dataOperacional}
+            onChange={setDataOperacional}
+            dataInicio={evento?.data_inicio}
+            dataFim={evento?.data_fim}
+            showToggleAll={true}
+            verTodosDias={verTodosDias}
+            onToggleTodosDias={setVerTodosDias}
           />
-        );
-      default:
-        return <SupervisorFrotaTab eventoId={eventoId!} />;
-    }
-  };
+          <MemoizedViagensTab 
+            eventoId={eventoId!} 
+            onRefresh={refetchViagens}
+            dataOperacional={verTodosDias ? undefined : dataOperacional}
+            horarioVirada={evento?.horario_virada_dia || undefined}
+          />
+        </div>
+      </div>
+
+      {/* Tab: Localizador */}
+      <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
+        <MemoizedLocalizadorTab eventoId={eventoId!} />
+      </div>
+
+      {/* Tab: Mais */}
+      <div className={activeTab === 'mais' ? 'block' : 'hidden'}>
+        <MemoizedMaisTab 
+          eventoId={eventoId!} 
+          eventoNome={evento?.nome_planilha}
+          userName={profile?.full_name || user?.email}
+          onLogout={signOut}
+        />
+      </div>
+    </>
+  );
 
   if (loading) {
     return (
@@ -228,7 +240,7 @@ export default function AppSupervisor() {
       {/* Main Content with Pull to Refresh */}
       <PullToRefresh onRefresh={handleRefresh}>
         <main className="flex-1 container mx-auto px-4 py-4">
-          {renderTabContent()}
+          {renderAllTabs()}
         </main>
       </PullToRefresh>
 
