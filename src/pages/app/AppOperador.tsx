@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
@@ -33,6 +33,11 @@ import logoAS from '@/assets/as_logo_reduzida_preta.png';
 import { NavigationModal } from '@/components/app/NavigationModal';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
+
+// Memoized tab components to prevent unnecessary re-renders
+const MemoizedMotoristasTab = memo(OperadorMotoristasTab);
+const MemoizedHistoricoTab = memo(OperadorHistoricoTab);
+const MemoizedMaisTab = memo(OperadorMaisTab);
 
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -123,10 +128,10 @@ export default function AppOperador() {
     encerrado: viagens.filter(v => v.status === 'encerrado').length,
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await signOut();
     navigate('/auth');
-  };
+  }, [signOut, navigate]);
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
@@ -136,6 +141,29 @@ export default function AppOperador() {
     }
   };
 
+  // Memoized values - must be before early returns
+  const viagemAtivaNav = useMemo(() => 
+    viagens.find(v => v.status === 'em_andamento'), 
+    [viagens]
+  );
+
+  const handleOpenNavigation = useCallback((origem?: string | null, destino?: string | null) => {
+    setNavModalData({ origem, destino });
+    setNavModalOpen(true);
+  }, []);
+
+  const maisTabProps = useMemo(() => ({
+    userName: user?.email,
+    eventoNome: evento?.nome_planilha,
+    viagemAtiva: viagemAtivaNav,
+    onCadastrarMotorista: () => setShowMotoristaForm(true),
+    onCadastrarVeiculo: () => setShowVeiculoForm(true),
+    onRegistrarKm: () => setShowKmModal(true),
+    onOpenNavigation: handleOpenNavigation,
+    onLogout: handleLogout,
+  }), [user?.email, evento?.nome_planilha, viagemAtivaNav, handleOpenNavigation, handleLogout]);
+
+  // Early returns after all hooks
   if (!user) {
     navigate('/auth');
     return null;
@@ -149,118 +177,104 @@ export default function AppOperador() {
     );
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'viagens':
-        return (
-          <div className="space-y-4">
-            {/* Seletor de Dia */}
-            <DiaSeletor
-              dataOperacional={dataOperacional}
-              onChange={setDataOperacional}
-              dataInicio={evento?.data_inicio}
-              dataFim={evento?.data_fim}
-              showToggleAll={true}
-              verTodosDias={verTodosDias}
-              onToggleTodosDias={setVerTodosDias}
-            />
+  // Keep all tabs mounted but hidden for instant switching
+  const renderAllTabs = () => (
+    <>
+      {/* Tab: Viagens */}
+      <div className={activeTab === 'viagens' ? 'block' : 'hidden'}>
+        <div className="space-y-4">
+          {/* Seletor de Dia */}
+          <DiaSeletor
+            dataOperacional={dataOperacional}
+            onChange={setDataOperacional}
+            dataInicio={evento?.data_inicio}
+            dataFim={evento?.data_fim}
+            showToggleAll={true}
+            verTodosDias={verTodosDias}
+            onToggleTodosDias={setVerTodosDias}
+          />
 
-            {/* Status Cards */}
-            <div className="grid grid-cols-4 gap-2">
-              <div 
-                className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
-                onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
-              >
-                <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-                <p className="text-xl font-bold">{counts.agendado}</p>
-                <p className="text-[10px] text-muted-foreground">Agendado</p>
-              </div>
-              <div 
-                className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
-                onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
-              >
-                <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
-                <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
-                <p className="text-[10px] text-muted-foreground">Andamento</p>
-              </div>
-              <div 
-                className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
-                onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
-              >
-                <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
-                <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
-                <p className="text-[10px] text-muted-foreground">Aguardando</p>
-              </div>
-              <div 
-                className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
-                onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
-              >
-                <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
-                <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
-                <p className="text-[10px] text-muted-foreground">Encerrado</p>
-              </div>
+          {/* Status Cards */}
+          <div className="grid grid-cols-4 gap-2">
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
+              onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
+            >
+              <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+              <p className="text-xl font-bold">{counts.agendado}</p>
+              <p className="text-[10px] text-muted-foreground">Agendado</p>
             </div>
-
-            {/* Lista de viagens */}
-            <div className="space-y-3">
-              {sortedViagens.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                  <p className="text-lg font-medium">Nenhuma viagem</p>
-                  <p className="text-sm mb-4">
-                    {statusFilter !== 'todos' 
-                      ? 'Nenhuma viagem com este status'
-                      : 'Toque em + para criar uma viagem'}
-                  </p>
-                </div>
-              ) : (
-                sortedViagens.map(viagem => (
-                  <ViagemCardOperador 
-                    key={viagem.id} 
-                    viagem={viagem} 
-                    onUpdate={refetch}
-                    onTripStarted={(origem, destino) => {
-                      setNavModalData({ origem, destino });
-                      setNavModalOpen(true);
-                    }}
-                  />
-                ))
-              )}
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
+            >
+              <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
+              <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
+              <p className="text-[10px] text-muted-foreground">Andamento</p>
+            </div>
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
+            >
+              <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+              <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
+              <p className="text-[10px] text-muted-foreground">Aguardando</p>
+            </div>
+            <div 
+              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
+              onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
+            >
+              <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
+              <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
+              <p className="text-[10px] text-muted-foreground">Encerrado</p>
             </div>
           </div>
-        );
 
-      case 'motoristas':
-        return <OperadorMotoristasTab eventoId={eventoId!} />;
+          {/* Lista de viagens */}
+          <div className="space-y-3">
+            {sortedViagens.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium">Nenhuma viagem</p>
+                <p className="text-sm mb-4">
+                  {statusFilter !== 'todos' 
+                    ? 'Nenhuma viagem com este status'
+                    : 'Toque em + para criar uma viagem'}
+                </p>
+              </div>
+            ) : (
+              sortedViagens.map(viagem => (
+                <ViagemCardOperador 
+                  key={viagem.id} 
+                  viagem={viagem} 
+                  onUpdate={refetch}
+                  onTripStarted={(origem, destino) => {
+                    setNavModalData({ origem, destino });
+                    setNavModalOpen(true);
+                  }}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </div>
 
-      case 'historico':
-        return <OperadorHistoricoTab viagens={viagens} />;
+      {/* Tab: Motoristas - stays mounted */}
+      <div className={activeTab === 'motoristas' ? 'block' : 'hidden'}>
+        <MemoizedMotoristasTab eventoId={eventoId!} />
+      </div>
 
-      case 'mais': {
-        // Encontrar viagem ativa para navegação
-        const viagemAtivaNav = viagens.find(v => v.status === 'em_andamento');
-        
-        return (
-          <OperadorMaisTab
-            userName={user?.email}
-            eventoNome={evento?.nome_planilha}
-            viagemAtiva={viagemAtivaNav}
-            onCadastrarMotorista={() => setShowMotoristaForm(true)}
-            onCadastrarVeiculo={() => setShowVeiculoForm(true)}
-            onRegistrarKm={() => setShowKmModal(true)}
-            onOpenNavigation={(origem, destino) => {
-              setNavModalData({ origem, destino });
-              setNavModalOpen(true);
-            }}
-            onLogout={handleLogout}
-          />
-        );
-      }
+      {/* Tab: Histórico - stays mounted */}
+      <div className={activeTab === 'historico' ? 'block' : 'hidden'}>
+        <MemoizedHistoricoTab viagens={viagens} />
+      </div>
 
-      default:
-        return null;
-    }
-  };
+      {/* Tab: Mais - stays mounted */}
+      <div className={activeTab === 'mais' ? 'block' : 'hidden'}>
+        <MemoizedMaisTab {...maisTabProps} />
+      </div>
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
@@ -313,7 +327,7 @@ export default function AppOperador() {
       {/* Main content com Pull-to-Refresh */}
       <PullToRefresh onRefresh={handleRefresh}>
         <main className="container mx-auto px-4 py-4 pb-24">
-          {renderTabContent()}
+          {renderAllTabs()}
         </main>
       </PullToRefresh>
 
