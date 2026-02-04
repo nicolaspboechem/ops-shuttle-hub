@@ -40,6 +40,10 @@ import { cn } from '@/lib/utils';
 import { Viagem } from '@/lib/types/viagem';
 import { Motorista } from '@/hooks/useCadastros';
 
+interface VeiculoPerfil {
+  full_name: string | null;
+}
+
 interface Veiculo {
   id: string;
   placa: string;
@@ -58,6 +62,8 @@ interface Veiculo {
   liberado_em?: string | null;
   inspecao_data?: string | null;
   inspecao_dados?: any;
+  inspecao_perfil?: VeiculoPerfil | null;
+  liberado_perfil?: VeiculoPerfil | null;
 }
 
 interface VeiculoDetalheModalProps {
@@ -306,9 +312,16 @@ export function VeiculoDetalheModal({
                         <ClipboardCheck className="h-4 w-4" />
                         Última Inspeção
                       </span>
-                      <span className="text-sm">
-                        {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm">
+                          {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        {veiculo.inspecao_perfil?.full_name && (
+                          <p className="text-xs text-muted-foreground">
+                            por <span className="font-medium">{veiculo.inspecao_perfil.full_name}</span>
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -316,9 +329,16 @@ export function VeiculoDetalheModal({
                   {veiculo.liberado_em && (
                     <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
                       <span className="text-sm text-muted-foreground">Liberado em</span>
-                      <span className="text-sm">
-                        {format(parseISO(veiculo.liberado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
+                      <div className="text-right">
+                        <span className="text-sm">
+                          {format(parseISO(veiculo.liberado_em), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                        {veiculo.liberado_perfil?.full_name && (
+                          <p className="text-xs text-muted-foreground">
+                            por <span className="font-medium">{veiculo.liberado_perfil.full_name}</span>
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -377,8 +397,12 @@ export function VeiculoDetalheModal({
                       
                       {/* Mostrar data do registro e quem registrou */}
                       {veiculo.inspecao_data && (
-                        <p className="text-xs text-muted-foreground pt-2 border-t border-destructive/20">
+                        <p className="text-xs text-muted-foreground pt-2 border-t border-destructive/20 flex items-center gap-2">
+                          <Calendar className="h-3 w-3" />
                           Registrado em {format(parseISO(veiculo.inspecao_data), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {veiculo.inspecao_perfil?.full_name && (
+                            <span> por <strong>{veiculo.inspecao_perfil.full_name}</strong></span>
+                          )}
                         </p>
                       )}
                     </div>

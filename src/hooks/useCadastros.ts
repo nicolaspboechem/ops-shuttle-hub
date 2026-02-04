@@ -5,6 +5,10 @@ import { toast } from 'sonner';
 
 // Motorista interface moved below Veiculo to avoid circular reference
 
+export interface VeiculoPerfil {
+  full_name: string | null;
+}
+
 export interface Veiculo {
   id: string;
   motorista_id: string | null;
@@ -42,6 +46,9 @@ export interface Veiculo {
   liberado_em?: string | null;
   liberado_por?: string | null;
   observacoes_gerais?: string | null;
+  // Perfis de quem fez inspeção/liberação
+  inspecao_perfil?: VeiculoPerfil | null;
+  liberado_perfil?: VeiculoPerfil | null;
 }
 
 export interface Motorista {
@@ -205,7 +212,11 @@ export function useVeiculos(eventoId?: string) {
     
     let query = supabase
       .from('veiculos')
-      .select('*')
+      .select(`
+        *,
+        inspecao_perfil:profiles!veiculos_inspecao_por_fkey(full_name),
+        liberado_perfil:profiles!veiculos_liberado_por_fkey(full_name)
+      `)
       .order('placa', { ascending: true });
 
     // Filtrar por evento se fornecido
@@ -221,7 +232,14 @@ export function useVeiculos(eventoId?: string) {
       return;
     }
 
-    setVeiculos(data || []);
+    // Normalizar os perfis (Supabase retorna arrays para relações)
+    const veiculosNormalizados = (data || []).map((v: any) => ({
+      ...v,
+      inspecao_perfil: Array.isArray(v.inspecao_perfil) ? v.inspecao_perfil[0] : v.inspecao_perfil,
+      liberado_perfil: Array.isArray(v.liberado_perfil) ? v.liberado_perfil[0] : v.liberado_perfil,
+    })) as Veiculo[];
+
+    setVeiculos(veiculosNormalizados);
     setLoading(false);
   }, [eventoId]);
 

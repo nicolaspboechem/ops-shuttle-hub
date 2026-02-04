@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bus, Car, MoreVertical, Pencil, Trash2, UserCheck, Gauge, Fuel, Eye } from 'lucide-react';
+import { Bus, Car, MoreVertical, Pencil, Trash2, UserCheck, Gauge, Fuel, Eye, ClipboardCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,6 +9,7 @@ import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from './VeiculoSta
 import { VeiculoModal } from '@/components/cadastros/CadastroModals';
 import { Veiculo, Motorista } from '@/hooks/useCadastros';
 import { cn } from '@/lib/utils';
+import { format, parseISO } from 'date-fns';
 
 interface VeiculosListViewProps {
   veiculos: Veiculo[];
@@ -48,7 +49,7 @@ export function VeiculosListView({
           <TableRow>
             <TableHead>Veículo</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Fornecedor</TableHead>
+            <TableHead>Última Inspeção</TableHead>
             <TableHead>Motorista</TableHead>
             <TableHead className="text-center">Combustível</TableHead>
             <TableHead className="text-center">KM</TableHead>
@@ -93,8 +94,28 @@ export function VeiculosListView({
                     <AvariaIndicator hasAvarias={veiculo.possui_avarias} size="sm" />
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {veiculo.fornecedor || '-'}
+                <TableCell>
+                  {veiculo.inspecao_data ? (
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <ClipboardCheck className="h-3 w-3 text-blue-500" />
+                        <span>{format(parseISO(veiculo.inspecao_data), "dd/MM HH:mm")}</span>
+                      </div>
+                      {veiculo.inspecao_perfil?.full_name && (
+                        <span className="text-xs text-muted-foreground">
+                          por {veiculo.inspecao_perfil.full_name}
+                        </span>
+                      )}
+                      {veiculo.possui_avarias && veiculo.inspecao_dados?.areas && (
+                        <div className="flex items-center gap-1 text-xs text-destructive">
+                          <AlertTriangle className="h-3 w-3" />
+                          {veiculo.inspecao_dados.areas.filter((a: any) => a.possuiAvaria).length} avaria(s)
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sem inspeção</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {motoristaVinculado ? (
