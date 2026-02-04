@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Car, Fuel, Gauge, AlertTriangle, Camera, Calendar, ExternalLink } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Car, Fuel, Gauge, AlertTriangle, Camera, Calendar, ExternalLink, ImageIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +26,7 @@ interface VeiculoFotosModalProps {
   veiculo: Veiculo | null;
   showConfirmation?: boolean;
   onConfirm?: () => void;
+  defaultTab?: 'fotos' | 'avarias';
 }
 
 export function VeiculoFotosModal({ 
@@ -32,11 +34,20 @@ export function VeiculoFotosModal({
   onOpenChange, 
   veiculo,
   showConfirmation = false,
-  onConfirm
+  onConfirm,
+  defaultTab = 'fotos'
 }: VeiculoFotosModalProps) {
   const [fotos, setFotos] = useState<VeiculoFoto[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'fotos' | 'avarias'>(defaultTab);
+
+  // Reset tab when modal opens
+  useEffect(() => {
+    if (open) {
+      setActiveTab(defaultTab);
+    }
+  }, [open, defaultTab]);
 
   // Buscar fotos quando o modal abrir
   useEffect(() => {
@@ -65,6 +76,10 @@ export function VeiculoFotosModal({
     }
   };
 
+  // Separar fotos por tipo
+  const fotosGerais = fotos.filter(f => f.tipo === 'geral' || f.tipo === 'inspecao' || !f.tipo);
+  const fotosAvarias = fotos.filter(f => f.tipo === 'avaria');
+
   const getNivelCombustivelLabel = (nivel: string | null | undefined) => {
     const niveis: Record<string, { label: string; color: string }> = {
       'vazio': { label: 'Vazio', color: 'bg-red-500' },
@@ -85,6 +100,7 @@ export function VeiculoFotosModal({
       'interior': 'Interior',
       'painel': 'Painel',
       'pneus': 'Pneus',
+      'teto': 'Teto',
       'geral': 'Geral'
     };
     return areas[area || ''] || area || 'Foto';
@@ -97,18 +113,30 @@ export function VeiculoFotosModal({
     const dados = veiculo.inspecao_dados as Record<string, unknown>;
     const avarias: { area: string; descricao: string }[] = [];
     
-    // Percorrer áreas da inspeção
-    Object.entries(dados).forEach(([area, areaData]) => {
-      if (typeof areaData === 'object' && areaData !== null) {
-        const data = areaData as Record<string, unknown>;
-        if (data.avaria && data.descricao_avaria) {
+    // Novo formato: areas é um array
+    if (dados.areas && Array.isArray(dados.areas)) {
+      (dados.areas as any[]).forEach((area) => {
+        if (area.possuiAvaria && area.descricao) {
           avarias.push({
-            area: getAreaLabel(area),
-            descricao: String(data.descricao_avaria)
+            area: area.nome || getAreaLabel(area.id),
+            descricao: area.descricao
           });
         }
-      }
-    });
+      });
+    } else {
+      // Formato antigo: objeto com chaves de área
+      Object.entries(dados).forEach(([area, areaData]) => {
+        if (typeof areaData === 'object' && areaData !== null) {
+          const data = areaData as Record<string, unknown>;
+          if (data.avaria && data.descricao_avaria) {
+            avarias.push({
+              area: getAreaLabel(area),
+              descricao: String(data.descricao_avaria)
+            });
+          }
+        }
+      });
+    }
     
     return avarias;
   };
@@ -121,6 +149,63 @@ export function VeiculoFotosModal({
       onConfirm();
     }
     onOpenChange(false);
+  };
+
+  const renderFotoGrid = (fotosList: VeiculoFoto[], emptyMessage: string, emptyIcon: React.ReactNode) => {
+    if (loading) {
+      return (
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="aspect-square bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      );
+    }
+
+    if (fotosList.length === 0) {
+      return (
+        <div className="p-6 text-center rounded-lg bg-muted/30 border border-dashed">
+          {emptyIcon}
+          <p className="text-sm text-muted-foreground mt-2">
+            {emptyMessage}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-3 gap-2">
+        {fotosList.map((foto) => (
+          <a
+            key={foto.id}
+            href={foto.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative aspect-square rounded-lg overflow-hidden border bg-muted hover:ring-2 hover:ring-primary transition-all"
+          >
+            <img
+              src={foto.url}
+              alt={foto.descricao || getAreaLabel(foto.area_veiculo)}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+              <ExternalLink className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+              <span className="text-xs text-white font-medium">
+                {getAreaLabel(foto.area_veiculo)}
+              </span>
+              {foto.descricao && (
+                <p className="text-[10px] text-white/80 truncate">
+                  {foto.descricao}
+                </p>
+              )}
+            </div>
+          </a>
+        ))}
+      </div>
+    );
   };
 
   if (!veiculo) return null;
@@ -177,73 +262,57 @@ export function VeiculoFotosModal({
               )}
             </div>
 
-            {/* Alerta de Avarias */}
-            {veiculo.possui_avarias && avarias.length > 0 && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-2">
-                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">
+            {/* Tabs para separar Fotos e Avarias */}
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'fotos' | 'avarias')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="fotos" className="flex items-center gap-1.5">
+                  <ImageIcon className="h-4 w-4" />
+                  Fotos ({fotosGerais.length})
+                </TabsTrigger>
+                <TabsTrigger value="avarias" className="flex items-center gap-1.5">
                   <AlertTriangle className="h-4 w-4" />
-                  <span>Avarias Registradas</span>
-                </div>
-                <ul className="space-y-1 text-sm">
-                  {avarias.map((avaria, index) => (
-                    <li key={index} className="flex gap-2">
-                      <span className="text-muted-foreground">{avaria.area}:</span>
-                      <span>{avaria.descricao}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                  Avarias ({fotosAvarias.length})
+                  {veiculo.possui_avarias && (
+                    <span className="ml-1 w-2 h-2 bg-destructive rounded-full" />
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Grid de Fotos */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Camera className="h-4 w-4" />
-                <span>Fotos ({fotos.length})</span>
-              </div>
-              
-              {loading ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="aspect-square bg-muted animate-pulse rounded-lg" />
-                  ))}
-                </div>
-              ) : fotos.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {fotos.map((foto) => (
-                    <a
-                      key={foto.id}
-                      href={foto.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group relative aspect-square rounded-lg overflow-hidden border bg-muted hover:ring-2 hover:ring-primary transition-all"
-                    >
-                      <img
-                        src={foto.url}
-                        alt={foto.descricao || getAreaLabel(foto.area_veiculo)}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                        <ExternalLink className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                        <span className="text-xs text-white font-medium">
-                          {getAreaLabel(foto.area_veiculo)}
-                        </span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-6 text-center rounded-lg bg-muted/30 border border-dashed">
-                  <Camera className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Nenhuma foto disponível
-                  </p>
-                </div>
-              )}
-            </div>
+              <TabsContent value="fotos" className="mt-3 space-y-3">
+                {renderFotoGrid(
+                  fotosGerais, 
+                  'Nenhuma foto do veículo disponível',
+                  <Camera className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                )}
+              </TabsContent>
+
+              <TabsContent value="avarias" className="mt-3 space-y-3">
+                {/* Lista de avarias descritas */}
+                {avarias.length > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium text-sm">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Avarias Registradas</span>
+                    </div>
+                    <ul className="space-y-1 text-sm">
+                      {avarias.map((avaria, index) => (
+                        <li key={index} className="flex gap-2">
+                          <span className="text-muted-foreground font-medium">{avaria.area}:</span>
+                          <span>{avaria.descricao}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Fotos de avarias */}
+                {renderFotoGrid(
+                  fotosAvarias,
+                  'Nenhuma foto de avaria registrada',
+                  <AlertTriangle className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                )}
+              </TabsContent>
+            </Tabs>
 
             {/* Confirmação opcional */}
             {showConfirmation && (
