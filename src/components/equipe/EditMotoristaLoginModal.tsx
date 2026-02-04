@@ -92,13 +92,14 @@ export function EditMotoristaLoginModal({
           .eq('id', motorista.id);
       }
       
+      // Primeiro mostrar credenciais, depois chamar onSuccess no handleClose
       setCreatedCredentials({
         login: telefoneDigits,
         password: senha.trim(),
       });
       
+      // NÃO chamar onSuccess aqui - vai ser chamado quando fechar o modal de credenciais
       toast.success("Login criado com sucesso!");
-      onSuccess?.();
     } catch (err: any) {
       console.error("Erro ao criar login:", err);
       toast.error("Erro ao criar login");
@@ -152,12 +153,17 @@ export function EditMotoristaLoginModal({
   };
 
   const handleClose = () => {
+    const hadCredentials = !!createdCredentials;
     setTelefone(motorista.telefone || "");
     setSenha("");
     setNovaSenha("");
     setCreatedCredentials(null);
     setShowResetPassword(false);
     onOpenChange(false);
+    // Chamar onSuccess DEPOIS de fechar, se criou credenciais
+    if (hadCredentials) {
+      onSuccess?.();
+    }
   };
 
   // Tela de credenciais criadas
