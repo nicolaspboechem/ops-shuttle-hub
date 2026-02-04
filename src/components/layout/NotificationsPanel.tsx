@@ -189,8 +189,13 @@ export function NotificationsPanel() {
                             {notification.icon}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-sm">{notification.title}</p>
+                              {notification.eventoNome && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {notification.eventoNome}
+                                </Badge>
+                              )}
                               {!notification.read && (
                                 <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                               )}
