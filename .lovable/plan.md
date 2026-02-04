@@ -1,165 +1,241 @@
 
-# Plano: Corrigir Layout Mobile - Eliminar Scroll Horizontal
 
-## Problema Identificado
+# Plano: Sistema de Versionamento do App - V1.0.0
 
-A interface mobile está cortando elementos na borda direita (como o menu de 3 pontos) e permitindo scroll horizontal indesejado. Isso ocorre devido a:
+## Objetivo
 
-1. **Meta viewport incompleta** - Falta `viewport-fit=cover` para iPhones com notch
-2. **Classe CSS inexistente** - `safe-area-bottom` usada em 4 componentes, mas nunca definida
-3. **Sem bloqueio de overflow horizontal** - Falta `overflow-x: hidden` no body/html
-4. **Container muito largo** - Padding de 2rem pode exceder telas pequenas
+Criar um sistema centralizado de versionamento que exiba a versão atual (V1.0.0) em todas as interfaces do app (desktop e mobile), facilitando o controle e acompanhamento de atualizações.
 
 ---
 
-## Solução
+## Estratégia de Versionamento
 
-### Parte 1: Atualizar `index.html`
+### Padrão Semântico (SemVer)
+Seguir o padrão **MAJOR.MINOR.PATCH**:
 
-Corrigir a meta viewport para:
-- Garantir largura fixa no mobile
-- Suportar safe-area em iPhones com notch
-- Prevenir zoom acidental
+| Tipo | Quando incrementar | Exemplo |
+|------|-------------------|---------|
+| **MAJOR** | Mudanças que quebram compatibilidade ou redesigns completos | 1.0.0 → 2.0.0 |
+| **MINOR** | Novas funcionalidades sem quebrar compatibilidade | 1.0.0 → 1.1.0 |
+| **PATCH** | Correções de bugs e pequenas melhorias | 1.0.0 → 1.0.1 |
 
-| Antes | Depois |
-|-------|--------|
-| `width=device-width, initial-scale=1.0` | `width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover` |
-
-### Parte 2: Adicionar Estilos Globais no `index.css`
-
-Adicionar regras CSS para:
-
-```css
-/* Prevenir scroll horizontal em todos os dispositivos */
-html, body {
-  overflow-x: hidden;
-  width: 100%;
-  max-width: 100vw;
-}
-
-/* Safe area para iPhones com notch */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.safe-area-inset-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-```
-
-### Parte 3: Corrigir Container Mobile
-
-Nos componentes de app mobile, garantir que o container não force largura maior que 100vw:
-
-- Adicionar `max-w-full` ou `w-full` no container principal
-- Remover padding excessivo em telas pequenas
+### Como Atualizar
+Para atualizar a versão, basta editar **um único arquivo** (`src/lib/version.ts`) e a mudança reflete automaticamente em todas as interfaces.
 
 ---
 
-## Arquivos a Modificar
+## Onde a Versão Será Exibida
 
-| Arquivo | Mudança |
-|---------|---------|
-| `index.html` | Meta viewport completa com `viewport-fit=cover` |
-| `src/index.css` | Adicionar `overflow-x: hidden` e classes safe-area |
-| `src/pages/app/AppMotorista.tsx` | Adicionar `overflow-x-hidden` no container principal |
-| `src/pages/app/AppOperador.tsx` | Adicionar `overflow-x-hidden` no container principal |
-| `src/pages/app/AppSupervisor.tsx` | Adicionar `overflow-x-hidden` no container principal |
+| Interface | Localização | Formato |
+|-----------|-------------|---------|
+| **Sidebar Desktop** | Rodapé, abaixo do botão Sair | `V1.0.0` discreto |
+| **Configurações** | Card informativo no topo | Badge com versão |
+| **App Motorista** | Aba "Mais" | Texto discreto no rodapé |
+| **App Operador** | Aba "Mais" | Texto discreto no rodapé |
+| **App Supervisor** | Aba "Mais" | Texto discreto no rodapé |
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/lib/version.ts` | **CRIAR** | Arquivo central com constante de versão |
+| `src/components/layout/AppSidebar.tsx` | Modificar | Exibir versão no rodapé |
+| `src/pages/Configuracoes.tsx` | Modificar | Adicionar card de versão |
+| `src/components/app/SupervisorMaisTab.tsx` | Modificar | Exibir versão no rodapé |
+| `src/components/app/OperadorMaisTab.tsx` | Modificar | Exibir versão no rodapé |
+| `package.json` | Modificar | Sincronizar versão para 1.0.0 |
 
 ---
 
 ## Seção Técnica
 
-### 1. Meta Viewport Corrigida
+### 1. Arquivo Central de Versão
 
-```html
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+Criar `src/lib/version.ts`:
+
+```typescript
+/**
+ * Versão do aplicativo CCO AS Brasil
+ * 
+ * Seguir padrão SemVer (MAJOR.MINOR.PATCH):
+ * - MAJOR: Mudanças que quebram compatibilidade ou redesigns
+ * - MINOR: Novas funcionalidades sem quebrar compatibilidade  
+ * - PATCH: Correções de bugs e pequenas melhorias
+ * 
+ * Atualizar este arquivo a cada nova versão!
+ */
+export const APP_VERSION = '1.0.0';
+
+// Informações adicionais opcionais
+export const APP_BUILD_DATE = '2026-02-04';
+export const APP_NAME = 'CCO AS Brasil';
 ```
 
-**Explicação:**
-- `maximum-scale=1.0, user-scalable=no` - Previne zoom acidental que causa scroll horizontal
-- `viewport-fit=cover` - Estende o conteúdo para área segura em iPhones com notch
+### 2. Componente de Exibição da Versão
 
-### 2. CSS Global para Mobile
+Criar componente reutilizável para consistência visual:
 
-```css
-/* Bloquear scroll horizontal globalmente */
-html {
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
+```typescript
+// src/components/ui/version-badge.tsx
+import { APP_VERSION } from '@/lib/version';
+
+interface VersionBadgeProps {
+  className?: string;
+  variant?: 'default' | 'subtle';
 }
 
-body {
-  overflow-x: hidden;
-  width: 100%;
-  max-width: 100vw;
-  position: relative;
-}
-
-/* Safe area padding para iPhones */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.safe-area-inset-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.safe-area-top {
-  padding-top: env(safe-area-inset-top, 0px);
+export function VersionBadge({ className, variant = 'default' }: VersionBadgeProps) {
+  if (variant === 'subtle') {
+    return (
+      <span className={cn("text-[10px] text-muted-foreground/50", className)}>
+        V{APP_VERSION}
+      </span>
+    );
+  }
+  
+  return (
+    <span className={cn("text-xs text-muted-foreground", className)}>
+      V{APP_VERSION}
+    </span>
+  );
 }
 ```
 
-### 3. Container Principal dos Apps
+### 3. Sidebar Desktop - Rodapé
+
+Adicionar no `AppSidebar.tsx`, após o botão de logout:
 
 ```tsx
-// Antes
-<div className="min-h-screen bg-background flex flex-col">
+import { APP_VERSION } from '@/lib/version';
 
-// Depois
-<div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
+// No rodapé da sidebar, após o botão Sair
+<div className="py-2 text-center">
+  <span className="text-[10px] text-sidebar-foreground/40">
+    V{APP_VERSION}
+  </span>
+</div>
+```
+
+### 4. Página de Configurações - Card de Versão
+
+Adicionar card no final da página:
+
+```tsx
+import { APP_VERSION, APP_BUILD_DATE } from '@/lib/version';
+import { Info } from 'lucide-react';
+
+// Após os outros cards
+<Card>
+  <CardHeader>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <Info className="w-5 h-5 text-primary" />
+        <div>
+          <CardTitle className="text-base">Sobre o Sistema</CardTitle>
+          <CardDescription>Informações da versão atual</CardDescription>
+        </div>
+      </div>
+      <Badge variant="secondary" className="font-mono">
+        V{APP_VERSION}
+      </Badge>
+    </div>
+  </CardHeader>
+  <CardContent>
+    <p className="text-sm text-muted-foreground">
+      CCO AS Brasil - Centro de Controle Operacional
+    </p>
+    <p className="text-xs text-muted-foreground mt-1">
+      Atualizado em {format(parseISO(APP_BUILD_DATE), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+    </p>
+  </CardContent>
+</Card>
+```
+
+### 5. Tabs "Mais" dos Apps Mobile
+
+Adicionar no rodapé de cada aba:
+
+```tsx
+import { APP_VERSION } from '@/lib/version';
+
+// No final do componente, antes do fechamento
+<div className="text-center py-4">
+  <span className="text-[10px] text-muted-foreground/50">
+    CCO AS Brasil · V{APP_VERSION}
+  </span>
+</div>
+```
+
+### 6. Sincronizar package.json
+
+Atualizar a versão no package.json para consistência:
+
+```json
+{
+  "name": "vite_react_shadcn_ts",
+  "private": true,
+  "version": "1.0.0",
+  ...
+}
+```
+
+---
+
+## Interface Visual
+
+### Sidebar Desktop (Colapsada e Expandida)
+```
+┌─────────────────────────────┐    ┌────────┐
+│ AS BRASIL                   │    │ [logo] │
+│ CCO                         │    ├────────┤
+├─────────────────────────────┤    │  ...   │
+│ ...navegação...             │    ├────────┤
+├─────────────────────────────┤    │ [⚙️]   │
+│ ⚙️ Configurações            │    │ [🚪]   │
+│ 🚪 Sair                     │    ├────────┤
+├─────────────────────────────┤    │ V1.0.0 │
+│         V1.0.0              │    └────────┘
+└─────────────────────────────┘
+```
+
+### Aba "Mais" Mobile
+```
+┌─────────────────────────────────────┐
+│ 🛡️ Perfil Supervisor               │
+│ Usuário: João                       │
+│ Evento: Operação XYZ                │
+├─────────────────────────────────────┤
+│ ...outras opções...                 │
+├─────────────────────────────────────┤
+│ [🚪 Sair do Sistema]                │
+├─────────────────────────────────────┤
+│      CCO AS Brasil · V1.0.0         │
+└─────────────────────────────────────┘
 ```
 
 ---
 
 ## Resultado Esperado
 
-1. **Zero scroll horizontal** - Interface fixa lateralmente em todos os dispositivos
-2. **Menu de 3 pontos visível** - Elementos na borda direita não serão cortados
-3. **Compatibilidade Safari/Chrome** - Funciona em todos os navegadores mobile
-4. **Safe area respeitada** - Bottom nav não fica sob área do iPhone
-5. **Apenas scroll vertical** - UX nativa de app mobile
+1. **Versão centralizada** - Um único arquivo para atualizar
+2. **Visível em todas as interfaces** - Desktop e mobile
+3. **Formato consistente** - Mesmo padrão visual em todos os lugares
+4. **Fácil de atualizar** - Apenas editar `src/lib/version.ts`
+5. **Rastreabilidade** - Usuários e equipe sabem qual versão estão usando
 
 ---
 
-## Diagrama do Problema
+## Processo de Atualização Futuro
 
-```
-┌─────────────────────────────┐
-│ ANTES (Problema)            │
-├─────────────────────────────┤
-│ ┌─────────────────────────┬─┤
-│ │ Header               [•││ │ ← Menu cortado
-│ ├─────────────────────────┼─┤
-│ │                       │ │ │
-│ │    Conteúdo          │ │ │ ← Scroll horizontal
-│ │                       │ │ │
-│ ├─────────────────────────┼─┤
-│ │ [Tab1] [Tab2] [+] [Ta││ │ ← Bottom nav cortado
-│ └─────────────────────────┴─┘
-└─────────────────────────────┘
+Sempre que fizer uma nova versão:
 
-┌─────────────────────────────┐
-│ DEPOIS (Corrigido)          │
-├─────────────────────────────┤
-│ ┌───────────────────────────┤
-│ │ Header               [•••]│ ← Menu visível
-│ ├───────────────────────────┤
-│ │                           │
-│ │    Conteúdo               │ ← Só scroll vertical
-│ │                           │
-│ ├───────────────────────────┤
-│ │ [Tab1] [Tab2] [+] [Tab4]  │ ← Tudo visível
-│ └───────────────────────────┘
-└─────────────────────────────┘
-```
+1. Editar `src/lib/version.ts`:
+   - Incrementar `APP_VERSION` seguindo SemVer
+   - Atualizar `APP_BUILD_DATE`
+   
+2. Opcional: Atualizar `package.json` para manter sincronizado
+
+3. A versão será atualizada automaticamente em todas as interfaces
+
