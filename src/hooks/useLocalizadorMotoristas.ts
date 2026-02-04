@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Motorista, Veiculo } from '@/hooks/useCadastros';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
 export interface MotoristaComVeiculo extends Motorista {
   veiculo?: Veiculo | null;
@@ -25,7 +26,31 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
     }
 
     try {
-      // Fetch motoristas with their vehicles
+      // 1. Buscar configuração do evento (horário de virada)
+      const { data: evento } = await supabase
+        .from('eventos')
+        .select('horario_virada_dia')
+        .eq('id', eventoId)
+        .single();
+      
+      const horarioVirada = evento?.horario_virada_dia?.substring(0, 5) || '04:00';
+      const dataOperacional = getDataOperacional(new Date(), horarioVirada);
+
+      // 2. Buscar presenças do dia com check-in ativo (sem checkout)
+      const { data: presencasAtivas } = await supabase
+        .from('motorista_presenca')
+        .select('motorista_id')
+        .eq('evento_id', eventoId)
+        .eq('data', dataOperacional)
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null);
+
+      // Criar Set de IDs de motoristas com check-in ativo
+      const motoristasComCheckinAtivo = new Set(
+        presencasAtivas?.map(p => p.motorista_id) || []
+      );
+
+      // 3. Buscar motoristas
       const { data: motoristasData, error: motoristasError } = await supabase
         .from('motoristas')
         .select('*')
@@ -33,6 +58,10 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
         .order('nome');
 
       if (motoristasError) throw motoristasError;
+
+      // 4. Filtrar apenas motoristas com check-in ativo
+      const motoristasFiltrados = (motoristasData || [])
+        .filter(m => motoristasComCheckinAtivo.has(m.id));
 
       // Fetch all vehicles for this event to map
       const { data: veiculosData } = await supabase
@@ -43,7 +72,6 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
       const veiculosMap = new Map(veiculosData?.map(v => [v.id, v]) || []);
 
       // Fetch active trips to get destinations for drivers in transit
-      // Usar motorista_id quando disponível para melhor performance
       const { data: viagensAtivas } = await supabase
         .from('viagens')
         .select('motorista_id, motorista, ponto_embarque, ponto_desembarque')
@@ -68,8 +96,8 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
         }
       });
 
-      // Combine data
-      const motoristasComVeiculos: MotoristaComVeiculo[] = (motoristasData || []).map(m => {
+      // Combine data - using filtered motoristas
+      const motoristasComVeiculos: MotoristaComVeiculo[] = motoristasFiltrados.map(m => {
         const viagemInfo = viagensPorMotoristaId.get(m.id) || viagensPorMotorista.get(m.nome);
         return {
           ...m,
@@ -116,6 +144,18 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
           event: '*',
           schema: 'public',
           table: 'viagens',
+          filter: `evento_id=eq.${eventoId}`,
+        },
+        () => {
+          fetchMotoristas();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'motorista_presenca',
           filter: `evento_id=eq.${eventoId}`,
         },
         () => {
