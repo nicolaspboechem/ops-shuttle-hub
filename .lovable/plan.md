@@ -1,20 +1,23 @@
 
-# Plano: Adicionar Suporte a Múltiplos Dias de Evento
+# Plano: Filtrar Painel Localizador por Check-in Ativo
 
 ## Contexto
 
-Os eventos podem durar vários dias. Atualmente:
-- O check-in de presença já usa "data operacional" (considera horário de virada)
-- As viagens têm timestamp de criação (`data_criacao`)
-- **Problema**: Os painéis exibem TODAS as viagens do evento, sem filtro por dia
+Atualmente, o Painel Localizador exibe TODOS os motoristas cadastrados no evento, independentemente de terem feito check-in ou não. Isso gera poluição visual e confusão.
 
-Isso torna confuso quando há centenas de viagens acumuladas de dias anteriores.
+**Comportamento desejado:**
+- Motorista faz check-in → aparece no painel
+- Motorista faz check-out → sai do painel
+- Motorista não fez check-in hoje → não aparece
 
 ---
 
 ## Solução
 
-Adicionar filtro de **Dia Operacional** nos painéis e apps para mostrar apenas as viagens do dia selecionado.
+Modificar o hook `useLocalizadorMotoristas` para:
+1. Buscar registros de presença do dia operacional atual
+2. Filtrar apenas motoristas com check-in ativo (checkin_at preenchido, checkout_at nulo)
+3. Adicionar subscription Realtime para `motorista_presenca`
 
 ---
 
@@ -22,209 +25,153 @@ Adicionar filtro de **Dia Operacional** nos painéis e apps para mostrar apenas 
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/hooks/useViagens.ts` | Adicionar parâmetro opcional de data e filtrar por dia operacional |
-| `src/lib/utils/diaOperacional.ts` | Adicionar função para obter limites de timestamp de um dia operacional |
-| `src/pages/app/AppOperador.tsx` | Adicionar seletor de data com padrão "hoje" |
-| `src/pages/app/AppSupervisor.tsx` | Adicionar seletor de data |
-| `src/components/app/SupervisorViagensTab.tsx` | Receber e aplicar filtro de data |
-| `src/pages/Dashboard.tsx` | Adicionar seletor de dia |
-| `src/pages/ViagensAtivas.tsx` | Adicionar seletor de dia |
-| `src/pages/ViagensFinalizadas.tsx` | Adicionar seletor de dia |
+| `src/hooks/useLocalizadorMotoristas.ts` | Adicionar busca de presença e filtro por check-in ativo |
 
 ---
 
 ## Seção Técnica
 
-### 1. Nova Função - Limites do Dia Operacional
-
-Adicionar em `src/lib/utils/diaOperacional.ts`:
+### Modificações no Hook
 
 ```typescript
-/**
- * Retorna os limites de timestamp (início e fim) para um dia operacional.
- * 
- * Exemplo: 
- * - Data operacional: 2025-01-14
- * - Horário virada: 04:00
- * - Início: 2025-01-14 04:00
- * - Fim: 2025-01-15 03:59:59
- */
-export function getLimitesDiaOperacional(
-  dataOperacional: string,  // "YYYY-MM-DD"
-  horarioVirada: string = '04:00'
-): { inicio: Date; fim: Date } {
-  const [horaVirada, minVirada] = horarioVirada.split(':').map(Number);
-  
-  // Início: data + horário virada
-  const inicio = new Date(dataOperacional);
-  inicio.setHours(horaVirada, minVirada || 0, 0, 0);
-  
-  // Fim: próximo dia + horário virada - 1 segundo
-  const fim = addDays(inicio, 1);
-  fim.setSeconds(fim.getSeconds() - 1);
-  
-  return { inicio, fim };
-}
-```
+// useLocalizadorMotoristas.ts
 
-### 2. Modificar Hook useViagens
+export function useLocalizadorMotoristas(eventoId: string | undefined) {
+  // ... estados existentes ...
 
-Adicionar filtro opcional por data operacional:
-
-```typescript
-export function useViagens(
-  eventoId?: string, 
-  options?: { 
-    dataOperacional?: string;
-    horarioVirada?: string;
-  }
-) {
-  // ... código existente ...
-
-  const fetchViagens = useCallback(async () => {
-    let query = supabase
-      .from('viagens')
-      .select(`*`)
-      .order('h_pickup', { ascending: true });
-
-    if (eventoId) query = query.eq('evento_id', eventoId);
-
-    // Filtro por dia operacional
-    if (options?.dataOperacional) {
-      const { inicio, fim } = getLimitesDiaOperacional(
-        options.dataOperacional,
-        options.horarioVirada || '04:00'
-      );
-      query = query
-        .gte('data_criacao', inicio.toISOString())
-        .lte('data_criacao', fim.toISOString());
+  const fetchMotoristas = useCallback(async () => {
+    if (!eventoId) {
+      setLoading(false);
+      return;
     }
 
-    const { data, error } = await query;
-    // ...
-  }, [eventoId, options?.dataOperacional, options?.horarioVirada]);
+    try {
+      // 1. Buscar configuração do evento (horário de virada)
+      const { data: evento } = await supabase
+        .from('eventos')
+        .select('horario_virada_dia')
+        .eq('id', eventoId)
+        .single();
+      
+      const horarioVirada = evento?.horario_virada_dia?.substring(0, 5) || '04:00';
+      const dataOperacional = getDataOperacional(new Date(), horarioVirada);
+
+      // 2. Buscar presenças do dia com check-in ativo (sem checkout)
+      const { data: presencasAtivas } = await supabase
+        .from('motorista_presenca')
+        .select('motorista_id')
+        .eq('evento_id', eventoId)
+        .eq('data', dataOperacional)
+        .not('checkin_at', 'is', null)   // Tem check-in
+        .is('checkout_at', null);        // Não tem check-out
+
+      // Criar Set de IDs de motoristas com check-in ativo
+      const motoristasComCheckinAtivo = new Set(
+        presencasAtivas?.map(p => p.motorista_id) || []
+      );
+
+      // 3. Buscar motoristas
+      const { data: motoristasData, error } = await supabase
+        .from('motoristas')
+        .select('*')
+        .eq('evento_id', eventoId)
+        .order('nome');
+
+      if (error) throw error;
+
+      // 4. Filtrar apenas motoristas com check-in ativo
+      const motoristasFiltrados = (motoristasData || [])
+        .filter(m => motoristasComCheckinAtivo.has(m.id));
+
+      // ... resto do código (buscar veículos, viagens, etc) ...
+      // Aplicar filtro em motoristasFiltrados ao invés de motoristasData
+    } catch (error) {
+      console.error('Erro ao buscar motoristas:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [eventoId]);
+
+  // Realtime subscription - ADICIONAR motorista_presenca
+  useEffect(() => {
+    if (!eventoId) return;
+
+    const channel = supabase
+      .channel('localizador-motoristas')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'motoristas',
+        filter: `evento_id=eq.${eventoId}`,
+      }, () => fetchMotoristas())
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'viagens',
+        filter: `evento_id=eq.${eventoId}`,
+      }, () => fetchMotoristas())
+      // NOVO: Escutar mudanças de presença
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'motorista_presenca',
+        filter: `evento_id=eq.${eventoId}`,
+      }, () => fetchMotoristas())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [eventoId, fetchMotoristas]);
 }
 ```
 
-### 3. Componente Seletor de Dia
-
-Criar um componente reutilizável para selecionar o dia operacional:
-
-```typescript
-// src/components/app/DiaSeletor.tsx
-interface DiaSeletorProps {
-  dataOperacional: string;
-  onChange: (data: string) => void;
-  dataInicio?: string;
-  dataFim?: string;
-}
-
-export function DiaSeletor({ 
-  dataOperacional, 
-  onChange, 
-  dataInicio, 
-  dataFim 
-}: DiaSeletorProps) {
-  // Botões: ← Anterior | [Data atual] | Próximo →
-  // Restringir ao intervalo do evento se data_inicio/data_fim existirem
-}
-```
-
-### 4. Aplicar no App Operador
-
-```typescript
-export default function AppOperador() {
-  const { getAgoraSync } = useServerTime();
-  const [evento, setEvento] = useState<Evento | null>(null);
-  
-  // Data operacional selecionada (padrão: hoje)
-  const [dataOperacional, setDataOperacional] = useState(() => 
-    getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00')
-  );
-  
-  // Buscar viagens apenas do dia selecionado
-  const { viagens, loading, refetch } = useViagens(eventoId, {
-    dataOperacional,
-    horarioVirada: evento?.horario_virada_dia
-  });
-  
-  // No header, adicionar DiaSeletor
-  <DiaSeletor 
-    dataOperacional={dataOperacional}
-    onChange={setDataOperacional}
-    dataInicio={evento?.data_inicio}
-    dataFim={evento?.data_fim}
-  />
-}
-```
-
-### 5. Aplicar no Dashboard Admin
-
-Mesmo padrão do App Operador - seletor de dia no topo.
-
-### 6. Modo "Todos os dias" (Opcional)
-
-Adicionar opção para ver todas as viagens quando necessário:
-
-```typescript
-const [verTodosDias, setVerTodosDias] = useState(false);
-
-// Se verTodosDias = true, não passa dataOperacional
-const { viagens } = useViagens(eventoId, 
-  verTodosDias ? undefined : { dataOperacional, horarioVirada }
-);
-```
-
----
-
-## Interface do Usuário
-
-O seletor de dia aparecerá no header/topo das páginas:
+### Lógica de Filtro
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│   ◀   Ter, 04 Fev 2025  ▶    [Ver todos os dias]    │
-└──────────────────────────────────────────────────────┘
+Fluxo:
+┌─────────────────────────────────────────────────────┐
+│ Motorista faz CHECK-IN                              │
+│ → Cria registro em motorista_presenca               │
+│ → checkin_at = NOW()                                │
+│ → checkout_at = NULL                                │
+│ → Trigger Realtime dispara                          │
+│ → Hook refetch()                                    │
+│ → Motorista APARECE no painel                       │
+├─────────────────────────────────────────────────────┤
+│ Motorista faz CHECK-OUT                             │
+│ → Atualiza registro em motorista_presenca           │
+│ → checkout_at = NOW()                               │
+│ → Trigger Realtime dispara                          │
+│ → Hook refetch()                                    │
+│ → Motorista DESAPARECE do painel                    │
+└─────────────────────────────────────────────────────┘
 ```
 
-- Setas navegam entre dias
-- Botão central abre calendário
-- "Ver todos os dias" desativa o filtro temporariamente
+### Query de Presença
+
+A busca de presenças ativas usa:
+- `eq('data', dataOperacional)` - Apenas do dia atual
+- `not('checkin_at', 'is', null)` - Tem check-in registrado  
+- `is('checkout_at', null)` - Não fez check-out ainda
 
 ---
 
-## Dependências de Dados
+## Impacto
 
-Para que o filtro funcione corretamente:
+### Componentes que usam o hook:
+1. **PainelLocalizador.tsx** - Painel público Kanban
+2. **SupervisorLocalizadorTab.tsx** - Aba no App Supervisor  
+3. **ClienteLocalizadorTab.tsx** - Aba no App Cliente
 
-1. `eventos.horario_virada_dia` - já existe ✅
-2. `eventos.data_inicio` e `eventos.data_fim` - já existem ✅
-3. `viagens.data_criacao` - já existe (timestamp) ✅
-
----
-
-## Considerações
-
-### Por que não criar uma coluna `data_operacional` nas viagens?
-
-Alternativa possível, mas:
-- Requer migração para viagens existentes
-- Adiciona complexidade de manutenção
-- O cálculo em tempo real é rápido e preciso
-
-### Filtro no frontend vs backend?
-
-**Recomendação: Backend (Supabase query)**
-- Reduz dados transferidos
-- Mais eficiente para eventos grandes
-- A query já filtra por `data_criacao` com limites calculados
+Todos passarão a exibir apenas motoristas com check-in ativo automaticamente.
 
 ---
 
 ## Resultado Esperado
 
-1. Operadores veem apenas viagens do dia atual por padrão
-2. Supervisores podem navegar entre dias do evento
-3. Dashboard mostra métricas do dia selecionado
-4. Possibilidade de ver "todos os dias" quando necessário
-5. Viagens de madrugada (ex: 02:00) são corretamente agrupadas no dia anterior
+1. Painel fica limpo, mostrando apenas quem está "em serviço"
+2. Check-in → motorista aparece instantaneamente (Realtime)
+3. Check-out → motorista some instantaneamente (Realtime)
+4. Sem check-in no dia → não aparece
+5. Reduz poluição visual e facilita monitoramento
