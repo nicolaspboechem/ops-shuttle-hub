@@ -1,201 +1,129 @@
 
 
-# Plano: Interface Azul - Header e Navegação Inferior
+# Plano: Corrigir Erro 400 (Veiculos) e Melhorar Mensagens de Erro
 
-## Objetivo
+## Problemas a Corrigir
 
-Aplicar fundo azul (`bg-primary`) tanto na **barra de navegação inferior** quanto no **header superior** de todos os apps mobile, garantindo consistência visual em qualquer dispositivo, independente do tema (claro/escuro).
+### 1. Erro 400 - Query de Veiculos (CRITICO)
+A query em `useCadastros.ts` (linha 213-219) tenta fazer JOINs com `profiles` usando foreign keys que nao existem no banco:
+- `profiles!veiculos_inspecao_por_fkey(full_name)`
+- `profiles!veiculos_liberado_por_fkey(full_name)`
 
----
+Isso causa erro 400 em **toda** consulta de veiculos no sistema.
 
-## Componentes Afetados
-
-### Navegação Inferior (Bottom Nav)
-| Arquivo | App |
-|---------|-----|
-| `src/components/app/MotoristaBottomNav.tsx` | Motorista |
-| `src/components/app/OperadorBottomNav.tsx` | Operador |
-| `src/components/app/SupervisorBottomNav.tsx` | Supervisor |
-| `src/components/app/ClienteBottomNav.tsx` | Cliente |
-
-### Header Superior
-| Arquivo | App |
-|---------|-----|
-| `src/pages/app/AppMotorista.tsx` | Motorista |
-| `src/pages/app/AppOperador.tsx` | Operador |
-| `src/pages/app/AppSupervisor.tsx` | Supervisor |
-| `src/pages/app/AppHome.tsx` | Seleção de Evento |
-| `src/components/app/ClienteHeaderNav.tsx` | Cliente (desktop) |
+### 2. Mensagens de Erro Genericas (MELHORIA)
+Atualmente, os erros mostram mensagens tecnicas ou codigos HTTP ao usuario. Exemplos:
+- `"Motorista criado! Mas erro no login: FunctionsHttpError"` -- pouco util
+- `"Erro ao criar login: [mensagem tecnica]"` -- nao ajuda o usuario
+- `"Erro ao criar veiculo"` -- sem detalhes
 
 ---
 
-## Mudanças Visuais
+## Solucao
 
-```text
-┌─────────────────────────────────────┐
-│ ████████████ AZUL ████████████████  │ ← Header azul
-│ [Logo]  Evento XYZ        [Menu] ⋯  │
-├─────────────────────────────────────┤
-│                                     │
-│         Conteúdo do App             │
-│         (área branca/escura)        │
-│                                     │
-├─────────────────────────────────────┤
-│ ████████████ AZUL ████████████████  │ ← Bottom nav azul
-│ 🏠      🚗      ⚪      📋      ⋯   │
-│ Início  Veículo [+]  Histórico Mais │
-└─────────────────────────────────────┘
+### Parte 1: Migracao SQL - Criar Foreign Keys
+
+Criar as constraints faltantes para que os JOINs funcionem:
+
+```sql
+ALTER TABLE public.veiculos
+  ADD CONSTRAINT veiculos_inspecao_por_fkey
+  FOREIGN KEY (inspecao_por) REFERENCES public.profiles(user_id)
+  ON DELETE SET NULL;
+
+ALTER TABLE public.veiculos
+  ADD CONSTRAINT veiculos_liberado_por_fkey
+  FOREIGN KEY (liberado_por) REFERENCES public.profiles(user_id)
+  ON DELETE SET NULL;
 ```
 
----
+### Parte 2: Fallback na Query de Veiculos
 
-## Seção Técnica
+**Arquivo:** `src/hooks/useCadastros.ts`
 
-### 1. Bottom Navigation - Mudanças
+Adicionar um bloco try/fallback na funcao `fetchVeiculos` para que, se a query com JOINs falhar (por qualquer motivo), o sistema tente uma query simples sem JOINs. Isso garante resiliencia caso as foreign keys nao existam ou sejam removidas.
 
-**Container `<nav>`:**
 ```tsx
-// Antes
-<nav className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border safe-area-bottom">
+// Tentar com JOINs
+const { data, error } = await query;
 
-// Depois
-<nav className="fixed bottom-0 left-0 right-0 z-50 bg-primary safe-area-bottom">
+// Se falhou, tentar sem JOINs (fallback)
+if (error) {
+  console.warn('Query com JOINs falhou, tentando sem:', error.message);
+  const fallbackQuery = supabase
+    .from('veiculos')
+    .select('*')
+    .order('placa', { ascending: true });
+  // ...continuar com fallback
+}
 ```
 
-**Botões normais:**
+### Parte 3: Mensagens de Erro Amigaveis
+
+Substituir mensagens tecnicas por avisos claros com descricao e orientacao ao usuario.
+
+**Arquivo:** `src/components/motoristas/CreateMotoristaWizard.tsx`
+
+Mapear codigos de erro para mensagens amigaveis:
+
+| Codigo/Erro | Mensagem Atual | Mensagem Nova |
+|-------------|----------------|---------------|
+| 409 (telefone em uso) | "Este telefone ja esta em uso por outro motorista" | "Telefone ja cadastrado - Este numero de telefone ja possui um login vinculado a outro motorista. Use um numero diferente ou edite o cadastro existente." |
+| Erro HTTP generico | "Erro ao criar login: FunctionsHttpError" | "Falha na criacao do login - Nao foi possivel criar as credenciais de acesso. Verifique sua conexao e tente novamente." |
+| 400 (dados invalidos) | Mensagem tecnica | "Dados invalidos - Verifique se o telefone tem 10-11 digitos e a senha tem pelo menos 4 caracteres." |
+| Erro de rede | "Erro ao criar motorista" | "Erro de conexao - Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente." |
+
+Na area de exibicao do erro (linhas 452-462), melhorar o componente de alerta para incluir titulo e descricao:
+
 ```tsx
-// Antes
-className={cn(
-  "flex flex-col items-center justify-center gap-0.5 flex-1 h-full nav-item-interactive rounded-lg",
-  isActive ? "text-primary" : "text-muted-foreground"
+{loginError && (
+  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
+    <p className="text-sm font-medium text-destructive flex items-center gap-2">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
+      {loginError.titulo}
+    </p>
+    <p className="text-xs text-muted-foreground pl-6">
+      {loginError.descricao}
+    </p>
+  </div>
 )}
-
-// Depois
-className={cn(
-  "flex flex-col items-center justify-center gap-0.5 flex-1 h-full rounded-lg transition-colors",
-  isActive 
-    ? "text-primary-foreground" 
-    : "text-primary-foreground/70 hover:text-primary-foreground/90"
-)}
 ```
 
-**Ícones (simplificar):**
-```tsx
-// Antes
-<Icon className={cn("w-5 h-5", isActive && "text-primary")} />
+**Arquivo:** `src/components/equipe/EditMotoristaLoginModal.tsx`
 
-// Depois
-<Icon className="w-5 h-5" />
-```
+Aplicar o mesmo padrao de mensagens amigaveis nos handlers `handleCreateLogin` e `handleResetPassword`:
+- Erro 409: "Este telefone ja possui login cadastrado para outro motorista."
+- Erro generico: "Nao foi possivel criar o login. Verifique os dados e tente novamente."
 
-**Labels:**
-```tsx
-// Antes
-<span className="text-[10px] font-medium">{tab.label}</span>
+**Arquivo:** `src/components/veiculos/CreateVeiculoWizard.tsx`
 
-// Depois
-<span className={cn("text-[10px]", isActive ? "font-semibold" : "font-medium")}>
-  {tab.label}
-</span>
-```
+Melhorar as mensagens de erro na criacao de veiculos:
+- Erro 23505 (placa duplicada): "Placa duplicada - Ja existe um veiculo cadastrado com a placa {PLACA}. Verifique se o veiculo ja foi cadastrado."
+- Erro generico: "Erro ao cadastrar veiculo - Nao foi possivel salvar os dados. Verifique sua conexao e tente novamente."
 
-**Botão central (Nova/Corrida) - Inverter cores:**
-```tsx
-// Antes
-<div className={cn(
-  "w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg",
-  "bg-primary text-primary-foreground"
-)}>
+**Arquivo:** `src/components/equipe/AddStaffWizard.tsx`
 
-// Depois - Círculo branco com ícone azul
-<div className="w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg bg-white text-primary">
-```
-
-### 2. Header Superior - Mudanças
-
-**Container `<header>`:**
-```tsx
-// Antes
-<header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-
-// Depois
-<header className="sticky top-0 z-50 bg-primary safe-area-top">
-```
-
-**Logo (usar versão branca):**
-```tsx
-// Antes
-import logoAS from '@/assets/as_logo_reduzida_preta.png';
-
-// Depois
-import logoAS from '@/assets/as_logo_reduzida_branca.png';
-```
-
-**Textos do header:**
-```tsx
-// Antes
-<h1 className="text-base font-semibold">{eventoNome}</h1>
-<span className="text-xs text-muted-foreground">{role}</span>
-
-// Depois
-<h1 className="text-base font-semibold text-primary-foreground">{eventoNome}</h1>
-<span className="text-xs text-primary-foreground/70">{role}</span>
-```
-
-**Botões/ícones do header:**
-```tsx
-// Antes
-<Button variant="ghost" size="icon">
-  <MoreVertical className="w-5 h-5" />
-</Button>
-
-// Depois
-<Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
-  <MoreVertical className="w-5 h-5" />
-</Button>
-```
-
-### 3. ClienteHeaderNav (Desktop)
-
-Similar ao header mobile, mas mantendo os botões de tab:
-```tsx
-// Header
-<header className="sticky top-0 z-50 bg-primary">
-
-// Botões de tab
-<Button
-  variant={isActive ? "secondary" : "ghost"}
-  className={cn(
-    isActive 
-      ? "bg-white text-primary" 
-      : "text-primary-foreground hover:bg-white/10"
-  )}
->
-```
+Aplicar mensagens amigaveis para erros na criacao de equipe.
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `MotoristaBottomNav.tsx` | Nav azul + textos brancos |
-| `OperadorBottomNav.tsx` | Nav azul + textos brancos |
-| `SupervisorBottomNav.tsx` | Nav azul + textos brancos |
-| `ClienteBottomNav.tsx` | Nav azul + textos brancos |
-| `AppMotorista.tsx` | Header azul + logo branca |
-| `AppOperador.tsx` | Header azul + logo branca |
-| `AppSupervisor.tsx` | Header azul + logo branca |
-| `AppHome.tsx` | Header azul + logo branca |
-| `ClienteHeaderNav.tsx` | Header azul + logo branca |
+| Arquivo | Acao |
+|---------|------|
+| Migracao SQL | Criar foreign keys `veiculos_inspecao_por_fkey` e `veiculos_liberado_por_fkey` |
+| `src/hooks/useCadastros.ts` | Adicionar fallback na query de veiculos |
+| `src/components/motoristas/CreateMotoristaWizard.tsx` | Mensagens de erro amigaveis com titulo + descricao |
+| `src/components/equipe/EditMotoristaLoginModal.tsx` | Mensagens de erro amigaveis |
+| `src/components/veiculos/CreateVeiculoWizard.tsx` | Mensagens de erro amigaveis |
+| `src/components/equipe/AddStaffWizard.tsx` | Mensagens de erro amigaveis |
 
 ---
 
 ## Resultado Esperado
 
-1. **Identidade visual forte** - Azul primário presente em header e navegação
-2. **Consistência entre temas** - Mesmo visual em modo claro e escuro
-3. **Delimitação clara** - Header e nav bem definidos em qualquer dispositivo
-4. **Contraste adequado** - Texto branco sobre azul garante legibilidade
-5. **Botão central destacado** - Inversão de cores (branco/azul) para ação principal
+1. **Erro 400 eliminado** - Foreign keys + fallback garantem que veiculos sempre carregam
+2. **Erros claros** - Usuario ve titulo do problema + orientacao para corrigir
+3. **Sem codigos tecnicos** - Nenhum "409", "400", "FunctionsHttpError" aparece na interface
+4. **Resiliencia** - Se algo falhar, o sistema degrada graciosamente com fallback
 
