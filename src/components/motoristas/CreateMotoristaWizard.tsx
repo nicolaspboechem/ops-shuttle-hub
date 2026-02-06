@@ -14,6 +14,42 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Mapear erros técnicos para mensagens amigáveis
+function parseDriverLoginError(error: any, data: any): { titulo: string; descricao: string } {
+  const errorMsg = data?.error || error?.message || '';
+  const errorMsgLower = errorMsg.toLowerCase();
+  
+  // 409 - Telefone já em uso
+  if (errorMsgLower.includes('em uso') || errorMsgLower.includes('already') || errorMsgLower.includes('409') || errorMsgLower.includes('duplicate') || errorMsgLower.includes('já existe') || errorMsgLower.includes('já cadastrado')) {
+    return {
+      titulo: 'Telefone já cadastrado',
+      descricao: 'Este número de telefone já possui um login vinculado a outro motorista. Use um número diferente ou edite o cadastro existente.',
+    };
+  }
+  
+  // 400 - Dados inválidos
+  if (errorMsgLower.includes('400') || errorMsgLower.includes('invalid') || errorMsgLower.includes('inválid')) {
+    return {
+      titulo: 'Dados inválidos',
+      descricao: 'Verifique se o telefone tem 10-11 dígitos e a senha tem pelo menos 4 caracteres.',
+    };
+  }
+  
+  // Erro genérico de função
+  if (errorMsgLower.includes('functionshttperror') || errorMsgLower.includes('function')) {
+    return {
+      titulo: 'Falha na criação do login',
+      descricao: 'Não foi possível criar as credenciais de acesso. Verifique sua conexão e tente novamente.',
+    };
+  }
+  
+  // Fallback
+  return {
+    titulo: 'Erro ao criar login',
+    descricao: errorMsg || 'Não foi possível criar o login. Verifique os dados e tente novamente.',
+  };
+}
+
 interface CreateMotoristaWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,7 +83,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
   const [showPassword, setShowPassword] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<{ titulo: string; descricao: string } | null>(null);
 
   // Agrupar veículos por status
   const veiculosPorStatus = veiculos.reduce((acc, v) => {
@@ -109,10 +145,9 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
 
         // Verificar se é erro HTTP (como 409)
         if (response.error) {
-          const errorMsg = response.error.message || 'Erro ao criar login';
-          setLoginError(errorMsg);
-          toast.error(`Motorista criado! Mas erro no login: ${errorMsg}`);
-          // NÃO fecha - volta para step 3 para correção
+          const friendly = parseDriverLoginError(response.error, response.data);
+          setLoginError(friendly);
+          toast.error(friendly.titulo);
           setStep(3);
           setIsSubmitting(false);
           return;
@@ -120,9 +155,9 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
 
         // Verificar erro no corpo da resposta (409 retorna { error: "..." })
         if (response.data?.error) {
-          setLoginError(response.data.error);
-          toast.error(`Motorista criado! ${response.data.error}`);
-          // NÃO fecha - volta para step 3 para correção
+          const friendly = parseDriverLoginError(null, response.data);
+          setLoginError(friendly);
+          toast.error(friendly.titulo);
           setStep(3);
           setIsSubmitting(false);
           return;
@@ -141,7 +176,7 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
       }
     } catch (err: any) {
       console.error("Erro ao criar motorista:", err);
-      toast.error("Erro ao criar motorista");
+      toast.error("Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -451,13 +486,13 @@ export function CreateMotoristaWizard({ open, onOpenChange, veiculos, eventoId, 
                   >
                     {/* Mostrar erro de login se houver */}
                     {loginError && (
-                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                        <p className="text-sm text-destructive flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          {loginError}
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
+                        <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          {loginError.titulo}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Corrija o telefone e tente novamente
+                        <p className="text-xs text-muted-foreground pl-6">
+                          {loginError.descricao}
                         </p>
                       </div>
                     )}
