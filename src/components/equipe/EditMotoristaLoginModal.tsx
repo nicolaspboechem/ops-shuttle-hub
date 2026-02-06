@@ -75,12 +75,22 @@ export function EditMotoristaLoginModal({
       });
 
       if (response.error) {
-        toast.error(`Erro ao criar login: ${response.error.message}`);
+        const msg = response.error.message?.toLowerCase() || '';
+        if (msg.includes('em uso') || msg.includes('duplicate') || msg.includes('já')) {
+          toast.error('Telefone já cadastrado — Este número já possui login de outro motorista.');
+        } else {
+          toast.error('Falha na criação do login — Verifique os dados e tente novamente.');
+        }
         return;
       }
 
       if (response.data?.error) {
-        toast.error(response.data.error);
+        const msg = (response.data.error as string).toLowerCase();
+        if (msg.includes('em uso') || msg.includes('duplicate') || msg.includes('já')) {
+          toast.error('Telefone já cadastrado — Este número já possui login de outro motorista.');
+        } else {
+          toast.error('Falha na criação do login — Verifique os dados e tente novamente.');
+        }
         return;
       }
 
@@ -102,7 +112,7 @@ export function EditMotoristaLoginModal({
       toast.success("Login criado com sucesso!");
     } catch (err: any) {
       console.error("Erro ao criar login:", err);
-      toast.error("Erro ao criar login");
+      toast.error("Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet.");
     } finally {
       setIsSubmitting(false);
     }
@@ -127,12 +137,12 @@ export function EditMotoristaLoginModal({
       });
 
       if (response.error) {
-        toast.error(`Erro ao resetar senha: ${response.error.message}`);
+        toast.error('Falha ao resetar senha — Não foi possível alterar a senha. Tente novamente.');
         return;
       }
 
       if (response.data?.error) {
-        toast.error(response.data.error);
+        toast.error('Falha ao resetar senha — Não foi possível alterar a senha. Tente novamente.');
         return;
       }
 
@@ -146,7 +156,7 @@ export function EditMotoristaLoginModal({
       onSuccess?.();
     } catch (err: any) {
       console.error("Erro ao resetar senha:", err);
-      toast.error("Erro ao resetar senha");
+      toast.error("Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet.");
     } finally {
       setIsSubmitting(false);
     }

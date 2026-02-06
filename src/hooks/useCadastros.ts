@@ -227,7 +227,27 @@ export function useVeiculos(eventoId?: string) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Erro ao buscar veículos:', error);
+      console.warn('Query com JOINs falhou, tentando sem JOINs:', error.message);
+      
+      // Fallback: query simples sem JOINs
+      let fallbackQuery = supabase
+        .from('veiculos')
+        .select('*')
+        .order('placa', { ascending: true });
+
+      if (eventoId && isValidUUID) {
+        fallbackQuery = fallbackQuery.eq('evento_id', eventoId);
+      }
+
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+
+      if (fallbackError) {
+        console.error('Erro ao buscar veículos (fallback):', fallbackError);
+        setLoading(false);
+        return;
+      }
+
+      setVeiculos((fallbackData || []) as Veiculo[]);
       setLoading(false);
       return;
     }

@@ -56,7 +56,12 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
         });
 
       if (profileError) {
-        toast.error(`Erro ao criar perfil: ${profileError.message}`);
+        console.error('Erro ao criar perfil:', profileError);
+        if (profileError.code === '23505') {
+          toast.error('Telefone já cadastrado — Este número já está vinculado a outro perfil.');
+        } else {
+          toast.error('Erro ao criar perfil — Não foi possível salvar os dados. Verifique sua conexão.');
+        }
         return;
       }
 
@@ -70,7 +75,8 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
         });
 
       if (eventoError) {
-        toast.error(`Erro ao vincular ao evento: ${eventoError.message}`);
+        console.error('Erro ao vincular ao evento:', eventoError);
+        toast.error('Erro ao vincular ao evento — Não foi possível associar o usuário. Tente novamente.');
         return;
       }
 
@@ -87,7 +93,13 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
       });
 
       if (response.error) {
-        toast.error(`Erro ao criar credenciais: ${response.error.message}`);
+        console.error('Erro ao criar credenciais:', response.error);
+        const msg = response.error.message?.toLowerCase() || '';
+        if (msg.includes('em uso') || msg.includes('duplicate') || msg.includes('já')) {
+          toast.error('Telefone já cadastrado — Este número já possui login de outro colaborador.');
+        } else {
+          toast.error('Falha na criação do login — Não foi possível criar as credenciais. Tente novamente.');
+        }
         return;
       }
 
@@ -99,7 +111,7 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
       toast.success(`${staffType === 'operador' ? 'Operador' : 'Supervisor'} criado com sucesso!`);
     } catch (err: any) {
       console.error("Erro ao criar staff:", err);
-      toast.error("Erro ao criar usuário");
+      toast.error("Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.");
     } finally {
       setIsSubmitting(false);
     }

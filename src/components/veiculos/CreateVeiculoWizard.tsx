@@ -159,9 +159,9 @@ export function CreateVeiculoWizard({
       if (veiculoError) {
         console.error('Erro ao criar veículo:', veiculoError);
         if (veiculoError.code === '23505') {
-          toast.error('Já existe um veículo com esta placa');
+          toast.error(`Placa duplicada — Já existe um veículo cadastrado com a placa ${placa.toUpperCase()}. Verifique se já foi cadastrado.`);
         } else {
-          toast.error('Erro ao criar veículo');
+          toast.error('Erro ao cadastrar veículo — Não foi possível salvar os dados. Verifique sua conexão e tente novamente.');
         }
         return;
       }
@@ -211,7 +211,7 @@ export function CreateVeiculoWizard({
       handleClose();
     } catch (err) {
       console.error('Erro:', err);
-      toast.error('Erro ao criar veículo');
+      toast.error('Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
     } finally {
       setSaving(false);
     }

@@ -932,6 +932,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "veiculos_inspecao_por_fkey"
+            columns: ["inspecao_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "veiculos_liberado_por_fkey"
+            columns: ["liberado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "veiculos_motorista_id_fkey"
             columns: ["motorista_id"]
             isOneToOne: false
