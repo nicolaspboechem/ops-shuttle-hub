@@ -35,7 +35,10 @@ export default function Veiculos() {
   const [activeSection, setActiveSection] = useState<string>('cadastro');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'kanban' | 'lista'>('kanban');
+  const [filterMarca, setFilterMarca] = useState<string>('all');
+  const [filterFornecedor, setFilterFornecedor] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'kanban' | 'lista'>('lista');
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   
@@ -219,8 +222,20 @@ export default function Veiculos() {
       filtered = filtered.filter(v => v.tipo_veiculo === filterTipoVeiculo);
     }
 
+    if (filterMarca !== 'all') {
+      filtered = filtered.filter(v => v.marca === filterMarca);
+    }
+
+    if (filterFornecedor !== 'all') {
+      filtered = filtered.filter(v => v.fornecedor === filterFornecedor);
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(v => (v.status || 'em_inspecao') === filterStatus);
+    }
+
     return filtered;
-  }, [veiculos, searchTerm, filterTipoVeiculo]);
+  }, [veiculos, searchTerm, filterTipoVeiculo, filterMarca, filterFornecedor, filterStatus]);
 
   // Agrupar veículos por status para o Kanban
   const veiculosPorStatus = useMemo(() => {
@@ -278,9 +293,12 @@ export default function Veiculos() {
   const clearFilters = () => {
     setSearchTerm('');
     setFilterTipoVeiculo('all');
+    setFilterMarca('all');
+    setFilterFornecedor('all');
+    setFilterStatus('all');
   };
 
-  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all';
+  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterMarca !== 'all' || filterFornecedor !== 'all' || filterStatus !== 'all';
 
   const loading = loadingViagens || loadingVeiculos;
 
@@ -355,7 +373,6 @@ export default function Veiculos() {
           </div>
           <Select value={filterTipoVeiculo} onValueChange={setFilterTipoVeiculo}>
             <SelectTrigger className="w-[120px]">
-              <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -366,6 +383,50 @@ export default function Veiculos() {
               <SelectItem value="SUV">SUV</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="liberado">Liberado</SelectItem>
+              <SelectItem value="pendente">Pendente</SelectItem>
+              <SelectItem value="em_inspecao">Em Inspeção</SelectItem>
+              <SelectItem value="manutencao">Manutenção</SelectItem>
+            </SelectContent>
+          </Select>
+          {(() => {
+            const marcasUnicas = [...new Set(veiculos.map(v => v.marca).filter(Boolean))].sort();
+            return marcasUnicas.length > 0 ? (
+              <Select value={filterMarca} onValueChange={setFilterMarca}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Marca" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas marcas</SelectItem>
+                  {marcasUnicas.map(m => (
+                    <SelectItem key={m} value={m!}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null;
+          })()}
+          {(() => {
+            const fornecedoresUnicos = [...new Set(veiculos.map(v => v.fornecedor).filter(Boolean))].sort();
+            return fornecedoresUnicos.length > 0 ? (
+              <Select value={filterFornecedor} onValueChange={setFilterFornecedor}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Fornecedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos fornecedores</SelectItem>
+                  {fornecedoresUnicos.map(f => (
+                    <SelectItem key={f} value={f!}>{f}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null;
+          })()}
           {hasActiveFilters && (
             <Button variant="ghost" size="icon" onClick={clearFilters}>
               <X className="w-4 h-4" />
