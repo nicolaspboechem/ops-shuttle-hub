@@ -69,7 +69,7 @@ export function MotoristaKanbanCard({
         animate={{ scale: 1.05, rotate: 2, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
-        <Card className="overflow-hidden border-2 border-primary bg-card w-[280px]">
+        <Card className="overflow-hidden border-2 border-primary bg-card w-[320px]">
           <CardContent className="p-3">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">

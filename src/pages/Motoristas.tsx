@@ -1185,14 +1185,14 @@ export default function Motoristas() {
           ))}
         </div>
       ) : (
-        <div className="flex h-full">
+        <div className="flex min-h-[calc(100vh-4rem)]">
           <InnerSidebar 
             sections={sections}
             activeSection={activeSection}
             onSectionChange={setActiveSection}
             storageKey="motoristas-sidebar-collapsed"
           />
-          <div className="flex-1 p-6 overflow-auto">
+          <div className="flex-1 p-6 overflow-auto min-h-0">
             <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
               <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
             </div>

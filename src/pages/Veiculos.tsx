@@ -538,7 +538,7 @@ export default function Veiculos() {
           onSectionChange={setActiveSection}
           storageKey="veiculos-sidebar-collapsed"
         />
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-auto min-h-0">
           <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
             <VeiculosAuditoria 
               viagens={viagens} 

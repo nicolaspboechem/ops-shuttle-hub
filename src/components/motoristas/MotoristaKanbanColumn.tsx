@@ -105,7 +105,7 @@ export function MotoristaKanbanColumn({
     <div 
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-lg border min-w-[280px] max-w-[320px] flex-shrink-0 transition-all duration-200",
+        "flex flex-col rounded-lg border min-w-[310px] max-w-[380px] flex-shrink-0 transition-all duration-200",
         config.borderColor,
         config.bgColor,
         isOver && "ring-2 ring-primary ring-offset-2"
