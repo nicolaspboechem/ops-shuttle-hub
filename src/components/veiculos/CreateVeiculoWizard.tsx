@@ -514,12 +514,12 @@ export function CreateVeiculoWizard({
                     onClick={() => setStatusFinal('pendente')}
                     className={cn(
                       "p-4 rounded-lg border-2 text-center transition-all",
-                      statusFinal === 'pendente'
-                        ? "border-warning bg-warning/10"
-                        : "border-border hover:border-warning/50"
+                    statusFinal === 'pendente'
+                        ? "border-destructive bg-destructive/10"
+                        : "border-border hover:border-destructive/50"
                     )}
                   >
-                    <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-warning" />
+                    <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-destructive" />
                     <span className="font-medium">Pendente</span>
                     <p className="text-xs text-muted-foreground mt-1">
                       Requer atenção
@@ -559,7 +559,7 @@ export function CreateVeiculoWizard({
               className={cn(
                 statusFinal === 'liberado' 
                   ? "bg-emerald-600 hover:bg-emerald-700" 
-                  : "bg-warning hover:bg-warning/90"
+                  : "bg-destructive hover:bg-destructive/90"
               )}
             >
               {saving ? (
