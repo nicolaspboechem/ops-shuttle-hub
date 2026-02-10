@@ -52,7 +52,7 @@ export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<string>('cadastro');
-  const [viewMode, setViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
+  const [viewMode, setViewMode] = useState<'card' | 'list' | 'kanban'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
