@@ -1,60 +1,81 @@
 
-# Corrigir formularios sumindo ao trocar de aba
+# Corrigir cards Kanban cortados e problemas de clipping na interface
 
 ## Diagnostico
 
-A correcao anterior aplicou o padrao `block/hidden` em Veiculos.tsx e Motoristas.tsx, mas restam dois problemas:
+### Problema principal: Colunas Kanban de Motoristas muito estreitas
+O componente `MotoristaKanbanColumn` (linha 108) define `min-w-[280px] max-w-[320px]`, mas o `MotoristaKanbanCard` contém bastante informacao (avatar, nome, status badge, localizacao, veiculo, metricas, botao WhatsApp). O `max-w-[320px]` impede que o card se expanda o suficiente, cortando conteudo.
 
-### Problema 1: CreateMotoristaWizard nunca foi renderizado
-Na movimentacao anterior, o `CreateMotoristaWizard` foi removido de dentro do `CadastroContent` em Motoristas.tsx, mas **nunca foi adicionado ao JSX raiz**. O estado `showCreateWizard` existe (linha 304) mas o componente nao aparece no return. Isso significa que o botao de criar motorista via wizard simplesmente nao funciona.
+### Problema secundario: Altura do container Kanban
+O `ScrollArea` dentro da coluna usa `max-h-[calc(100vh-280px)]`, mas a cadeia de layout nao propaga altura corretamente:
+- `EventLayout` usa `min-h-screen` (bom)
+- Motoristas.tsx usa `flex h-full` (linha 1188), mas `h-full` nao funciona sem um pai com altura definida
 
-### Problema 2: RotasShuttle.tsx ainda usa renderizacao destrutiva
-A pagina de Rotas/Pontos (RotasShuttle.tsx) ainda usa o padrao antigo:
-```
-{activeSection === 'pontos' && <PontosContent />}
-{activeSection === 'rotas' && <RotasContent />}
-```
-Isso destrói o conteudo ao trocar de aba, perdendo qualquer estado de formulario aberto.
+### Problema similar em Veiculos
+`VeiculoKanbanColumnFull` usa `min-w-[300px]` (sem max-width, melhor) mas o `max-h-[calc(100vh-320px)]` pode causar clipping similar.
 
-## Solucao
+## Correcoes
 
-### 1. Adicionar CreateMotoristaWizard ao JSX raiz de Motoristas.tsx
+### 1. Ampliar largura das colunas Kanban de Motoristas
 
-Renderizar o componente no nivel raiz (junto do `EditarLocalizacaoModal`, ~linha 1209), passando os props necessarios:
+**Arquivo**: `src/components/motoristas/MotoristaKanbanColumn.tsx` (linha 108)
 
+Alterar de:
 ```text
-<CreateMotoristaWizard
-  open={showCreateWizard}
-  onOpenChange={setShowCreateWizard}
-  veiculos={veiculos}
-  eventoId={eventoId || ''}
-  onSubmit={async (data) => {
-    // criar motorista e retornar id
-  }}
-/>
+min-w-[280px] max-w-[320px]
 ```
-
-### 2. Corrigir RotasShuttle.tsx: trocar condicional por block/hidden
-
-**Arquivo**: `src/pages/RotasShuttle.tsx` (linhas 286-289)
-
-Trocar:
+Para:
 ```text
-{activeSection === 'pontos' && <PontosContent />}
-{activeSection === 'rotas' && <RotasContent />}
+min-w-[310px] max-w-[380px]
 ```
 
-Por:
+Isso da mais espaco para os cards exibirem todo o conteudo sem cortar badges de status, nomes longos e informacoes de veiculo.
+
+### 2. Corrigir propagacao de altura no layout
+
+**Arquivo**: `src/pages/Motoristas.tsx` (linha 1188)
+
+Alterar o container de:
 ```text
-<div className={activeSection === 'pontos' ? 'block' : 'hidden'}>
-  <PontosContent />
-</div>
-<div className={activeSection === 'rotas' ? 'block' : 'hidden'}>
-  <RotaContent />
-</div>
+<div className="flex h-full">
+```
+Para:
+```text
+<div className="flex min-h-[calc(100vh-4rem)]">
 ```
 
-### Resultado esperado
-- Formularios e wizards sobrevivem a troca de aba em todas as paginas
-- Nenhum dado preenchido e perdido ao navegar entre secoes da sidebar interna
-- O wizard de criacao de motorista volta a funcionar corretamente
+Isso garante que o container flex tenha uma altura minima real, permitindo que o `max-h` do ScrollArea funcione corretamente.
+
+### 3. Ajustar content area para ocupar altura total
+
+**Arquivo**: `src/pages/Motoristas.tsx` (linha 1195)
+
+Alterar de:
+```text
+<div className="flex-1 p-6 overflow-auto">
+```
+Para:
+```text
+<div className="flex-1 p-6 overflow-auto min-h-0">
+```
+
+O `min-h-0` e essencial em containers flex para permitir que `overflow-auto` funcione corretamente (por padrao, flex items tem `min-height: auto` que impede o overflow).
+
+### 4. Mesma correcao de min-h-0 em Veiculos.tsx
+
+**Arquivo**: `src/pages/Veiculos.tsx`
+
+Verificar e aplicar o mesmo padrao `min-h-0` no container de conteudo para evitar clipping no Kanban de veiculos.
+
+### 5. Ajustar DragOverlay card width
+
+**Arquivo**: `src/components/motoristas/MotoristaKanbanCard.tsx` (linha 78)
+
+Alterar o drag overlay de `w-[280px]` para `w-[320px]` para corresponder a nova largura das colunas.
+
+## Resultado esperado
+
+- Cards de motoristas no Kanban exibem todas as informacoes sem corte
+- Colunas Kanban ocupam a altura disponivel corretamente
+- ScrollArea funciona sem clipping em ambos Kanban (motoristas e veiculos)
+- DragOverlay com tamanho consistente ao arrastar cards
