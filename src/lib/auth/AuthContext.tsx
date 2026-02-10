@@ -83,49 +83,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      
-      if (profileData) {
-        setProfile(profileData as UserProfile);
+      const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', userId).single(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+        supabase.from('user_permissions').select('permission').eq('user_id', userId),
+        supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
+      ]);
+
+      if (profileRes.data) {
+        setProfile(profileRes.data as UserProfile);
       }
 
-      // Fetch role
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .single();
-      
-      const userIsAdmin = roleData?.role === 'admin';
+      const userIsAdmin = roleRes.data?.role === 'admin';
       setIsAdmin(userIsAdmin);
 
-      // Fetch permissions (admin has all implicitly)
       if (userIsAdmin) {
         setPermissions(['view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data']);
-      } else {
-        const { data: permData } = await supabase
-          .from('user_permissions')
-          .select('permission')
-          .eq('user_id', userId);
-        
-        if (permData) {
-          setPermissions(permData.map(p => p.permission as AppPermission));
-        }
+      } else if (permRes.data) {
+        setPermissions(permRes.data.map(p => p.permission as AppPermission));
       }
 
-      // Fetch event roles (from evento_usuarios)
-      const { data: eventRolesData } = await supabase
-        .from('evento_usuarios')
-        .select('evento_id, role')
-        .eq('user_id', userId);
-      
-      if (eventRolesData) {
-        setEventRoles(eventRolesData.map(er => ({
+      if (eventRolesRes.data) {
+        setEventRoles(eventRolesRes.data.map(er => ({
           eventoId: er.evento_id,
           role: er.role as EventRole
         })));

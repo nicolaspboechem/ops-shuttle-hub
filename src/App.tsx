@@ -1,10 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, ReactNode } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/lib/auth/AuthContext";
+import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
 import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
 import { StaffAuthProvider } from "@/lib/auth/StaffAuthContext";
 import { NotificationsProvider } from "@/hooks/useNotifications";
@@ -63,12 +63,19 @@ const queryClient = new QueryClient({
   },
 });
 
+// Only mount NotificationsProvider for authenticated users
+function ConditionalNotifications({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <>{children}</>;
+  return <NotificationsProvider>{children}</NotificationsProvider>;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <DriverAuthProvider>
         <StaffAuthProvider>
-          <NotificationsProvider>
+          <ConditionalNotifications>
             <TooltipProvider>
               <Toaster />
               <Sonner />
@@ -138,7 +145,7 @@ const App = () => (
                 </Suspense>
               </BrowserRouter>
             </TooltipProvider>
-          </NotificationsProvider>
+          </ConditionalNotifications>
         </StaffAuthProvider>
       </DriverAuthProvider>
     </AuthProvider>
