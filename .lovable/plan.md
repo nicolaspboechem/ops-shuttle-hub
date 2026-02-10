@@ -1,76 +1,60 @@
 
-# Mostrar apelido do veiculo como info principal nos motoristas
+# Corrigir formularios sumindo ao trocar de aba
 
-## Onde mudar
+## Diagnostico
 
-Existem 3 locais que exibem o veiculo vinculado ao motorista:
+A correcao anterior aplicou o padrao `block/hidden` em Veiculos.tsx e Motoristas.tsx, mas restam dois problemas:
 
-### 1. Vista em Card (Motoristas.tsx, ~linha 743-746)
-Atualmente mostra apenas a placa. Mudar para:
-- Nome/apelido do veiculo como texto principal (quando existir)
-- Placa em texto menor como complemento
+### Problema 1: CreateMotoristaWizard nunca foi renderizado
+Na movimentacao anterior, o `CreateMotoristaWizard` foi removido de dentro do `CadastroContent` em Motoristas.tsx, mas **nunca foi adicionado ao JSX raiz**. O estado `showCreateWizard` existe (linha 304) mas o componente nao aparece no return. Isso significa que o botao de criar motorista via wizard simplesmente nao funciona.
 
-### 2. Vista em Lista/Tabela (Motoristas.tsx, ~linha 850-854)
-Atualmente mostra placa + badge tipo. Mudar para:
-- Nome/apelido como texto principal
-- Placa em code menor ao lado
-
-### 3. Kanban Card (MotoristaKanbanCard.tsx, ~linha 241-244)
-Atualmente mostra placa + badge tipo. Mudar para:
-- Nome/apelido como texto principal
-- Placa em code menor
-
-## Logica
-
-Em todos os 3 locais, aplicar:
-- Se `veiculo.nome` existir: mostrar `veiculo.nome` como texto principal e `veiculo.placa` em tamanho menor
-- Se `veiculo.nome` nao existir: manter a placa como info principal (comportamento atual)
-
-## Tecnico
-
-### `src/pages/Motoristas.tsx`
-
-**Card view (~linha 743-746):**
+### Problema 2: RotasShuttle.tsx ainda usa renderizacao destrutiva
+A pagina de Rotas/Pontos (RotasShuttle.tsx) ainda usa o padrao antigo:
 ```
-<Truck className="w-4 h-4 text-muted-foreground" />
-{veiculo.nome ? (
-  <>
-    <span className="text-xs font-medium">{veiculo.nome}</span>
-    <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
-  </>
-) : (
-  <code className="text-xs">{veiculo.placa}</code>
-)}
-<Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+{activeSection === 'pontos' && <PontosContent />}
+{activeSection === 'rotas' && <RotasContent />}
+```
+Isso destrói o conteudo ao trocar de aba, perdendo qualquer estado de formulario aberto.
+
+## Solucao
+
+### 1. Adicionar CreateMotoristaWizard ao JSX raiz de Motoristas.tsx
+
+Renderizar o componente no nivel raiz (junto do `EditarLocalizacaoModal`, ~linha 1209), passando os props necessarios:
+
+```text
+<CreateMotoristaWizard
+  open={showCreateWizard}
+  onOpenChange={setShowCreateWizard}
+  veiculos={veiculos}
+  eventoId={eventoId || ''}
+  onSubmit={async (data) => {
+    // criar motorista e retornar id
+  }}
+/>
 ```
 
-**Table view (~linha 851-853):**
-```
-{veiculo.nome ? (
-  <>
-    <span className="text-sm font-medium">{veiculo.nome}</span>
-    <code className="text-[10px] bg-muted px-1 py-0.5 rounded text-muted-foreground">{veiculo.placa}</code>
-  </>
-) : (
-  <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
-)}
-<Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+### 2. Corrigir RotasShuttle.tsx: trocar condicional por block/hidden
+
+**Arquivo**: `src/pages/RotasShuttle.tsx` (linhas 286-289)
+
+Trocar:
+```text
+{activeSection === 'pontos' && <PontosContent />}
+{activeSection === 'rotas' && <RotasContent />}
 ```
 
-### `src/components/motoristas/MotoristaKanbanCard.tsx`
-
-**Kanban card (~linha 242-244):**
-```
-<TipoIcon className="w-4 h-4 text-muted-foreground" />
-{veiculo.nome ? (
-  <>
-    <span className="font-medium">{veiculo.nome}</span>
-    <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
-  </>
-) : (
-  <code className="font-medium">{veiculo.placa}</code>
-)}
-<Badge variant="outline" className="text-[10px] px-1.5 py-0">{veiculo.tipo_veiculo}</Badge>
+Por:
+```text
+<div className={activeSection === 'pontos' ? 'block' : 'hidden'}>
+  <PontosContent />
+</div>
+<div className={activeSection === 'rotas' ? 'block' : 'hidden'}>
+  <RotaContent />
+</div>
 ```
 
-Nenhuma mudanca de logica ou banco de dados necessaria -- o campo `nome` ja existe no tipo `Veiculo` e ja e carregado nas queries.
+### Resultado esperado
+- Formularios e wizards sobrevivem a troca de aba em todas as paginas
+- Nenhum dado preenchido e perdido ao navegar entre secoes da sidebar interna
+- O wizard de criacao de motorista volta a funcionar corretamente
