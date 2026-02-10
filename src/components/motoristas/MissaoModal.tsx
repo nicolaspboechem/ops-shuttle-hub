@@ -53,6 +53,7 @@ export function MissaoModal({
   const [horarioPrevisto, setHorarioPrevisto] = useState('');
   const [prioridade, setPrioridade] = useState<MissaoPrioridade>('normal');
   const [qtdPax, setQtdPax] = useState<number>(0);
+  const [dataProgramada, setDataProgramada] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export function MissaoModal({
         setHorarioPrevisto(missao.horario_previsto?.slice(0, 5) || '');
         setPrioridade(missao.prioridade);
         setQtdPax(missao.qtd_pax || 0);
+        setDataProgramada(missao.data_programada || new Date().toISOString().slice(0, 10));
       } else {
         setMotoristaId('');
         setTitulo('');
@@ -75,6 +77,7 @@ export function MissaoModal({
         setHorarioPrevisto('');
         setPrioridade('normal');
         setQtdPax(0);
+        setDataProgramada(new Date().toISOString().slice(0, 10));
       }
     }
   }, [open, missao]);
@@ -102,6 +105,7 @@ export function MissaoModal({
       horario_previsto: horarioPrevisto ? `${horarioPrevisto}:00` : null,
       prioridade,
       qtd_pax: qtdPax,
+      data_programada: dataProgramada || null,
     });
     setSaving(false);
     onOpenChange(false);
@@ -196,8 +200,17 @@ export function MissaoModal({
             </div>
           </div>
 
-          {/* Horário, PAX e Prioridade */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Data e Horário */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="data_programada">Data Programada</Label>
+              <Input
+                id="data_programada"
+                type="date"
+                value={dataProgramada}
+                onChange={(e) => setDataProgramada(e.target.value)}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="horario">Horário Previsto</Label>
               <Input
@@ -207,7 +220,10 @@ export function MissaoModal({
                 onChange={(e) => setHorarioPrevisto(e.target.value)}
               />
             </div>
+          </div>
 
+          {/* PAX e Prioridade */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="qtd_pax">Qtd PAX</Label>
               <Input
@@ -220,7 +236,6 @@ export function MissaoModal({
                 placeholder="0"
               />
             </div>
-
             <div className="space-y-2">
               <Label>Prioridade</Label>
               <Select value={prioridade} onValueChange={(v) => setPrioridade(v as MissaoPrioridade)}>

@@ -1,0 +1,1 @@
+ALTER TABLE missoes ADD COLUMN data_programada DATE;

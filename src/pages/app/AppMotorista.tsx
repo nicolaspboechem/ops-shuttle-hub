@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
 import { useViagens } from '@/hooks/useViagens';
@@ -86,11 +87,13 @@ export default function AppMotorista() {
   // Filter missions for this driver (only active)
   const minhasMissoes = useMemo(() => {
     if (!motoristaData) return [];
+    const hoje = getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00');
     return missoes.filter(m => 
       m.motorista_id === motoristaData.id && 
-      ['pendente', 'aceita', 'em_andamento'].includes(m.status)
+      ['pendente', 'aceita', 'em_andamento'].includes(m.status) &&
+      (!m.data_programada || m.data_programada === hoje)
     );
-  }, [missoes, motoristaData]);
+  }, [missoes, motoristaData, evento?.horario_virada_dia]);
 
   // Filter trips - only ACTIVE (no completed/cancelled)
   const minhasViagensAtivas = useMemo(() => {

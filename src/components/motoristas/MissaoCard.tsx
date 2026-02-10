@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle } from 'lucide-react';
+import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface MissaoCardProps {
@@ -117,13 +117,25 @@ export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusCh
           </div>
         )}
 
-        {/* Horário */}
-        {missao.horario_previsto && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>Previsto: {missao.horario_previsto.slice(0, 5)}</span>
-          </div>
-        )}
+        {/* Horário e Data */}
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          {missao.data_programada && (
+            <div className="flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              <span>
+                {missao.data_programada === new Date().toISOString().slice(0, 10)
+                  ? 'Hoje'
+                  : missao.data_programada.split('-').reverse().slice(0, 2).join('/')}
+              </span>
+            </div>
+          )}
+          {missao.horario_previsto && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>{missao.horario_previsto.slice(0, 5)}</span>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -32,6 +32,7 @@ export interface Missao {
   status: MissaoStatus;
   prioridade: MissaoPrioridade;
   qtd_pax: number;
+  data_programada: string | null;
   criado_por: string | null;
   atualizado_por: string | null;
   created_at: string;
@@ -51,6 +52,7 @@ export interface MissaoInput {
   horario_previsto?: string | null;
   prioridade?: MissaoPrioridade;
   qtd_pax?: number;
+  data_programada?: string | null;
 }
 
 export function useMissoes(eventoId: string | undefined) {
@@ -151,6 +153,7 @@ export function useMissoes(eventoId: string | undefined) {
           horario_previsto: input.horario_previsto || null,
           prioridade: input.prioridade || 'normal',
           qtd_pax: input.qtd_pax || 0,
+          data_programada: input.data_programada || null,
           status: 'pendente',
           criado_por: user?.id,
           atualizado_por: user?.id,
