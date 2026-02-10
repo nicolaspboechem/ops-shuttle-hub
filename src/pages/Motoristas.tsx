@@ -742,7 +742,14 @@ export default function Motoristas() {
                           <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
                             <div className="flex items-center gap-2">
                               <Truck className="w-4 h-4 text-muted-foreground" />
-                              <code className="text-xs">{veiculo.placa}</code>
+                              {veiculo.nome ? (
+                                <>
+                                  <span className="text-xs font-medium">{veiculo.nome}</span>
+                                  <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
+                                </>
+                              ) : (
+                                <code className="text-xs">{veiculo.placa}</code>
+                              )}
                               <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
                             </div>
                           </div>
@@ -849,7 +856,14 @@ export default function Motoristas() {
                         <TableCell>
                           {veiculo ? (
                             <div className="flex items-center gap-2">
-                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+                              {veiculo.nome ? (
+                                <>
+                                  <span className="text-sm font-medium">{veiculo.nome}</span>
+                                  <code className="text-[10px] bg-muted px-1 py-0.5 rounded text-muted-foreground">{veiculo.placa}</code>
+                                </>
+                              ) : (
+                                <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+                              )}
                               <Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
                             </div>
                           ) : '-'}

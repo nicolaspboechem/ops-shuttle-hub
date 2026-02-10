@@ -240,7 +240,14 @@ export function MotoristaKanbanCard({
           {veiculo ? (
             <div className="flex items-center gap-2 p-2 bg-muted/50 rounded text-xs">
               <TipoIcon className="w-4 h-4 text-muted-foreground" />
-              <code className="font-medium">{veiculo.placa}</code>
+              {veiculo.nome ? (
+                <>
+                  <span className="font-medium">{veiculo.nome}</span>
+                  <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
+                </>
+              ) : (
+                <code className="font-medium">{veiculo.placa}</code>
+              )}
               <Badge variant="outline" className="text-[10px] px-1.5 py-0">{veiculo.tipo_veiculo}</Badge>
             </div>
           ) : (
