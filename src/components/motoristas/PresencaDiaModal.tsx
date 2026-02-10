@@ -71,14 +71,16 @@ export function PresencaDiaModal({
     }>();
 
     viagens.forEach(v => {
-      if (!v.placa) return;
-      const current = map.get(v.placa);
+      const placa = v.placa || v.veiculo?.placa;
+      const tipoVeiculo = v.tipo_veiculo || v.veiculo?.tipo_veiculo;
+      if (!placa) return;
+      const current = map.get(placa);
       const horario = v.h_pickup || v.data_criacao;
       
       if (!current) {
-        map.set(v.placa, {
-          placa: v.placa,
-          tipo: v.tipo_veiculo || 'Van',
+        map.set(placa, {
+          placa,
+          tipo: tipoVeiculo || 'Van',
           primeiraViagem: horario,
           ultimaViagem: v.h_chegada || v.h_pickup || horario,
           totalViagens: 1,
@@ -218,11 +220,11 @@ export function PresencaDiaModal({
                           </td>
                           <td className="px-3 py-2 text-center">
                             <span className="text-muted-foreground">
-                              {veiculo.primeiraViagem.substring(11, 16) || '--:--'}
+                              {veiculo.primeiraViagem.substring(0, 5) || '--:--'}
                             </span>
                             <ArrowRight className="h-3 w-3 inline mx-1 text-muted-foreground" />
                             <span className="text-muted-foreground">
-                              {veiculo.ultimaViagem.substring(11, 16) || '--:--'}
+                              {veiculo.ultimaViagem.substring(0, 5) || '--:--'}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center font-medium">{veiculo.totalViagens}</td>
@@ -271,7 +273,7 @@ export function PresencaDiaModal({
                         .map((viagem) => (
                         <tr key={viagem.id} className="hover:bg-muted/30">
                           <td className="px-3 py-2 font-medium">
-                            {viagem.h_pickup?.substring(11, 16) || '--:--'}
+                            {viagem.h_pickup?.substring(0, 5) || '--:--'}
                           </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-1 text-xs">
@@ -282,9 +284,9 @@ export function PresencaDiaModal({
                             </div>
                           </td>
                           <td className="px-3 py-2">
-                            {viagem.placa ? (
+                            {(viagem.placa || viagem.veiculo?.placa) ? (
                               <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                                {viagem.placa}
+                                {viagem.placa || viagem.veiculo?.placa}
                               </code>
                             ) : '-'}
                           </td>

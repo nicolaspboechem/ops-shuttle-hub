@@ -171,10 +171,13 @@ export default function AppMotorista() {
             ponto_desembarque_id: missao.ponto_desembarque_id || null,
             // Campos de texto (compatibilidade)
             motorista: motorista.nome,
+            placa: veiculoExibir?.placa || null,
+            tipo_veiculo: veiculoExibir?.tipo_veiculo || null,
             ponto_embarque: missao.ponto_embarque,
             ponto_desembarque: missao.ponto_desembarque,
             tipo_operacao: 'transfer',
             h_pickup: horaPickup,
+            qtd_pax: missao.qtd_pax || 0,
             status: 'em_andamento',
             h_inicio_real: now.toISOString(),
             encerrado: false,
