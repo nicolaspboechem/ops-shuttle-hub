@@ -1,83 +1,75 @@
 
+# Otimizar Tempo de Carregamento do App Publicado
 
-# Adicionar campo de Data Programada nas Missoes
+## Problema
+O app demora para renderizar porque: (1) a fonte Google bloqueia o render, (2) queries e canais Realtime disparam para todos os usuarios (incluindo nao autenticados), e (3) queries de perfil sao sequenciais em vez de paralelas.
 
-## Resumo
+## Correcoes
 
-Adicionar um campo `data_programada` (tipo DATE) na tabela `missoes` para permitir agendar missoes para dias futuros. O CCO podera filtrar missoes por data, e os motoristas so verao missoes programadas para o dia atual (ou sem data definida = imediatas).
+### 1. Mover Google Fonts para o HTML com preload (index.html)
 
-## Alteracoes
+Remover o `@import url(...)` do `src/index.css` e adicionar a fonte diretamente no `index.html` com `<link rel="preconnect">` e `<link rel="stylesheet">` com `display=swap`. Isso permite que o navegador comece a baixar a fonte em paralelo sem bloquear o CSS.
 
-### 1. Migration: adicionar coluna `data_programada`
-
-Criar migration SQL adicionando a coluna `data_programada` (tipo DATE, nullable) na tabela `missoes`. Valor NULL significa missao imediata (comportamento atual preservado).
-
-### 2. Atualizar types do Supabase
-
-Adicionar `data_programada: string | null` nos tipos Row, Insert e Update da tabela `missoes` em `src/integrations/supabase/types.ts`.
-
-### 3. Atualizar interface Missao e MissaoInput
-
-**Arquivo**: `src/hooks/useMissoes.ts`
-
-- Adicionar `data_programada: string | null` na interface `Missao`
-- Adicionar `data_programada?: string | null` na interface `MissaoInput`
-- No `createMissao`, passar `data_programada` no INSERT
-
-### 4. Adicionar campo de data no MissaoModal (wizard do CCO)
-
-**Arquivo**: `src/components/motoristas/MissaoModal.tsx`
-
-- Adicionar estado `dataProgramada` (string, default = data de hoje no formato YYYY-MM-DD)
-- Adicionar input `type="date"` na linha do Horario/PAX/Prioridade (reorganizar grid de 3 para 2 linhas)
-- Layout: primeira linha com Data e Horario (grid-cols-2), segunda linha com PAX e Prioridade (grid-cols-2)
-- Passar `data_programada` no onSave
-- Ao editar missao existente, preencher com o valor salvo
-
-### 5. Filtrar missoes por data no CCO (Motoristas.tsx)
-
-**Arquivo**: `src/pages/Motoristas.tsx`
-
-- Adicionar filtro de data (input date ou DiaSeletor) na barra de filtros das missoes
-- Estado `missaoDataFilter` (string | null, default = data de hoje)
-- No `filteredMissoes`, adicionar filtro: se `missaoDataFilter` definido, mostrar apenas missoes cuja `data_programada` seja igual a essa data OU missoes sem data (imediatas do dia de criacao)
-- Adicionar coluna "Data" na tabela de lista
-
-### 6. Filtrar missoes por data no App do Motorista
-
-**Arquivo**: `src/pages/app/AppMotorista.tsx`
-
-- No `minhasMissoes` (useMemo), adicionar filtro: mostrar apenas missoes onde `data_programada` e NULL (imediata) ou igual a data operacional de hoje (usando `getDataOperacional` do utilitario existente)
-- Isso garante que missoes agendadas para o futuro nao aparecam para o motorista ate o dia certo
-
-### 7. Exibir data nos cards de missao
-
-**Arquivo**: `src/components/motoristas/MissaoCard.tsx` (CCO)
-
-- Exibir a data programada no card (ex: "10/02" ou "Hoje" se for hoje)
-
-**Arquivo**: `src/components/app/MissaoCardMobile.tsx` (Motorista)
-
-- Exibir a data no card mobile (sutil, ja que o motorista so ve missoes do dia)
-
-## Secao tecnica
-
-```text
--- Migration
-ALTER TABLE missoes ADD COLUMN data_programada DATE;
-
--- Missoes sem data = imediatas (retrocompatibilidade)
--- Missoes com data = programadas para aquele dia
+**Arquivo**: `index.html` - Adicionar no `<head>`:
+```
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
 ```
 
-Fluxo de filtragem no motorista:
-```text
-const hoje = getDataOperacional(getAgoraSync(), evento?.horario_virada_dia);
-const minhasMissoes = missoes.filter(m =>
-  m.motorista_id === motoristaData.id &&
-  ['pendente', 'aceita', 'em_andamento'].includes(m.status) &&
-  (!m.data_programada || m.data_programada === hoje)
-);
+**Arquivo**: `src/index.css` - Remover a linha 1:
+```
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 ```
 
-Resultado: o CCO pode criar missoes para qualquer dia, filtrar por data, e os motoristas so veem no dia certo.
+### 2. Condicionar NotificationsProvider a usuario autenticado (App.tsx)
+
+Envolver o `NotificationsProvider` em um componente que so renderiza quando o usuario esta autenticado. Criar um componente wrapper `AuthenticatedNotifications` que verifica `user` do `useAuth()` antes de montar o provider, evitando 3 queries + 3 canais Realtime em paginas publicas e de login.
+
+**Arquivo**: `src/App.tsx`
+
+Criar componente interno:
+```tsx
+function ConditionalNotifications({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <>{children}</>;
+  return <NotificationsProvider>{children}</NotificationsProvider>;
+}
+```
+
+Substituir `<NotificationsProvider>` por `<ConditionalNotifications>` no JSX.
+
+### 3. Paralelizar queries do AuthContext (AuthContext.tsx)
+
+No `fetchUserData`, substituir as 4 queries sequenciais por `Promise.all`, reduzindo o tempo de ~800ms (4x200ms) para ~200ms (1x200ms).
+
+**Arquivo**: `src/lib/auth/AuthContext.tsx`
+
+Refatorar `fetchUserData` para:
+```tsx
+const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
+  supabase.from('profiles').select('*').eq('user_id', userId).single(),
+  supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+  supabase.from('user_permissions').select('permission').eq('user_id', userId),
+  supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
+]);
+// Processar resultados...
+```
+
+### 4. Adicionar preconnect ao Supabase (index.html)
+
+Adicionar `<link rel="preconnect">` para o dominio do Supabase, permitindo que a conexao TLS comece antes mesmo do JavaScript carregar.
+
+**Arquivo**: `index.html` - Adicionar no `<head>`:
+```
+<link rel="preconnect" href="https://gkrczwtldvondiehsesh.supabase.co">
+```
+
+## Impacto Esperado
+
+- **Font blocking**: Eliminado (~300-500ms de melhoria no First Contentful Paint)
+- **Queries desnecessarias**: 3 queries e 3 canais Realtime eliminados para usuarios nao autenticados
+- **Auth sequencial para paralelo**: ~600ms de economia no carregamento pos-login
+- **Preconnect Supabase**: ~100-200ms de economia na primeira query
+
+Total estimado: **1-1.5s mais rapido** no carregamento inicial.
