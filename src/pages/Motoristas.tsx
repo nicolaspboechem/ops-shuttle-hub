@@ -1141,11 +1141,15 @@ export default function Motoristas() {
             storageKey="motoristas-sidebar-collapsed"
           />
           <div className="flex-1 p-6 overflow-auto">
-            {activeSection === 'auditoria' && (
+            <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
               <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
-            )}
-            {activeSection === 'cadastro' && <CadastroContent />}
-            {activeSection === 'missoes' && <MissoesContent />}
+            </div>
+            <div className={activeSection === 'cadastro' ? 'block' : 'hidden'}>
+              <CadastroContent />
+            </div>
+            <div className={activeSection === 'missoes' ? 'block' : 'hidden'}>
+              <MissoesContent />
+            </div>
           </div>
         </div>
       )}
