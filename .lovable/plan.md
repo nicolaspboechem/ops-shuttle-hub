@@ -1,31 +1,54 @@
 
-# Corrigir Triggers Incorretos em Todas as Tabelas
+# Corrigir Exclusao de Veiculos Bloqueada por Foreign Keys
 
 ## Problema
-O erro ao vincular o veiculo SUL0H29 ao motorista Lorram Dionisio e causado pelo trigger `update_motoristas_updated_at` na tabela `motoristas`. Esse trigger executa a funcao `update_updated_at_column()` que tenta fazer `NEW.updated_at = NOW()`, mas a coluna se chama `data_atualizacao`.
+O veiculo TESTE01 nao pode ser excluido porque 3 foreign keys usam `NO ACTION`, impedindo o DELETE quando ha registros filhos:
 
-A migracao anterior so removeu o trigger da tabela `veiculos`. Existem mais 3 triggers com o mesmo problema:
+| Tabela | FK | Regra Atual | Registros |
+|--------|----|-------------|-----------|
+| motoristas | motoristas_veiculo_id_fkey | NO ACTION | 1 (Nicolas) |
+| viagens | viagens_veiculo_id_fkey | NO ACTION | 2 viagens |
+| motorista_presenca | motorista_presenca_veiculo_id_fkey | NO ACTION | possivelmente |
 
-| Trigger | Tabela | Status |
-|---------|--------|--------|
-| `update_motoristas_updated_at` | motoristas | Causa o erro atual |
-| `update_motorista_presenca_updated_at` | motorista_presenca | Potencial erro futuro |
-| `update_viagens_updated_at` | viagens | Potencial erro futuro |
+As tabelas `veiculo_fotos` e `veiculo_vistoria_historico` ja usam CASCADE, entao essas nao bloqueiam.
 
 ## Solucao
 
-Uma unica migracao SQL para remover os 3 triggers de uma vez:
+### 1. Migracao SQL - Alterar FKs para SET NULL
+
+Trocar as 3 constraints de `NO ACTION` para `SET NULL`. Isso preserva o historico (viagens, presenca) mas desvincula o veiculo ao exclui-lo:
 
 ```sql
-DROP TRIGGER IF EXISTS update_motoristas_updated_at ON public.motoristas;
-DROP TRIGGER IF EXISTS update_motorista_presenca_updated_at ON public.motorista_presenca;
-DROP TRIGGER IF EXISTS update_viagens_updated_at ON public.viagens;
+-- motoristas: desvincular veiculo ao excluir
+ALTER TABLE public.motoristas
+  DROP CONSTRAINT motoristas_veiculo_id_fkey,
+  ADD CONSTRAINT motoristas_veiculo_id_fkey
+    FOREIGN KEY (veiculo_id) REFERENCES veiculos(id) ON DELETE SET NULL;
+
+-- viagens: manter historico, limpar referencia
+ALTER TABLE public.viagens
+  DROP CONSTRAINT viagens_veiculo_id_fkey,
+  ADD CONSTRAINT viagens_veiculo_id_fkey
+    FOREIGN KEY (veiculo_id) REFERENCES veiculos(id) ON DELETE SET NULL;
+
+-- motorista_presenca: manter historico, limpar referencia
+ALTER TABLE public.motorista_presenca
+  DROP CONSTRAINT motorista_presenca_veiculo_id_fkey,
+  ADD CONSTRAINT motorista_presenca_veiculo_id_fkey
+    FOREIGN KEY (veiculo_id) REFERENCES veiculos(id) ON DELETE SET NULL;
 ```
 
-Nao ha risco de regressao: todos esses campos sao atualizados pelo codigo via `atualizado_por` e `data_atualizacao` nos hooks (`useCadastros.ts`, `useViagens.ts`, etc).
+### 2. Nenhuma mudanca no frontend
+
+O codigo de exclusao em `useCadastros.ts` ja faz um simples `DELETE` -- com as FKs corrigidas, ele passara a funcionar sem alteracoes.
+
+## Por que SET NULL e nao CASCADE
+
+- CASCADE apagaria viagens e registros de presenca historicos, perdendo dados operacionais
+- SET NULL apenas desvincula: o motorista Nicolas ficara sem veiculo vinculado, as viagens manterao todos os dados exceto a referencia ao veiculo
 
 ## Resultado
 
-- Vinculacao de veiculos funcionara sem erro
-- Atualizacao de motoristas, presenca e viagens funcionara sem erro
-- Nenhum trigger problematico restante no sistema
+- Excluir TESTE01 (e qualquer outro veiculo) funcionara normalmente
+- Historico de viagens e presenca sera preservado
+- Motoristas vinculados serao automaticamente desvinculados
