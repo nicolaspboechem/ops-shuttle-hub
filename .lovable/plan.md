@@ -1,123 +1,72 @@
 
-
-# Corrigir dados incompletos em viagens criadas por missao e exibicao no modal de detalhes
+# Corrigir notificacoes ausentes e bug de persistencia de lida/excluida
 
 ## Diagnostico
 
-Ao analisar a viagem do Lorran (ID `fc8d2391`), identifiquei **3 bugs distintos** que explicam os dados faltando no print:
+### Bug 1: Viagens de missao NAO geram log
+Quando o motorista inicia uma missao (AppMotorista.tsx linhas 149-208), a viagem e criada via INSERT direto no Supabase, mas **nao chama `registrarLog`** para registrar a acao `inicio`. Da mesma forma, quando o motorista finaliza via `registrarChegada`, o log de `chegada` e registrado pelo hook, mas o log de `inicio` nunca foi criado.
 
-### Bug 1: Missao nao preenche campos legados ao criar viagem
-Quando o motorista inicia uma missao (AppMotorista.tsx, linha 163-184), o `INSERT` na tabela `viagens` **nao popula**:
-- `placa` -- campo legado de texto (por isso "Veiculo: -" no print)
-- `tipo_veiculo` -- campo legado de texto
-- `qtd_pax` -- valor da missao (por isso "PAX: 0")
+A tabela `viagem_logs` esta **completamente vazia** hoje -- confirmado via query. Isso significa que NENHUMA notificacao de viagem aparece, nem na Home nem no sino.
 
-O `veiculo_id` FK e definido corretamente, mas os campos de texto ficam NULL. Compare com o `CreateViagemMotoristaForm` (linha 152-153) que preenche ambos.
+A raiz: o fluxo de missao em `AppMotorista.tsx` cria a viagem mas nao insere nenhum `viagem_log`. O `registrarLog` so existe dentro de `useViagemOperacaoMotorista.ts`, que e chamado quando o motorista usa `iniciarViagem()` ou `registrarChegada()` -- mas o fluxo de missao nao usa essas funcoes.
 
-**Dados no banco confirmam:**
-```text
-veiculo_id: 5c18895b... (KIA SPORTAGE CINZA, SUL0H29, SUV)
-placa: NULL
-tipo_veiculo: NULL
-qtd_pax: 0
-```
-
-### Bug 2: Formato de hora errado no modal PresencaDiaModal
-A linha 274 usa `viagem.h_pickup?.substring(11, 16)`, que espera datetime ISO (`2026-02-10T10:48:19` -> pos 11-16 = `10:48`). Porem `h_pickup` e armazenado como `"10:48:19"` (so hora), entao `substring(11, 16)` retorna string vazia = "--:--".
-
-### Bug 3: Modal nao usa dados do JOIN de veiculo
-O `useViagens` faz JOIN com veiculos (`veiculo:veiculos!veiculo_id (nome, placa, tipo_veiculo)`), mas o `PresencaDiaModal` le apenas `v.placa` (campo legado). Quando o campo legado e NULL mas o FK existe, o veiculo nao aparece.
+### Bug 2: Notificacoes reaparecem apos marcar como lida ou excluir
+O estado de leitura/exclusao e mantido apenas em memoria (useState e useRef). Quando um evento Realtime dispara `fetchNotifications()`, o sistema:
+- **Read**: O `readMap` preserva lidas corretamente... mas o `fetchNotifications` e recriado quando `soundEnabled` muda (dependencia no useCallback), causando reset do closure.
+- **Delete**: O `deletedIdsRef` funciona para exclusoes individuais, mas `clearAll()` nao adiciona os IDs ao ref -- apos proxima refetch, voltam todos.
+- **Persistencia**: Nenhum dos dois estados persiste no localStorage, entao ao recarregar a pagina, tudo volta como nao lido.
 
 ## Correcoes
 
-### 1. Preencher campos legados na criacao de viagem por missao
+### 1. Adicionar log de inicio e encerramento no fluxo de missao
 
-**Arquivo**: `src/pages/app/AppMotorista.tsx` (linhas 156-182)
+**Arquivo**: `src/pages/app/AppMotorista.tsx`
 
-Antes do insert, buscar dados do veiculo vinculado e preencher:
-- `placa: veiculo?.placa || null`
-- `tipo_veiculo: veiculo?.tipo_veiculo || null`
-- `qtd_pax: missao.qtd_pax || 0`
-
+Apos criar a viagem com sucesso (depois da linha 187), inserir log de `inicio`:
 ```text
-// Buscar dados do veiculo vinculado
-const veiculoData = veiculos.find(v => v.id === veiculoVinculado);
-
-const { data: novaViagem, error } = await supabase
-  .from('viagens')
-  .insert({
-    ...
-    placa: veiculoData?.placa || null,
-    tipo_veiculo: veiculoData?.tipo_veiculo || null,
-    qtd_pax: missao.qtd_pax || 0,
-    ...
-  })
+// Registrar log de inicio da missao
+await supabase.from('viagem_logs').insert([{
+  viagem_id: novaViagem.id,
+  user_id: motorista.id,
+  acao: 'inicio',
+  detalhes: {
+    via: 'app_motorista_missao',
+    motorista_nome: motorista.nome,
+    placa: veiculoExibir?.placa,
+  }
+}]);
 ```
 
-Isso requer que a lista `veiculos` esteja disponivel no componente (ja existe o hook `useVeiculos`).
+### 2. Persistir estado de leitura e exclusao no localStorage
 
-### 2. Corrigir extracao de hora no PresencaDiaModal
+**Arquivo**: `src/hooks/useNotifications.tsx`
 
-**Arquivo**: `src/components/motoristas/PresencaDiaModal.tsx` (linha 274)
+Substituir o sistema in-memory por persistencia no localStorage:
 
-Alterar de:
-```text
-{viagem.h_pickup?.substring(11, 16) || '--:--'}
-```
-Para:
-```text
-{viagem.h_pickup?.substring(0, 5) || '--:--'}
-```
+- **Read IDs**: Salvar Set de IDs lidos em `localStorage('notification-read-ids')`. Ao fetch, marcar como `read: true` se o ID estiver no Set.
+- **Deleted IDs**: Salvar Set de IDs excluidos em `localStorage('notification-deleted-ids')`. Ao fetch, filtrar IDs excluidos. Corrigir `clearAll` para adicionar todos os IDs atuais ao Set.
+- **Limpeza automatica**: Limpar IDs com mais de 24h para evitar crescimento infinito do localStorage (baseado no timestamp da notificacao).
 
-O campo `h_pickup` armazena `"HH:mm:ss"`, entao `substring(0, 5)` extrai `"10:48"` corretamente.
+Mudancas especificas:
+1. Inicializar `readIdsRef` e `deletedIdsRef` a partir do localStorage
+2. Em `markAsRead`, adicionar ID ao ref E salvar no localStorage
+3. Em `markAllAsRead`, adicionar todos IDs ao ref E salvar
+4. Em `deleteNotification`, ja adiciona ao ref -- adicionar persist
+5. Em `clearAll`, adicionar TODOS os IDs atuais ao `deletedIdsRef` e persistir
+6. Remover `soundEnabled` e `playNotificationSound` da lista de dependencias do `fetchNotifications` (usar refs) para evitar recriacao desnecessaria
 
-Mesma correcao nos campos de periodo de veiculo (linhas 221, 225) que tambem usam `substring(11, 16)`.
+### 3. Estabilizar fetchNotifications (remover dependencia de soundEnabled)
 
-### 3. Usar dados do JOIN de veiculo como fallback
+**Arquivo**: `src/hooks/useNotifications.tsx`
 
-**Arquivo**: `src/components/motoristas/PresencaDiaModal.tsx`
+O `fetchNotifications` inclui `soundEnabled` e `playNotificationSound` nas dependencias do useCallback. Isso causa recriacao da funcao e re-subscribe nos canais Realtime a cada toggle de som. 
 
-No bloco de veiculos utilizados (linha 73-98), alterar para usar o JOIN quando `v.placa` for null:
-
-```text
-viagens.forEach(v => {
-  const placa = v.placa || (v as any).veiculo?.placa;
-  const tipoVeiculo = v.tipo_veiculo || (v as any).veiculo?.tipo_veiculo;
-  if (!placa) return;
-  // ... resto da logica
-});
-```
-
-Na tabela de viagens (linha 285-289), mesmo fallback:
-```text
-{viagem.placa || (viagem as any).veiculo?.placa ? (
-  <code>...</code>
-) : '-'}
-```
-
-### 4. Ampliar tipo Viagem para incluir dados do JOIN (opcional, mais limpo)
-
-**Arquivo**: `src/lib/types/viagem.ts`
-
-Adicionar campo opcional para o JOIN:
-```text
-export interface Viagem {
-  ...
-  // Dados do JOIN (preenchido pelo useViagens)
-  veiculo?: {
-    nome: string | null;
-    placa: string | null;
-    tipo_veiculo: string | null;
-  } | null;
-}
-```
-
-Isso elimina a necessidade de `(v as any)` e da type safety adequada.
+Solucao: usar `soundEnabledRef` (useRef) dentro de fetchNotifications, removendo a dependencia. Isso estabiliza a funcao e evita reconexoes desnecessarias.
 
 ## Resultado esperado
 
-- Modal de detalhes do motorista mostra hora correta (ex: "10:48" em vez de "--:--")
-- Veiculo aparece corretamente mesmo quando trip vem de missao (ex: "SUL0H29 - SUV")
-- PAX reflete o valor da missao (nao zero)
-- Dashboard e tabelas de viagens tambem se beneficiam dos campos legados preenchidos
-- Viagens futuras criadas por missao ja virao com todos os dados completos
+- Viagens iniciadas por missao geram notificacao "Viagem Iniciada" na Home e no sino
+- Viagens finalizadas por missao geram notificacao "Chegou ao Destino" (ja funciona via hook)
+- Notificacoes marcadas como lidas persistem entre refetch e reload da pagina
+- Notificacoes excluidas nunca reaparecem, mesmo apos Realtime trigger
+- "Limpar tudo" remove permanentemente todas as notificacoes da sessao
