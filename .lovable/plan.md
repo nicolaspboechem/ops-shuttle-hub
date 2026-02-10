@@ -1,81 +1,22 @@
 
-# Corrigir cards Kanban cortados e problemas de clipping na interface
 
-## Diagnostico
+# Atualizar versao para 1.0.1
 
-### Problema principal: Colunas Kanban de Motoristas muito estreitas
-O componente `MotoristaKanbanColumn` (linha 108) define `min-w-[280px] max-w-[320px]`, mas o `MotoristaKanbanCard` contém bastante informacao (avatar, nome, status badge, localizacao, veiculo, metricas, botao WhatsApp). O `max-w-[320px]` impede que o card se expanda o suficiente, cortando conteudo.
+## Alteracao
 
-### Problema secundario: Altura do container Kanban
-O `ScrollArea` dentro da coluna usa `max-h-[calc(100vh-280px)]`, mas a cadeia de layout nao propaga altura corretamente:
-- `EventLayout` usa `min-h-screen` (bom)
-- Motoristas.tsx usa `flex h-full` (linha 1188), mas `h-full` nao funciona sem um pai com altura definida
+**Arquivo**: `src/lib/version.ts`
 
-### Problema similar em Veiculos
-`VeiculoKanbanColumnFull` usa `min-w-[300px]` (sem max-width, melhor) mas o `max-h-[calc(100vh-320px)]` pode causar clipping similar.
+- `APP_VERSION`: de `'1.0.0'` para `'1.0.1'`
+- `APP_BUILD_DATE`: de `'2026-02-04'` para `'2026-02-10'`
 
-## Correcoes
+## Changelog implicito (v1.0.1)
 
-### 1. Ampliar largura das colunas Kanban de Motoristas
+- Corrigido: formularios e wizards perdendo estado ao trocar de aba (padrao block/hidden)
+- Corrigido: CreateMotoristaWizard nao renderizado no JSX raiz
+- Corrigido: cards Kanban de motoristas cortados (colunas ampliadas)
+- Corrigido: clipping de layout em Motoristas e Veiculos (min-h-0)
+- Corrigido: RotasShuttle usando renderizacao destrutiva
 
-**Arquivo**: `src/components/motoristas/MotoristaKanbanColumn.tsx` (linha 108)
+## Tecnico
 
-Alterar de:
-```text
-min-w-[280px] max-w-[320px]
-```
-Para:
-```text
-min-w-[310px] max-w-[380px]
-```
-
-Isso da mais espaco para os cards exibirem todo o conteudo sem cortar badges de status, nomes longos e informacoes de veiculo.
-
-### 2. Corrigir propagacao de altura no layout
-
-**Arquivo**: `src/pages/Motoristas.tsx` (linha 1188)
-
-Alterar o container de:
-```text
-<div className="flex h-full">
-```
-Para:
-```text
-<div className="flex min-h-[calc(100vh-4rem)]">
-```
-
-Isso garante que o container flex tenha uma altura minima real, permitindo que o `max-h` do ScrollArea funcione corretamente.
-
-### 3. Ajustar content area para ocupar altura total
-
-**Arquivo**: `src/pages/Motoristas.tsx` (linha 1195)
-
-Alterar de:
-```text
-<div className="flex-1 p-6 overflow-auto">
-```
-Para:
-```text
-<div className="flex-1 p-6 overflow-auto min-h-0">
-```
-
-O `min-h-0` e essencial em containers flex para permitir que `overflow-auto` funcione corretamente (por padrao, flex items tem `min-height: auto` que impede o overflow).
-
-### 4. Mesma correcao de min-h-0 em Veiculos.tsx
-
-**Arquivo**: `src/pages/Veiculos.tsx`
-
-Verificar e aplicar o mesmo padrao `min-h-0` no container de conteudo para evitar clipping no Kanban de veiculos.
-
-### 5. Ajustar DragOverlay card width
-
-**Arquivo**: `src/components/motoristas/MotoristaKanbanCard.tsx` (linha 78)
-
-Alterar o drag overlay de `w-[280px]` para `w-[320px]` para corresponder a nova largura das colunas.
-
-## Resultado esperado
-
-- Cards de motoristas no Kanban exibem todas as informacoes sem corte
-- Colunas Kanban ocupam a altura disponivel corretamente
-- ScrollArea funciona sem clipping em ambos Kanban (motoristas e veiculos)
-- DragOverlay com tamanho consistente ao arrastar cards
+Unica alteracao necessaria em `src/lib/version.ts` -- a versao ja e consumida automaticamente pela sidebar, apps mobile e pagina de configuracoes.
