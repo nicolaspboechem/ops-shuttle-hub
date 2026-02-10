@@ -90,6 +90,22 @@ const actionConfig: Record<string, { label: string; icon: ReactNode; color: stri
   liberacao: { label: 'Veículo Liberado', icon: <CheckCircle className="h-4 w-4" />, color: 'bg-teal-500' },
 };
 
+// Helper to load Set from localStorage
+function loadSetFromStorage(key: string): Set<string> {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) return new Set(JSON.parse(saved));
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+// Helper to save Set to localStorage
+function saveSetToStorage(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]));
+  } catch { /* ignore */ }
+}
+
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,8 +117,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { playNotificationSound } = useNotificationSound();
   const isInitialLoad = useRef(true);
   
-  // Track deleted notification IDs to prevent them from reappearing
-  const deletedIdsRef = useRef<Set<string>>(new Set());
+  // Persist read and deleted IDs in localStorage
+  const readIdsRef = useRef<Set<string>>(loadSetFromStorage('notification-read-ids'));
+  const deletedIdsRef = useRef<Set<string>>(loadSetFromStorage('notification-deleted-ids'));
+  
+  // Use ref for soundEnabled to avoid recreating fetchNotifications
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
+  
+  const playNotificationSoundRef = useRef(playNotificationSound);
+  playNotificationSoundRef.current = playNotificationSound;
 
   const setSoundEnabled = useCallback((enabled: boolean) => {
     setSoundEnabledState(enabled);
@@ -223,24 +247,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     
-    // Filter out deleted notifications
+    // Filter out deleted notifications (persisted)
     const filteredNotifications = newNotifications.filter(n => !deletedIdsRef.current.has(n.id));
     const finalNotifications = filteredNotifications.slice(0, 50);
     
-    // Preserve read state from existing notifications
+    // Apply persisted read state
     setNotifications(prev => {
-      const readMap = new Map(prev.map(n => [n.id, n.read]));
       const mergedNotifications = finalNotifications.map(n => ({
         ...n,
-        read: readMap.get(n.id) ?? n.read,
+        read: readIdsRef.current.has(n.id),
       }));
       
       // Play sound for new notifications (only after initial load)
-      if (!isInitialLoad.current && soundEnabled) {
+      if (!isInitialLoad.current && soundEnabledRef.current) {
         const prevIds = new Set(prev.map(n => n.id));
         const hasNew = mergedNotifications.some(n => !prevIds.has(n.id) && !n.read);
         if (hasNew) {
-          playNotificationSound();
+          playNotificationSoundRef.current();
         }
       }
       
@@ -249,23 +272,34 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     setLoading(false);
     isInitialLoad.current = false;
-  }, [soundEnabled, playNotificationSound]);
+  }, []); // No dependencies - uses refs for everything mutable
 
   const markAsRead = useCallback((id: string) => {
+    readIdsRef.current.add(id);
+    saveSetToStorage('notification-read-ids', readIdsRef.current);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => {
+      prev.forEach(n => readIdsRef.current.add(n.id));
+      saveSetToStorage('notification-read-ids', readIdsRef.current);
+      return prev.map(n => ({ ...n, read: true }));
+    });
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
     deletedIdsRef.current.add(id);
+    saveSetToStorage('notification-deleted-ids', deletedIdsRef.current);
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
   const clearAll = useCallback(() => {
-    setNotifications([]);
+    setNotifications(prev => {
+      prev.forEach(n => deletedIdsRef.current.add(n.id));
+      saveSetToStorage('notification-deleted-ids', deletedIdsRef.current);
+      return [];
+    });
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
