@@ -73,6 +73,12 @@ export interface Viagem {
   viagem_pai_id?: string | null;
   // Campo para identificar se viagem veio de uma missão
   origem_missao_id?: string | null;
+  // Dados do JOIN (preenchido pelo useViagens)
+  veiculo?: {
+    nome: string | null;
+    placa: string | null;
+    tipo_veiculo: string | null;
+  } | null;
 }
 
 export interface ViagemLog {
