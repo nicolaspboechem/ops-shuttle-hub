@@ -192,6 +192,18 @@ export default function AppMotorista() {
           return;
         }
 
+        // Registrar log de início (gera notificação)
+        await supabase.from('viagem_logs').insert([{
+          viagem_id: novaViagem.id,
+          user_id: motorista.id,
+          acao: 'inicio',
+          detalhes: {
+            via: 'app_motorista_missao',
+            motorista_nome: motorista.nome,
+            placa: veiculoExibir?.placa || null,
+          }
+        }]);
+
         // Atualizar missão com viagem_id e status
         await supabase
           .from('missoes')
