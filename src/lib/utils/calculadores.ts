@@ -190,6 +190,9 @@ export function calcularMetricasPorHora(viagens: Viagem[]): MetricasPorHora[] {
       totalViagens: viagensHora.length,
       onibus: viagensHora.filter(v => v.tipo_veiculo === 'Ônibus').length,
       vans: viagensHora.filter(v => v.tipo_veiculo === 'Van').length,
+      sedan: viagensHora.filter(v => v.tipo_veiculo === 'Sedan').length,
+      suv: viagensHora.filter(v => v.tipo_veiculo === 'SUV').length,
+      blindado: viagensHora.filter(v => v.tipo_veiculo === 'Blindado').length,
     });
   }
 
