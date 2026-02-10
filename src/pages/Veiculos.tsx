@@ -335,12 +335,7 @@ export default function Veiculos() {
         </div>
       </div>
 
-      <CreateVeiculoWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        eventoId={eventoId || ''}
-        onCreated={refetchVeiculos}
-      />
+      {/* Wizard movido para nível raiz */}
 
       <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
         <div className="relative flex-1 max-w-md">
@@ -544,18 +539,29 @@ export default function Veiculos() {
           storageKey="veiculos-sidebar-collapsed"
         />
         <div className="flex-1 p-6 overflow-auto">
-          {activeSection === 'auditoria' && (
+          <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
             <VeiculosAuditoria 
               viagens={viagens} 
               veiculosCadastrados={veiculos} 
               motoristas={motoristas}
               onViewDetails={setSelectedVeiculoId}
             />
-          )}
-          {activeSection === 'historico-uso' && <VeiculosUsoAuditoria />}
-          {activeSection === 'cadastro' && <CadastroContent />}
+          </div>
+          <div className={activeSection === 'historico-uso' ? 'block' : 'hidden'}>
+            <VeiculosUsoAuditoria />
+          </div>
+          <div className={activeSection === 'cadastro' ? 'block' : 'hidden'}>
+            <CadastroContent />
+          </div>
         </div>
       </div>
+
+      <CreateVeiculoWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        eventoId={eventoId || ''}
+        onCreated={refetchVeiculos}
+      />
 
       {/* Modal de detalhes do veículo */}
       <VeiculoDetalheModal
