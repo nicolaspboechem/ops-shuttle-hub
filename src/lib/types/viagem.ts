@@ -111,7 +111,10 @@ export interface MetricasPorHora {
   totalViagens: number;
   onibus: number;
   vans: number;
-  
+  sedan: number;
+  suv: number;
+  blindado: number;
+
 }
 
 export interface KPIsDashboard {

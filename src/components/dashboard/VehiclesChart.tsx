@@ -52,6 +52,24 @@ export function VehiclesChart({ data }: VehiclesChartProps) {
                 fill="hsl(var(--chart-2))" 
                 radius={[4, 4, 0, 0]}
               />
+              <Bar 
+                dataKey="sedan" 
+                name="Sedan" 
+                fill="hsl(var(--chart-3))" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="suv" 
+                name="SUV" 
+                fill="hsl(var(--chart-4))" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="blindado" 
+                name="Blindado" 
+                fill="hsl(var(--chart-5))" 
+                radius={[4, 4, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
