@@ -1,109 +1,58 @@
 
 
-# Plano: Corrigir Erro 400 (Veiculos) e Melhorar Mensagens de Erro
+# Plano: Corrigir Erro 400 na Vinculacao e Warnings de Dialog
 
-## Problemas a Corrigir
+## Causa Raiz Identificada
 
-### 1. Erro 400 - Query de Veiculos (CRITICO)
-A query em `useCadastros.ts` (linha 213-219) tenta fazer JOINs com `profiles` usando foreign keys que nao existem no banco:
-- `profiles!veiculos_inspecao_por_fkey(full_name)`
-- `profiles!veiculos_liberado_por_fkey(full_name)`
+### Erro 400 - Trigger Incorreto no Banco de Dados
+O erro 400 ao vincular veiculo **nao e** por falta de foreign keys (essas ja existem). A causa real e um **trigger** chamado `update_veiculos_updated_at` que executa a funcao `update_updated_at_column()`. Essa funcao tenta fazer `NEW.updated_at = NOW()`, mas a tabela `veiculos` usa o campo `data_atualizacao`, nao `updated_at`. 
 
-Isso causa erro 400 em **toda** consulta de veiculos no sistema.
+Toda operacao de UPDATE na tabela `veiculos` falha por causa desse trigger.
 
-### 2. Mensagens de Erro Genericas (MELHORIA)
-Atualmente, os erros mostram mensagens tecnicas ou codigos HTTP ao usuario. Exemplos:
-- `"Motorista criado! Mas erro no login: FunctionsHttpError"` -- pouco util
-- `"Erro ao criar login: [mensagem tecnica]"` -- nao ajuda o usuario
-- `"Erro ao criar veiculo"` -- sem detalhes
+### Warning: Missing Description for DialogContent
+Varios componentes usam `DialogContent` sem incluir `DialogDescription`, gerando warnings de acessibilidade no console. O fix e adicionar `aria-describedby={undefined}` aos dialogs que nao precisam de descricao.
 
 ---
 
-## Solucao
+## Mudancas Necessarias
 
-### Parte 1: Migracao SQL - Criar Foreign Keys
+### 1. Migracao SQL - Corrigir ou Remover o Trigger
 
-Criar as constraints faltantes para que os JOINs funcionem:
+Opcao mais limpa: remover o trigger incorreto, ja que a coluna `data_atualizacao` e atualizada manualmente pelo codigo (via `atualizado_por` no hook).
 
 ```sql
-ALTER TABLE public.veiculos
-  ADD CONSTRAINT veiculos_inspecao_por_fkey
-  FOREIGN KEY (inspecao_por) REFERENCES public.profiles(user_id)
-  ON DELETE SET NULL;
-
-ALTER TABLE public.veiculos
-  ADD CONSTRAINT veiculos_liberado_por_fkey
-  FOREIGN KEY (liberado_por) REFERENCES public.profiles(user_id)
-  ON DELETE SET NULL;
+-- Remover trigger que referencia coluna inexistente
+DROP TRIGGER IF EXISTS update_veiculos_updated_at ON public.veiculos;
 ```
 
-### Parte 2: Fallback na Query de Veiculos
+### 2. Suprimir Warnings de DialogContent
 
-**Arquivo:** `src/hooks/useCadastros.ts`
+Adicionar `aria-describedby={undefined}` nos `DialogContent` que nao possuem `DialogDescription`. Arquivos afetados:
 
-Adicionar um bloco try/fallback na funcao `fetchVeiculos` para que, se a query com JOINs falhar (por qualquer motivo), o sistema tente uma query simples sem JOINs. Isso garante resiliencia caso as foreign keys nao existam ou sejam removidas.
+| Arquivo | Dialogs sem Description |
+|---------|------------------------|
+| `CreateMotoristaWizard.tsx` | Wizard dialog |
+| `CreateVeiculoWizard.tsx` | Wizard dialog |
+| `MotoristaViagensModal.tsx` | Modal de viagens |
+| `MissaoModal.tsx` | Modal de missao |
+| `PresencaDiaModal.tsx` | Modal de presenca |
+| `VeiculoDetalheModal.tsx` | Modal de detalhe |
+| `VeiculoAuditoriaDiaModal.tsx` | Modal de auditoria |
+| `VistoriaDetalheModal.tsx` | Modal de vistoria |
+| `VeiculoUsoDetalheModal.tsx` | Modal de uso |
+| `CadastroModals.tsx` | 3 modais de cadastro |
+| `ViagemCardOperador.tsx` | Dialog de PAX |
+| `EditMotoristaLoginModal.tsx` | Dialog de sucesso (sem header) |
+
+A correcao e simples - adicionar a prop em cada `DialogContent`:
 
 ```tsx
-// Tentar com JOINs
-const { data, error } = await query;
+// Antes
+<DialogContent className="...">
 
-// Se falhou, tentar sem JOINs (fallback)
-if (error) {
-  console.warn('Query com JOINs falhou, tentando sem:', error.message);
-  const fallbackQuery = supabase
-    .from('veiculos')
-    .select('*')
-    .order('placa', { ascending: true });
-  // ...continuar com fallback
-}
+// Depois
+<DialogContent aria-describedby={undefined} className="...">
 ```
-
-### Parte 3: Mensagens de Erro Amigaveis
-
-Substituir mensagens tecnicas por avisos claros com descricao e orientacao ao usuario.
-
-**Arquivo:** `src/components/motoristas/CreateMotoristaWizard.tsx`
-
-Mapear codigos de erro para mensagens amigaveis:
-
-| Codigo/Erro | Mensagem Atual | Mensagem Nova |
-|-------------|----------------|---------------|
-| 409 (telefone em uso) | "Este telefone ja esta em uso por outro motorista" | "Telefone ja cadastrado - Este numero de telefone ja possui um login vinculado a outro motorista. Use um numero diferente ou edite o cadastro existente." |
-| Erro HTTP generico | "Erro ao criar login: FunctionsHttpError" | "Falha na criacao do login - Nao foi possivel criar as credenciais de acesso. Verifique sua conexao e tente novamente." |
-| 400 (dados invalidos) | Mensagem tecnica | "Dados invalidos - Verifique se o telefone tem 10-11 digitos e a senha tem pelo menos 4 caracteres." |
-| Erro de rede | "Erro ao criar motorista" | "Erro de conexao - Nao foi possivel conectar ao servidor. Verifique sua internet e tente novamente." |
-
-Na area de exibicao do erro (linhas 452-462), melhorar o componente de alerta para incluir titulo e descricao:
-
-```tsx
-{loginError && (
-  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg space-y-1">
-    <p className="text-sm font-medium text-destructive flex items-center gap-2">
-      <AlertTriangle className="h-4 w-4 shrink-0" />
-      {loginError.titulo}
-    </p>
-    <p className="text-xs text-muted-foreground pl-6">
-      {loginError.descricao}
-    </p>
-  </div>
-)}
-```
-
-**Arquivo:** `src/components/equipe/EditMotoristaLoginModal.tsx`
-
-Aplicar o mesmo padrao de mensagens amigaveis nos handlers `handleCreateLogin` e `handleResetPassword`:
-- Erro 409: "Este telefone ja possui login cadastrado para outro motorista."
-- Erro generico: "Nao foi possivel criar o login. Verifique os dados e tente novamente."
-
-**Arquivo:** `src/components/veiculos/CreateVeiculoWizard.tsx`
-
-Melhorar as mensagens de erro na criacao de veiculos:
-- Erro 23505 (placa duplicada): "Placa duplicada - Ja existe um veiculo cadastrado com a placa {PLACA}. Verifique se o veiculo ja foi cadastrado."
-- Erro generico: "Erro ao cadastrar veiculo - Nao foi possivel salvar os dados. Verifique sua conexao e tente novamente."
-
-**Arquivo:** `src/components/equipe/AddStaffWizard.tsx`
-
-Aplicar mensagens amigaveis para erros na criacao de equipe.
 
 ---
 
@@ -111,19 +60,25 @@ Aplicar mensagens amigaveis para erros na criacao de equipe.
 
 | Arquivo | Acao |
 |---------|------|
-| Migracao SQL | Criar foreign keys `veiculos_inspecao_por_fkey` e `veiculos_liberado_por_fkey` |
-| `src/hooks/useCadastros.ts` | Adicionar fallback na query de veiculos |
-| `src/components/motoristas/CreateMotoristaWizard.tsx` | Mensagens de erro amigaveis com titulo + descricao |
-| `src/components/equipe/EditMotoristaLoginModal.tsx` | Mensagens de erro amigaveis |
-| `src/components/veiculos/CreateVeiculoWizard.tsx` | Mensagens de erro amigaveis |
-| `src/components/equipe/AddStaffWizard.tsx` | Mensagens de erro amigaveis |
+| Migracao SQL | Remover trigger `update_veiculos_updated_at` |
+| `CreateMotoristaWizard.tsx` | Adicionar `aria-describedby={undefined}` |
+| `CreateVeiculoWizard.tsx` | Adicionar `aria-describedby={undefined}` |
+| `MotoristaViagensModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `MissaoModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `PresencaDiaModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `VeiculoDetalheModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `VeiculoAuditoriaDiaModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `VistoriaDetalheModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `VeiculoUsoDetalheModal.tsx` | Adicionar `aria-describedby={undefined}` |
+| `CadastroModals.tsx` | Adicionar `aria-describedby={undefined}` (3 dialogs) |
+| `ViagemCardOperador.tsx` | Adicionar `aria-describedby={undefined}` |
+| `EditMotoristaLoginModal.tsx` | Adicionar `aria-describedby={undefined}` (dialog de sucesso) |
 
 ---
 
 ## Resultado Esperado
 
-1. **Erro 400 eliminado** - Foreign keys + fallback garantem que veiculos sempre carregam
-2. **Erros claros** - Usuario ve titulo do problema + orientacao para corrigir
-3. **Sem codigos tecnicos** - Nenhum "409", "400", "FunctionsHttpError" aparece na interface
-4. **Resiliencia** - Se algo falhar, o sistema degrada graciosamente com fallback
+1. **Vinculacao de veiculos funciona** - Sem erro 400, o UPDATE executa corretamente
+2. **Console limpo** - Sem warnings de DialogContent
+3. **Sem regressao** - O campo `data_atualizacao` continua sendo atualizado pelo codigo no hook
 
