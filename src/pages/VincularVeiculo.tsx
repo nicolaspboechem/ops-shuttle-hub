@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ export default function VincularVeiculo() {
   const { veiculos, updateVeiculo } = useVeiculos(eventoId);
   
   const [searchTerm, setSearchTerm] = useState("");
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,13 +40,13 @@ export default function VincularVeiculo() {
   // Filtrar e agrupar veículos
   const filteredVeiculos = useMemo(() => {
     return veiculos.filter(v => {
-      const matchesSearch = searchTerm === "" || 
-        v.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.fornecedor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.tipo_veiculo?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = deferredSearchTerm === "" || 
+        v.placa.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        v.fornecedor?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        v.tipo_veiculo?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
       return matchesSearch;
     });
-  }, [veiculos, searchTerm]);
+  }, [veiculos, deferredSearchTerm]);
 
   // Adicionar nome do motorista vinculado a cada veículo
   const veiculosComMotorista = useMemo(() => {

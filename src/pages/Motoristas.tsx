@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
@@ -54,6 +54,7 @@ export default function Motoristas() {
   const [activeSection, setActiveSection] = useState<string>('cadastro');
   const [viewMode, setViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [activeMotorista, setActiveMotorista] = useState<Motorista | null>(null);
@@ -232,8 +233,8 @@ export default function Motoristas() {
     // Apply the same filters as filteredCadastrados
     let filtered = [...motoristasCadastrados];
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (deferredSearchTerm) {
+      const term = deferredSearchTerm.toLowerCase();
       filtered = filtered.filter(m => 
         m.nome.toLowerCase().includes(term) ||
         m.telefone?.toLowerCase().includes(term)
@@ -261,7 +262,7 @@ export default function Motoristas() {
     });
 
     return grouped;
-  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, filterStatus, veiculos]);
+  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, veiculos]);
 
   // Calcular última localização de cada motorista baseada em viagens encerradas
   const ultimasLocalizacoes = useMemo(() => {
@@ -328,8 +329,8 @@ export default function Motoristas() {
   const filteredCadastrados = useMemo(() => {
     let filtered = [...motoristasCadastrados];
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+    if (deferredSearchTerm) {
+      const term = deferredSearchTerm.toLowerCase();
       filtered = filtered.filter(m => 
         m.nome.toLowerCase().includes(term) ||
         m.telefone?.toLowerCase().includes(term)
@@ -352,7 +353,7 @@ export default function Motoristas() {
       const metricasB = getMetricasMotorista(b.nome);
       return (metricasB?.totalViagens || 0) - (metricasA?.totalViagens || 0);
     });
-  }, [motoristasCadastrados, searchTerm, filterTipoVeiculo, filterStatus, veiculos, metricasMotoristas]);
+  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, veiculos, metricasMotoristas]);
 
   const clearFilters = () => {
     setSearchTerm('');
