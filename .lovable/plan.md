@@ -1,63 +1,76 @@
 
+# Mostrar apelido do veiculo como info principal nos motoristas
 
-# Corrigir marcas no banco de dados e melhorar filtros de Motoristas
+## Onde mudar
 
-## 1. Correcoes no banco de dados (marcas de veiculos)
+Existem 3 locais que exibem o veiculo vinculado ao motorista:
 
-Foram encontradas 3 marcas escritas incorretamente:
+### 1. Vista em Card (Motoristas.tsx, ~linha 743-746)
+Atualmente mostra apenas a placa. Mudar para:
+- Nome/apelido do veiculo como texto principal (quando existir)
+- Placa em texto menor como complemento
 
-| Placa | Marca atual | Marca corrigida |
-|-------|------------|-----------------|
-| TYC6A93 | Hyunday | Hyundai |
-| QSN0I63 | KIA | Kia |
-| TEP8A76 | Wolkswagen | Volkswagen |
+### 2. Vista em Lista/Tabela (Motoristas.tsx, ~linha 850-854)
+Atualmente mostra placa + badge tipo. Mudar para:
+- Nome/apelido como texto principal
+- Placa em code menor ao lado
 
-Executar as seguintes correcoes via UPDATE:
+### 3. Kanban Card (MotoristaKanbanCard.tsx, ~linha 241-244)
+Atualmente mostra placa + badge tipo. Mudar para:
+- Nome/apelido como texto principal
+- Placa em code menor
 
-```text
-UPDATE veiculos SET marca = 'Hyundai' WHERE id = '7f7c8b13-b41d-4688-8eb7-247c9977d6cd';
-UPDATE veiculos SET marca = 'Kia' WHERE id = 'd7e169fe-592a-4d7f-8534-b7b9ed53c671';
-UPDATE veiculos SET marca = 'Volkswagen' WHERE id = '3aa9646a-00ad-4f8b-9b05-310286c99a6f';
+## Logica
+
+Em todos os 3 locais, aplicar:
+- Se `veiculo.nome` existir: mostrar `veiculo.nome` como texto principal e `veiculo.placa` em tamanho menor
+- Se `veiculo.nome` nao existir: manter a placa como info principal (comportamento atual)
+
+## Tecnico
+
+### `src/pages/Motoristas.tsx`
+
+**Card view (~linha 743-746):**
+```
+<Truck className="w-4 h-4 text-muted-foreground" />
+{veiculo.nome ? (
+  <>
+    <span className="text-xs font-medium">{veiculo.nome}</span>
+    <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
+  </>
+) : (
+  <code className="text-xs">{veiculo.placa}</code>
+)}
+<Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
 ```
 
-## 2. Melhorias nos filtros de Motoristas
+**Table view (~linha 851-853):**
+```
+{veiculo.nome ? (
+  <>
+    <span className="text-sm font-medium">{veiculo.nome}</span>
+    <code className="text-[10px] bg-muted px-1 py-0.5 rounded text-muted-foreground">{veiculo.placa}</code>
+  </>
+) : (
+  <code className="text-xs bg-muted px-1 py-0.5 rounded">{veiculo.placa}</code>
+)}
+<Badge variant="outline" className="text-xs">{veiculo.tipo_veiculo}</Badge>
+```
 
-### Filtros atuais
-- Busca por nome/telefone
-- Tipo de veiculo (Onibus, Van, etc.)
-- Status (disponivel, em_viagem, indisponivel, inativo)
+### `src/components/motoristas/MotoristaKanbanCard.tsx`
 
-### Filtros a adicionar
+**Kanban card (~linha 242-244):**
+```
+<TipoIcon className="w-4 h-4 text-muted-foreground" />
+{veiculo.nome ? (
+  <>
+    <span className="font-medium">{veiculo.nome}</span>
+    <code className="text-[10px] text-muted-foreground">{veiculo.placa}</code>
+  </>
+) : (
+  <code className="font-medium">{veiculo.placa}</code>
+)}
+<Badge variant="outline" className="text-[10px] px-1.5 py-0">{veiculo.tipo_veiculo}</Badge>
+```
 
-**a) Filtro "Vinculo de Veiculo"** - com 3 opcoes:
-- Todos
-- Com veiculo vinculado
-- Sem veiculo vinculado
-
-Isso ajuda a encontrar rapidamente motoristas que ainda precisam ser associados a um veiculo.
-
-**b) Filtro "Ativo/Inativo"** - com 3 opcoes:
-- Todos
-- Ativos
-- Inativos
-
-Permite filtrar motoristas desativados que nao aparecem na operacao.
-
-### Tecnico
-
-**Arquivo**: `src/pages/Motoristas.tsx`
-
-1. Adicionar dois novos estados:
-   - `filterVinculo` ('all' | 'com_veiculo' | 'sem_veiculo')
-   - `filterAtivo` ('all' | 'ativo' | 'inativo')
-
-2. Na funcao `filteredCadastrados` (useMemo, ~linha 329), adicionar as condicoes:
-   - `filterVinculo === 'com_veiculo'` → filtra motoristas com `veiculo_id !== null`
-   - `filterVinculo === 'sem_veiculo'` → filtra motoristas com `veiculo_id === null`
-   - `filterAtivo === 'ativo'` → filtra `m.ativo === true`
-   - `filterAtivo === 'inativo'` → filtra `m.ativo === false`
-
-3. Na barra de filtros (UI), adicionar dois novos `<Select>` ao lado dos existentes
-
-4. Atualizar `clearFilters` e `hasActiveFilters` para incluir os novos filtros
-
+Nenhuma mudanca de logica ou banco de dados necessaria -- o campo `nome` ja existe no tipo `Veiculo` e ja e carregado nas queries.
