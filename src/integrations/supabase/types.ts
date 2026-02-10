@@ -118,6 +118,7 @@ export type Database = {
           created_at: string | null
           criado_por: string | null
           data_atualizacao: string | null
+          data_programada: string | null
           descricao: string | null
           evento_id: string
           horario_previsto: string | null
@@ -138,6 +139,7 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_atualizacao?: string | null
+          data_programada?: string | null
           descricao?: string | null
           evento_id: string
           horario_previsto?: string | null
@@ -158,6 +160,7 @@ export type Database = {
           created_at?: string | null
           criado_por?: string | null
           data_atualizacao?: string | null
+          data_programada?: string | null
           descricao?: string | null
           evento_id?: string
           horario_previsto?: string | null

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,6 +76,7 @@ export default function Motoristas() {
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
   const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list'>('card');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
+  const [missaoDataFilter, setMissaoDataFilter] = useState<string>(new Date().toISOString().slice(0, 10));
   
   // Realtime subscription para atualização automática do status
   useEffect(() => {
@@ -895,6 +896,18 @@ export default function Motoristas() {
   const filteredMissoes = useMemo(() => {
     let filtered = [...missoes];
     
+    // Filtro por data programada
+    if (missaoDataFilter) {
+      filtered = filtered.filter(m => {
+        if (!m.data_programada) {
+          // Missões imediatas: mostrar se a data do filtro é a data de criação
+          const createdDate = m.created_at ? m.created_at.slice(0, 10) : '';
+          return createdDate === missaoDataFilter;
+        }
+        return m.data_programada === missaoDataFilter;
+      });
+    }
+    
     // Filtro por status
     if (missaoFilter !== 'all') {
       filtered = filtered.filter(m => m.status === missaoFilter);
@@ -917,7 +930,7 @@ export default function Motoristas() {
     }
     
     return filtered;
-  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoSearchTerm]);
+  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoSearchTerm, missaoDataFilter]);
 
   const handleSaveMissao = async (data: any) => {
     if (editingMissao) {
@@ -937,9 +950,10 @@ export default function Motoristas() {
     setMissaoFilter('all');
     setMissaoMotoristaFilter('all');
     setMissaoSearchTerm('');
+    setMissaoDataFilter(new Date().toISOString().slice(0, 10));
   };
 
-  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm;
+  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
 
   const MissoesContent = () => (
     <div className="space-y-6">
@@ -994,6 +1008,15 @@ export default function Motoristas() {
               ))}
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-1">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <Input
+              type="date"
+              value={missaoDataFilter}
+              onChange={(e) => setMissaoDataFilter(e.target.value)}
+              className="w-[160px]"
+            />
+          </div>
           {hasActiveMissaoFilters && (
             <Button variant="ghost" size="icon" onClick={clearMissaoFilters}>
               <X className="w-4 h-4" />
@@ -1057,6 +1080,7 @@ export default function Motoristas() {
               <TableRow>
                 <TableHead>Título</TableHead>
                 <TableHead>Motorista</TableHead>
+                <TableHead>Data</TableHead>
                 <TableHead>Rota</TableHead>
                 <TableHead>Horário</TableHead>
                 <TableHead>PAX</TableHead>
@@ -1099,6 +1123,13 @@ export default function Motoristas() {
                         </div>
                         <span className="text-sm">{motorista?.nome || 'N/A'}</span>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {missao.data_programada 
+                        ? missao.data_programada === new Date().toISOString().slice(0, 10) 
+                          ? 'Hoje' 
+                          : missao.data_programada.split('-').reverse().slice(0, 2).join('/')
+                        : 'Imediata'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {missao.ponto_embarque && missao.ponto_desembarque ? (
