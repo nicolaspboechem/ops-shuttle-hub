@@ -1206,6 +1206,24 @@ export default function Motoristas() {
         </div>
       )}
 
+      {/* Wizard de criação de motorista */}
+      <CreateMotoristaWizard
+        open={showCreateWizard}
+        onOpenChange={setShowCreateWizard}
+        veiculos={veiculos}
+        eventoId={eventoId || ''}
+        onSubmit={async (data) => {
+          const id = await handleSaveMotorista({
+            nome: data.nome,
+            telefone: data.telefone || null,
+            veiculo_id: data.veiculo_id || null,
+            ativo: true,
+            evento_id: eventoId,
+          });
+          return id;
+        }}
+      />
+
       {/* Modal para editar localização */}
       <EditarLocalizacaoModal
         open={!!editLocMotorista}

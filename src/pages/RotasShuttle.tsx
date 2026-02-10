@@ -284,8 +284,12 @@ export default function RotasShuttle() {
         />
         
         <div className="flex-1 overflow-auto">
-          {activeSection === 'pontos' && <PontosContent />}
-          {activeSection === 'rotas' && <RotasContent />}
+          <div className={activeSection === 'pontos' ? 'block' : 'hidden'}>
+            <PontosContent />
+          </div>
+          <div className={activeSection === 'rotas' ? 'block' : 'hidden'}>
+            <RotasContent />
+          </div>
         </div>
       </div>
 
