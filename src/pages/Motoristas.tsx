@@ -57,6 +57,8 @@ export default function Motoristas() {
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [filterTipoVeiculo, setFilterTipoVeiculo] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterVinculo, setFilterVinculo] = useState<string>('all');
+  const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [activeMotorista, setActiveMotorista] = useState<Motorista | null>(null);
   
   const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId);
@@ -348,20 +350,34 @@ export default function Motoristas() {
       filtered = filtered.filter(m => (m.status || 'disponivel') === filterStatus);
     }
 
+    if (filterVinculo === 'com_veiculo') {
+      filtered = filtered.filter(m => m.veiculo_id !== null);
+    } else if (filterVinculo === 'sem_veiculo') {
+      filtered = filtered.filter(m => m.veiculo_id === null);
+    }
+
+    if (filterAtivo === 'ativo') {
+      filtered = filtered.filter(m => m.ativo !== false);
+    } else if (filterAtivo === 'inativo') {
+      filtered = filtered.filter(m => m.ativo === false);
+    }
+
     return filtered.sort((a, b) => {
       const metricasA = getMetricasMotorista(a.nome);
       const metricasB = getMetricasMotorista(b.nome);
       return (metricasB?.totalViagens || 0) - (metricasA?.totalViagens || 0);
     });
-  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, veiculos, metricasMotoristas]);
+  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, filterVinculo, filterAtivo, veiculos, metricasMotoristas]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setFilterTipoVeiculo('all');
     setFilterStatus('all');
+    setFilterVinculo('all');
+    setFilterAtivo('all');
   };
 
-  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterStatus !== 'all';
+  const hasActiveFilters = searchTerm || filterTipoVeiculo !== 'all' || filterStatus !== 'all' || filterVinculo !== 'all' || filterAtivo !== 'all';
   
   const isLoading = loadingViagens || loadingCadastros;
 
@@ -513,9 +529,31 @@ export default function Motoristas() {
               <SelectValue placeholder="Veículo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos tipos</SelectItem>
               <SelectItem value="Van">Van</SelectItem>
               <SelectItem value="Ônibus">Ônibus</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterVinculo} onValueChange={setFilterVinculo}>
+            <SelectTrigger className="w-[160px]">
+              <Link2 className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Vínculo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos vínculos</SelectItem>
+              <SelectItem value="com_veiculo">Com veículo</SelectItem>
+              <SelectItem value="sem_veiculo">Sem veículo</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterAtivo} onValueChange={setFilterAtivo}>
+            <SelectTrigger className="w-[140px]">
+              <UserCheck className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Situação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="ativo">Ativos</SelectItem>
+              <SelectItem value="inativo">Inativos</SelectItem>
             </SelectContent>
           </Select>
           {hasActiveFilters && (
