@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS update_veiculos_updated_at ON public.veiculos;
