@@ -8,8 +8,8 @@
  * 
  * Atualizar este arquivo a cada nova versão!
  */
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.0.1';
 
 // Informações adicionais
-export const APP_BUILD_DATE = '2026-02-04';
+export const APP_BUILD_DATE = '2026-02-10';
 export const APP_NAME = 'CCO AS Brasil';
