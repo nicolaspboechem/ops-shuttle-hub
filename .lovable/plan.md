@@ -1,43 +1,63 @@
 
-# Corrigir perda de dados em formularios ao trocar de aba
 
-## Problema
-Quando um formulario (wizard de veiculo ou motorista) esta aberto e o usuario troca de aba na sidebar interna (ex: de "Veiculos" para "Auditoria"), o conteudo da aba e completamente desmontado do DOM. Isso destrói o estado do formulario e causa o efeito de "tremer/sumir/aparecer" ao voltar.
+# Corrigir marcas no banco de dados e melhorar filtros de Motoristas
 
-A causa raiz e o uso de renderizacao condicional destrutiva:
+## 1. Correcoes no banco de dados (marcas de veiculos)
+
+Foram encontradas 3 marcas escritas incorretamente:
+
+| Placa | Marca atual | Marca corrigida |
+|-------|------------|-----------------|
+| TYC6A93 | Hyunday | Hyundai |
+| QSN0I63 | KIA | Kia |
+| TEP8A76 | Wolkswagen | Volkswagen |
+
+Executar as seguintes correcoes via UPDATE:
+
+```text
+UPDATE veiculos SET marca = 'Hyundai' WHERE id = '7f7c8b13-b41d-4688-8eb7-247c9977d6cd';
+UPDATE veiculos SET marca = 'Kia' WHERE id = 'd7e169fe-592a-4d7f-8534-b7b9ed53c671';
+UPDATE veiculos SET marca = 'Volkswagen' WHERE id = '3aa9646a-00ad-4f8b-9b05-310286c99a6f';
 ```
-{activeSection === 'cadastro' && <CadastroContent />}
-```
-Isso monta e desmonta o componente a cada troca, perdendo todo o estado.
 
-## Solucao
+## 2. Melhorias nos filtros de Motoristas
 
-Aplicar duas correcoes complementares:
+### Filtros atuais
+- Busca por nome/telefone
+- Tipo de veiculo (Onibus, Van, etc.)
+- Status (disponivel, em_viagem, indisponivel, inativo)
 
-### 1. Renderizacao com CSS (block/hidden) ao inves de condicional destrutiva
+### Filtros a adicionar
 
-Trocar a renderizacao condicional por classes CSS que escondem/mostram o conteudo sem desmontar:
+**a) Filtro "Vinculo de Veiculo"** - com 3 opcoes:
+- Todos
+- Com veiculo vinculado
+- Sem veiculo vinculado
 
-**`src/pages/Veiculos.tsx`** - Na secao de render (linhas ~546-557):
-- Trocar `{activeSection === 'cadastro' && <CadastroContent />}` por `<div className={activeSection === 'cadastro' ? 'block' : 'hidden'}><CadastroContent /></div>`
-- Aplicar o mesmo padrao para "auditoria" e "historico-uso"
+Isso ajuda a encontrar rapidamente motoristas que ainda precisam ser associados a um veiculo.
 
-**`src/pages/Motoristas.tsx`** - Na secao de render (linhas ~1143-1149):
-- Trocar `{activeSection === 'cadastro' && <CadastroContent />}` por `<div className={activeSection === 'cadastro' ? 'block' : 'hidden'}><CadastroContent /></div>`
-- Aplicar o mesmo padrao para "auditoria" e "missoes"
+**b) Filtro "Ativo/Inativo"** - com 3 opcoes:
+- Todos
+- Ativos
+- Inativos
 
-### 2. Mover os Dialogs/Wizards para fora do conteudo condicional
+Permite filtrar motoristas desativados que nao aparecem na operacao.
 
-Os modais de criacao (CreateVeiculoWizard, CreateMotoristaWizard) devem ser renderizados no nivel raiz do componente, fora das abas, para que sobrevivam a qualquer troca de aba.
+### Tecnico
 
-**`src/pages/Veiculos.tsx`**:
-- Mover o `<CreateVeiculoWizard>` de dentro de `CadastroContent` para junto do `<VeiculoDetalheModal>`, no nivel raiz do return.
+**Arquivo**: `src/pages/Motoristas.tsx`
 
-**`src/pages/Motoristas.tsx`**:
-- Mover o `<CreateMotoristaWizard>` de dentro de `CadastroContent` para o nivel raiz do return, junto dos outros modais.
+1. Adicionar dois novos estados:
+   - `filterVinculo` ('all' | 'com_veiculo' | 'sem_veiculo')
+   - `filterAtivo` ('all' | 'ativo' | 'inativo')
 
-### Resultado esperado
-- Trocar de aba nao desmonta mais os formularios
-- Dados preenchidos sao preservados ate o usuario salvar ou cancelar
-- Sem efeito de "tremor" ou flash na interface
-- Performance mantida (componentes ocultos via CSS nao causam re-render)
+2. Na funcao `filteredCadastrados` (useMemo, ~linha 329), adicionar as condicoes:
+   - `filterVinculo === 'com_veiculo'` → filtra motoristas com `veiculo_id !== null`
+   - `filterVinculo === 'sem_veiculo'` → filtra motoristas com `veiculo_id === null`
+   - `filterAtivo === 'ativo'` → filtra `m.ativo === true`
+   - `filterAtivo === 'inativo'` → filtra `m.ativo === false`
+
+3. Na barra de filtros (UI), adicionar dois novos `<Select>` ao lado dos existentes
+
+4. Atualizar `clearFilters` e `hasActiveFilters` para incluir os novos filtros
+
