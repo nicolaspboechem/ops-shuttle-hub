@@ -4,7 +4,7 @@ import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { Missao } from '@/hooks/useMissoes';
 import { MapaServicoCard } from './MapaServicoCard';
 import { Badge } from '@/components/ui/badge';
-import { Home, MapPin } from 'lucide-react';
+import { Home, MapPin, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface MapaServicoColumnProps {
   id: string;
@@ -15,6 +15,8 @@ interface MapaServicoColumnProps {
   isSpecial?: boolean;
   isFixed?: boolean;
   color?: string;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function MapaServicoColumn({
@@ -26,10 +28,42 @@ export function MapaServicoColumn({
   isSpecial,
   isFixed,
   color,
+  collapsed,
+  onToggleCollapse,
 }: MapaServicoColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const FixedIcon = id === 'retornando_base' ? Home : MapPin;
+
+  // Collapsed view
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex flex-col items-center rounded-xl border bg-muted/30 shrink-0 w-[48px] min-w-[48px] cursor-pointer transition-all",
+          isFixed ? "border-2 border-dashed border-primary/30" : "border-border",
+          isOver && "ring-2 ring-primary/50 bg-primary/5"
+        )}
+        onClick={onToggleCollapse}
+      >
+        <div className={cn(
+          "flex items-center justify-center w-full py-2 border-b border-border rounded-t-xl",
+          color || "bg-muted/50"
+        )}>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </div>
+        <div className="flex flex-col items-center gap-2 py-3 flex-1">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+            {motoristas.length}
+          </Badge>
+          <span className="text-[10px] font-semibold text-muted-foreground [writing-mode:vertical-lr] rotate-180 select-none">
+            {title}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -52,6 +86,15 @@ export function MapaServicoColumn({
         <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 shrink-0">
           {motoristas.length}
         </Badge>
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="p-0.5 rounded hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            title="Recolher coluna"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Cards */}
