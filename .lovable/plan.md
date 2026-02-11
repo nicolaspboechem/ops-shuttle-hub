@@ -1,50 +1,46 @@
 
 
-# Reorganizacao de Colunas + Scroll no Mapa de Servico
+# Colunas Inteligentes no Mapa de Servico
 
-## Layout Proposto
+## Resumo
 
-```text
-|                SCROLLAVEL                    |   |        FIXO (DIREITA)         |
-|                                              | | |                               |
-|  [Base]  [Ponto A]  [Ponto B]  [Sem Local]  | | | [Em Viagem] [Retornando] [Outros]
-|                                              | | |                               |
-|  <========= barra de scroll ==========>      |   |                               |
-```
-
-A tela sera dividida em duas areas:
-- **Esquerda (scrollavel)**: Base como 1a coluna, depois os demais pontos em ordem alfabetica, e "Sem Local" no final
-- **Direita (fixa, sempre visivel)**: "Em Viagem", "Retornando pra Base", "Outros" -- com largura responsiva para nunca sair da tela
+Duas mudancas no Mapa de Servico:
+1. **Esconder colunas vazias** -- colunas dinamicas sem motoristas nao serao renderizadas
+2. **Recolher/expandir colunas** -- cada coluna tera um botao no header para colapsar, mostrando apenas o titulo e o badge com contagem
 
 ## Mudancas
 
 ### 1. `src/pages/MapaServico.tsx`
 
-**Reordenar `dynamicColumns`**: Remover "Em Transito" das colunas dinamicas. Reorganizar para que a coluna Base seja a primeira, seguida pelos outros pontos ordenados, e "Sem Local" no final.
+**Filtrar colunas vazias**: No render das colunas dinamicas, renderizar apenas as que possuem pelo menos 1 motorista (apos filtros aplicados):
 
-**Mover "Em Viagem" para colunas fixas**: A coluna "Em Transito" (renomeada visualmente para "Em Viagem") passa a ser fixa na direita, junto com "Retornando" e "Outros".
+```text
+dynamicColumns
+  .filter(col => (filteredDynamic[col.id]?.length || 0) > 0)
+  .map(col => <MapaServicoColumn ... />)
+```
 
-**Corrigir deteccao de "retornando"**: Buscar tambem o ponto cujo nome contenha "retornando" nos pontos_embarque. Motoristas com `ultima_localizacao` igual a esse ponto tambem entram na coluna "Retornando pra Base", nao apenas os que tem missao ativa. Filtrar esse ponto das colunas dinamicas.
+Para as colunas fixas (Em Viagem, Retornando, Outros), aplicar a mesma logica -- so renderizar se tiver motoristas.
 
-**Feedback "Chamar Base"**: Apos confirmar, atualizar `ultima_localizacao` do motorista para o nome do ponto "Retornando" (se existir), dando feedback visual imediato.
-
-**Container fixo responsivo**: O container das colunas fixas usara `max-w-[50vw]` com `overflow-y-auto` para nunca ultrapassar metade da tela.
+**Estado de colunas colapsadas**: Adicionar um `useState<Set<string>>` chamado `collapsedColumns` que armazena os IDs das colunas recolhidas. Passar `collapsed` e `onToggleCollapse` como props para `MapaServicoColumn`.
 
 ### 2. `src/components/mapa-servico/MapaServicoColumn.tsx`
 
-**Largura responsiva para colunas fixas**: Quando `isFixed`, usar `w-[200px] min-w-[160px]` em vez de `min-w-[300px] w-[320px]`, garantindo que cabem na tela.
+**Novas props**: `collapsed?: boolean` e `onToggleCollapse?: () => void`.
 
-**Scroll vertical**: Trocar `max-h-[calc(100vh-14rem)]` por `flex-1 min-h-0 overflow-y-auto` para scroll vertical mais fluido.
+**Botao de colapsar**: Adicionar um botao `ChevronLeft`/`ChevronRight` no header da coluna. Ao clicar, alterna entre colapsado e expandido.
 
-### 3. `src/components/mapa-servico/MapaServicoScrollContainer.tsx`
+**Visual colapsado**: Quando colapsada, a coluna fica com largura minima (~48px), mostrando apenas:
+- O badge com a contagem de motoristas
+- O titulo rotacionado verticalmente
+- O botao para expandir
 
-**Correcao do scroll**: O problema atual e que o container pai usa `flex-1` mas os filhos com `shrink-0` nao forcam overflow. A correcao sera garantir que o div interno tenha `overflow-x: scroll` (nao `auto`) e `min-width: min-content` nos filhos, forcando a barra de scroll a aparecer sempre que houver conteudo alem da area visivel.
+Continua sendo um drop target valido (droppable) mesmo colapsada.
 
 ## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/MapaServico.tsx` | Reordenar colunas (Base primeiro), mover Em Viagem para fixas, corrigir deteccao retornando, feedback chamar base |
-| `src/components/mapa-servico/MapaServicoColumn.tsx` | Largura responsiva para fixas, scroll vertical melhorado |
-| `src/components/mapa-servico/MapaServicoScrollContainer.tsx` | Corrigir scroll lateral forcando overflow visivel |
+| `src/pages/MapaServico.tsx` | Filtrar colunas vazias, estado collapsedColumns, passar props |
+| `src/components/mapa-servico/MapaServicoColumn.tsx` | Props collapsed/onToggleCollapse, visual colapsado com titulo vertical |
 
