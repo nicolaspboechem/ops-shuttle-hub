@@ -534,7 +534,7 @@ export default function Motoristas() {
   );
 
   // Conteúdo da seção Cadastro (agora focado em gestão operacional)
-  const CadastroContent = () => (
+  const cadastroContent = (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -1094,7 +1094,7 @@ export default function Motoristas() {
 
   const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
 
-  const MissoesContent = () => (
+  const missoesContent = (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -1404,10 +1404,10 @@ export default function Motoristas() {
               <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
             </div>
             <div className={activeSection === 'cadastro' ? 'block' : 'hidden'}>
-              <CadastroContent />
+              {cadastroContent}
             </div>
             <div className={activeSection === 'missoes' ? 'block' : 'hidden'}>
-              <MissoesContent />
+              {missoesContent}
             </div>
           </div>
         </div>
