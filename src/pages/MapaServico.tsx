@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Map as MapIcon, RefreshCw } from 'lucide-react';
 
-import { MainLayout } from '@/components/layout/MainLayout';
+import { EventLayout } from '@/components/layout/EventLayout';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { useMissoes } from '@/hooks/useMissoes';
 import { MapaServicoColumn } from '@/components/mapa-servico/MapaServicoColumn';
@@ -128,7 +128,7 @@ export default function MapaServico() {
   }, [chamarBaseMotorista, eventoId, createMissao, baseNome]);
 
   return (
-    <MainLayout>
+    <EventLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border shrink-0">
@@ -187,6 +187,6 @@ export default function MapaServico() {
         baseNome={baseNome}
         onConfirm={handleChamarBase}
       />
-    </MainLayout>
+    </EventLayout>
   );
 }
