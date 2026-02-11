@@ -1,9 +1,8 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useDeferredValue } from 'react';
 import { useParams } from 'react-router-dom';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Map as MapIcon, RefreshCw } from 'lucide-react';
 
 import { EventLayout } from '@/components/layout/EventLayout';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
@@ -11,8 +10,38 @@ import { useMissoes } from '@/hooks/useMissoes';
 import { MapaServicoColumn } from '@/components/mapa-servico/MapaServicoColumn';
 import { MapaServicoCard } from '@/components/mapa-servico/MapaServicoCard';
 import { ChamarBaseModal } from '@/components/mapa-servico/ChamarBaseModal';
-import { Button } from '@/components/ui/button';
+import { MapaServicoHeader, FilterState } from '@/components/mapa-servico/MapaServicoHeader';
+import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// --- Filter helper ---
+function isBackup(m: MotoristaComVeiculo): boolean {
+  return !!m.veiculo?.observacoes_gerais?.includes('[BACKUP]');
+}
+
+function applyFilters(drivers: MotoristaComVeiculo[], filters: FilterState): MotoristaComVeiculo[] {
+  return drivers.filter(m => {
+    // Search
+    if (filters.deferredSearch) {
+      const q = filters.deferredSearch.toLowerCase();
+      const nameMatch = m.nome.toLowerCase().includes(q);
+      const plateMatch = m.veiculo?.placa?.toLowerCase().includes(q);
+      if (!nameMatch && !plateMatch) return false;
+    }
+    // Status filters (if any active)
+    if (filters.statusFilters.size > 0 && !filters.statusFilters.has(m.status || '')) {
+      return false;
+    }
+    // Backup only
+    if (filters.backupOnly && !isBackup(m)) return false;
+    // Sem veiculo
+    if (filters.semVeiculo && !!m.veiculo_id) return false;
+    return true;
+  });
+}
+
+// --- Auto-refresh interval ---
+const REFRESH_INTERVAL = 30_000;
 
 export default function MapaServico() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -23,6 +52,37 @@ export default function MapaServico() {
   const [chamarBaseMotorista, setChamarBaseMotorista] = useState<MotoristaComVeiculo | null>(null);
   const [baseNome, setBaseNome] = useState('Base');
   const [outrosNome, setOutrosNome] = useState<string | null>(null);
+
+  // --- Filters ---
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
+  const [backupOnly, setBackupOnly] = useState(false);
+  const [semVeiculo, setSemVeiculo] = useState(false);
+
+  const filters: FilterState = { search, deferredSearch, statusFilters, backupOnly, semVeiculo };
+
+  // --- Auto-refresh ---
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState(0);
+  const [refreshCycle, setRefreshCycle] = useState(0);
+
+  useEffect(() => {
+    if (!autoRefresh) { setRefreshProgress(0); return; }
+    const startTime = Date.now();
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min((elapsed / REFRESH_INTERVAL) * 100, 100);
+      setRefreshProgress(pct);
+      if (elapsed >= REFRESH_INTERVAL) {
+        refetch();
+        setRefreshProgress(0);
+        setRefreshCycle(c => c + 1);
+        clearInterval(tick);
+      }
+    }, 200);
+    return () => clearInterval(tick);
+  }, [autoRefresh, refreshCycle, refetch]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -44,7 +104,7 @@ export default function MapaServico() {
       });
   }, [eventoId]);
 
-  // Map active missions per driver (most recent active one)
+  // Map active missions per driver
   const missoesPorMotorista = useMemo(() => {
     const map = new Map<string, typeof missoesAtivas[number]>();
     missoesAtivas.forEach(m => {
@@ -56,74 +116,81 @@ export default function MapaServico() {
     return map;
   }, [missoesAtivas]);
 
-  // Identify drivers returning to base (mission with destination = base name)
+  // Identify drivers returning to base
   const retornandoBaseIds = useMemo(() => {
     const ids = new Set<string>();
     missoesPorMotorista.forEach((missao, motoristaId) => {
-      if (
-        missao.ponto_desembarque === baseNome &&
-        ['pendente', 'aceita', 'em_andamento'].includes(missao.status)
-      ) {
+      if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
         ids.add(motoristaId);
       }
     });
     return ids;
   }, [missoesPorMotorista, baseNome]);
 
-  // Build separated driver groups: dynamic vs fixed
+  // Build separated driver groups
   const { dynamicMotoristas, retornandoBaseMotoristas, outrosMotoristas } = useMemo(() => {
     const retornando: MotoristaComVeiculo[] = [];
     const outros: MotoristaComVeiculo[] = [];
     const dynamicGroups: Record<string, MotoristaComVeiculo[]> = {};
 
-    // Initialize dynamic groups from motoristasPorLocalizacao
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
-        // Retornando pra base has priority
         if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
-        }
-        // Outros column (if point exists)
-        else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {
+        } else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {
           outros.push(m);
-        }
-        // Dynamic column
-        else {
+        } else {
           if (!dynamicGroups[loc]) dynamicGroups[loc] = [];
           dynamicGroups[loc].push(m);
         }
       });
     });
 
-    return {
-      dynamicMotoristas: dynamicGroups,
-      retornandoBaseMotoristas: retornando,
-      outrosMotoristas: outros,
-    };
+    return { dynamicMotoristas: dynamicGroups, retornandoBaseMotoristas: retornando, outrosMotoristas: outros };
   }, [motoristasPorLocalizacao, retornandoBaseIds, outrosNome]);
 
-  // Build dynamic columns (excluding "Outros" location from dynamic if it's fixed)
+  // Apply filters to each group
+  const filteredDynamic = useMemo(() => {
+    const result: Record<string, MotoristaComVeiculo[]> = {};
+    Object.entries(dynamicMotoristas).forEach(([loc, drivers]) => {
+      result[loc] = applyFilters(drivers, filters);
+    });
+    return result;
+  }, [dynamicMotoristas, filters]);
+
+  const filteredRetornando = useMemo(() => applyFilters(retornandoBaseMotoristas, filters), [retornandoBaseMotoristas, filters]);
+  const filteredOutros = useMemo(() => applyFilters(outrosMotoristas, filters), [outrosMotoristas, filters]);
+
+  // Dynamic columns
   const dynamicColumns = useMemo(() => {
     const cols: { id: string; title: string; isSpecial?: boolean; color?: string }[] = [];
-
-    // Em Trânsito
     cols.push({ id: 'em_transito', title: 'Em Trânsito', isSpecial: true, color: 'bg-blue-500/10' });
-
-    // Location columns (exclude "Outros" if it exists as fixed)
     localizacoes.forEach(loc => {
-      if (outrosNome && loc === outrosNome) return; // skip, it's fixed
+      if (outrosNome && loc === outrosNome) return;
       cols.push({ id: loc, title: loc });
     });
-
-    // Sem Local
     cols.push({ id: 'sem_local', title: 'Sem Local', isSpecial: true, color: 'bg-muted/60' });
-
     return cols;
   }, [localizacoes, outrosNome]);
 
+  // Status counters
+  const statusCount = useMemo(() => {
+    let disponiveis = 0, emTransito = 0;
+    motoristas.forEach(m => {
+      if (m.status === 'disponivel') disponiveis++;
+      if (m.status === 'em_viagem') emTransito++;
+    });
+    return {
+      disponiveis,
+      emTransito,
+      retornando: retornandoBaseMotoristas.length,
+      total: motoristas.length,
+    };
+  }, [motoristas, retornandoBaseMotoristas]);
+
+  // --- Handlers ---
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const m = event.active.data.current?.motorista as MotoristaComVeiculo;
-    setActiveMotorista(m || null);
+    setActiveMotorista((event.active.data.current?.motorista as MotoristaComVeiculo) || null);
   }, []);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
@@ -134,45 +201,28 @@ export default function MapaServico() {
     const motorista = active.data.current?.motorista as MotoristaComVeiculo;
     const destino = over.id as string;
 
-    // Can't drag to em_transito or retornando_base
-    if (destino === 'em_transito') {
-      toast.error('Não é possível mover manualmente para Em Trânsito');
-      return;
-    }
-    if (destino === 'retornando_base') {
-      toast.error('Use "Chamar para Base" para mover para esta coluna');
-      return;
-    }
+    if (destino === 'em_transito') { toast.error('Não é possível mover manualmente para Em Trânsito'); return; }
+    if (destino === 'retornando_base') { toast.error('Use "Chamar para Base" para mover para esta coluna'); return; }
 
-    // Determine new location value
-    const novaLocalizacao = destino === 'sem_local' ? null : 
-      (destino === 'outros_fixo' && outrosNome) ? outrosNome : destino;
-
-    // Skip if same location
+    const novaLocalizacao = destino === 'sem_local' ? null : (destino === 'outros_fixo' && outrosNome) ? outrosNome : destino;
     const locAtual = motorista.status === 'em_viagem' ? 'em_transito' : (motorista.ultima_localizacao || 'sem_local');
     if (locAtual === destino) return;
 
     const { error } = await supabase
       .from('motoristas')
-      .update({
-        ultima_localizacao: novaLocalizacao,
-        ultima_localizacao_at: new Date().toISOString(),
-        status: 'disponivel',
-      })
+      .update({ ultima_localizacao: novaLocalizacao, ultima_localizacao_at: new Date().toISOString(), status: 'disponivel' })
       .eq('id', motorista.id);
 
     if (error) {
       toast.error('Erro ao atualizar localização');
     } else {
-      const destinoLabel = destino === 'sem_local' ? 'Sem Local' : 
-        (destino === 'outros_fixo' ? 'Outros' : destino);
+      const destinoLabel = destino === 'sem_local' ? 'Sem Local' : (destino === 'outros_fixo' ? 'Outros' : destino);
       toast.success(`${motorista.nome} movido para ${destinoLabel}`);
     }
   }, [outrosNome]);
 
   const handleChamarBase = useCallback(async () => {
     if (!chamarBaseMotorista || !eventoId) return;
-
     await createMissao({
       motorista_id: chamarBaseMotorista.id,
       titulo: 'Retorno à Base',
@@ -180,28 +230,33 @@ export default function MapaServico() {
       ponto_desembarque: baseNome,
       prioridade: 'normal',
     });
-
     setChamarBaseMotorista(null);
   }, [chamarBaseMotorista, eventoId, createMissao, baseNome]);
 
-  const totalAtivos = motoristas.length;
+  const toggleStatus = useCallback((status: string) => {
+    setStatusFilters(prev => {
+      const next = new Set(prev);
+      next.has(status) ? next.delete(status) : next.add(status);
+      return next;
+    });
+  }, []);
 
   return (
     <EventLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-border shrink-0">
-          <MapIcon className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold text-foreground">Mapa de Serviço</h1>
-          <span className="text-sm text-muted-foreground">
-            {totalAtivos} motorista{totalAtivos !== 1 ? 's' : ''} ativo{totalAtivos !== 1 ? 's' : ''}
-          </span>
-          <Button variant="ghost" size="sm" className="ml-auto gap-1.5" onClick={refetch}>
-            <RefreshCw className="w-4 h-4" /> Atualizar
-          </Button>
-        </div>
+        <MapaServicoHeader
+          statusCount={statusCount}
+          filters={filters}
+          onSearchChange={setSearch}
+          onToggleStatus={toggleStatus}
+          onToggleBackup={() => setBackupOnly(v => !v)}
+          onToggleSemVeiculo={() => setSemVeiculo(v => !v)}
+          onRefresh={refetch}
+          autoRefresh={autoRefresh}
+          onAutoRefreshChange={setAutoRefresh}
+          refreshProgress={refreshProgress}
+        />
 
-        {/* Kanban */}
         {loading ? (
           <div className="flex gap-4 p-4 overflow-x-auto">
             {[1, 2, 3].map(i => (
@@ -211,31 +266,31 @@ export default function MapaServico() {
         ) : (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="flex flex-1 min-h-0">
-              {/* Dynamic columns - scrollable */}
-              <div className="flex gap-3 p-4 overflow-x-auto flex-1 min-h-0">
+              {/* Dynamic columns with scroll navigation */}
+              <MapaServicoScrollContainer>
                 {dynamicColumns.map(col => (
                   <MapaServicoColumn
                     key={col.id}
                     id={col.id}
                     title={col.title}
-                    motoristas={dynamicMotoristas[col.id] || []}
+                    motoristas={filteredDynamic[col.id] || []}
                     missoesPorMotorista={missoesPorMotorista}
                     onChamarBase={m => setChamarBaseMotorista(m)}
                     isSpecial={col.isSpecial}
                     color={col.color}
                   />
                 ))}
-              </div>
+              </MapaServicoScrollContainer>
 
               {/* Separator */}
               <div className="w-px bg-border shrink-0" />
 
-              {/* Fixed columns - always visible */}
+              {/* Fixed columns */}
               <div className="flex gap-3 p-4 shrink-0 bg-muted/20">
                 <MapaServicoColumn
                   id="retornando_base"
                   title={`Retornando pra ${baseNome}`}
-                  motoristas={retornandoBaseMotoristas}
+                  motoristas={filteredRetornando}
                   missoesPorMotorista={missoesPorMotorista}
                   onChamarBase={m => setChamarBaseMotorista(m)}
                   isFixed
@@ -245,7 +300,7 @@ export default function MapaServico() {
                   <MapaServicoColumn
                     id="outros_fixo"
                     title="Outros"
-                    motoristas={outrosMotoristas}
+                    motoristas={filteredOutros}
                     missoesPorMotorista={missoesPorMotorista}
                     onChamarBase={m => setChamarBaseMotorista(m)}
                     isFixed
