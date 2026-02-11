@@ -136,11 +136,17 @@ export function CheckinCheckoutCard({
 
           <Button 
             className="w-full gap-2" 
-            onClick={() => setShowVistoriaModal(true)}
-            disabled={loading || !veiculoAtribuido}
+            onClick={() => {
+              if (veiculoAtribuido) {
+                setShowVistoriaModal(true);
+              } else {
+                onCheckin();
+              }
+            }}
+            disabled={loading}
           >
             <LogIn className="h-4 w-4" />
-            Verificar e Fazer Check-in
+            {veiculoAtribuido ? 'Verificar e Fazer Check-in' : 'Fazer Check-in'}
           </Button>
         </CardContent>
       </Card>
