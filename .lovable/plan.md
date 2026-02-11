@@ -1,103 +1,87 @@
 
 
-# Missao Instantanea + Gerenciamento Completo de Missoes no CCO
+# Logica de Presenca no Kanban de Motoristas
 
-## Resumo
+## Resumo da mudanca
 
-Duas melhorias principais:
+O status visivel do motorista no Kanban passara a ser derivado da presenca (check-in/check-out), nao apenas do campo `status` no banco. A logica sera:
 
-1. **Missoes criadas via "Chamar Base" devem ser gerenciaveis como missoes comuns** - aceitar, iniciar, concluir pelo CCO (ja funciona pois usam o mesmo `createMissao`; nenhuma mudanca necessaria aqui).
+- **Sem check-in no dia** = sempre aparece como "Inativo" (independente do status no banco)
+- **Com check-in ativo** (checkin_at preenchido, checkout_at nulo) = aparece conforme seu status real (disponivel, em_viagem, etc.)
+- **Com check-out realizado** = vai para a nova coluna "Expediente Encerrado"
+- **Virou o dia operacional** = volta a ser "Inativo" automaticamente (pois nao tem check-in no novo dia)
 
-2. **Criar dois modos de criacao de missao**: "Missao Instantanea" (rapida, so motorista + origem + destino) e "Missao Agendada" (formulario completo atual). Isso se aplica ao CCO, App Supervisor e App Operador.
+## Nova coluna: Expediente Encerrado
 
----
+Adicionar ao Kanban uma 5a coluna com visual roxo/slate:
+- Titulo: "Expediente Encerrado"
+- Icone: `LogOut`
+- Motoristas que fizeram checkout no dia operacional atual
 
-## Parte 1: Missoes de Retorno a Base
+## Mudancas tecnicas
 
-As missoes criadas pelo "Chamar Base" no Mapa de Servico ja usam `createMissao` do hook `useMissoes`, que insere na tabela `missoes` com status `pendente`. Como ja adicionamos as acoes "Aceitar" e "Iniciar" no CCO (aba Motoristas), essas missoes ja podem ser gerenciadas normalmente. **Nenhuma mudanca necessaria.**
+### 1. `src/pages/Motoristas.tsx`
 
----
+**Constante MOTORISTA_STATUSES**: adicionar `'expediente_encerrado'` ao array.
 
-## Parte 2: Dois Modos de Criacao de Missao
-
-### Fluxo proposto
-
-Ao clicar "Nova Missao" (CCO ou apps), abre um modal intermediario com duas opcoes:
+**motoristasByStatus (useMemo)**: Reformular a logica de agrupamento. Em vez de usar apenas `m.status`, cruzar com dados de presenca:
 
 ```text
-+----------------------------------+
-|      Que tipo de missao?         |
-|                                  |
-|  [Zap] Missao Instantanea        |
-|  Rapida: motorista, A -> B       |
-|                                  |
-|  [Calendar] Missao Agendada      |
-|  Completa: data, horario, pax... |
-+----------------------------------+
+Para cada motorista ativo:
+  presenca = getPresenca(motorista.id)
+  
+  SE presenca tem checkout_at (nao nulo):
+    -> grupo "expediente_encerrado"
+  SENAO SE presenca tem checkin_at (nao nulo):
+    -> grupo conforme m.status (disponivel, em_viagem, indisponivel)
+  SENAO (sem presenca ou sem checkin):
+    -> grupo "inativo"
+
+Para motoristas com ativo === false:
+  -> grupo "inativo" (sempre)
 ```
 
-### Missao Instantanea
-- Campos: **Motorista** (combobox), **Origem** (select), **Destino** (select)
-- Titulo auto-gerado: "Missao: {Origem} -> {Destino}"
-- Prioridade: `normal`, data: hoje, pax: 0
-- Um clique para criar
+**handleDragEnd**: Permitir drag para a nova coluna `expediente_encerrado`. Ao arrastar para la, disparar checkout. Ao arrastar de la para outra coluna, disparar checkin se necessario.
 
-### Missao Agendada
-- Formulario atual completo (MissaoModal.tsx sem mudancas)
+### 2. `src/components/motoristas/MotoristaKanbanColumn.tsx`
 
----
+**statusConfig**: Adicionar entrada para `expediente_encerrado`:
 
-## Arquivos a modificar
+| Propriedade | Valor |
+|---|---|
+| title | Expediente Encerrado |
+| icon | LogOut |
+| bgColor | bg-purple-50 / dark:bg-purple-950/20 |
+| headerBg | bg-purple-100 / dark:bg-purple-900/40 |
+| iconColor | text-purple-600 / dark:text-purple-400 |
+| borderColor | border-purple-200 / dark:border-purple-800 |
 
-### 1. Novo: `src/components/motoristas/MissaoTipoModal.tsx`
-Modal intermediario com duas opcoes: Instantanea e Agendada. Ao selecionar, emite callback com o tipo escolhido.
+### 3. `src/hooks/useEquipe.ts`
 
-### 2. Novo: `src/components/motoristas/MissaoInstantaneaModal.tsx`
-Formulario simplificado com apenas 3 campos: Motorista (combobox com busca), Origem (select de pontos), Destino (select de pontos). Titulo auto-gerado. Chama `onSave` com os mesmos dados do `MissaoInput`.
+Nenhuma mudanca necessaria - ja retorna `checkin_at` e `checkout_at` por motorista no dia operacional, que e exatamente o que precisamos para a logica de agrupamento.
 
-### 3. `src/pages/Motoristas.tsx` (CCO)
-- Botao "Nova Missao" abre `MissaoTipoModal` em vez de `MissaoModal` diretamente
-- Conforme a escolha, abre `MissaoInstantaneaModal` ou `MissaoModal`
+## Fluxo visual resultante
 
-### 4. `src/pages/app/AppSupervisor.tsx`
-- Quando `handleActionSelect('missao')` eh chamado, abre `MissaoTipoModal`
-- Conforme a escolha, abre `MissaoInstantaneaModal` ou `MissaoModal`
+```text
+Dia começa (virada operacional):
+  Todos os motoristas -> coluna "Inativos"
 
-### 5. `src/pages/app/AppOperador.tsx`
-- Adicionar suporte a criacao de missoes (atualmente so cria viagens transfer/shuttle)
-- Adicionar opcao "Missao" no seletor de tipo, seguindo o mesmo padrao do Supervisor
-- Usar `NewActionModal` + `MissaoTipoModal` + modais de missao
+Motorista faz check-in:
+  -> Move para "Disponiveis"
 
-### 6. `src/components/app/NewActionModal.tsx`
-- Nenhuma mudanca: ja tem opcao "Missao"
+Motorista recebe viagem:
+  -> Move para "Em Viagem" (automatico pelo status)
 
----
+Motorista faz check-out (ou admin faz):
+  -> Move para "Expediente Encerrado"
 
-## Detalhes tecnicos
-
-### MissaoInstantaneaModal - campos e logica
-
-| Campo | Componente | Obrigatorio |
-|---|---|---|
-| Motorista | Combobox (mesmo do MissaoModal) | Sim |
-| Origem | Select (pontos de embarque) | Sim |
-| Destino | Select (pontos de embarque) | Sim |
-
-Ao submeter:
-```typescript
-onSave({
-  motorista_id: motoristaId,
-  titulo: `Missão: ${origem} → ${destino}`,
-  ponto_embarque: origem,
-  ponto_desembarque: destino,
-  ponto_embarque_id: pontoOrigemId,
-  ponto_desembarque_id: pontoDestinoId,
-  prioridade: 'normal',
-  qtd_pax: 0,
-  data_programada: new Date().toISOString().slice(0, 10),
-});
+Proximo dia operacional:
+  -> Todos voltam para "Inativos" (sem check-in no novo dia)
 ```
 
-### AppOperador - integracao
-O Operador atualmente nao tem criacao de missoes. Sera adicionado seguindo o mesmo padrao do Supervisor: usar `useMissoes` hook + `NewActionModal` para escolha de tipo + modais de missao.
+## Arquivos modificados
 
+| Arquivo | Mudanca |
+|---|---|
+| `src/pages/Motoristas.tsx` | Nova logica de agrupamento baseada em presenca; nova coluna no array de status |
+| `src/components/motoristas/MotoristaKanbanColumn.tsx` | Adicionar config visual para "expediente_encerrado" |
