@@ -120,6 +120,17 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
     fetchMotoristas();
   }, [fetchMotoristas]);
 
+  // Refetch when tab becomes visible again (Chrome suspends timers/WebSocket)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && eventoId) {
+        fetchMotoristas();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [eventoId, fetchMotoristas]);
+
   // Realtime subscription
   useEffect(() => {
     if (!eventoId) return;
