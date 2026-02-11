@@ -139,6 +139,17 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
     fetchVeiculos();
   }, [fetchVeiculos]);
 
+  // Refetch when tab becomes visible again (Chrome suspends timers/WebSocket)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && eventoId) {
+        fetchVeiculos();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [eventoId, fetchVeiculos]);
+
   // Realtime subscription
   useEffect(() => {
     if (!eventoId) return;
