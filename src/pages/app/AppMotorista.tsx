@@ -2,6 +2,15 @@ import { useState, useMemo } from 'react';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { useViagens } from '@/hooks/useViagens';
 import { useViagemOperacaoMotorista } from '@/hooks/useViagemOperacaoMotorista';
 import { useMissoes } from '@/hooks/useMissoes';
@@ -57,6 +66,9 @@ export default function AppMotorista() {
   const [navModalOpen, setNavModalOpen] = useState(false);
   const [navModalData, setNavModalData] = useState<{origem?: string | null; destino?: string | null} | null>(null);
   
+  // Estado para modal de aviso de veículo não vinculado
+  const [showVeiculoAlert, setShowVeiculoAlert] = useState(false);
+
   // Tutorial system
   const tutorial = useTutorial('motorista', motoristaSteps);
 
@@ -146,10 +158,20 @@ export default function AppMotorista() {
     setOperando(missaoId);
     try {
       if (action === 'aceitar') {
+        // Verificar se tem veículo vinculado
+        if (!motoristaData?.veiculo_id) {
+          setShowVeiculoAlert(true);
+          return;
+        }
         await updateMissao(missaoId, { status: 'aceita' });
       } else if (action === 'recusar') {
         await updateMissao(missaoId, { status: 'cancelada' });
       } else if (action === 'iniciar') {
+        // Verificar se tem veículo vinculado
+        if (!motoristaData?.veiculo_id) {
+          setShowVeiculoAlert(true);
+          return;
+        }
         // Criar viagem ao iniciar a missão
         const motorista = motoristas.find(m => m.id === missao.motorista_id);
         if (!motorista || !eventoId) {
@@ -609,6 +631,24 @@ export default function AppMotorista() {
         origem={navModalData?.origem}
         destino={navModalData?.destino}
       />
+
+      {/* Alert: Veículo não vinculado */}
+      <AlertDialog open={showVeiculoAlert} onOpenChange={setShowVeiculoAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-2">
+              <Car className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <AlertDialogTitle className="text-center">Veículo não vinculado</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              Para aceitar esta missão, solicite ao supervisor operacional que vincule um veículo ao seu perfil.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="w-full">Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
