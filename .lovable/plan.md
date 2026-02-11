@@ -1,75 +1,39 @@
 
-# Otimizar Tempo de Carregamento do App Publicado
+
+# Redesign do Card do Localizador de Frota
 
 ## Problema
-O app demora para renderizar porque: (1) a fonte Google bloqueia o render, (2) queries e canais Realtime disparam para todos os usuarios (incluindo nao autenticados), e (3) queries de perfil sao sequenciais em vez de paralelas.
+Os cards do localizador estao cortando o texto do trajeto (origem/destino) e a hierarquia de informacoes nao esta clara. Badges estao grandes demais.
 
-## Correcoes
+## Nova hierarquia (de cima para baixo)
 
-### 1. Mover Google Fonts para o HTML com preload (index.html)
-
-Remover o `@import url(...)` do `src/index.css` e adicionar a fonte diretamente no `index.html` com `<link rel="preconnect">` e `<link rel="stylesheet">` com `display=swap`. Isso permite que o navegador comece a baixar a fonte em paralelo sem bloquear o CSS.
-
-**Arquivo**: `index.html` - Adicionar no `<head>`:
-```
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+```text
++----------------------------------+
+| [dot] Status label               |
+| Motorista (nome, bold, grande)   |
+| [car] Apelido Veiculo  PLACA    |
+| Origem -> Destino (se transito)  |
++----------------------------------+
 ```
 
-**Arquivo**: `src/index.css` - Remover a linha 1:
-```
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-```
+## Alteracoes
 
-### 2. Condicionar NotificationsProvider a usuario autenticado (App.tsx)
+### Arquivo: `src/components/localizador/LocalizadorCard.tsx`
 
-Envolver o `NotificationsProvider` em um componente que so renderiza quando o usuario esta autenticado. Criar um componente wrapper `AuthenticatedNotifications` que verifica `user` do `useAuth()` antes de montar o provider, evitando 3 queries + 3 canais Realtime em paginas publicas e de login.
+Reestruturar o card com layout vertical limpo:
 
-**Arquivo**: `src/App.tsx`
+1. **Linha 1 - Status**: Pequeno dot colorido + label em texto menor (sem badge arredondado grande, apenas texto com dot inline)
+2. **Linha 2 - Motorista**: Nome em bold, tamanho `text-base`, sem avatar/icone circular (mais clean)
+3. **Linha 3 - Veiculo**: Icone carro + apelido em `text-sm font-medium` + placa em `text-xs text-muted-foreground` na mesma linha
+4. **Linha 4 - Trajeto** (somente em transito): Origem completa + seta + Destino completo, sem truncamento agressivo (`max-w-[50px]` sera removido). Usar `text-wrap` e remover `truncate` para garantir texto visivel. Usar `text-xs` para caber sem cortar.
 
-Criar componente interno:
-```tsx
-function ConditionalNotifications({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  if (!user) return <>{children}</>;
-  return <NotificationsProvider>{children}</NotificationsProvider>;
-}
-```
+Reducoes de tamanho:
+- Remover o circulo avatar do motorista (apenas texto)
+- Status badge: de `px-2.5 py-1 rounded-full text-sm` para `text-xs` simples com dot
+- Padding do card: de `p-4` para `p-3`
+- Remover `mb-3` entre secoes, usar `gap-1.5` com flex-col
 
-Substituir `<NotificationsProvider>` por `<ConditionalNotifications>` no JSX.
+### Arquivo: `src/components/localizador/LocalizadorColumn.tsx`
 
-### 3. Paralelizar queries do AuthContext (AuthContext.tsx)
+Ajustar largura minima da coluna de `min-w-[280px]` para `min-w-[260px]` e `max-w-[300px]` para cards mais compactos. Reduzir spacing entre cards de `space-y-3` para `space-y-2`.
 
-No `fetchUserData`, substituir as 4 queries sequenciais por `Promise.all`, reduzindo o tempo de ~800ms (4x200ms) para ~200ms (1x200ms).
-
-**Arquivo**: `src/lib/auth/AuthContext.tsx`
-
-Refatorar `fetchUserData` para:
-```tsx
-const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
-  supabase.from('profiles').select('*').eq('user_id', userId).single(),
-  supabase.from('user_roles').select('role').eq('user_id', userId).single(),
-  supabase.from('user_permissions').select('permission').eq('user_id', userId),
-  supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
-]);
-// Processar resultados...
-```
-
-### 4. Adicionar preconnect ao Supabase (index.html)
-
-Adicionar `<link rel="preconnect">` para o dominio do Supabase, permitindo que a conexao TLS comece antes mesmo do JavaScript carregar.
-
-**Arquivo**: `index.html` - Adicionar no `<head>`:
-```
-<link rel="preconnect" href="https://gkrczwtldvondiehsesh.supabase.co">
-```
-
-## Impacto Esperado
-
-- **Font blocking**: Eliminado (~300-500ms de melhoria no First Contentful Paint)
-- **Queries desnecessarias**: 3 queries e 3 canais Realtime eliminados para usuarios nao autenticados
-- **Auth sequencial para paralelo**: ~600ms de economia no carregamento pos-login
-- **Preconnect Supabase**: ~100-200ms de economia na primeira query
-
-Total estimado: **1-1.5s mais rapido** no carregamento inicial.
