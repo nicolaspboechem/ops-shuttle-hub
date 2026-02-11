@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Viagem } from '@/lib/types/viagem';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ export function RetornoViagemForm({
 }: RetornoViagemFormProps) {
   const { eventoId } = useParams();
   const { user } = useAuth();
+  const { userId, userName } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
   
   const [pontos, setPontos] = useState<PontoEmbarque[]>([]);
@@ -157,7 +159,8 @@ export function RetornoViagemForm({
         detalhes: {
           tipo: 'nova_viagem_retorno',
           destino: pontoDestino,
-          qtd_pax: parseInt(qtdPax)
+          qtd_pax: parseInt(qtdPax),
+          nome_usuario: userName
         }
       }]);
 

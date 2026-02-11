@@ -98,7 +98,7 @@ export function LogsPanel({ eventoId }: LogsPanelProps) {
                   </p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <User className="h-3 w-3" />
-                    {log.profile?.full_name || 'Sistema'} •{' '}
+                    {log.profile?.full_name || (log.detalhes as any)?.nome_usuario || (log.detalhes as any)?.motorista_nome || 'Sistema'} •{' '}
                     {formatDistanceToNow(new Date(log.created_at), { 
                       addSuffix: true, 
                       locale: ptBR 

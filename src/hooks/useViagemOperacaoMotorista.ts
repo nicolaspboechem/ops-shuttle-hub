@@ -85,7 +85,8 @@ export function useViagemOperacaoMotorista() {
       detalhes: {
         ...detalhes,
         via: 'app_motorista',
-        motorista_nome: driverSession.motorista_nome
+        motorista_nome: driverSession.motorista_nome,
+        nome_usuario: driverSession.motorista_nome
       } as any
     }]);
   }, [driverSession]);

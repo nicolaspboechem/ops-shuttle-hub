@@ -101,7 +101,7 @@ async function motoristaTemViagensAtivas(motoristaId: string | null | undefined,
 }
 
 export function useViagemOperacao() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { getAgoraSync } = useServerTime();
 
   const registrarLog = useCallback(async (
@@ -115,9 +115,12 @@ export function useViagemOperacao() {
       viagem_id: viagemId,
       user_id: user.id,
       acao,
-      detalhes: detalhes as any
+      detalhes: {
+        ...detalhes,
+        nome_usuario: profile?.full_name || user.email || null
+      } as any
     }]);
-  }, [user]);
+  }, [user, profile]);
 
   const iniciarViagem = useCallback(async (viagem: Viagem) => {
     if (!user) {
