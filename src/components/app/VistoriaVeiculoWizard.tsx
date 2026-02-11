@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Veiculo } from '@/hooks/useCadastros';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ export function VistoriaVeiculoWizard({
   onComplete
 }: VistoriaVeiculoWizardProps) {
   const { user } = useAuth();
+  const { userId, userName } = useCurrentUser();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   
@@ -178,16 +180,9 @@ export function VistoriaVeiculoWizard({
         }
       }
 
-      // Buscar nome do usuário atual
-      let realizadoPorNome: string | null = null;
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('user_id', user.id)
-          .single();
-        realizadoPorNome = profile?.full_name || null;
-      }
+      // Usar nome do hook unificado (funciona para admin, staff e motorista)
+      const realizadoPorNome = userName || null;
+      const realizadoPorId = userId || user?.id || null;
 
       if (isEditing && veiculoExistente) {
         // Registrar no histórico ANTES de atualizar
@@ -203,7 +198,7 @@ export function VistoriaVeiculoWizard({
           nivel_combustivel: nivelCombustivel,
           km_registrado: kmInicial ? parseInt(kmInicial) : null,
           observacoes: observacoesGerais.trim() || null,
-          realizado_por: user?.id || null,
+          realizado_por: realizadoPorId,
           realizado_por_nome: realizadoPorNome,
           motorista_id: motoristaAtual?.id || null,
           motorista_nome: motoristaAtual?.nome || null
@@ -242,20 +237,20 @@ export function VistoriaVeiculoWizard({
             capacidade: capacidade ? parseInt(capacidade) : 15,
             fornecedor: fornecedor.trim() || null,
             km_inicial: kmInicial ? parseInt(kmInicial) : null,
-            km_inicial_registrado_por: user?.id || null,
+            km_inicial_registrado_por: realizadoPorId,
             km_inicial_data: new Date().toISOString(),
             nivel_combustivel: nivelCombustivel,
             possui_avarias: possuiAvarias,
             inspecao_dados: inspecaoDados,
             inspecao_data: new Date().toISOString(),
-            inspecao_por: user?.id || null,
+            inspecao_por: realizadoPorId,
             observacoes_gerais: observacoesGerais.trim() || null,
             status: statusFinal,
             liberado_em: statusFinal === 'liberado' ? new Date().toISOString() : null,
-            liberado_por: statusFinal === 'liberado' ? user?.id : null,
+            liberado_por: statusFinal === 'liberado' ? realizadoPorId : null,
             ativo: true,
-            criado_por: user?.id || null,
-            atualizado_por: user?.id || null
+            criado_por: realizadoPorId,
+            atualizado_por: realizadoPorId
           }])
           .select()
           .single();
@@ -282,7 +277,7 @@ export function VistoriaVeiculoWizard({
           nivel_combustivel: nivelCombustivel,
           km_registrado: kmInicial ? parseInt(kmInicial) : null,
           observacoes: observacoesGerais.trim() || null,
-          realizado_por: user?.id || null,
+          realizado_por: realizadoPorId,
           realizado_por_nome: realizadoPorNome,
           motorista_id: null,
           motorista_nome: null
