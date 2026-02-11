@@ -344,30 +344,20 @@ export default function Usuarios() {
     setDeleting(true);
 
     try {
-      await supabase
-        .from('user_permissions')
-        .delete()
-        .eq('user_id', deletingUser.user_id);
-
-      await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', deletingUser.user_id);
-
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', deletingUser.id);
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: deletingUser.user_id }
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       setUsers(prev => prev.filter(u => u.id !== deletingUser.id));
       toast.success('Usuário removido com sucesso!');
       setShowDeleteModal(false);
       setDeletingUser(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error('Erro ao remover usuário');
+      toast.error(error.message || 'Erro ao remover usuário');
     } finally {
       setDeleting(false);
     }
