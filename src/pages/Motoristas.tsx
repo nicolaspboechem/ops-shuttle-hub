@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +39,7 @@ import { MissaoCard } from '@/components/motoristas/MissaoCard';
 import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useEquipe } from '@/hooks/useEquipe';
 
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
@@ -66,6 +67,7 @@ export default function Motoristas() {
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
+  const { membros: equipeMembros, handleCheckin, handleCheckout } = useEquipe(eventoId);
   
   // Hooks de missões - devem estar antes de qualquer return condicional
   const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
@@ -191,6 +193,12 @@ export default function Motoristas() {
 
   const getMetricasMotorista = (nomeMotorista: string) => {
     return metricasMotoristas.find(m => m.motorista === nomeMotorista);
+  };
+
+  // Get presença data for a motorista from useEquipe
+  const getPresenca = (motoristaId: string) => {
+    const membro = equipeMembros.find(m => m.tipo === 'motorista' && m.id === motoristaId);
+    return membro ? { checkin_at: membro.checkin_at, checkout_at: membro.checkout_at } : null;
   };
 
   // Drag and drop handlers
@@ -613,6 +621,9 @@ export default function Motoristas() {
                 onEdit={(motorista) => setEditingMotorista(motorista)}
                 onVerViagens={(motorista) => setSelectedMotoristaForViagens(motorista)}
                 onEditLocalizacao={(motorista) => setEditLocMotorista(motorista)}
+                getPresenca={getPresenca}
+                onCheckin={handleCheckin}
+                onCheckout={handleCheckout}
               />
             ))}
           </div>
@@ -782,6 +793,49 @@ export default function Motoristas() {
                             </Button>
                           </div>
                         )}
+
+                        {/* Check-in / Check-out */}
+                        {(() => {
+                          const presenca = getPresenca(motorista.id);
+                          return (
+                            <div className="flex items-center gap-2 mt-2">
+                              {!presenca?.checkin_at ? (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="flex-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  onClick={() => handleCheckin(motorista.id)}
+                                >
+                                  <LogIn className="w-3.5 h-3.5 mr-1" />
+                                  Check-in
+                                </Button>
+                              ) : presenca.checkout_at ? (
+                                <div className="flex-1 text-center text-xs text-muted-foreground">
+                                  <CheckCircle className="w-4 h-4 inline mr-1 text-emerald-500" />
+                                  Jornada encerrada
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-1 text-xs text-emerald-600">
+                                    <Clock className="w-3 h-3" />
+                                    <span>
+                                      Entrada: {new Date(presenca.checkin_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                                    onClick={() => handleCheckout(motorista.id)}
+                                  >
+                                    <LogOut className="w-3.5 h-3.5 mr-1" />
+                                    Check-out
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                         
                         {motorista.atualizado_por && (
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-1">
@@ -808,6 +862,7 @@ export default function Motoristas() {
                   <TableRow>
                     <TableHead>#</TableHead>
                     <TableHead>Motorista</TableHead>
+                    <TableHead>Presença</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Veículo</TableHead>
@@ -835,6 +890,47 @@ export default function Motoristas() {
                             </div>
                             {motorista.nome}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const presenca = getPresenca(motorista.id);
+                            if (!presenca?.checkin_at) {
+                              return (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="h-7 text-xs text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  onClick={() => handleCheckin(motorista.id)}
+                                >
+                                  <LogIn className="w-3 h-3 mr-1" />
+                                  Check-in
+                                </Button>
+                              );
+                            }
+                            if (presenca.checkout_at) {
+                              return (
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                                  Encerrado
+                                </span>
+                              );
+                            }
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-emerald-600">
+                                  {new Date(presenca.checkin_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="h-6 text-[10px] px-1.5 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+                                  onClick={() => handleCheckout(motorista.id)}
+                                >
+                                  <LogOut className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <Badge 

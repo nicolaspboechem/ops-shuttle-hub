@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route, LogIn, LogOut } from "lucide-react";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
@@ -36,6 +36,9 @@ interface MotoristaKanbanCardProps {
   onVerViagens?: () => void;
   onEditLocalizacao?: () => void;
   isDragOverlay?: boolean;
+  presenca?: { checkin_at?: string | null; checkout_at?: string | null } | null;
+  onCheckin?: () => void;
+  onCheckout?: () => void;
 }
 
 export function MotoristaKanbanCard({ 
@@ -48,7 +51,10 @@ export function MotoristaKanbanCard({
   onEdit,
   onVerViagens,
   onEditLocalizacao,
-  isDragOverlay = false
+  isDragOverlay = false,
+  presenca,
+  onCheckin,
+  onCheckout
 }: MotoristaKanbanCardProps) {
   const TipoIcon = veiculo?.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
 
@@ -108,7 +114,8 @@ export function MotoristaKanbanCard({
       <Card 
         className={cn(
           "overflow-hidden hover:shadow-md transition-shadow duration-200",
-          isDragging && "shadow-lg ring-2 ring-primary/50"
+          isDragging && "shadow-lg ring-2 ring-primary/50",
+          presenca?.checkin_at && !presenca?.checkout_at && "ring-1 ring-emerald-500/40"
         )}
       >
         <CardContent className="p-3 space-y-2">
@@ -273,6 +280,50 @@ export function MotoristaKanbanCard({
                   <Clock className="w-3.5 h-3.5" />
                   <span className="font-medium">{formatarMinutos(metricas.tempoMedio)}</span>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Check-in / Check-out */}
+          {(onCheckin || onCheckout) && (
+            <div className="flex items-center gap-2 pt-1 border-t">
+              {!presenca?.checkin_at ? (
+                onCheckin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-7 text-xs text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                    onClick={(e) => { e.stopPropagation(); onCheckin(); }}
+                  >
+                    <LogIn className="w-3.5 h-3.5 mr-1" />
+                    Check-in
+                  </Button>
+                )
+              ) : presenca?.checkout_at ? (
+                <div className="flex-1 text-center text-xs text-muted-foreground">
+                  <CheckCircle className="w-3.5 h-3.5 inline mr-1 text-emerald-500" />
+                  Jornada encerrada
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1 text-xs text-emerald-600">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      {new Date(presenca.checkin_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  {onCheckout && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-amber-600 border-amber-500/30 hover:bg-amber-500/10 ml-auto"
+                      onClick={(e) => { e.stopPropagation(); onCheckout(); }}
+                    >
+                      <LogOut className="w-3.5 h-3.5 mr-1" />
+                      Check-out
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}
