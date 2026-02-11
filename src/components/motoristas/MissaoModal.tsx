@@ -16,7 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Loader2, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Missao, MissaoInput, MissaoPrioridade } from '@/hooks/useMissoes';
 import { Motorista } from '@/hooks/useCadastros';
 import { PontoEmbarque } from '@/hooks/usePontosEmbarque';
@@ -55,6 +69,7 @@ export function MissaoModal({
   const [qtdPax, setQtdPax] = useState<number>(0);
   const [dataProgramada, setDataProgramada] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+  const [motoristaOpen, setMotoristaOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -124,21 +139,53 @@ export function MissaoModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Motorista */}
+          {/* Motorista - Combobox with search */}
           <div className="space-y-2">
             <Label>Motorista *</Label>
-            <Select value={motoristaId} onValueChange={setMotoristaId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o motorista" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeMotoristas.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={motoristaOpen} onOpenChange={setMotoristaOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={motoristaOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {motoristaId
+                    ? activeMotoristas.find(m => m.id === motoristaId)?.nome || "Selecione o motorista"
+                    : "Buscar motorista..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar motorista..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum motorista encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      {activeMotoristas.map((m) => (
+                        <CommandItem
+                          key={m.id}
+                          value={m.nome}
+                          onSelect={() => {
+                            setMotoristaId(m.id);
+                            setMotoristaOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              motoristaId === m.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {m.nome}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Título */}
