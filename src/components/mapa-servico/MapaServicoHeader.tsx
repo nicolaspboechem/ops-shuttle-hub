@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { VersionBadge } from '@/components/ui/version-badge';
 
 export interface FilterState {
   search: string;
@@ -77,6 +78,7 @@ export function MapaServicoHeader({
 
         {/* Auto-refresh + Refresh button */}
         <div className="flex items-center gap-2 ml-auto">
+          <VersionBadge variant="footer" />
           <div className="relative">
             <Button variant="ghost" size="sm" className="gap-1.5" onClick={onRefresh}>
               <RefreshCw className="w-4 h-4" />
