@@ -34,12 +34,7 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
     : null;
 
   return (
-    <div className={cn(
-      "bg-card/80 backdrop-blur-sm border rounded-lg p-3 hover:bg-card transition-colors flex flex-col gap-1.5",
-      backup 
-        ? "border-orange-500/50 bg-orange-500/5" 
-        : "border-border/50"
-    )}>
+    <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-3 hover:bg-card transition-colors flex flex-col gap-1.5">
       {/* Status */}
       <div className="flex items-center gap-1.5">
         <div className={cn("w-2 h-2 rounded-full shrink-0", status.color)} />
@@ -68,9 +63,7 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
           <span className="text-xs italic opacity-50">Sem veículo</span>
         )}
         {backup && (
-          <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 border-orange-500/50 text-orange-400 bg-orange-500/10">
-            BACKUP
-          </Badge>
+          <span className="ml-auto text-[9px] font-semibold uppercase tracking-wider text-orange-400/80">bkp</span>
         )}
       </div>
 
