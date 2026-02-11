@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,35 +63,29 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
       </div>
 
       {/* Kanban horizontal */}
-      <ScrollArea className="w-full">
-        <div className="flex gap-4 pb-4 min-w-max">
-          {/* Coluna Em Trânsito */}
-          {motoristasEmTransito.length > 0 && (
-            <LocalizadorColumn
-              titulo="Em Trânsito"
-              motoristas={motoristasEmTransito}
-              tipo="em_transito"
-            />
-          )}
+      <MapaServicoScrollContainer>
+        {motoristasEmTransito.length > 0 && (
+          <LocalizadorColumn
+            titulo="Em Trânsito"
+            motoristas={motoristasEmTransito}
+            tipo="em_transito"
+          />
+        )}
 
-          {/* Colunas por localização */}
-          {localizacoes.map(loc => {
-            const mots = motoristasAgrupados[loc] || [];
-            // Não exibir motoristas em trânsito nas colunas normais
-            const motsDisponiveis = mots.filter(m => m.status !== 'em_viagem');
-            
-            return (
-              <LocalizadorColumn
-                key={loc}
-                titulo={loc}
-                motoristas={motsDisponiveis}
-                tipo={loc === 'Base' ? 'local' : 'local'}
-              />
-            );
-          })}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+        {localizacoes.map(loc => {
+          const mots = motoristasAgrupados[loc] || [];
+          const motsDisponiveis = mots.filter(m => m.status !== 'em_viagem');
+          
+          return (
+            <LocalizadorColumn
+              key={loc}
+              titulo={loc}
+              motoristas={motsDisponiveis}
+              tipo="local"
+            />
+          );
+        })}
+      </MapaServicoScrollContainer>
 
       {/* Empty state */}
       {motoristas.length === 0 && (
