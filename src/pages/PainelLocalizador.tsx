@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation } from 'lucide-react';
+import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation, Home } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
+import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { useEventosMissoes } from '@/hooks/useEventosMissoes';
 import { useServerTime } from '@/hooks/useServerTime';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
@@ -20,6 +20,9 @@ export default function PainelLocalizador() {
   const [selectedEvento, setSelectedEvento] = useState<string | null>(paramEventoId || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [eventoNome, setEventoNome] = useState('');
+  const [baseNome, setBaseNome] = useState('Base');
+  const [outrosNome, setOutrosNome] = useState<string | null>(null);
+  const [missoesAtivas, setMissoesAtivas] = useState<any[]>([]);
   
   const { offset, getAgoraSync } = useServerTime();
   const [currentTime, setCurrentTime] = useState(() => getAgoraSync());
@@ -52,6 +55,45 @@ export default function PainelLocalizador() {
       .then(({ data }) => {
         setEventoNome(data?.nome_planilha || '');
       });
+  }, [selectedEvento]);
+
+  // Fetch base name, "Outros" name, and active missions
+  useEffect(() => {
+    if (!selectedEvento) return;
+
+    // Fetch pontos_embarque for base and outros
+    supabase
+      .from('pontos_embarque')
+      .select('nome, eh_base')
+      .eq('evento_id', selectedEvento)
+      .then(({ data }) => {
+        if (!data) return;
+        const base = data.find(p => p.eh_base);
+        if (base) setBaseNome(base.nome);
+        const outros = data.find(p => p.nome.toLowerCase().includes('outros'));
+        if (outros) setOutrosNome(outros.nome);
+      });
+
+    // Fetch active missions
+    const fetchMissoes = () => {
+      supabase
+        .from('missoes')
+        .select('id, motorista_id, ponto_desembarque, status')
+        .eq('evento_id', selectedEvento)
+        .in('status', ['pendente', 'aceita', 'em_andamento'])
+        .then(({ data }) => {
+          setMissoesAtivas(data || []);
+        });
+    };
+    fetchMissoes();
+
+    // Realtime for missions
+    const channel = supabase
+      .channel('localizador-missoes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missoes' }, fetchMissoes)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [selectedEvento]);
 
   // Update clock every second using synced time
@@ -91,17 +133,70 @@ export default function PainelLocalizador() {
     evento.descricao?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Map active missions per driver
+  const missoesPorMotorista = useMemo(() => {
+    const map = new Map<string, typeof missoesAtivas[number]>();
+    missoesAtivas.forEach(m => {
+      const existing = map.get(m.motorista_id);
+      if (!existing || m.status === 'em_andamento' || (m.status === 'aceita' && existing.status === 'pendente')) {
+        map.set(m.motorista_id, m);
+      }
+    });
+    return map;
+  }, [missoesAtivas]);
+
+  // Identify drivers returning to base
+  const retornandoBaseIds = useMemo(() => {
+    const ids = new Set<string>();
+    missoesPorMotorista.forEach((missao, motoristaId) => {
+      if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
+        ids.add(motoristaId);
+      }
+    });
+    return ids;
+  }, [missoesPorMotorista, baseNome]);
+
+  // Separate drivers into dynamic vs fixed groups
+  const { dynamicMotoristas, retornandoBaseMotoristas, outrosMotoristas, dynamicLocalizacoes } = useMemo(() => {
+    const retornando: MotoristaComVeiculo[] = [];
+    const outros: MotoristaComVeiculo[] = [];
+    const dynamicGroups: Record<string, MotoristaComVeiculo[]> = {};
+
+    Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
+      drivers.forEach(m => {
+        if (retornandoBaseIds.has(m.id)) {
+          retornando.push(m);
+        } else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {
+          outros.push(m);
+        } else {
+          if (!dynamicGroups[loc]) dynamicGroups[loc] = [];
+          dynamicGroups[loc].push(m);
+        }
+      });
+    });
+
+    const dynLocs = localizacoes.filter(loc => !(outrosNome && loc === outrosNome));
+
+    return {
+      dynamicMotoristas: dynamicGroups,
+      retornandoBaseMotoristas: retornando,
+      outrosMotoristas: outros,
+      dynamicLocalizacoes: dynLocs,
+    };
+  }, [motoristasPorLocalizacao, retornandoBaseIds, outrosNome, localizacoes]);
+
   // Calculate stats for motoristas
   const stats = useMemo(() => {
     const totalMotoristas = Object.values(motoristasPorLocalizacao).flat().length;
     const emTransito = motoristasPorLocalizacao['em_transito']?.length || 0;
+    const retornando = retornandoBaseMotoristas.length;
     const disponiveis = Object.entries(motoristasPorLocalizacao)
       .filter(([key]) => key !== 'em_transito' && key !== 'sem_local')
       .flatMap(([, arr]) => arr)
       .filter(m => m.status === 'disponivel').length;
 
-    return { total: totalMotoristas, emTransito, disponiveis };
-  }, [motoristasPorLocalizacao]);
+    return { total: totalMotoristas, emTransito, disponiveis, retornando };
+  }, [motoristasPorLocalizacao, retornandoBaseMotoristas]);
 
   // EVENT SELECTION VIEW
   if (!selectedEvento) {
@@ -225,6 +320,15 @@ export default function PainelLocalizador() {
                 <div className="text-xs text-white/60 uppercase">Em Trânsito</div>
               </div>
             </div>
+            {stats.retornando > 0 && (
+              <div className="flex items-center gap-2">
+                <Home className="w-4 h-4 text-amber-400" />
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-amber-400">{stats.retornando}</div>
+                  <div className="text-xs text-white/60 uppercase">Retornando</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Clock */}
@@ -241,38 +345,62 @@ export default function PainelLocalizador() {
 
       {/* Kanban Grid */}
       <div className="flex-1 p-6 overflow-hidden">
-        <ScrollArea className="h-full w-full">
-          <div className="flex gap-4 h-[calc(100vh-160px)] pb-4">
-            {/* Location columns */}
-            {localizacoes.map(local => (
-              <LocalizadorColumn
-                key={local}
-                titulo={local}
-                motoristas={motoristasPorLocalizacao[local] || []}
-                tipo="local"
-              />
-            ))}
+        <div className="flex h-[calc(100vh-160px)]">
+          {/* Dynamic columns - scrollable */}
+          <ScrollArea className="flex-1 h-full">
+            <div className="flex gap-4 pb-4 h-full">
+              {/* Location columns */}
+              {dynamicLocalizacoes.map(local => (
+                <LocalizadorColumn
+                  key={local}
+                  titulo={local}
+                  motoristas={dynamicMotoristas[local] || []}
+                  tipo="local"
+                />
+              ))}
 
-            {/* Em Trânsito column */}
-            {(motoristasPorLocalizacao['em_transito']?.length || 0) > 0 && (
-              <LocalizadorColumn
-                titulo="Em Trânsito"
-                motoristas={motoristasPorLocalizacao['em_transito']}
-                tipo="em_transito"
-              />
-            )}
+              {/* Em Trânsito column */}
+              {(dynamicMotoristas['em_transito']?.length || 0) > 0 && (
+                <LocalizadorColumn
+                  titulo="Em Trânsito"
+                  motoristas={dynamicMotoristas['em_transito']}
+                  tipo="em_transito"
+                />
+              )}
 
-            {/* Sem Localização column */}
-            {(motoristasPorLocalizacao['sem_local']?.length || 0) > 0 && (
+              {/* Sem Localização column */}
+              {(dynamicMotoristas['sem_local']?.length || 0) > 0 && (
+                <LocalizadorColumn
+                  titulo="Sem Localização"
+                  motoristas={dynamicMotoristas['sem_local']}
+                  tipo="sem_local"
+                />
+              )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+
+          {/* Separator */}
+          <div className="w-px bg-border shrink-0 mx-2" />
+
+          {/* Fixed columns - always visible */}
+          <div className="flex gap-4 shrink-0">
+            <LocalizadorColumn
+              titulo={`Retornando pra ${baseNome}`}
+              motoristas={retornandoBaseMotoristas}
+              tipo="retornando_base"
+              isFixed
+            />
+            {outrosNome && (
               <LocalizadorColumn
-                titulo="Sem Localização"
-                motoristas={motoristasPorLocalizacao['sem_local']}
-                tipo="sem_local"
+                titulo="Outros"
+                motoristas={outrosMotoristas}
+                tipo="outros"
+                isFixed
               />
             )}
           </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Footer with last update */}

@@ -1,4 +1,4 @@
-import { MapPin, Navigation, MapPinOff } from 'lucide-react';
+import { MapPin, Navigation, MapPinOff, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LocalizadorCard } from './LocalizadorCard';
 import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 interface LocalizadorColumnProps {
   titulo: string;
   motoristas: MotoristaComVeiculo[];
-  tipo: 'local' | 'em_transito' | 'sem_local';
+  tipo: 'local' | 'em_transito' | 'sem_local' | 'retornando_base' | 'outros';
+  isFixed?: boolean;
 }
 
 const columnConfig = {
@@ -29,19 +30,35 @@ const columnConfig = {
     iconClass: 'text-muted-foreground',
     badgeClass: 'bg-muted text-muted-foreground',
   },
+  retornando_base: {
+    icon: Home,
+    headerClass: 'bg-amber-500/20 border-amber-500/30',
+    iconClass: 'text-amber-500',
+    badgeClass: 'bg-amber-500 text-white',
+  },
+  outros: {
+    icon: MapPinOff,
+    headerClass: 'bg-purple-500/20 border-purple-500/30',
+    iconClass: 'text-purple-500',
+    badgeClass: 'bg-purple-500 text-white',
+  },
 };
 
 export function LocalizadorColumn({ 
   titulo, 
   motoristas,
-  tipo
+  tipo,
+  isFixed
 }: LocalizadorColumnProps) {
   const config = columnConfig[tipo];
   const Icon = config.icon;
   const count = motoristas.length;
 
   return (
-    <div className="flex flex-col min-w-[260px] max-w-[300px] h-full">
+    <div className={cn(
+      "flex flex-col min-w-[260px] max-w-[300px] h-full",
+      isFixed && "border-2 border-dashed border-primary/30"
+    )}>
       {/* Header */}
       <div className={cn(
         "flex items-center justify-between px-4 py-3 rounded-t-xl border",
