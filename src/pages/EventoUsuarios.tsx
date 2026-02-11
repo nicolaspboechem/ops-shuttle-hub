@@ -229,43 +229,21 @@ export default function EventoUsuarios() {
                 </div>
               )}
 
-              {/* Check-in / Check-out controls */}
-              <div className="flex items-center gap-2 mt-2">
-                {!membro.checkin_at ? (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="flex-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
-                    onClick={() => handleCheckin(membro.id)}
-                  >
-                    <LogIn className="w-3.5 h-3.5 mr-1" />
-                    Check-in
-                  </Button>
-                ) : membro.checkout_at ? (
-                  <div className="flex-1 text-center text-xs text-muted-foreground">
-                    <Check className="w-4 h-4 inline mr-1 text-emerald-500" />
-                    Jornada encerrada
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1 text-xs text-emerald-600">
-                      <Clock className="w-3 h-3" />
-                      <span>
-                        Entrada: {new Date(membro.checkin_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-                      onClick={() => handleCheckout(membro.id)}
-                    >
-                      <LogOut className="w-3.5 h-3.5 mr-1" />
-                      Check-out
-                    </Button>
-                  </>
-                )}
-              </div>
+              {/* Presença info (somente leitura) */}
+              {membro.checkin_at && !membro.checkout_at && (
+                <div className="flex items-center gap-1 text-xs text-emerald-600 mt-1">
+                  <Clock className="w-3 h-3" />
+                  <span>
+                    Presente desde {new Date(membro.checkin_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              )}
+              {membro.checkin_at && membro.checkout_at && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                  <Check className="w-3 h-3 text-emerald-500" />
+                  <span>Jornada encerrada</span>
+                </div>
+              )}
 
               {/* Botão Criar Login - visível apenas se motorista não tem login */}
               {!membro.has_login && (

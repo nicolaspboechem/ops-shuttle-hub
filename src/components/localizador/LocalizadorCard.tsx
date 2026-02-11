@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Badge } from '@/components/ui/badge';
 
 interface LocalizadorCardProps {
   motorista: MotoristaComVeiculo;
@@ -15,10 +16,15 @@ const statusConfig = {
   inativo: { label: 'Inativo', color: 'bg-gray-500', textColor: 'text-gray-400' },
 };
 
+function isBackup(veiculo: MotoristaComVeiculo['veiculo']): boolean {
+  return !!veiculo?.observacoes_gerais?.includes('[BACKUP]');
+}
+
 export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
   const status = statusConfig[motorista.status as keyof typeof statusConfig] || statusConfig.inativo;
   const VeiculoIcon = motorista.veiculo?.tipo_veiculo === 'Ônibus' ? Bus : Car;
   const hasVeiculo = !!motorista.veiculo;
+  const backup = hasVeiculo && isBackup(motorista.veiculo);
 
   const tempoNoLocal = motorista.ultima_localizacao_at
     ? formatDistanceToNow(new Date(motorista.ultima_localizacao_at), { 
@@ -28,7 +34,12 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
     : null;
 
   return (
-    <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-3 hover:bg-card transition-colors flex flex-col gap-1.5">
+    <div className={cn(
+      "bg-card/80 backdrop-blur-sm border rounded-lg p-3 hover:bg-card transition-colors flex flex-col gap-1.5",
+      backup 
+        ? "border-orange-500/50 bg-orange-500/5" 
+        : "border-border/50"
+    )}>
       {/* Status */}
       <div className="flex items-center gap-1.5">
         <div className={cn("w-2 h-2 rounded-full shrink-0", status.color)} />
@@ -55,6 +66,11 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
           </>
         ) : (
           <span className="text-xs italic opacity-50">Sem veículo</span>
+        )}
+        {backup && (
+          <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 border-orange-500/50 text-orange-400 bg-orange-500/10">
+            BACKUP
+          </Badge>
         )}
       </div>
 
