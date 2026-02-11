@@ -1,39 +1,52 @@
 
 
-# Redesign do Card do Localizador de Frota
+# Corrigir Auto-Atualização do Localizador
 
-## Problema
-Os cards do localizador estao cortando o texto do trajeto (origem/destino) e a hierarquia de informacoes nao esta clara. Badges estao grandes demais.
+## Diagnóstico
 
-## Nova hierarquia (de cima para baixo)
+O Localizador já possui dois mecanismos de atualização automática:
+- **Supabase Realtime** (instantâneo) -- escuta mudanças nas tabelas `motoristas`, `viagens` e `motorista_presenca`
+- **Polling a cada 30 segundos** -- intervalo que chama `refetch()`
 
-```text
-+----------------------------------+
-| [dot] Status label               |
-| Motorista (nome, bold, grande)   |
-| [car] Apelido Veiculo  PLACA    |
-| Origem -> Destino (se transito)  |
-+----------------------------------+
+O problema: quando o navegador fica em segundo plano (aba inativa), o Chrome suspende timers e pode desconectar o WebSocket silenciosamente. Ao voltar para a aba, nada atualiza até o próximo ciclo do timer (que também pode estar pausado).
+
+## Solução
+
+Adicionar um listener de `visibilitychange` no hook `useLocalizadorMotoristas` (e opcionalmente no `useLocalizadorVeiculos`). Quando o usuário voltar para a aba, dispara um `refetch()` imediato.
+
+## Alterações
+
+### Arquivo: `src/hooks/useLocalizadorMotoristas.ts`
+
+Adicionar um `useEffect` com listener de `visibilitychange`:
+
+```typescript
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible' && eventoId) {
+      fetchMotoristas();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, [eventoId, fetchMotoristas]);
 ```
 
-## Alteracoes
+### Arquivo: `src/hooks/useLocalizadorVeiculos.ts`
 
-### Arquivo: `src/components/localizador/LocalizadorCard.tsx`
+Mesmo padrão -- adicionar listener de `visibilitychange` para chamar `fetchVeiculos()` ao retornar à aba.
 
-Reestruturar o card com layout vertical limpo:
+## Custos e Performance
 
-1. **Linha 1 - Status**: Pequeno dot colorido + label em texto menor (sem badge arredondado grande, apenas texto com dot inline)
-2. **Linha 2 - Motorista**: Nome em bold, tamanho `text-base`, sem avatar/icone circular (mais clean)
-3. **Linha 3 - Veiculo**: Icone carro + apelido em `text-sm font-medium` + placa em `text-xs text-muted-foreground` na mesma linha
-4. **Linha 4 - Trajeto** (somente em transito): Origem completa + seta + Destino completo, sem truncamento agressivo (`max-w-[50px]` sera removido). Usar `text-wrap` e remover `truncate` para garantir texto visivel. Usar `text-xs` para caber sem cortar.
+- **Impacto zero em custo**: nenhuma query adicional em uso normal. Só dispara uma query extra quando o usuário volta para a aba (evento raro).
+- **Intervalo de 30s mantido**: é o equilíbrio ideal entre atualização e economia. Reduzir para 10s triplicaria as queries sem benefício real, já que o Realtime já cobre mudanças instantâneas.
+- **WebSocket Realtime**: sem custo adicional no Supabase, usa uma única conexão persistente.
 
-Reducoes de tamanho:
-- Remover o circulo avatar do motorista (apenas texto)
-- Status badge: de `px-2.5 py-1 rounded-full text-sm` para `text-xs` simples com dot
-- Padding do card: de `p-4` para `p-3`
-- Remover `mb-3` entre secoes, usar `gap-1.5` com flex-col
+## Resumo
 
-### Arquivo: `src/components/localizador/LocalizadorColumn.tsx`
-
-Ajustar largura minima da coluna de `min-w-[280px]` para `min-w-[260px]` e `max-w-[300px]` para cards mais compactos. Reduzir spacing entre cards de `space-y-3` para `space-y-2`.
+| Mecanismo | Latência | Custo |
+|-----------|----------|-------|
+| Realtime (WebSocket) | Instantâneo | Zero extra |
+| Polling 30s | Até 30s | 2 queries/min |
+| Visibility change (novo) | Ao voltar à aba | 1 query pontual |
 
