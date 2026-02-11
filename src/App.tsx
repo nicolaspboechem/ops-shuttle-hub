@@ -14,35 +14,51 @@ import { DriverRoute } from "@/components/auth/DriverRoute";
 import { StaffRoute } from "@/components/auth/StaffRoute";
 import { Loader2 } from 'lucide-react';
 
+// Auto-retry dynamic imports on chunk load failure (stale cache after deploy)
+function lazyRetry(importFn: () => Promise<any>) {
+  return lazy(() =>
+    importFn().catch(() => {
+      // Force reload once to get fresh assets
+      const key = 'chunk-retry';
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+      }
+      sessionStorage.removeItem(key);
+      return importFn();
+    })
+  );
+}
+
 // Lazy load pages for code splitting
-const Index = lazy(() => import("./pages/Index"));
-const Home = lazy(() => import("./pages/Home"));
-const Auth = lazy(() => import("./pages/Auth"));
-const LoginMotorista = lazy(() => import("./pages/LoginMotorista"));
-const LoginEquipe = lazy(() => import("./pages/LoginEquipe"));
-const Eventos = lazy(() => import("./pages/Eventos"));
-const EventoUsuarios = lazy(() => import("./pages/EventoUsuarios"));
-const EventoPainelConfig = lazy(() => import("./pages/EventoPainelConfig"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const ViagensAtivas = lazy(() => import("./pages/ViagensAtivas"));
-const ViagensFinalizadas = lazy(() => import("./pages/ViagensFinalizadas"));
-const Motoristas = lazy(() => import("./pages/Motoristas"));
-const VincularVeiculo = lazy(() => import("./pages/VincularVeiculo"));
-const Veiculos = lazy(() => import("./pages/Veiculos"));
-const RotasShuttle = lazy(() => import("./pages/RotasShuttle"));
-const Configuracoes = lazy(() => import("./pages/Configuracoes"));
-const Usuarios = lazy(() => import("./pages/Usuarios"));
-const Operacao = lazy(() => import("./pages/Operacao"));
-const Auditoria = lazy(() => import("./pages/Auditoria"));
-const AppHome = lazy(() => import("./pages/app/AppHome"));
-const AppMotorista = lazy(() => import("./pages/app/AppMotorista"));
-const AppCliente = lazy(() => import("./pages/app/AppCliente"));
-const AppOperador = lazy(() => import("./pages/app/AppOperador"));
-const AppSupervisor = lazy(() => import("./pages/app/AppSupervisor"));
-const PainelPublico = lazy(() => import("./pages/PainelPublico"));
-const PainelLocalizador = lazy(() => import("./pages/PainelLocalizador"));
-const Suporte = lazy(() => import("./pages/Suporte"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Index = lazyRetry(() => import("./pages/Index"));
+const Home = lazyRetry(() => import("./pages/Home"));
+const Auth = lazyRetry(() => import("./pages/Auth"));
+const LoginMotorista = lazyRetry(() => import("./pages/LoginMotorista"));
+const LoginEquipe = lazyRetry(() => import("./pages/LoginEquipe"));
+const Eventos = lazyRetry(() => import("./pages/Eventos"));
+const EventoUsuarios = lazyRetry(() => import("./pages/EventoUsuarios"));
+const EventoPainelConfig = lazyRetry(() => import("./pages/EventoPainelConfig"));
+const Dashboard = lazyRetry(() => import("./pages/Dashboard"));
+const ViagensAtivas = lazyRetry(() => import("./pages/ViagensAtivas"));
+const ViagensFinalizadas = lazyRetry(() => import("./pages/ViagensFinalizadas"));
+const Motoristas = lazyRetry(() => import("./pages/Motoristas"));
+const VincularVeiculo = lazyRetry(() => import("./pages/VincularVeiculo"));
+const Veiculos = lazyRetry(() => import("./pages/Veiculos"));
+const RotasShuttle = lazyRetry(() => import("./pages/RotasShuttle"));
+const Configuracoes = lazyRetry(() => import("./pages/Configuracoes"));
+const Usuarios = lazyRetry(() => import("./pages/Usuarios"));
+const Operacao = lazyRetry(() => import("./pages/Operacao"));
+const Auditoria = lazyRetry(() => import("./pages/Auditoria"));
+const AppHome = lazyRetry(() => import("./pages/app/AppHome"));
+const AppMotorista = lazyRetry(() => import("./pages/app/AppMotorista"));
+const AppCliente = lazyRetry(() => import("./pages/app/AppCliente"));
+const AppOperador = lazyRetry(() => import("./pages/app/AppOperador"));
+const AppSupervisor = lazyRetry(() => import("./pages/app/AppSupervisor"));
+const PainelPublico = lazyRetry(() => import("./pages/PainelPublico"));
+const PainelLocalizador = lazyRetry(() => import("./pages/PainelLocalizador"));
+const Suporte = lazyRetry(() => import("./pages/Suporte"));
+const NotFound = lazyRetry(() => import("./pages/NotFound"));
 
 // Loading fallback component
 const PageLoader = () => (
