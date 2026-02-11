@@ -49,7 +49,7 @@ const sections: InnerSidebarSection[] = [
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
-const MOTORISTA_STATUSES = ['disponivel', 'em_viagem', 'indisponivel', 'inativo'] as const;
+const MOTORISTA_STATUSES = ['disponivel', 'em_viagem', 'indisponivel', 'inativo', 'expediente_encerrado'] as const;
 
 export default function Motoristas() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -226,23 +226,45 @@ export default function Motoristas() {
     if (!MOTORISTA_STATUSES.includes(newStatus as typeof MOTORISTA_STATUSES[number])) return;
 
     const motorista = motoristasCadastrados.find(m => m.id === motoristaId);
-    if (!motorista || motorista.status === newStatus) return;
+    if (!motorista) return;
+
+    const statusLabels: Record<string, string> = {
+      disponivel: 'Disponíveis',
+      em_viagem: 'Em Viagem',
+      indisponivel: 'Indisponíveis',
+      inativo: 'Inativos',
+      expediente_encerrado: 'Expediente Encerrado',
+    };
 
     try {
-      await updateMotorista(motoristaId, { status: newStatus }, motorista.nome);
-      toast.success(`${motorista.nome} movido para ${newStatus === 'disponivel' ? 'Disponíveis' : newStatus === 'em_viagem' ? 'Em Viagem' : newStatus === 'indisponivel' ? 'Indisponíveis' : 'Inativos'}`);
+      if (newStatus === 'expediente_encerrado') {
+        // Dragging to "expediente encerrado" triggers checkout
+        await handleCheckout(motoristaId);
+        toast.success(`${motorista.nome} movido para Expediente Encerrado`);
+      } else {
+        // If coming from expediente_encerrado or inativo, may need checkin
+        const presenca = getPresenca(motoristaId);
+        if (!presenca?.checkin_at || presenca?.checkout_at) {
+          // Needs checkin first
+          await handleCheckin(motoristaId);
+        }
+        await updateMotorista(motoristaId, { status: newStatus }, motorista.nome);
+        toast.success(`${motorista.nome} movido para ${statusLabels[newStatus] || newStatus}`);
+      }
     } catch (error: any) {
       toast.error(`Erro ao atualizar status: ${error.message}`);
     }
   };
 
   // Group motoristas by status for kanban - applying search filters
+  // Logic: presence-based grouping using check-in/check-out data
   const motoristasByStatus = useMemo(() => {
     const grouped: Record<string, Motorista[]> = {
       disponivel: [],
       em_viagem: [],
       indisponivel: [],
       inativo: [],
+      expediente_encerrado: [],
     };
 
     // Apply the same filters as filteredCadastrados
@@ -268,16 +290,33 @@ export default function Motoristas() {
     }
 
     filtered.forEach(m => {
-      const status = m.status || 'disponivel';
-      if (grouped[status]) {
-        grouped[status].push(m);
+      // Motoristas inativos (desativados) always go to inativo
+      if (m.ativo === false) {
+        grouped.inativo.push(m);
+        return;
+      }
+
+      const presenca = getPresenca(m.id);
+
+      if (presenca?.checkout_at) {
+        // Has checkout -> expediente encerrado
+        grouped.expediente_encerrado.push(m);
+      } else if (presenca?.checkin_at) {
+        // Has checkin, no checkout -> use real status
+        const status = m.status || 'disponivel';
+        if (grouped[status]) {
+          grouped[status].push(m);
+        } else {
+          grouped.disponivel.push(m);
+        }
       } else {
-        grouped.disponivel.push(m);
+        // No checkin today -> inativo
+        grouped.inativo.push(m);
       }
     });
 
     return grouped;
-  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, veiculos]);
+  }, [motoristasCadastrados, deferredSearchTerm, filterTipoVeiculo, filterStatus, veiculos, equipeMembros]);
 
   // Calcular última localização de cada motorista baseada em viagens encerradas
   const ultimasLocalizacoes = useMemo(() => {
