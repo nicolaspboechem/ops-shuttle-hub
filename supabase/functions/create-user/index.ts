@@ -191,15 +191,15 @@ serve(async (req) => {
 
       newUserId = data.user.id;
 
-      // Criar profile com telefone e user_type
-      await supabaseAdmin.from('profiles').insert({
+      // Criar/atualizar profile com telefone e user_type (upsert para evitar conflito com trigger)
+      await supabaseAdmin.from('profiles').upsert({
         user_id: newUserId,
         email: null,
         telefone: phoneFormatted,
         login_type: 'phone',
         full_name: full_name || telefone,
         user_type: user_type || 'operador',
-      });
+      }, { onConflict: 'user_id' });
       
     } else {
       // Login por email (comportamento original)
@@ -230,23 +230,23 @@ serve(async (req) => {
 
       newUserId = data.user.id;
 
-      // Criar profile com email e user_type
-      await supabaseAdmin.from('profiles').insert({
+      // Criar/atualizar profile com email e user_type (upsert para evitar conflito com trigger)
+      await supabaseAdmin.from('profiles').upsert({
         user_id: newUserId,
         email: email,
         telefone: null,
         login_type: 'email',
         full_name: full_name || email,
         user_type: user_type || 'operador',
-      });
+      }, { onConflict: 'user_id' });
     }
 
-    // Definir role baseado no tipo de usuário
+    // Definir role baseado no tipo de usuário (upsert para evitar conflito com trigger)
     const role = user_type === 'admin' ? 'admin' : 'user';
-    await supabaseAdmin.from('user_roles').insert({
+    await supabaseAdmin.from('user_roles').upsert({
       user_id: newUserId,
       role: role,
-    });
+    }, { onConflict: 'user_id' });
 
     // Definir permissões baseadas no tipo de usuário
     const permissionsToGrant: string[] = [];
