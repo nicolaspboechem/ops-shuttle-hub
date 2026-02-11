@@ -1,107 +1,88 @@
 
-# Colunas fixas "Outros" e "Retornando pra Base" no Mapa de Servico
 
-## Resumo
+# Backup no Localizador + Check-in/Checkout nos Cards de Motoristas + Limpeza da Equipe
 
-Adicionar duas colunas fixas no lado direito do Kanban do Mapa de Servico:
+## Resumo das mudancas
 
-1. **Retornando pra Base** - motoristas que receberam missao de retorno via "Chamar para Base". Quando o motorista aceita e inicia, ele aparece nessa coluna fixa ate chegar na base.
-2. **Outros** - ponto de embarque "Outros" fixado a direita, separado das colunas dinamicas da esquerda.
+Tres frentes de trabalho:
 
-O layout fica: colunas de pontos dinamicos (scrollavel) a esquerda | colunas fixas "Retornando pra Base" e "Outros" a direita.
+1. **Badge BACKUP no Localizador**: quando um veiculo eh marcado como backup no Mapa de Servico, o card no Painel Localizador reflete isso com badge laranja e borda laranja
+2. **Check-in/Checkout na aba Motoristas**: mover os controles de presenca (check-in/checkout) da aba Equipe para a aba Motoristas, em todas as visualizacoes (card, lista, kanban)
+3. **Simplificar aba Equipe**: remover check-in/checkout da Equipe, mantendo apenas cadastro + login
 
-## Mudancas no layout do Kanban (MapaServico.tsx)
+---
 
-Dividir a area do Kanban em duas zonas:
+## 1. Badge BACKUP no Localizador
 
-```text
-+-------------------------------------------+---------------------------+
-| COLUNAS DINAMICAS (scroll horizontal)     | COLUNAS FIXAS (sticky)    |
-| [GIG] [Jockey] [Hotel] [Em Transito] ... | [Retornando] [Outros]     |
-+-------------------------------------------+---------------------------+
-```
+### O que muda
 
-- As colunas fixas ficam sempre visiveis no lado direito, com `shrink-0` e sem participar do scroll horizontal
-- A coluna "Retornando pra Base" mostra motoristas com missao ativa de titulo "Retorno a Base" (ou cujo `ponto_desembarque` seja o nome da base e a missao esteja pendente/aceita/em_andamento)
-- A coluna "Outros" mostra motoristas cuja `ultima_localizacao` seja o ponto de embarque marcado como "Outros" no sistema
+O `LocalizadorCard` atualmente nao tem nenhuma indicacao de backup. Precisamos:
 
-## Logica de agrupamento (useLocalizadorMotoristas.ts)
+- Verificar se `motorista.veiculo?.observacoes_gerais` contem `[BACKUP]`
+- Se sim, exibir badge "BACKUP" laranja e aplicar borda/destaque laranja ao card (mesmo visual do MapaServicoCard)
 
-Adicionar um novo grupo especial `retornando_base` no `motoristasPorLocalizacao`:
-- Motoristas com missao ativa de retorno a base (titulo contendo "Retorno" e destino = base) ficam nessa coluna, independente do status de viagem
-- Precisamos receber as missoes ativas como parametro adicional ou busca-las no hook
+### Arquivo: `src/components/localizador/LocalizadorCard.tsx`
 
-Abordagem escolhida: a logica de separacao fica no `MapaServico.tsx` (que ja tem `missoesPorMotorista`), nao no hook, para nao alterar o comportamento do Localizador existente.
+- Adicionar funcao `isBackup()` (mesma logica do MapaServicoCard)
+- Adicionar badge laranja "BACKUP" ao lado do veiculo
+- Aplicar classe `border-orange-500/50 bg-orange-500/5` ao card quando backup
 
-## Fluxo "Chamar para Base" atualizado
+### Arquivo: `src/hooks/useLocalizadorMotoristas.ts`
 
-```text
-1. Admin clica "Base" no card do motorista
-2. Modal confirma -> cria missao "Retorno a Base"
-3. Card do motorista se move automaticamente para coluna "Retornando pra Base"
-4. Motorista recebe notificacao no app
-5. Motorista aceita e inicia -> permanece na coluna "Retornando pra Base"
-6. Ao concluir missao -> motorista volta para coluna da Base
-```
+- Verificar se o tipo `MotoristaComVeiculo` ja inclui `observacoes_gerais` do veiculo -- se nao, incluir no select
 
-## Arquivos modificados
+---
 
-### 1. Editar `src/pages/MapaServico.tsx`
+## 2. Check-in/Checkout na aba Motoristas
 
-- Na construcao de `columns`, separar em `dynamicColumns` (pontos normais + em_transito + sem_local) e `fixedColumns` (retornando_base, outros)
-- Criar logica para identificar motoristas "retornando para base" baseado nas missoes ativas: motoristas com missao cujo `ponto_desembarque` == `baseNome` e status in (pendente, aceita, em_andamento)
-- Retirar esses motoristas das colunas dinamicas e coloca-los na coluna fixa "Retornando pra Base"
-- Mesma logica para "Outros": motoristas com `ultima_localizacao` == nome do ponto "Outros" vao para a coluna fixa em vez da dinamica
-- No JSX, renderizar as colunas dinamicas dentro de um `div` com `overflow-x-auto flex-1`, e as fixas em um `div` com `shrink-0` ao lado
-- Buscar o nome do ponto "Outros" (ponto de embarque com nome contendo "Outros") para saber qual localizacao filtrar
+### O que muda
 
-### 2. Editar `src/components/mapa-servico/MapaServicoColumn.tsx`
+Adicionar botoes de Check-in e Check-out nos cards de motorista em TODAS as 3 visualizacoes da aba Motoristas: card, lista e kanban.
 
-- Adicionar prop `isFixed` para estilizacao diferenciada (borda mais destacada, background mais escuro como no screenshot)
-- Colunas fixas podem ter icone no header (Home para Base, MapPin para Outros)
+### Dependencias
 
-### 3. Editar `src/components/mapa-servico/MapaServicoCard.tsx`
+Reutilizar a logica de `handleCheckin` e `handleCheckout` do `useEquipe.ts`. Como o hook ja existe e funciona, vamos importar essas funcoes na pagina `Motoristas.tsx`.
 
-- Nenhuma mudanca necessaria nos cards -- eles ja mostram missao e status
+### Arquivo: `src/pages/Motoristas.tsx`
 
-## Detalhes tecnicos
+- Importar `useEquipe` para ter acesso a `handleCheckin`, `handleCheckout` e dados de presenca dos motoristas
+- Na view **card**: adicionar botoes Check-in / Check-out no rodape do card (abaixo do WhatsApp)
+- Na view **lista**: adicionar coluna "Presenca" com botao Check-in ou indicador de presenca + botao Check-out
+- Na view **kanban**: passar props de checkin/checkout para o `MotoristaKanbanCard`
 
-### Identificacao de motoristas "retornando para base"
+### Arquivo: `src/components/motoristas/MotoristaKanbanCard.tsx`
 
-No `MapaServico.tsx`, antes de renderizar colunas:
+- Adicionar props opcionais: `presenca?: { checkin_at?: string; checkout_at?: string }`, `onCheckin?: () => void`, `onCheckout?: () => void`
+- Renderizar botoes de Check-in/Check-out no rodape do card (similar ao que estava na Equipe)
+- Indicar visualmente quando o motorista esta presente (ring verde no card)
 
-```text
-1. Iterar missoesPorMotorista
-2. Para cada missao ativa com ponto_desembarque == baseNome:
-   - Marcar motorista_id como "retornando"
-3. No agrupamento, motoristas "retornando" saem da coluna dinamica e vao para coluna fixa "retornando_base"
-```
+---
 
-### Identificacao do ponto "Outros"
+## 3. Simplificar aba Equipe
 
-Buscar na tabela `pontos_embarque` um ponto cujo nome contenha "Outros" para o evento. Salvar o nome exato em state para usar como filtro de localizacao. Motoristas com `ultima_localizacao` igual a esse nome vao para a coluna fixa.
+### O que muda
 
-### Layout CSS
+Remover os controles de Check-in/Check-out do `EventoUsuarios.tsx` (aba Equipe). Manter apenas:
+- Cadastro de motoristas e staff
+- Criacao/gerenciamento de login
+- Remocao de membros
+- WhatsApp
 
-```text
-<div class="flex flex-1 min-h-0">
-  <!-- Colunas dinamicas: scroll horizontal -->
-  <div class="flex gap-3 overflow-x-auto flex-1 p-4">
-    {dynamicColumns.map(...)}
-  </div>
-  
-  <!-- Separador visual -->
-  <div class="w-px bg-border shrink-0" />
-  
-  <!-- Colunas fixas: sempre visiveis -->
-  <div class="flex gap-3 p-4 shrink-0">
-    <MapaServicoColumn ... isFixed />  <!-- Retornando pra Base -->
-    <MapaServicoColumn ... isFixed />  <!-- Outros -->
-  </div>
-</div>
-```
+### Arquivo: `src/pages/EventoUsuarios.tsx`
 
-### Drag-and-drop para colunas fixas
+- Remover o bloco de Check-in/Check-out do `MembroCard` (linhas ~232-267)
+- Remover stats de "presentes" se desejar (ou manter apenas informativo)
+- Manter apenas: avatar, nome, role badge, status badge, dropdown com WhatsApp/Login/Remover
 
-- Arrastar para "Retornando pra Base" nao sera permitido manualmente (precisa ser via missao "Chamar para Base")
-- Arrastar para "Outros" atualiza `ultima_localizacao` para o nome do ponto "Outros"
+---
+
+## Resumo de arquivos
+
+| Arquivo | Acao |
+|---|---|
+| `src/components/localizador/LocalizadorCard.tsx` | Adicionar badge BACKUP + borda laranja |
+| `src/hooks/useLocalizadorMotoristas.ts` | Garantir que `observacoes_gerais` vem no select do veiculo |
+| `src/pages/Motoristas.tsx` | Importar useEquipe, adicionar checkin/checkout em card/lista/kanban |
+| `src/components/motoristas/MotoristaKanbanCard.tsx` | Adicionar props e UI de checkin/checkout |
+| `src/pages/EventoUsuarios.tsx` | Remover controles de checkin/checkout |
+
