@@ -36,6 +36,8 @@ import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
+import { MissaoKanbanCard } from '@/components/motoristas/MissaoKanbanCard';
+import { MissaoKanbanColumn } from '@/components/motoristas/MissaoKanbanColumn';
 import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
@@ -80,7 +82,7 @@ export default function Motoristas() {
   const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
-  const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list'>('card');
+  const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
   const [missaoDataFilter, setMissaoDataFilter] = useState<string>(new Date().toISOString().slice(0, 10));
   
@@ -1094,6 +1096,54 @@ export default function Motoristas() {
 
   const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
 
+  // Drag state for mission kanban
+  const [activeMissao, setActiveMissao] = useState<Missao | null>(null);
+
+  const handleMissaoDragStart = (event: DragStartEvent) => {
+    const missao = filteredMissoes.find(m => m.id === event.active.id);
+    if (missao) setActiveMissao(missao);
+  };
+
+  const handleMissaoDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveMissao(null);
+    if (!over) return;
+    
+    const missaoId = active.id as string;
+    const newStatus = over.id as string;
+    
+    const validStatuses = ['pendente', 'aceita', 'em_andamento', 'concluida', 'cancelada'];
+    if (!validStatuses.includes(newStatus)) return;
+    
+    const missao = filteredMissoes.find(m => m.id === missaoId);
+    if (!missao || missao.status === newStatus) return;
+    
+    await updateMissao(missaoId, { status: newStatus as MissaoStatus });
+  };
+
+  // Group missions by status for kanban
+  const missoesByStatus = useMemo(() => {
+    const grouped: Record<string, Missao[]> = {
+      pendente: [],
+      aceita: [],
+      em_andamento: [],
+      concluida: [],
+      cancelada: [],
+    };
+    filteredMissoes.forEach(m => {
+      if (grouped[m.status]) grouped[m.status].push(m);
+    });
+    return grouped;
+  }, [filteredMissoes]);
+
+  const missaoKanbanColumns = [
+    { id: 'pendente', title: 'Pendente', accent: 'bg-yellow-500' },
+    { id: 'aceita', title: 'Aceita', accent: 'bg-blue-500' },
+    { id: 'em_andamento', title: 'Em Andamento', accent: 'bg-amber-500' },
+    { id: 'concluida', title: 'Concluída', accent: 'bg-green-500' },
+    { id: 'cancelada', title: 'Cancelada', accent: 'bg-destructive' },
+  ];
+
   const missoesContent = (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1163,10 +1213,17 @@ export default function Motoristas() {
           )}
           <div className="flex items-center border rounded-md ml-2">
             <Button
+              variant={missaoViewMode === 'kanban' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setMissaoViewMode('kanban')}
+              className="rounded-r-none"
+            >
+              <Columns className="w-4 h-4" />
+            </Button>
+            <Button
               variant={missaoViewMode === 'card' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setMissaoViewMode('card')}
-              className="rounded-r-none"
             >
               <LayoutGrid className="w-4 h-4" />
             </Button>
@@ -1196,6 +1253,48 @@ export default function Motoristas() {
             {hasActiveMissaoFilters ? 'Tente ajustar os filtros' : 'Crie uma missão para designar um motorista'}
           </p>
         </div>
+      ) : missaoViewMode === 'kanban' ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleMissaoDragStart}
+          onDragEnd={handleMissaoDragEnd}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {missaoKanbanColumns.map(col => (
+              <MissaoKanbanColumn
+                key={col.id}
+                id={col.id}
+                title={col.title}
+                count={missoesByStatus[col.id]?.length || 0}
+                accentColor={col.accent}
+              >
+                {(missoesByStatus[col.id] || []).map(missao => {
+                  const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+                  return (
+                    <MissaoKanbanCard
+                      key={missao.id}
+                      missao={missao}
+                      motoristaNome={motorista?.nome}
+                      onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
+                      onDelete={() => handleDeleteMissao(missao.id)}
+                      onStatusChange={(status) => updateMissao(missao.id, { status: status as MissaoStatus })}
+                    />
+                  );
+                })}
+              </MissaoKanbanColumn>
+            ))}
+          </div>
+          <DragOverlay>
+            {activeMissao ? (
+              <MissaoKanbanCard
+                missao={activeMissao}
+                motoristaNome={motoristasCadastrados.find(m => m.id === activeMissao.motorista_id)?.nome}
+                isDragOverlay
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       ) : missaoViewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMissoes.map(missao => {
