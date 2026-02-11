@@ -64,12 +64,10 @@ export default function MapaServico() {
   const filters: FilterState = { search, deferredSearch, statusFilters, backupOnly, semVeiculo };
 
   // --- Auto-refresh ---
-  const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState(0);
   const [refreshCycle, setRefreshCycle] = useState(0);
 
   useEffect(() => {
-    if (!autoRefresh) { setRefreshProgress(0); return; }
     const startTime = Date.now();
     const tick = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -83,7 +81,7 @@ export default function MapaServico() {
       }
     }, 200);
     return () => clearInterval(tick);
-  }, [autoRefresh, refreshCycle, refetch]);
+  }, [refreshCycle, refetch]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -299,8 +297,6 @@ export default function MapaServico() {
           onToggleBackup={() => setBackupOnly(v => !v)}
           onToggleSemVeiculo={() => setSemVeiculo(v => !v)}
           onRefresh={refetch}
-          autoRefresh={autoRefresh}
-          onAutoRefreshChange={setAutoRefresh}
           refreshProgress={refreshProgress}
         />
 
