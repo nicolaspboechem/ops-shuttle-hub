@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface MissaoCardProps {
@@ -69,6 +69,18 @@ export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusCh
                 <DropdownMenuItem onClick={onEdit}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
+                </DropdownMenuItem>
+              )}
+              {onStatusChange && missao.status === 'pendente' && (
+                <DropdownMenuItem onClick={() => onStatusChange('aceita')}>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Aceitar
+                </DropdownMenuItem>
+              )}
+              {onStatusChange && missao.status === 'aceita' && (
+                <DropdownMenuItem onClick={() => onStatusChange('em_andamento')}>
+                  <Play className="h-4 w-4 mr-2" />
+                  Iniciar
                 </DropdownMenuItem>
               )}
               {onStatusChange && missao.status !== 'concluida' && (

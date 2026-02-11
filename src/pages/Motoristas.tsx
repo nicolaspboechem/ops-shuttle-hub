@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut, Play } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1265,6 +1265,18 @@ export default function Motoristas() {
                             <Pencil className="w-4 h-4 mr-2" />
                             Editar
                           </DropdownMenuItem>
+                          {missao.status === 'pendente' && (
+                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'aceita' })}>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Aceitar
+                            </DropdownMenuItem>
+                          )}
+                          {missao.status === 'aceita' && (
+                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'em_andamento' })}>
+                              <Play className="w-4 h-4 mr-2" />
+                              Iniciar
+                            </DropdownMenuItem>
+                          )}
                           {missao.status !== 'concluida' && (
                             <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'concluida' })}>
                               <CheckCircle className="w-4 h-4 mr-2" />
