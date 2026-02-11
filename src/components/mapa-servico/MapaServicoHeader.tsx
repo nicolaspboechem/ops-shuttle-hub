@@ -30,8 +30,6 @@ interface MapaServicoHeaderProps {
   onToggleBackup: () => void;
   onToggleSemVeiculo: () => void;
   onRefresh: () => void;
-  autoRefresh: boolean;
-  onAutoRefreshChange: (val: boolean) => void;
   refreshProgress: number;
 }
 
@@ -49,8 +47,6 @@ export function MapaServicoHeader({
   onToggleBackup,
   onToggleSemVeiculo,
   onRefresh,
-  autoRefresh,
-  onAutoRefreshChange,
   refreshProgress,
 }: MapaServicoHeaderProps) {
   return (
@@ -81,25 +77,15 @@ export function MapaServicoHeader({
 
         {/* Auto-refresh + Refresh button */}
         <div className="flex items-center gap-2 ml-auto">
-          <div className="flex items-center gap-1.5">
-            <Switch
-              checked={autoRefresh}
-              onCheckedChange={onAutoRefreshChange}
-              className="scale-75"
-            />
-            <span className="text-[10px] text-muted-foreground">Auto</span>
-          </div>
           <div className="relative">
             <Button variant="ghost" size="sm" className="gap-1.5" onClick={onRefresh}>
-              <RefreshCw className={cn("w-4 h-4", autoRefresh && "animate-none")} />
+              <RefreshCw className="w-4 h-4" />
               Atualizar
             </Button>
-            {autoRefresh && (
-              <Progress
-                value={refreshProgress}
-                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-none bg-transparent"
-              />
-            )}
+            <Progress
+              value={refreshProgress}
+              className="absolute bottom-0 left-0 right-0 h-0.5 rounded-none bg-transparent"
+            />
           </div>
         </div>
       </div>
