@@ -50,6 +50,7 @@ const Configuracoes = lazyRetry(() => import("./pages/Configuracoes"));
 const Usuarios = lazyRetry(() => import("./pages/Usuarios"));
 const Operacao = lazyRetry(() => import("./pages/Operacao"));
 const Auditoria = lazyRetry(() => import("./pages/Auditoria"));
+const MapaServico = lazyRetry(() => import("./pages/MapaServico"));
 const AppHome = lazyRetry(() => import("./pages/app/AppHome"));
 const AppMotorista = lazyRetry(() => import("./pages/app/AppMotorista"));
 const AppCliente = lazyRetry(() => import("./pages/app/AppCliente"));
@@ -152,6 +153,7 @@ const App = () => (
                     <Route path="/evento/:eventoId/rotas-shuttle" element={<AdminRoute><RotasShuttle /></AdminRoute>} />
                     <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
                     
+                    <Route path="/evento/:eventoId/mapa-servico" element={<AdminRoute><MapaServico /></AdminRoute>} />
                     <Route path="/evento/:eventoId/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
                     <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
                     <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
