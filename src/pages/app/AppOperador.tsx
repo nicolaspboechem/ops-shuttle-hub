@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
+import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
+import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
+import { MissaoModal } from '@/components/motoristas/MissaoModal';
+import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
+import { useMissoes } from '@/hooks/useMissoes';
+import { useMotoristas as useMotoristasCadastros } from '@/hooks/useCadastros';
+import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
@@ -50,6 +57,11 @@ export default function AppOperador() {
   const [showMotoristaForm, setShowMotoristaForm] = useState(false);
   const [showVeiculoForm, setShowVeiculoForm] = useState(false);
   const [showKmModal, setShowKmModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showMissaoTipoModal, setShowMissaoTipoModal] = useState(false);
+  const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
+  const [showMissaoModal, setShowMissaoModal] = useState(false);
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   
@@ -79,6 +91,9 @@ export default function AppOperador() {
   
   const { refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
+  const { createMissao } = useMissoes(eventoId);
+  const { motoristas: motoristasCadastrados } = useMotoristasCadastros(eventoId);
+  const { pontos } = usePontosEmbarque(eventoId);
   
   // Estado para modal de navegação
   const [navModalOpen, setNavModalOpen] = useState(false);
@@ -135,9 +150,18 @@ export default function AppOperador() {
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
-      setShowForm(true);
+      setShowActionModal(true);
     } else {
       setActiveTab(tab);
+    }
+  };
+
+  const handleActionSelect = (tipo: ActionType) => {
+    if (tipo === 'missao') {
+      setShowMissaoTipoModal(true);
+    } else {
+      setPreselectedTipo(tipo);
+      setShowForm(true);
     }
   };
 
@@ -338,14 +362,57 @@ export default function AppOperador() {
         onTabChange={handleTabChange} 
       />
 
+      {/* Action Type Modal */}
+      <NewActionModal
+        open={showActionModal}
+        onOpenChange={setShowActionModal}
+        onSelect={handleActionSelect}
+      />
+
       {/* Form de criação de viagem (Drawer) */}
       <CreateViagemForm
         open={showForm}
         onOpenChange={setShowForm}
         eventoId={eventoId!}
+        defaultTipoOperacao={preselectedTipo}
         onCreated={() => {
           refetch();
           setActiveTab('viagens');
+        }}
+      />
+
+      {/* Tipo de Missão */}
+      <MissaoTipoModal
+        open={showMissaoTipoModal}
+        onOpenChange={setShowMissaoTipoModal}
+        onSelect={(tipo: MissaoTipo) => {
+          if (tipo === 'instantanea') {
+            setShowMissaoInstantanea(true);
+          } else {
+            setShowMissaoModal(true);
+          }
+        }}
+      />
+
+      {/* Missão Instantânea */}
+      <MissaoInstantaneaModal
+        open={showMissaoInstantanea}
+        onOpenChange={setShowMissaoInstantanea}
+        motoristas={motoristasCadastrados}
+        pontos={pontos}
+        onSave={async (data) => {
+          await createMissao(data);
+        }}
+      />
+
+      {/* Missão Agendada */}
+      <MissaoModal
+        open={showMissaoModal}
+        onOpenChange={setShowMissaoModal}
+        motoristas={motoristasCadastrados}
+        pontos={pontos}
+        onSave={async (data) => {
+          await createMissao(data);
         }}
       />
 
