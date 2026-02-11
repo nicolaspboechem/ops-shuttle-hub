@@ -1,58 +1,39 @@
 
-
-# Adicionar colunas fixas "Retornando pra Base" e "Outros" no Painel Localizador
+# Adicionar acoes "Aceitar" e "Iniciar" nas missoes do CCO
 
 ## Problema
 
-As colunas fixas foram implementadas apenas no Mapa de Servico. O Painel Localizador (`/localizador/:eventoId`) continua com o layout antigo, sem separacao entre colunas dinamicas e fixas.
+Atualmente, o painel de missoes do CCO (aba Motoristas) so permite "Concluir" e "Cancelar" missoes. Faltam as acoes intermediarias "Aceitar" e "Iniciar" que o admin/operador precisa executar como fallback quando o motorista, supervisor ou operador de campo nao conseguem a tempo.
 
 ## Solucao
 
-Replicar a mesma logica de separacao do `MapaServico.tsx` no `PainelLocalizador.tsx`:
+Adicionar opcoes de menu contextual "Aceitar" e "Iniciar" nos dois formatos de visualizacao de missoes: **cards** e **tabela**.
 
-- Buscar o nome do ponto "Base" e o ponto "Outros" na tabela `pontos_embarque`
-- Buscar missoes ativas para identificar motoristas "retornando para base"
-- Separar motoristas em 3 grupos: dinamicos (scroll), retornando pra base (fixo), outros (fixo)
-- Dividir o layout em zona scrollavel a esquerda e zona fixa a direita
+As acoes seguem o fluxo natural do ciclo de vida da missao:
+- Pendente: pode **Aceitar**, Concluir ou Cancelar
+- Aceita: pode **Iniciar**, Concluir ou Cancelar
+- Em Andamento: pode Concluir ou Cancelar
 
 ## Arquivos modificados
 
-### 1. `src/pages/PainelLocalizador.tsx`
+### 1. `src/components/motoristas/MissaoCard.tsx`
 
-- Importar `useMissoes` para obter missoes ativas
-- Adicionar state para `baseNome` e `outrosNome` (buscar de `pontos_embarque`)
-- Calcular `missoesPorMotorista`, `retornandoBaseIds` (mesma logica do MapaServico)
-- Separar `motoristasPorLocalizacao` em `dynamicMotoristas`, `retornandoBaseMotoristas`, `outrosMotoristas`
-- Filtrar `localizacoes` para excluir o ponto "Outros" das dinamicas
-- Alterar o JSX do Kanban Grid:
-  - Zona esquerda (scrollavel): colunas de localizacao + em_transito + sem_local
-  - Separador vertical
-  - Zona direita (fixa, `shrink-0`): coluna "Retornando pra Base" + coluna "Outros"
-- Atualizar stats para incluir contagem de retornando
+Adicionar duas novas opcoes no `DropdownMenuContent`:
 
-### 2. `src/components/localizador/LocalizadorColumn.tsx`
+- **Aceitar**: visivel quando `missao.status === 'pendente'`, chama `onStatusChange('aceita')`
+- **Iniciar**: visivel quando `missao.status === 'aceita'`, chama `onStatusChange('em_andamento')`
 
-- Adicionar prop `isFixed?: boolean` para estilizacao diferenciada (borda tracejada, fundo destacado)
-- Adicionar novos tipos: `'retornando_base' | 'outros'` ao tipo `tipo`
-- Configurar icones e cores para os novos tipos (Home para retornando, MapPinOff para outros)
+Ambas ficam posicionadas antes de "Concluir" no menu, com icones `CheckCircle` (aceitar) e `Play` (iniciar).
 
-### Layout resultante
+### 2. `src/pages/Motoristas.tsx`
 
-```text
-+---------------------------------------------+-----------------------------+
-| COLUNAS DINAMICAS (scroll horizontal)       | COLUNAS FIXAS (sticky)      |
-| [GIG] [Hotel] [Em Transito] [Sem Local] .. | [Retornando Base] [Outros]  |
-+---------------------------------------------+-----------------------------+
-```
+Na tabela de missoes (view lista), adicionar as mesmas duas opcoes no dropdown de cada linha:
 
-### Detalhes tecnicos
+- **Aceitar** (quando `status === 'pendente'`): chama `updateMissao(missao.id, { status: 'aceita' })`
+- **Iniciar** (quando `status === 'aceita'`): chama `updateMissao(missao.id, { status: 'em_andamento' })`
 
-A logica de identificacao de motoristas "retornando" eh identica ao MapaServico:
+Posicionadas antes do "Concluir" existente no dropdown.
 
-1. Buscar missoes ativas com `ponto_desembarque == baseNome`
-2. Motoristas com essas missoes vao para coluna fixa "Retornando pra Base"
-3. Motoristas com `ultima_localizacao == outrosNome` vao para coluna fixa "Outros"
-4. Os demais permanecem nas colunas dinamicas
+## Nenhuma mudanca de banco ou hook necessaria
 
-Nenhuma alteracao de banco de dados necessaria.
-
+O hook `useMissoes` ja possui `aceitarMissao` e `iniciarMissao`, e o `updateMissao` generico ja suporta mudanca de status. Apenas a UI precisa expor essas opcoes.
