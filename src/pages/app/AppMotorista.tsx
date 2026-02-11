@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
@@ -95,6 +95,24 @@ export default function AppMotorista() {
 
   // Veículo a exibir: do check-in de hoje ou o atualmente atribuído
   const veiculoExibir = presenca?.veiculo || veiculoAtribuido;
+
+  // Detectar transição de veiculoAtribuido: null -> veículo válido
+  const prevVeiculoRef = useRef<typeof veiculoAtribuido>(undefined);
+  useEffect(() => {
+    // Pular a primeira renderização (montagem)
+    if (prevVeiculoRef.current === undefined) {
+      prevVeiculoRef.current = veiculoAtribuido;
+      return;
+    }
+    // Se antes era null e agora tem veículo
+    if (!prevVeiculoRef.current && veiculoAtribuido) {
+      toast.success('Veículo vinculado! Confira na aba Veículo.', {
+        duration: 6000,
+        icon: '🚗',
+      });
+    }
+    prevVeiculoRef.current = veiculoAtribuido;
+  }, [veiculoAtribuido]);
 
   // Filter missions for this driver (only active)
   const minhasMissoes = useMemo(() => {

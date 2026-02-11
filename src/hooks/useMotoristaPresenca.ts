@@ -155,6 +155,24 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         console.log('[Presença] Subscription status:', status);
       });
 
+    // Realtime subscription para mudanças no registro do motorista (veiculo_id)
+    const motoristaChannel = supabase
+      .channel(`motorista-${motoristaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'motoristas',
+          filter: `id=eq.${motoristaId}`
+        },
+        (payload) => {
+          console.log('[Presença] Motorista update (veiculo_id?):', payload);
+          fetchPresenca();
+        }
+      )
+      .subscribe();
+
     // Polling fallback (a cada 30s) caso Realtime falhe silenciosamente
     const pollInterval = setInterval(() => {
       console.log('[Presença] Polling fallback...');
@@ -163,6 +181,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(motoristaChannel);
       clearInterval(pollInterval);
     };
   }, [eventoId, motoristaId, fetchPresenca]);
