@@ -35,8 +35,10 @@ export function MapaServicoColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-xl border bg-muted/30 min-w-[300px] max-w-[360px] w-[320px] shrink-0",
-        isFixed ? "border-2 border-dashed border-primary/30" : "border-border",
+        "flex flex-col rounded-xl border bg-muted/30 shrink-0",
+        isFixed
+          ? "border-2 border-dashed border-primary/30 w-[200px] min-w-[160px]"
+          : "border-border min-w-[300px] max-w-[360px] w-[320px]",
         isOver && "ring-2 ring-primary/50 bg-primary/5"
       )}
     >
@@ -46,14 +48,14 @@ export function MapaServicoColumn({
         color || "bg-muted/50"
       )}>
         {isFixed && <FixedIcon className="w-4 h-4 text-primary shrink-0" />}
-        <span className="text-sm font-semibold text-foreground truncate">{title}</span>
+        <span className={cn("font-semibold text-foreground truncate", isFixed ? "text-xs" : "text-sm")}>{title}</span>
         <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 shrink-0">
           {motoristas.length}
         </Badge>
       </div>
 
       {/* Cards */}
-      <div className="flex flex-col gap-2 p-2 overflow-y-auto min-h-[80px] max-h-[calc(100vh-14rem)]">
+      <div className="flex flex-col gap-2 p-2 overflow-y-auto min-h-[80px] flex-1">
         {motoristas.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-6 italic">
             Nenhum motorista
