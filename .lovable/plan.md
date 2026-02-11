@@ -1,87 +1,50 @@
 
 
-# Logica de Presenca no Kanban de Motoristas
+# Reorganizacao de Colunas + Scroll no Mapa de Servico
 
-## Resumo da mudanca
-
-O status visivel do motorista no Kanban passara a ser derivado da presenca (check-in/check-out), nao apenas do campo `status` no banco. A logica sera:
-
-- **Sem check-in no dia** = sempre aparece como "Inativo" (independente do status no banco)
-- **Com check-in ativo** (checkin_at preenchido, checkout_at nulo) = aparece conforme seu status real (disponivel, em_viagem, etc.)
-- **Com check-out realizado** = vai para a nova coluna "Expediente Encerrado"
-- **Virou o dia operacional** = volta a ser "Inativo" automaticamente (pois nao tem check-in no novo dia)
-
-## Nova coluna: Expediente Encerrado
-
-Adicionar ao Kanban uma 5a coluna com visual roxo/slate:
-- Titulo: "Expediente Encerrado"
-- Icone: `LogOut`
-- Motoristas que fizeram checkout no dia operacional atual
-
-## Mudancas tecnicas
-
-### 1. `src/pages/Motoristas.tsx`
-
-**Constante MOTORISTA_STATUSES**: adicionar `'expediente_encerrado'` ao array.
-
-**motoristasByStatus (useMemo)**: Reformular a logica de agrupamento. Em vez de usar apenas `m.status`, cruzar com dados de presenca:
+## Layout Proposto
 
 ```text
-Para cada motorista ativo:
-  presenca = getPresenca(motorista.id)
-  
-  SE presenca tem checkout_at (nao nulo):
-    -> grupo "expediente_encerrado"
-  SENAO SE presenca tem checkin_at (nao nulo):
-    -> grupo conforme m.status (disponivel, em_viagem, indisponivel)
-  SENAO (sem presenca ou sem checkin):
-    -> grupo "inativo"
-
-Para motoristas com ativo === false:
-  -> grupo "inativo" (sempre)
+|                SCROLLAVEL                    |   |        FIXO (DIREITA)         |
+|                                              | | |                               |
+|  [Base]  [Ponto A]  [Ponto B]  [Sem Local]  | | | [Em Viagem] [Retornando] [Outros]
+|                                              | | |                               |
+|  <========= barra de scroll ==========>      |   |                               |
 ```
 
-**handleDragEnd**: Permitir drag para a nova coluna `expediente_encerrado`. Ao arrastar para la, disparar checkout. Ao arrastar de la para outra coluna, disparar checkin se necessario.
+A tela sera dividida em duas areas:
+- **Esquerda (scrollavel)**: Base como 1a coluna, depois os demais pontos em ordem alfabetica, e "Sem Local" no final
+- **Direita (fixa, sempre visivel)**: "Em Viagem", "Retornando pra Base", "Outros" -- com largura responsiva para nunca sair da tela
 
-### 2. `src/components/motoristas/MotoristaKanbanColumn.tsx`
+## Mudancas
 
-**statusConfig**: Adicionar entrada para `expediente_encerrado`:
+### 1. `src/pages/MapaServico.tsx`
 
-| Propriedade | Valor |
-|---|---|
-| title | Expediente Encerrado |
-| icon | LogOut |
-| bgColor | bg-purple-50 / dark:bg-purple-950/20 |
-| headerBg | bg-purple-100 / dark:bg-purple-900/40 |
-| iconColor | text-purple-600 / dark:text-purple-400 |
-| borderColor | border-purple-200 / dark:border-purple-800 |
+**Reordenar `dynamicColumns`**: Remover "Em Transito" das colunas dinamicas. Reorganizar para que a coluna Base seja a primeira, seguida pelos outros pontos ordenados, e "Sem Local" no final.
 
-### 3. `src/hooks/useEquipe.ts`
+**Mover "Em Viagem" para colunas fixas**: A coluna "Em Transito" (renomeada visualmente para "Em Viagem") passa a ser fixa na direita, junto com "Retornando" e "Outros".
 
-Nenhuma mudanca necessaria - ja retorna `checkin_at` e `checkout_at` por motorista no dia operacional, que e exatamente o que precisamos para a logica de agrupamento.
+**Corrigir deteccao de "retornando"**: Buscar tambem o ponto cujo nome contenha "retornando" nos pontos_embarque. Motoristas com `ultima_localizacao` igual a esse ponto tambem entram na coluna "Retornando pra Base", nao apenas os que tem missao ativa. Filtrar esse ponto das colunas dinamicas.
 
-## Fluxo visual resultante
+**Feedback "Chamar Base"**: Apos confirmar, atualizar `ultima_localizacao` do motorista para o nome do ponto "Retornando" (se existir), dando feedback visual imediato.
 
-```text
-Dia começa (virada operacional):
-  Todos os motoristas -> coluna "Inativos"
+**Container fixo responsivo**: O container das colunas fixas usara `max-w-[50vw]` com `overflow-y-auto` para nunca ultrapassar metade da tela.
 
-Motorista faz check-in:
-  -> Move para "Disponiveis"
+### 2. `src/components/mapa-servico/MapaServicoColumn.tsx`
 
-Motorista recebe viagem:
-  -> Move para "Em Viagem" (automatico pelo status)
+**Largura responsiva para colunas fixas**: Quando `isFixed`, usar `w-[200px] min-w-[160px]` em vez de `min-w-[300px] w-[320px]`, garantindo que cabem na tela.
 
-Motorista faz check-out (ou admin faz):
-  -> Move para "Expediente Encerrado"
+**Scroll vertical**: Trocar `max-h-[calc(100vh-14rem)]` por `flex-1 min-h-0 overflow-y-auto` para scroll vertical mais fluido.
 
-Proximo dia operacional:
-  -> Todos voltam para "Inativos" (sem check-in no novo dia)
-```
+### 3. `src/components/mapa-servico/MapaServicoScrollContainer.tsx`
+
+**Correcao do scroll**: O problema atual e que o container pai usa `flex-1` mas os filhos com `shrink-0` nao forcam overflow. A correcao sera garantir que o div interno tenha `overflow-x: scroll` (nao `auto`) e `min-width: min-content` nos filhos, forcando a barra de scroll a aparecer sempre que houver conteudo alem da area visivel.
 
 ## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/Motoristas.tsx` | Nova logica de agrupamento baseada em presenca; nova coluna no array de status |
-| `src/components/motoristas/MotoristaKanbanColumn.tsx` | Adicionar config visual para "expediente_encerrado" |
+| `src/pages/MapaServico.tsx` | Reordenar colunas (Base primeiro), mover Em Viagem para fixas, corrigir deteccao retornando, feedback chamar base |
+| `src/components/mapa-servico/MapaServicoColumn.tsx` | Largura responsiva para fixas, scroll vertical melhorado |
+| `src/components/mapa-servico/MapaServicoScrollContainer.tsx` | Corrigir scroll lateral forcando overflow visivel |
+
