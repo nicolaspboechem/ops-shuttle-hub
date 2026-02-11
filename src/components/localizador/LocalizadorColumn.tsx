@@ -41,7 +41,7 @@ export function LocalizadorColumn({
   const count = motoristas.length;
 
   return (
-    <div className="flex flex-col min-w-[280px] max-w-[320px] h-full">
+    <div className="flex flex-col min-w-[260px] max-w-[300px] h-full">
       {/* Header */}
       <div className={cn(
         "flex items-center justify-between px-4 py-3 rounded-t-xl border",
@@ -63,7 +63,7 @@ export function LocalizadorColumn({
 
       {/* Cards */}
       <ScrollArea className="flex-1 border-x border-b border-border/50 rounded-b-xl bg-background/30">
-        <div className="p-3 space-y-3">
+        <div className="p-3 space-y-2">
           {count === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               Nenhum motorista
