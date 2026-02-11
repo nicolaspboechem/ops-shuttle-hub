@@ -67,9 +67,12 @@ export function MapaServicoScrollContainer({ children }: MapaServicoScrollContai
       <div
         ref={scrollRef}
         onScroll={updateScrollState}
-        className="flex gap-3 p-4 overflow-auto h-full min-h-0 mapa-servico-scroll"
+        className="flex gap-3 p-4 h-full min-h-0 mapa-servico-scroll"
+        style={{ overflowX: 'scroll', overflowY: 'hidden' }}
       >
-        {children}
+        <div className="flex gap-3" style={{ minWidth: 'min-content' }}>
+          {children}
+        </div>
       </div>
 
       <style>{`

@@ -52,6 +52,7 @@ export default function MapaServico() {
   const [chamarBaseMotorista, setChamarBaseMotorista] = useState<MotoristaComVeiculo | null>(null);
   const [baseNome, setBaseNome] = useState('Base');
   const [outrosNome, setOutrosNome] = useState<string | null>(null);
+  const [retornandoPontoNome, setRetornandoPontoNome] = useState<string | null>(null);
 
   // --- Filters ---
   const [search, setSearch] = useState('');
@@ -88,7 +89,7 @@ export default function MapaServico() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  // Fetch base point name and "Outros" point name
+  // Fetch base, "Outros", and "Retornando" point names
   useEffect(() => {
     if (!eventoId) return;
     supabase
@@ -101,6 +102,8 @@ export default function MapaServico() {
         if (base) setBaseNome(base.nome);
         const outros = data.find(p => p.nome.toLowerCase().includes('outros'));
         if (outros) setOutrosNome(outros.nome);
+        const retornando = data.find(p => p.nome.toLowerCase().includes('retornando'));
+        if (retornando) setRetornandoPontoNome(retornando.nome);
       });
   }, [eventoId]);
 
@@ -116,37 +119,56 @@ export default function MapaServico() {
     return map;
   }, [missoesAtivas]);
 
-  // Identify drivers returning to base
+  // Identify drivers returning to base (mission-based OR location-based)
   const retornandoBaseIds = useMemo(() => {
     const ids = new Set<string>();
+    // By active mission to base
     missoesPorMotorista.forEach((missao, motoristaId) => {
       if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
         ids.add(motoristaId);
       }
     });
+    // By ultima_localizacao matching "Retornando" point
+    if (retornandoPontoNome) {
+      motoristas.forEach(m => {
+        if (m.ultima_localizacao === retornandoPontoNome && m.status !== 'em_viagem') {
+          ids.add(m.id);
+        }
+      });
+    }
     return ids;
-  }, [missoesPorMotorista, baseNome]);
+  }, [missoesPorMotorista, baseNome, retornandoPontoNome, motoristas]);
 
-  // Build separated driver groups
-  const { dynamicMotoristas, retornandoBaseMotoristas, outrosMotoristas } = useMemo(() => {
+  // Build separated driver groups: dynamic (scrollable) vs fixed (em_viagem, retornando, outros)
+  const { dynamicMotoristas, emViagemMotoristas, retornandoBaseMotoristas, outrosMotoristas } = useMemo(() => {
+    const emViagem: MotoristaComVeiculo[] = [];
     const retornando: MotoristaComVeiculo[] = [];
     const outros: MotoristaComVeiculo[] = [];
     const dynamicGroups: Record<string, MotoristaComVeiculo[]> = {};
 
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
-        if (retornandoBaseIds.has(m.id)) {
+        // Em viagem -> fixed column
+        if (m.status === 'em_viagem') {
+          emViagem.push(m);
+        }
+        // Retornando -> fixed column
+        else if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
-        } else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {
+        }
+        // Outros -> fixed column
+        else if (outrosNome && m.ultima_localizacao === outrosNome) {
           outros.push(m);
-        } else {
+        }
+        // Dynamic columns (skip em_transito, retornando point, outros point)
+        else if (loc !== 'em_transito') {
           if (!dynamicGroups[loc]) dynamicGroups[loc] = [];
           dynamicGroups[loc].push(m);
         }
       });
     });
 
-    return { dynamicMotoristas: dynamicGroups, retornandoBaseMotoristas: retornando, outrosMotoristas: outros };
+    return { dynamicMotoristas: dynamicGroups, emViagemMotoristas: emViagem, retornandoBaseMotoristas: retornando, outrosMotoristas: outros };
   }, [motoristasPorLocalizacao, retornandoBaseIds, outrosNome]);
 
   // Apply filters to each group
@@ -158,35 +180,43 @@ export default function MapaServico() {
     return result;
   }, [dynamicMotoristas, filters]);
 
+  const filteredEmViagem = useMemo(() => applyFilters(emViagemMotoristas, filters), [emViagemMotoristas, filters]);
   const filteredRetornando = useMemo(() => applyFilters(retornandoBaseMotoristas, filters), [retornandoBaseMotoristas, filters]);
   const filteredOutros = useMemo(() => applyFilters(outrosMotoristas, filters), [outrosMotoristas, filters]);
 
-  // Dynamic columns
+  // Dynamic columns: Base first, then alphabetical, Sem Local last
   const dynamicColumns = useMemo(() => {
     const cols: { id: string; title: string; isSpecial?: boolean; color?: string }[] = [];
-    cols.push({ id: 'em_transito', title: 'Em Trânsito', isSpecial: true, color: 'bg-blue-500/10' });
+    // Base first
+    const baseExists = localizacoes.includes(baseNome);
+    if (baseExists) {
+      cols.push({ id: baseNome, title: baseNome });
+    }
+    // Other points alphabetically (excluding base, outros, retornando)
     localizacoes.forEach(loc => {
+      if (loc === baseNome) return;
       if (outrosNome && loc === outrosNome) return;
+      if (retornandoPontoNome && loc === retornandoPontoNome) return;
       cols.push({ id: loc, title: loc });
     });
+    // Sem Local last
     cols.push({ id: 'sem_local', title: 'Sem Local', isSpecial: true, color: 'bg-muted/60' });
     return cols;
-  }, [localizacoes, outrosNome]);
+  }, [localizacoes, outrosNome, retornandoPontoNome, baseNome]);
 
   // Status counters
   const statusCount = useMemo(() => {
-    let disponiveis = 0, emTransito = 0;
+    let disponiveis = 0;
     motoristas.forEach(m => {
       if (m.status === 'disponivel') disponiveis++;
-      if (m.status === 'em_viagem') emTransito++;
     });
     return {
       disponiveis,
-      emTransito,
+      emTransito: emViagemMotoristas.length,
       retornando: retornandoBaseMotoristas.length,
       total: motoristas.length,
     };
-  }, [motoristas, retornandoBaseMotoristas]);
+  }, [motoristas, emViagemMotoristas, retornandoBaseMotoristas]);
 
   // --- Handlers ---
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -230,8 +260,15 @@ export default function MapaServico() {
       ponto_desembarque: baseNome,
       prioridade: 'normal',
     });
+    // Immediate visual feedback: update location to "Retornando" point
+    if (retornandoPontoNome) {
+      await supabase
+        .from('motoristas')
+        .update({ ultima_localizacao: retornandoPontoNome, ultima_localizacao_at: new Date().toISOString() })
+        .eq('id', chamarBaseMotorista.id);
+    }
     setChamarBaseMotorista(null);
-  }, [chamarBaseMotorista, eventoId, createMissao, baseNome]);
+  }, [chamarBaseMotorista, eventoId, createMissao, baseNome, retornandoPontoNome]);
 
   const toggleStatus = useCallback((status: string) => {
     setStatusFilters(prev => {
@@ -285,8 +322,17 @@ export default function MapaServico() {
               {/* Separator */}
               <div className="w-px bg-border shrink-0" />
 
-              {/* Fixed columns */}
-              <div className="flex gap-3 p-4 shrink-0 bg-muted/20">
+              {/* Fixed columns: Em Viagem, Retornando, Outros */}
+              <div className="flex gap-2 p-3 shrink-0 bg-muted/20 max-w-[50vw] overflow-y-auto">
+                <MapaServicoColumn
+                  id="em_transito"
+                  title="Em Viagem"
+                  motoristas={filteredEmViagem}
+                  missoesPorMotorista={missoesPorMotorista}
+                  onChamarBase={m => setChamarBaseMotorista(m)}
+                  isFixed
+                  color="bg-blue-500/10"
+                />
                 <MapaServicoColumn
                   id="retornando_base"
                   title={`Retornando pra ${baseNome}`}
