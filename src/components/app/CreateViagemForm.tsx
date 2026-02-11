@@ -44,6 +44,7 @@ interface CreateViagemFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventoId: string;
+  defaultTipoOperacao?: string;
   onCreated: () => void;
 }
 
@@ -51,6 +52,7 @@ export function CreateViagemForm({
   open,
   onOpenChange,
   eventoId,
+  defaultTipoOperacao,
   onCreated
 }: CreateViagemFormProps) {
   const { user } = useAuth();
@@ -85,7 +87,7 @@ export function CreateViagemForm({
       setPontoEmbarque('');
       setPontoDesembarque('');
       setQtdPax('');
-      setTipoOperacao('transfer');
+      setTipoOperacao(defaultTipoOperacao || 'transfer');
       setObservacao('');
     }
   }, [open]);

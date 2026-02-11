@@ -28,6 +28,11 @@ import { SupervisorViagensTab } from '@/components/app/SupervisorViagensTab';
 import { SupervisorLocalizadorTab } from '@/components/app/SupervisorLocalizadorTab';
 import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
+import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
+import { MissaoModal } from '@/components/motoristas/MissaoModal';
+import { useMissoes } from '@/hooks/useMissoes';
+import { useMotoristas } from '@/hooks/useCadastros';
+import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
@@ -55,6 +60,9 @@ export default function AppSupervisor() {
   const [evento, setEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNovaViagem, setShowNovaViagem] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showMissaoModal, setShowMissaoModal] = useState(false);
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   
   // Dia operacional
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
@@ -83,6 +91,9 @@ export default function AppSupervisor() {
 
   const { refetch: refetchViagens } = useViagens(eventoId, viagensOptions);
   const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
+  const { createMissao } = useMissoes(eventoId);
+  const { motoristas } = useMotoristas(eventoId);
+  const { pontos } = usePontosEmbarque(eventoId);
 
   useEffect(() => {
     if (eventoId) {
@@ -103,9 +114,18 @@ export default function AppSupervisor() {
 
   const handleTabChange = (tab: SupervisorTabId) => {
     if (tab === 'nova') {
-      setShowNovaViagem(true);
+      setShowActionModal(true);
     } else {
       setActiveTab(tab);
+    }
+  };
+
+  const handleActionSelect = (tipo: ActionType) => {
+    if (tipo === 'missao') {
+      setShowMissaoModal(true);
+    } else {
+      setPreselectedTipo(tipo);
+      setShowNovaViagem(true);
     }
   };
 
@@ -248,15 +268,34 @@ export default function AppSupervisor() {
       {/* Bottom Navigation */}
       <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {/* Nova Viagem */}
+      {/* Action Type Modal */}
+      <NewActionModal
+        open={showActionModal}
+        onOpenChange={setShowActionModal}
+        onSelect={handleActionSelect}
+      />
+
+      {/* Nova Viagem (Transfer/Shuttle) */}
       <CreateViagemForm 
         open={showNovaViagem}
         onOpenChange={setShowNovaViagem}
         eventoId={eventoId!}
+        defaultTipoOperacao={preselectedTipo}
         onCreated={() => {
           setShowNovaViagem(false);
           refetchViagens();
           setActiveTab('viagens');
+        }}
+      />
+
+      {/* Nova Missão */}
+      <MissaoModal
+        open={showMissaoModal}
+        onOpenChange={setShowMissaoModal}
+        motoristas={motoristas}
+        pontos={pontos}
+        onSave={async (data) => {
+          await createMissao(data);
         }}
       />
     </div>
