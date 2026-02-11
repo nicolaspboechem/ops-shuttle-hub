@@ -1,30 +1,14 @@
 
-# Remover Toggle "Auto" e Manter Auto-Refresh Sempre Ativo
+# Adicionar Versao do Sistema no Header do Mapa de Servico
 
-## Problema
+## Mudanca
 
-O switch "Auto" no header do Mapa de Servico controla a atualizacao automatica a cada 30 segundos, mas ele inicia **desligado** (`useState(false)`). Para um painel operacional, isso deveria estar sempre ativo.
+Adicionar o badge de versao no header do Mapa de Servico, ao lado do botao "Atualizar", usando o componente `VersionBadge` que ja existe no projeto.
 
-## Mudancas
-
-### 1. `src/pages/MapaServico.tsx`
-
-- Mudar o estado inicial de `autoRefresh` para `true`
-- Remover o state `autoRefresh` e o setter -- a variavel passa a ser uma constante `true`
-- Remover as props `autoRefresh` e `onAutoRefreshChange` do `MapaServicoHeader`
-
-### 2. `src/components/mapa-servico/MapaServicoHeader.tsx`
-
-- Remover o Switch "Auto" e suas props (`autoRefresh`, `onAutoRefreshChange`) da interface e do render
-- Manter o botao "Atualizar" manual e a barra de progresso (que agora esta sempre visivel)
-
-## Resultado
-
-O painel sempre atualiza automaticamente a cada 30 segundos, sem opcao de desligar. O botao "Atualizar" continua disponivel para refresh manual imediato.
-
-## Arquivos modificados
+## Arquivo modificado
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/MapaServico.tsx` | autoRefresh sempre true, remover state e props |
-| `src/components/mapa-servico/MapaServicoHeader.tsx` | Remover Switch "Auto" e props relacionadas |
+| `src/components/mapa-servico/MapaServicoHeader.tsx` | Importar `VersionBadge` e renderizar com `variant="footer"` ao lado direito do header, apos o botao Atualizar |
+
+A versao aparecera discretamente no canto superior direito do Mapa de Servico, no formato "V1.3.0".
