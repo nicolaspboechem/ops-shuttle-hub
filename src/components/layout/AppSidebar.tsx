@@ -12,6 +12,7 @@ import {
   FileBarChart,
   Eye,
   Route,
+  Map,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -57,6 +58,7 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
       dataTutorial: null,
       items: [
         { name: 'Dashboard', href: `/evento/${eventoId}/dashboard`, icon: LayoutDashboard, dataTutorial: null },
+        { name: 'Mapa de Serviço', href: `/evento/${eventoId}/mapa-servico`, icon: Map, dataTutorial: null },
         { name: 'Viagens Ativas', href: `/evento/${eventoId}/viagens-ativas`, icon: Bus, dataTutorial: 'viagens' },
         { name: 'Finalizadas', href: `/evento/${eventoId}/viagens-finalizadas`, icon: CheckCircle, dataTutorial: null },
       ]
