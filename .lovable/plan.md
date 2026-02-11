@@ -1,88 +1,58 @@
 
 
-# Backup no Localizador + Check-in/Checkout nos Cards de Motoristas + Limpeza da Equipe
+# Adicionar colunas fixas "Retornando pra Base" e "Outros" no Painel Localizador
 
-## Resumo das mudancas
+## Problema
 
-Tres frentes de trabalho:
+As colunas fixas foram implementadas apenas no Mapa de Servico. O Painel Localizador (`/localizador/:eventoId`) continua com o layout antigo, sem separacao entre colunas dinamicas e fixas.
 
-1. **Badge BACKUP no Localizador**: quando um veiculo eh marcado como backup no Mapa de Servico, o card no Painel Localizador reflete isso com badge laranja e borda laranja
-2. **Check-in/Checkout na aba Motoristas**: mover os controles de presenca (check-in/checkout) da aba Equipe para a aba Motoristas, em todas as visualizacoes (card, lista, kanban)
-3. **Simplificar aba Equipe**: remover check-in/checkout da Equipe, mantendo apenas cadastro + login
+## Solucao
 
----
+Replicar a mesma logica de separacao do `MapaServico.tsx` no `PainelLocalizador.tsx`:
 
-## 1. Badge BACKUP no Localizador
+- Buscar o nome do ponto "Base" e o ponto "Outros" na tabela `pontos_embarque`
+- Buscar missoes ativas para identificar motoristas "retornando para base"
+- Separar motoristas em 3 grupos: dinamicos (scroll), retornando pra base (fixo), outros (fixo)
+- Dividir o layout em zona scrollavel a esquerda e zona fixa a direita
 
-### O que muda
+## Arquivos modificados
 
-O `LocalizadorCard` atualmente nao tem nenhuma indicacao de backup. Precisamos:
+### 1. `src/pages/PainelLocalizador.tsx`
 
-- Verificar se `motorista.veiculo?.observacoes_gerais` contem `[BACKUP]`
-- Se sim, exibir badge "BACKUP" laranja e aplicar borda/destaque laranja ao card (mesmo visual do MapaServicoCard)
+- Importar `useMissoes` para obter missoes ativas
+- Adicionar state para `baseNome` e `outrosNome` (buscar de `pontos_embarque`)
+- Calcular `missoesPorMotorista`, `retornandoBaseIds` (mesma logica do MapaServico)
+- Separar `motoristasPorLocalizacao` em `dynamicMotoristas`, `retornandoBaseMotoristas`, `outrosMotoristas`
+- Filtrar `localizacoes` para excluir o ponto "Outros" das dinamicas
+- Alterar o JSX do Kanban Grid:
+  - Zona esquerda (scrollavel): colunas de localizacao + em_transito + sem_local
+  - Separador vertical
+  - Zona direita (fixa, `shrink-0`): coluna "Retornando pra Base" + coluna "Outros"
+- Atualizar stats para incluir contagem de retornando
 
-### Arquivo: `src/components/localizador/LocalizadorCard.tsx`
+### 2. `src/components/localizador/LocalizadorColumn.tsx`
 
-- Adicionar funcao `isBackup()` (mesma logica do MapaServicoCard)
-- Adicionar badge laranja "BACKUP" ao lado do veiculo
-- Aplicar classe `border-orange-500/50 bg-orange-500/5` ao card quando backup
+- Adicionar prop `isFixed?: boolean` para estilizacao diferenciada (borda tracejada, fundo destacado)
+- Adicionar novos tipos: `'retornando_base' | 'outros'` ao tipo `tipo`
+- Configurar icones e cores para os novos tipos (Home para retornando, MapPinOff para outros)
 
-### Arquivo: `src/hooks/useLocalizadorMotoristas.ts`
+### Layout resultante
 
-- Verificar se o tipo `MotoristaComVeiculo` ja inclui `observacoes_gerais` do veiculo -- se nao, incluir no select
+```text
++---------------------------------------------+-----------------------------+
+| COLUNAS DINAMICAS (scroll horizontal)       | COLUNAS FIXAS (sticky)      |
+| [GIG] [Hotel] [Em Transito] [Sem Local] .. | [Retornando Base] [Outros]  |
++---------------------------------------------+-----------------------------+
+```
 
----
+### Detalhes tecnicos
 
-## 2. Check-in/Checkout na aba Motoristas
+A logica de identificacao de motoristas "retornando" eh identica ao MapaServico:
 
-### O que muda
+1. Buscar missoes ativas com `ponto_desembarque == baseNome`
+2. Motoristas com essas missoes vao para coluna fixa "Retornando pra Base"
+3. Motoristas com `ultima_localizacao == outrosNome` vao para coluna fixa "Outros"
+4. Os demais permanecem nas colunas dinamicas
 
-Adicionar botoes de Check-in e Check-out nos cards de motorista em TODAS as 3 visualizacoes da aba Motoristas: card, lista e kanban.
-
-### Dependencias
-
-Reutilizar a logica de `handleCheckin` e `handleCheckout` do `useEquipe.ts`. Como o hook ja existe e funciona, vamos importar essas funcoes na pagina `Motoristas.tsx`.
-
-### Arquivo: `src/pages/Motoristas.tsx`
-
-- Importar `useEquipe` para ter acesso a `handleCheckin`, `handleCheckout` e dados de presenca dos motoristas
-- Na view **card**: adicionar botoes Check-in / Check-out no rodape do card (abaixo do WhatsApp)
-- Na view **lista**: adicionar coluna "Presenca" com botao Check-in ou indicador de presenca + botao Check-out
-- Na view **kanban**: passar props de checkin/checkout para o `MotoristaKanbanCard`
-
-### Arquivo: `src/components/motoristas/MotoristaKanbanCard.tsx`
-
-- Adicionar props opcionais: `presenca?: { checkin_at?: string; checkout_at?: string }`, `onCheckin?: () => void`, `onCheckout?: () => void`
-- Renderizar botoes de Check-in/Check-out no rodape do card (similar ao que estava na Equipe)
-- Indicar visualmente quando o motorista esta presente (ring verde no card)
-
----
-
-## 3. Simplificar aba Equipe
-
-### O que muda
-
-Remover os controles de Check-in/Check-out do `EventoUsuarios.tsx` (aba Equipe). Manter apenas:
-- Cadastro de motoristas e staff
-- Criacao/gerenciamento de login
-- Remocao de membros
-- WhatsApp
-
-### Arquivo: `src/pages/EventoUsuarios.tsx`
-
-- Remover o bloco de Check-in/Check-out do `MembroCard` (linhas ~232-267)
-- Remover stats de "presentes" se desejar (ou manter apenas informativo)
-- Manter apenas: avatar, nome, role badge, status badge, dropdown com WhatsApp/Login/Remover
-
----
-
-## Resumo de arquivos
-
-| Arquivo | Acao |
-|---|---|
-| `src/components/localizador/LocalizadorCard.tsx` | Adicionar badge BACKUP + borda laranja |
-| `src/hooks/useLocalizadorMotoristas.ts` | Garantir que `observacoes_gerais` vem no select do veiculo |
-| `src/pages/Motoristas.tsx` | Importar useEquipe, adicionar checkin/checkout em card/lista/kanban |
-| `src/components/motoristas/MotoristaKanbanCard.tsx` | Adicionar props e UI de checkin/checkout |
-| `src/pages/EventoUsuarios.tsx` | Remover controles de checkin/checkout |
+Nenhuma alteracao de banco de dados necessaria.
 
