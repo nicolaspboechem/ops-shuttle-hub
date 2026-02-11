@@ -67,10 +67,37 @@ export function MapaServicoScrollContainer({ children }: MapaServicoScrollContai
       <div
         ref={scrollRef}
         onScroll={updateScrollState}
-        className="flex gap-3 p-4 overflow-x-auto h-full min-h-0 scrollbar-thin"
+        className="flex gap-3 p-4 overflow-auto h-full min-h-0 mapa-servico-scroll"
       >
         {children}
       </div>
+
+      <style>{`
+        .mapa-servico-scroll {
+          scrollbar-width: auto;
+          scrollbar-color: hsl(221 83% 70% / 0.6) hsl(var(--muted) / 0.3);
+        }
+        .mapa-servico-scroll::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .mapa-servico-scroll::-webkit-scrollbar-track {
+          background: hsl(var(--muted) / 0.3);
+          border-radius: 5px;
+        }
+        .mapa-servico-scroll::-webkit-scrollbar-thumb {
+          background: hsl(221 83% 70% / 0.6);
+          border-radius: 5px;
+          min-height: 40px;
+          min-width: 40px;
+        }
+        .mapa-servico-scroll::-webkit-scrollbar-thumb:hover {
+          background: hsl(221 83% 60% / 0.8);
+        }
+        .mapa-servico-scroll::-webkit-scrollbar-corner {
+          background: hsl(var(--muted) / 0.3);
+        }
+      `}</style>
     </div>
   );
 }
