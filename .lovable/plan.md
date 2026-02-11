@@ -1,39 +1,75 @@
 
-# Adicionar acoes "Aceitar" e "Iniciar" nas missoes do CCO
 
-## Problema
+# Melhorias no Mapa de Servico
 
-Atualmente, o painel de missoes do CCO (aba Motoristas) so permite "Concluir" e "Cancelar" missoes. Faltam as acoes intermediarias "Aceitar" e "Iniciar" que o admin/operador precisa executar como fallback quando o motorista, supervisor ou operador de campo nao conseguem a tempo.
+## Melhorias propostas
 
-## Solucao
+### 1. Barra de Filtros no Header
 
-Adicionar opcoes de menu contextual "Aceitar" e "Iniciar" nos dois formatos de visualizacao de missoes: **cards** e **tabela**.
+Adicionar ao header do Mapa de Servico:
 
-As acoes seguem o fluxo natural do ciclo de vida da missao:
-- Pendente: pode **Aceitar**, Concluir ou Cancelar
-- Aceita: pode **Iniciar**, Concluir ou Cancelar
-- Em Andamento: pode Concluir ou Cancelar
+- **Busca por nome**: input de texto que filtra motoristas em todas as colunas simultaneamente (com `useDeferredValue` para fluidez)
+- **Filtro por status**: chips clicaveis para filtrar por Disponivel, Em Viagem, Indisponivel (multi-select, toggle on/off)
+- **Filtro Backup**: chip toggle para mostrar apenas veiculos BACKUP
+- **Filtro Sem Veiculo**: chip toggle para destacar motoristas sem veiculo vinculado
 
-## Arquivos modificados
+Os filtros aplicam-se sobre os dados ja separados em grupos (dynamicMotoristas, retornandoBase, outros), filtrando os motoristas dentro de cada coluna sem alterar a estrutura de colunas.
 
-### 1. `src/components/motoristas/MissaoCard.tsx`
+### 2. Scroll Horizontal Melhorado
 
-Adicionar duas novas opcoes no `DropdownMenuContent`:
+Atualmente o scroll horizontal eh um `overflow-x-auto` basico. Melhorias:
 
-- **Aceitar**: visivel quando `missao.status === 'pendente'`, chama `onStatusChange('aceita')`
-- **Iniciar**: visivel quando `missao.status === 'aceita'`, chama `onStatusChange('em_andamento')`
+- **Botoes de navegacao lateral**: setas esquerda/direita fixas nas bordas da area scrollavel, visiveis quando ha mais colunas fora da tela
+- **Indicador visual de scroll**: gradiente sutil nas bordas indicando que ha mais conteudo
+- **Scroll suave**: usar `scrollBy({ behavior: 'smooth' })` nos botoes
 
-Ambas ficam posicionadas antes de "Concluir" no menu, com icones `CheckCircle` (aceitar) e `Play` (iniciar).
+### 3. Contadores por Status no Header
 
-### 2. `src/pages/Motoristas.tsx`
+Adicionar mini-badges no header mostrando:
+- Disponiveis (verde)
+- Em Transito (azul)
+- Retornando (amarelo)
+- Total
 
-Na tabela de missoes (view lista), adicionar as mesmas duas opcoes no dropdown de cada linha:
+Isso da uma visao rapida da distribuicao sem precisar contar visualmente.
 
-- **Aceitar** (quando `status === 'pendente'`): chama `updateMissao(missao.id, { status: 'aceita' })`
-- **Iniciar** (quando `status === 'aceita'`): chama `updateMissao(missao.id, { status: 'em_andamento' })`
+### 4. Auto-refresh com Indicador
 
-Posicionadas antes do "Concluir" existente no dropdown.
+Adicionar toggle de auto-refresh (ex: a cada 30s) com um indicador visual de progresso circular no botao Atualizar, mostrando o tempo ate o proximo refresh.
 
-## Nenhuma mudanca de banco ou hook necessaria
+---
 
-O hook `useMissoes` ja possui `aceitarMissao` e `iniciarMissao`, e o `updateMissao` generico ja suporta mudanca de status. Apenas a UI precisa expor essas opcoes.
+## Detalhes tecnicos
+
+### Arquivos modificados
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/pages/MapaServico.tsx` | Adicionar state de filtros, logica de filtragem, botoes de scroll, contadores, auto-refresh |
+| `src/components/mapa-servico/MapaServicoColumn.tsx` | Nenhuma mudanca necessaria |
+| `src/components/mapa-servico/MapaServicoCard.tsx` | Nenhuma mudanca necessaria |
+
+### Implementacao dos filtros
+
+```text
+Header atual:
+[Icon] Mapa de Servico  |  12 motoristas ativos  |  [Atualizar]
+
+Header novo:
+[Icon] Mapa de Servico  |  [🟢 8] [🔵 3] [🟡 1]  |  [Atualizar ⟳]
+[🔍 Buscar motorista...]  [Disponivel] [Em Viagem] [Backup] [Sem Veiculo]
+```
+
+### Implementacao do scroll lateral
+
+- Ref no container scrollavel (`scrollContainerRef`)
+- Detectar `scrollLeft` e `scrollWidth` via `onScroll` para mostrar/esconder setas
+- Botoes posicionados com `absolute` nas bordas do container
+- Gradiente CSS via pseudo-elementos ou divs sobrepostas com `pointer-events-none`
+
+### Auto-refresh
+
+- State `autoRefresh: boolean` (default: false)
+- `useEffect` com `setInterval(refetch, 30000)` quando ativo
+- Indicador visual: barra de progresso fina no topo ou animacao no botao
+
