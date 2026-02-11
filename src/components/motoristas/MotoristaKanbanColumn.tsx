@@ -2,7 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MotoristaKanbanCard } from "./MotoristaKanbanCard";
 import { Motorista, Veiculo } from "@/hooks/useCadastros";
-import { CheckCircle, Car, Clock, UserX, LucideIcon } from "lucide-react";
+import { CheckCircle, Car, Clock, UserX, LogOut, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -70,6 +70,14 @@ const statusConfig: Record<string, StatusConfigItem> = {
     headerBg: 'bg-gray-100 dark:bg-gray-900/40',
     iconColor: 'text-gray-600 dark:text-gray-400',
     borderColor: 'border-gray-200 dark:border-gray-800',
+  },
+  expediente_encerrado: {
+    title: 'Expediente Encerrado',
+    icon: LogOut,
+    bgColor: 'bg-purple-50 dark:bg-purple-950/20',
+    headerBg: 'bg-purple-100 dark:bg-purple-900/40',
+    iconColor: 'text-purple-600 dark:text-purple-400',
+    borderColor: 'border-purple-200 dark:border-purple-800',
   },
 };
 
