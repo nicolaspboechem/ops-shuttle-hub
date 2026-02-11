@@ -29,8 +29,6 @@ import { SupervisorLocalizadorTab } from '@/components/app/SupervisorLocalizador
 import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
-import { MissaoModal } from '@/components/motoristas/MissaoModal';
-import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
@@ -63,8 +61,6 @@ export default function AppSupervisor() {
   const [loading, setLoading] = useState(true);
   const [showNovaViagem, setShowNovaViagem] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
-  const [showMissaoModal, setShowMissaoModal] = useState(false);
-  const [showMissaoTipoModal, setShowMissaoTipoModal] = useState(false);
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   
@@ -126,7 +122,7 @@ export default function AppSupervisor() {
 
   const handleActionSelect = (tipo: ActionType) => {
     if (tipo === 'missao') {
-      setShowMissaoTipoModal(true);
+      setShowMissaoInstantanea(true);
     } else {
       setPreselectedTipo(tipo);
       setShowNovaViagem(true);
@@ -292,34 +288,10 @@ export default function AppSupervisor() {
         }}
       />
 
-      {/* Tipo de Missão */}
-      <MissaoTipoModal
-        open={showMissaoTipoModal}
-        onOpenChange={setShowMissaoTipoModal}
-        onSelect={(tipo: MissaoTipo) => {
-          if (tipo === 'instantanea') {
-            setShowMissaoInstantanea(true);
-          } else {
-            setShowMissaoModal(true);
-          }
-        }}
-      />
-
       {/* Missão Instantânea */}
       <MissaoInstantaneaModal
         open={showMissaoInstantanea}
         onOpenChange={setShowMissaoInstantanea}
-        motoristas={motoristas}
-        pontos={pontos}
-        onSave={async (data) => {
-          await createMissao(data);
-        }}
-      />
-
-      {/* Missão Agendada */}
-      <MissaoModal
-        open={showMissaoModal}
-        onOpenChange={setShowMissaoModal}
         motoristas={motoristas}
         pontos={pontos}
         onSave={async (data) => {

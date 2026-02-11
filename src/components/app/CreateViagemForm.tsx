@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+// Note: Select is still used for tipoVeiculo field
 import {
   Command,
   CommandEmpty,
@@ -190,6 +191,14 @@ export function CreateViagemForm({
           acao: 'inicio',
           detalhes: { motorista, placa, ponto_embarque: pontoEmbarque, ponto_desembarque: pontoDesembarque, nome_usuario: userName }
         }]);
+      }
+
+      // Atualizar status do motorista para em_viagem
+      if (motoristaData?.id) {
+        await supabase
+          .from('motoristas')
+          .update({ status: 'em_viagem' })
+          .eq('id', motoristaData.id);
       }
 
       toast.success('Viagem criada e iniciada!');
@@ -448,30 +457,16 @@ export function CreateViagemForm({
               </Popover>
             </div>
 
-            {/* Quantidade de PAX e Tipo de Operação */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Qtd PAX</Label>
-                <Input
-                  type="number"
-                  value={qtdPax}
-                  onChange={e => setQtdPax(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={tipoOperacao} onValueChange={setTipoOperacao}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="transfer">Transfer</SelectItem>
-                    <SelectItem value="shuttle">Shuttle</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Quantidade de PAX */}
+            <div className="space-y-2">
+              <Label>Qtd PAX</Label>
+              <Input
+                type="number"
+                value={qtdPax}
+                onChange={e => setQtdPax(e.target.value)}
+                placeholder="0"
+                min="0"
+              />
             </div>
 
             {/* Observação */}
