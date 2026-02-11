@@ -270,6 +270,16 @@ export default function MapaServico() {
     setChamarBaseMotorista(null);
   }, [chamarBaseMotorista, eventoId, createMissao, baseNome, retornandoPontoNome]);
 
+  // --- Collapsed columns ---
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const toggleCollapse = useCallback((colId: string) => {
+    setCollapsedColumns(prev => {
+      const next = new Set(prev);
+      next.has(colId) ? next.delete(colId) : next.add(colId);
+      return next;
+    });
+  }, []);
+
   const toggleStatus = useCallback((status: string) => {
     setStatusFilters(prev => {
       const next = new Set(prev);
@@ -305,18 +315,22 @@ export default function MapaServico() {
             <div className="flex flex-1 min-h-0">
               {/* Dynamic columns with scroll navigation */}
               <MapaServicoScrollContainer>
-                {dynamicColumns.map(col => (
-                  <MapaServicoColumn
-                    key={col.id}
-                    id={col.id}
-                    title={col.title}
-                    motoristas={filteredDynamic[col.id] || []}
-                    missoesPorMotorista={missoesPorMotorista}
-                    onChamarBase={m => setChamarBaseMotorista(m)}
-                    isSpecial={col.isSpecial}
-                    color={col.color}
-                  />
-                ))}
+                {dynamicColumns
+                  .filter(col => (filteredDynamic[col.id]?.length || 0) > 0)
+                  .map(col => (
+                    <MapaServicoColumn
+                      key={col.id}
+                      id={col.id}
+                      title={col.title}
+                      motoristas={filteredDynamic[col.id] || []}
+                      missoesPorMotorista={missoesPorMotorista}
+                      onChamarBase={m => setChamarBaseMotorista(m)}
+                      isSpecial={col.isSpecial}
+                      color={col.color}
+                      collapsed={collapsedColumns.has(col.id)}
+                      onToggleCollapse={() => toggleCollapse(col.id)}
+                    />
+                  ))}
               </MapaServicoScrollContainer>
 
               {/* Separator */}
@@ -324,25 +338,33 @@ export default function MapaServico() {
 
               {/* Fixed columns: Em Viagem, Retornando, Outros */}
               <div className="flex gap-2 p-3 shrink-0 bg-muted/20 max-w-[50vw] overflow-y-auto">
-                <MapaServicoColumn
-                  id="em_transito"
-                  title="Em Viagem"
-                  motoristas={filteredEmViagem}
-                  missoesPorMotorista={missoesPorMotorista}
-                  onChamarBase={m => setChamarBaseMotorista(m)}
-                  isFixed
-                  color="bg-blue-500/10"
-                />
-                <MapaServicoColumn
-                  id="retornando_base"
-                  title={`Retornando pra ${baseNome}`}
-                  motoristas={filteredRetornando}
-                  missoesPorMotorista={missoesPorMotorista}
-                  onChamarBase={m => setChamarBaseMotorista(m)}
-                  isFixed
-                  color="bg-amber-500/10"
-                />
-                {outrosNome && (
+                {filteredEmViagem.length > 0 && (
+                  <MapaServicoColumn
+                    id="em_transito"
+                    title="Em Viagem"
+                    motoristas={filteredEmViagem}
+                    missoesPorMotorista={missoesPorMotorista}
+                    onChamarBase={m => setChamarBaseMotorista(m)}
+                    isFixed
+                    color="bg-blue-500/10"
+                    collapsed={collapsedColumns.has('em_transito')}
+                    onToggleCollapse={() => toggleCollapse('em_transito')}
+                  />
+                )}
+                {filteredRetornando.length > 0 && (
+                  <MapaServicoColumn
+                    id="retornando_base"
+                    title={`Retornando pra ${baseNome}`}
+                    motoristas={filteredRetornando}
+                    missoesPorMotorista={missoesPorMotorista}
+                    onChamarBase={m => setChamarBaseMotorista(m)}
+                    isFixed
+                    color="bg-amber-500/10"
+                    collapsed={collapsedColumns.has('retornando_base')}
+                    onToggleCollapse={() => toggleCollapse('retornando_base')}
+                  />
+                )}
+                {outrosNome && filteredOutros.length > 0 && (
                   <MapaServicoColumn
                     id="outros_fixo"
                     title="Outros"
@@ -351,6 +373,8 @@ export default function MapaServico() {
                     onChamarBase={m => setChamarBaseMotorista(m)}
                     isFixed
                     color="bg-purple-500/10"
+                    collapsed={collapsedColumns.has('outros_fixo')}
+                    onToggleCollapse={() => toggleCollapse('outros_fixo')}
                   />
                 )}
               </div>
