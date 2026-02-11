@@ -1,46 +1,30 @@
 
+# Remover Toggle "Auto" e Manter Auto-Refresh Sempre Ativo
 
-# Colunas Inteligentes no Mapa de Servico
+## Problema
 
-## Resumo
-
-Duas mudancas no Mapa de Servico:
-1. **Esconder colunas vazias** -- colunas dinamicas sem motoristas nao serao renderizadas
-2. **Recolher/expandir colunas** -- cada coluna tera um botao no header para colapsar, mostrando apenas o titulo e o badge com contagem
+O switch "Auto" no header do Mapa de Servico controla a atualizacao automatica a cada 30 segundos, mas ele inicia **desligado** (`useState(false)`). Para um painel operacional, isso deveria estar sempre ativo.
 
 ## Mudancas
 
 ### 1. `src/pages/MapaServico.tsx`
 
-**Filtrar colunas vazias**: No render das colunas dinamicas, renderizar apenas as que possuem pelo menos 1 motorista (apos filtros aplicados):
+- Mudar o estado inicial de `autoRefresh` para `true`
+- Remover o state `autoRefresh` e o setter -- a variavel passa a ser uma constante `true`
+- Remover as props `autoRefresh` e `onAutoRefreshChange` do `MapaServicoHeader`
 
-```text
-dynamicColumns
-  .filter(col => (filteredDynamic[col.id]?.length || 0) > 0)
-  .map(col => <MapaServicoColumn ... />)
-```
+### 2. `src/components/mapa-servico/MapaServicoHeader.tsx`
 
-Para as colunas fixas (Em Viagem, Retornando, Outros), aplicar a mesma logica -- so renderizar se tiver motoristas.
+- Remover o Switch "Auto" e suas props (`autoRefresh`, `onAutoRefreshChange`) da interface e do render
+- Manter o botao "Atualizar" manual e a barra de progresso (que agora esta sempre visivel)
 
-**Estado de colunas colapsadas**: Adicionar um `useState<Set<string>>` chamado `collapsedColumns` que armazena os IDs das colunas recolhidas. Passar `collapsed` e `onToggleCollapse` como props para `MapaServicoColumn`.
+## Resultado
 
-### 2. `src/components/mapa-servico/MapaServicoColumn.tsx`
-
-**Novas props**: `collapsed?: boolean` e `onToggleCollapse?: () => void`.
-
-**Botao de colapsar**: Adicionar um botao `ChevronLeft`/`ChevronRight` no header da coluna. Ao clicar, alterna entre colapsado e expandido.
-
-**Visual colapsado**: Quando colapsada, a coluna fica com largura minima (~48px), mostrando apenas:
-- O badge com a contagem de motoristas
-- O titulo rotacionado verticalmente
-- O botao para expandir
-
-Continua sendo um drop target valido (droppable) mesmo colapsada.
+O painel sempre atualiza automaticamente a cada 30 segundos, sem opcao de desligar. O botao "Atualizar" continua disponivel para refresh manual imediato.
 
 ## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/MapaServico.tsx` | Filtrar colunas vazias, estado collapsedColumns, passar props |
-| `src/components/mapa-servico/MapaServicoColumn.tsx` | Props collapsed/onToggleCollapse, visual colapsado com titulo vertical |
-
+| `src/pages/MapaServico.tsx` | autoRefresh sempre true, remover state e props |
+| `src/components/mapa-servico/MapaServicoHeader.tsx` | Remover Switch "Auto" e props relacionadas |
