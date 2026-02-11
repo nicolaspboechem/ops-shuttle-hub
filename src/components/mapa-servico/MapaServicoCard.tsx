@@ -48,9 +48,17 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
   const hasVeiculo = !!motorista.veiculo;
   const backup = hasVeiculo && isBackup(motorista.veiculo);
 
+  const [optimisticBackup, setOptimisticBackup] = useState<boolean | null>(null);
   const [editingObs, setEditingObs] = useState(false);
   const [obsValue, setObsValue] = useState(motorista.observacao || '');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Reset optimistic state when real data arrives
+  useEffect(() => {
+    setOptimisticBackup(null);
+  }, [motorista.veiculo?.observacoes_gerais]);
+
+  const isBackupActive = optimisticBackup ?? backup;
 
   useEffect(() => {
     if (editingObs && inputRef.current) inputRef.current.focus();
@@ -69,12 +77,17 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
 
   const handleToggleBackup = async () => {
     if (!motorista.veiculo) return;
+    const newValue = !isBackupActive;
+    setOptimisticBackup(newValue);
     const current = motorista.veiculo.observacoes_gerais || '';
-    const newVal = backup
+    const newVal = isBackupActive
       ? current.replace('[BACKUP]', '').trim()
       : `[BACKUP] ${current}`.trim();
     const { error } = await supabase.from('veiculos').update({ observacoes_gerais: newVal || null }).eq('id', motorista.veiculo.id);
-    if (error) toast.error('Erro ao atualizar backup');
+    if (error) {
+      toast.error('Erro ao atualizar backup');
+      setOptimisticBackup(null);
+    }
   };
 
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined;
@@ -119,7 +132,7 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
         ) : (
           <span className="text-xs italic opacity-50">Sem veículo</span>
         )}
-        {backup && (
+        {isBackupActive && (
           <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 border-orange-500/50 text-orange-400 bg-orange-500/10">
             BACKUP
           </Badge>
@@ -192,12 +205,12 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
             size="sm"
             className={cn(
               "h-6 text-[10px] px-2 gap-1 ml-auto",
-              backup ? "text-orange-400 hover:text-orange-300" : "text-muted-foreground hover:text-foreground"
+              isBackupActive ? "text-orange-400 hover:text-orange-300" : "text-muted-foreground hover:text-foreground"
             )}
             onClick={e => { e.stopPropagation(); handleToggleBackup(); }}
             onPointerDown={e => e.stopPropagation()}
           >
-            <Shield className="w-3 h-3" /> {backup ? 'Remover Backup' : 'Backup'}
+            <Shield className="w-3 h-3" /> {isBackupActive ? 'Remover Backup' : 'Backup'}
           </Button>
         )}
       </div>
