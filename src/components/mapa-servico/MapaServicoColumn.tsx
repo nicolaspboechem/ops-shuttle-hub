@@ -4,6 +4,7 @@ import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { Missao } from '@/hooks/useMissoes';
 import { MapaServicoCard } from './MapaServicoCard';
 import { Badge } from '@/components/ui/badge';
+import { Home, MapPin } from 'lucide-react';
 
 interface MapaServicoColumnProps {
   id: string;
@@ -12,6 +13,7 @@ interface MapaServicoColumnProps {
   missoesPorMotorista: Map<string, Missao>;
   onChamarBase: (motorista: MotoristaComVeiculo) => void;
   isSpecial?: boolean;
+  isFixed?: boolean;
   color?: string;
 }
 
@@ -22,15 +24,19 @@ export function MapaServicoColumn({
   missoesPorMotorista,
   onChamarBase,
   isSpecial,
+  isFixed,
   color,
 }: MapaServicoColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
+
+  const FixedIcon = id === 'retornando_base' ? Home : MapPin;
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-xl border border-border bg-muted/30 min-w-[300px] max-w-[360px] w-[320px] shrink-0",
+        "flex flex-col rounded-xl border bg-muted/30 min-w-[300px] max-w-[360px] w-[320px] shrink-0",
+        isFixed ? "border-2 border-dashed border-primary/30" : "border-border",
         isOver && "ring-2 ring-primary/50 bg-primary/5"
       )}
     >
@@ -39,6 +45,7 @@ export function MapaServicoColumn({
         "flex items-center gap-2 px-3 py-2.5 border-b border-border rounded-t-xl",
         color || "bg-muted/50"
       )}>
+        {isFixed && <FixedIcon className="w-4 h-4 text-primary shrink-0" />}
         <span className="text-sm font-semibold text-foreground truncate">{title}</span>
         <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 shrink-0">
           {motoristas.length}
