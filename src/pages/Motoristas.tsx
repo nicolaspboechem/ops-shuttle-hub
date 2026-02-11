@@ -36,6 +36,8 @@ import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
+import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
+import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -73,6 +75,8 @@ export default function Motoristas() {
   const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
   const [showMissaoModal, setShowMissaoModal] = useState(false);
+  const [showMissaoTipoModal, setShowMissaoTipoModal] = useState(false);
+  const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
@@ -1060,7 +1064,7 @@ export default function Motoristas() {
             Designe missões específicas para motoristas
           </p>
         </div>
-        <Button onClick={() => { setEditingMissao(null); setShowMissaoModal(true); }}>
+        <Button onClick={() => { setEditingMissao(null); setShowMissaoTipoModal(true); }}>
           <Plus className="w-4 h-4 mr-2" />
           Nova Missão
         </Button>
@@ -1304,6 +1308,31 @@ export default function Motoristas() {
         </Card>
       )}
 
+      {/* Modal de tipo de missão */}
+      <MissaoTipoModal
+        open={showMissaoTipoModal}
+        onOpenChange={setShowMissaoTipoModal}
+        onSelect={(tipo: MissaoTipo) => {
+          if (tipo === 'instantanea') {
+            setShowMissaoInstantanea(true);
+          } else {
+            setShowMissaoModal(true);
+          }
+        }}
+      />
+
+      {/* Missão Instantânea */}
+      <MissaoInstantaneaModal
+        open={showMissaoInstantanea}
+        onOpenChange={setShowMissaoInstantanea}
+        motoristas={motoristasCadastrados}
+        pontos={pontosEmbarque}
+        onSave={async (data) => {
+          await createMissao(data);
+        }}
+      />
+
+      {/* Missão Agendada (completa) */}
       <MissaoModal
         open={showMissaoModal}
         onOpenChange={(open) => { setShowMissaoModal(open); if (!open) setEditingMissao(null); }}
