@@ -9,7 +9,7 @@ import { useEventosMissoes } from '@/hooks/useEventosMissoes';
 import { useServerTime } from '@/hooks/useServerTime';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
 import { EventosGrid } from '@/components/public/EventosGrid';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
@@ -347,38 +347,32 @@ export default function PainelLocalizador() {
       <div className="flex-1 p-6 overflow-hidden">
         <div className="flex h-[calc(100vh-160px)]">
           {/* Dynamic columns - scrollable */}
-          <ScrollArea className="flex-1 h-full">
-            <div className="flex gap-4 pb-4 h-full">
-              {/* Location columns */}
-              {dynamicLocalizacoes.map(local => (
-                <LocalizadorColumn
-                  key={local}
-                  titulo={local}
-                  motoristas={dynamicMotoristas[local] || []}
-                  tipo="local"
-                />
-              ))}
+          <MapaServicoScrollContainer>
+            {dynamicLocalizacoes.map(local => (
+              <LocalizadorColumn
+                key={local}
+                titulo={local}
+                motoristas={dynamicMotoristas[local] || []}
+                tipo="local"
+              />
+            ))}
 
-              {/* Em Trânsito column */}
-              {(dynamicMotoristas['em_transito']?.length || 0) > 0 && (
-                <LocalizadorColumn
-                  titulo="Em Trânsito"
-                  motoristas={dynamicMotoristas['em_transito']}
-                  tipo="em_transito"
-                />
-              )}
+            {(dynamicMotoristas['em_transito']?.length || 0) > 0 && (
+              <LocalizadorColumn
+                titulo="Em Trânsito"
+                motoristas={dynamicMotoristas['em_transito']}
+                tipo="em_transito"
+              />
+            )}
 
-              {/* Sem Localização column */}
-              {(dynamicMotoristas['sem_local']?.length || 0) > 0 && (
-                <LocalizadorColumn
-                  titulo="Sem Localização"
-                  motoristas={dynamicMotoristas['sem_local']}
-                  tipo="sem_local"
-                />
-              )}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+            {(dynamicMotoristas['sem_local']?.length || 0) > 0 && (
+              <LocalizadorColumn
+                titulo="Sem Localização"
+                motoristas={dynamicMotoristas['sem_local']}
+                tipo="sem_local"
+              />
+            )}
+          </MapaServicoScrollContainer>
 
           {/* Separator */}
           <div className="w-px bg-border shrink-0 mx-2" />
