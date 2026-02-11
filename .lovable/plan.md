@@ -1,80 +1,70 @@
 
 
-# Mostrar nome real do usuario nos historicos de acoes
+# Permitir check-in sem veiculo + filtro de veiculo na missao
 
-## Problema
+## Problema 1: Check-in bloqueado sem veiculo
 
-Quando supervisores (ou outros staff de campo) realizam acoes como vistorias, desvincular veiculos ou iniciar viagens, o nome exibido nos logs aparece como "Sistema" em vez do nome real do usuario.
+O botao de check-in em `CheckinCheckoutCard.tsx` tem `disabled={!veiculoAtribuido}`, impedindo motoristas sem veiculo vinculado de fazer check-in. Isso contradiz a regra de negocio onde o check-in deve ser independente do veiculo.
 
-### Causa raiz
+## Problema 2: Aceite de missao sem validacao de veiculo
 
-Existem dois problemas combinados:
-
-1. **Componentes usam apenas `useAuth()` (Supabase Auth)**: Supervisores logam via JWT customizado (`staff-login`), mas os componentes (CreateViagemForm, VistoriaVeiculoWizard, etc.) tentam obter o usuario via `useAuth()`, que retorna `null` para staff. Resultado: `user_id` fica undefined nos logs.
-
-2. **LogsPanel depende de join com `profiles`**: O painel tenta fazer `profiles!user_id(full_name)`, mas nao existe FK entre `viagem_logs.user_id` e `profiles`, e para motoristas o `user_id` e um ID da tabela `motoristas` (nao existe em `profiles`).
+Quando o motorista aceita ou inicia uma missao, nao ha verificacao se ele tem um veiculo vinculado. O usuario quer:
+- Missao pode ser designada a qualquer momento (sem filtro)
+- Ao aceitar, se nao tiver veiculo, mostrar popup avisando para pedir ao supervisor
+- Ao iniciar, tambem verificar veiculo
 
 ## Solucao
 
-Abordagem pragmatica: **armazenar o nome do ator diretamente nos logs** no momento da insercao, e usar esse nome na exibicao.
+### 1. Check-in sem veiculo (CheckinCheckoutCard.tsx)
 
-### 1. Criar hook utilitario `useCurrentUser`
+- Remover `!veiculoAtribuido` da condicao `disabled` do botao de check-in
+- Quando NAO tem veiculo: pular o modal de vistoria (`VistoriaConfirmModal`) e fazer check-in direto
+- Quando TEM veiculo: manter fluxo atual (vistoria -> confirmar -> check-in)
+- Exibir estado "sem veiculo" com mensagem informativa mas sem bloquear
 
-Um hook simples que unifica os 3 contextos de auth e retorna id + nome do usuario atual:
+### 2. Filtro de veiculo na aceitacao de missao (AppMotorista.tsx)
 
-```text
-useCurrentUser() -> { userId, userName }
-  - Tenta useAuth() (admin/CCO)
-  - Tenta useStaffAuth() (supervisor/operador)
-  - Tenta useDriverAuth() (motorista)
-  - Retorna o primeiro que estiver autenticado
-```
+- Na acao `aceitar`: verificar se motorista tem `veiculo_id`
+  - Se SIM: aceitar normalmente
+  - Se NAO: exibir dialog/popup informando "Solicite ao supervisor a vinculacao do veiculo antes de aceitar a missao"
+- Na acao `iniciar`: mesma verificacao (seguranca extra)
+  - Se NAO tem veiculo: bloquear e mostrar aviso
 
-### 2. Atualizar pontos de insercao de logs
+### 3. Componente de aviso (novo AlertDialog simples)
 
-Em todos os arquivos que inserem em `viagem_logs`, garantir que `detalhes` inclua o campo `nome_usuario`:
-
-| Arquivo | Contexto atual | Mudanca |
-|---------|---------------|---------|
-| `useViagemOperacao.ts` | `useAuth()` | Adicionar `nome_usuario` em detalhes (buscar do profile) |
-| `useViagemOperacaoMotorista.ts` | `useDriverAuth()` | Ja tem `motorista_nome` - padronizar para `nome_usuario` |
-| `CreateViagemForm.tsx` | `useAuth()` | Usar `useCurrentUser` para pegar nome |
-| `RetornoViagemForm.tsx` | `useAuth()` | Usar `useCurrentUser` para pegar nome |
-| `VistoriaVeiculoWizard.tsx` | `useAuth()` | Usar `useCurrentUser` para nome no historico |
-
-### 3. Atualizar LogsPanel para exibir nome correto
-
-```text
-Prioridade de resolucao do nome:
-1. log.profile?.full_name (join com profiles - funciona para admins)
-2. log.detalhes?.nome_usuario (campo armazenado no momento da acao)
-3. log.detalhes?.motorista_nome (fallback para logs antigos de motorista)
-4. "Sistema" (ultimo recurso)
-```
-
-### 4. Atualizar VistoriaVeiculoWizard para staff auth
-
-O wizard de vistoria tambem precisa funcionar com staff auth para preencher `realizado_por` e `realizado_por_nome` corretamente no `veiculo_vistoria_historico`.
+Popup simples usando AlertDialog do shadcn com:
+- Icone de carro
+- Titulo: "Veiculo nao vinculado"
+- Mensagem: "Para aceitar esta missao, solicite ao supervisor operacional que vincule um veiculo ao seu perfil."
+- Botao: "Entendi"
 
 ## Arquivos modificados
 
-1. **Novo**: `src/hooks/useCurrentUser.ts` - Hook utilitario
-2. **Editar**: `src/hooks/useViagemOperacao.ts` - Incluir nome em detalhes
-3. **Editar**: `src/hooks/useViagemOperacaoMotorista.ts` - Padronizar campo nome
-4. **Editar**: `src/components/app/CreateViagemForm.tsx` - Usar useCurrentUser
-5. **Editar**: `src/components/app/RetornoViagemForm.tsx` - Usar useCurrentUser
-6. **Editar**: `src/components/app/VistoriaVeiculoWizard.tsx` - Usar useCurrentUser
-7. **Editar**: `src/components/operacao/LogsPanel.tsx` - Ler nome dos detalhes
-8. **Editar**: `src/hooks/useNotifications.tsx` - Ler nome dos detalhes (se aplicavel)
+1. **Editar**: `src/components/app/CheckinCheckoutCard.tsx`
+   - Remover `!veiculoAtribuido` do disabled
+   - Condicional: sem veiculo faz checkin direto, com veiculo abre vistoria
 
-## Sem alteracoes no banco de dados
+2. **Editar**: `src/pages/app/AppMotorista.tsx`
+   - Adicionar estado para modal de aviso de veiculo
+   - No `handleMissaoAction('aceitar')`: verificar `motoristaData?.veiculo_id`
+   - No `handleMissaoAction('iniciar')`: verificar `motoristaData?.veiculo_id`
+   - Renderizar AlertDialog de aviso
 
-O nome sera armazenado dentro do campo JSON `detalhes` que ja existe em `viagem_logs`. Nenhuma migration necessaria.
+## Fluxo esperado
 
-## Resultado esperado
+```text
+MOTORISTA FAZ CHECK-IN
+  |-- Tem veiculo? -> Modal vistoria -> Confirma -> Check-in
+  |-- Sem veiculo? -> Check-in direto (sem vistoria)
+  
+CCO DESIGNA MISSAO (qualquer momento, qualquer status)
 
-- Acao feita por admin CCO: mostra "Fulano Admin"
-- Acao feita por supervisor de campo: mostra "Supervisor João"
-- Acao feita por motorista: mostra "Motorista Carlos"
-- Logs antigos sem nome: continua mostrando "Sistema"
+MOTORISTA ACEITA MISSAO
+  |-- Tem veiculo? -> Aceita normalmente
+  |-- Sem veiculo? -> Popup "Peca ao supervisor vincular veiculo"
+
+MOTORISTA INICIA MISSAO
+  |-- Tem veiculo? -> Cria viagem, inicia
+  |-- Sem veiculo? -> Popup "Peca ao supervisor vincular veiculo"
+```
 
