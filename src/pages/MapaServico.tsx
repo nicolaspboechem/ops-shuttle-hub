@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback, useEffect, useDeferredValue } from 'react';
 import { useParams } from 'react-router-dom';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { MapPin, ClipboardList } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 import { EventLayout } from '@/components/layout/EventLayout';
+import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { useMissoes } from '@/hooks/useMissoes';
 import { MapaServicoColumn } from '@/components/mapa-servico/MapaServicoColumn';
@@ -13,6 +15,13 @@ import { ChamarBaseModal } from '@/components/mapa-servico/ChamarBaseModal';
 import { MapaServicoHeader, FilterState } from '@/components/mapa-servico/MapaServicoHeader';
 import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MissoesPanel } from '@/components/motoristas/MissoesPanel';
+
+// --- Sidebar sections ---
+const sections: InnerSidebarSection[] = [
+  { id: 'localizacao', label: 'Localização', icon: MapPin },
+  { id: 'missoes', label: 'Missões', icon: ClipboardList },
+];
 
 // --- Filter helper ---
 function isBackup(m: MotoristaComVeiculo): boolean {
@@ -21,20 +30,16 @@ function isBackup(m: MotoristaComVeiculo): boolean {
 
 function applyFilters(drivers: MotoristaComVeiculo[], filters: FilterState): MotoristaComVeiculo[] {
   return drivers.filter(m => {
-    // Search
     if (filters.deferredSearch) {
       const q = filters.deferredSearch.toLowerCase();
       const nameMatch = m.nome.toLowerCase().includes(q);
       const plateMatch = m.veiculo?.placa?.toLowerCase().includes(q);
       if (!nameMatch && !plateMatch) return false;
     }
-    // Status filters (if any active)
     if (filters.statusFilters.size > 0 && !filters.statusFilters.has(m.status || '')) {
       return false;
     }
-    // Backup only
     if (filters.backupOnly && !isBackup(m)) return false;
-    // Sem veiculo
     if (filters.semVeiculo && !!m.veiculo_id) return false;
     return true;
   });
@@ -47,6 +52,9 @@ export default function MapaServico() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { motoristas, motoristasPorLocalizacao, localizacoes, loading, refetch } = useLocalizadorMotoristas(eventoId);
   const { missoesAtivas, createMissao } = useMissoes(eventoId);
+
+  // --- InnerSidebar ---
+  const [activeSection, setActiveSection] = useState<string>('localizacao');
 
   const [activeMotorista, setActiveMotorista] = useState<MotoristaComVeiculo | null>(null);
   const [chamarBaseMotorista, setChamarBaseMotorista] = useState<MotoristaComVeiculo | null>(null);
@@ -117,16 +125,14 @@ export default function MapaServico() {
     return map;
   }, [missoesAtivas]);
 
-  // Identify drivers returning to base (mission-based OR location-based)
+  // Identify drivers returning to base
   const retornandoBaseIds = useMemo(() => {
     const ids = new Set<string>();
-    // By active mission to base
     missoesPorMotorista.forEach((missao, motoristaId) => {
       if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
         ids.add(motoristaId);
       }
     });
-    // By ultima_localizacao matching "Retornando" point
     if (retornandoPontoNome) {
       motoristas.forEach(m => {
         if (m.ultima_localizacao === retornandoPontoNome && m.status !== 'em_viagem') {
@@ -137,7 +143,7 @@ export default function MapaServico() {
     return ids;
   }, [missoesPorMotorista, baseNome, retornandoPontoNome, motoristas]);
 
-  // Build separated driver groups: dynamic (scrollable) vs fixed (em_viagem, retornando, outros)
+  // Build separated driver groups
   const { dynamicMotoristas, emViagemMotoristas, retornandoBaseMotoristas, outrosMotoristas } = useMemo(() => {
     const emViagem: MotoristaComVeiculo[] = [];
     const retornando: MotoristaComVeiculo[] = [];
@@ -146,20 +152,13 @@ export default function MapaServico() {
 
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
-        // Em viagem -> fixed column
         if (m.status === 'em_viagem') {
           emViagem.push(m);
-        }
-        // Retornando -> fixed column
-        else if (retornandoBaseIds.has(m.id)) {
+        } else if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
-        }
-        // Outros -> fixed column
-        else if (outrosNome && m.ultima_localizacao === outrosNome) {
+        } else if (outrosNome && m.ultima_localizacao === outrosNome) {
           outros.push(m);
-        }
-        // Dynamic columns (skip em_transito, retornando point, outros point)
-        else if (loc !== 'em_transito') {
+        } else if (loc !== 'em_transito') {
           if (!dynamicGroups[loc]) dynamicGroups[loc] = [];
           dynamicGroups[loc].push(m);
         }
@@ -182,22 +181,19 @@ export default function MapaServico() {
   const filteredRetornando = useMemo(() => applyFilters(retornandoBaseMotoristas, filters), [retornandoBaseMotoristas, filters]);
   const filteredOutros = useMemo(() => applyFilters(outrosMotoristas, filters), [outrosMotoristas, filters]);
 
-  // Dynamic columns: Base first, then alphabetical, Sem Local last
+  // Dynamic columns
   const dynamicColumns = useMemo(() => {
     const cols: { id: string; title: string; isSpecial?: boolean; color?: string }[] = [];
-    // Base first
     const baseExists = localizacoes.includes(baseNome);
     if (baseExists) {
       cols.push({ id: baseNome, title: baseNome });
     }
-    // Other points alphabetically (excluding base, outros, retornando)
     localizacoes.forEach(loc => {
       if (loc === baseNome) return;
       if (outrosNome && loc === outrosNome) return;
       if (retornandoPontoNome && loc === retornandoPontoNome) return;
       cols.push({ id: loc, title: loc });
     });
-    // Sem Local last
     cols.push({ id: 'sem_local', title: 'Sem Local', isSpecial: true, color: 'bg-muted/60' });
     return cols;
   }, [localizacoes, outrosNome, retornandoPontoNome, baseNome]);
@@ -258,7 +254,6 @@ export default function MapaServico() {
       ponto_desembarque: baseNome,
       prioridade: 'normal',
     });
-    // Immediate visual feedback: update location to "Retornando" point
     if (retornandoPontoNome) {
       await supabase
         .from('motoristas')
@@ -286,108 +281,128 @@ export default function MapaServico() {
     });
   }, []);
 
+  // --- Localização content ---
+  const localizacaoContent = (
+    <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
+      <MapaServicoHeader
+        statusCount={statusCount}
+        filters={filters}
+        onSearchChange={setSearch}
+        onToggleStatus={toggleStatus}
+        onToggleBackup={() => setBackupOnly(v => !v)}
+        onToggleSemVeiculo={() => setSemVeiculo(v => !v)}
+        onRefresh={refetch}
+        refreshProgress={refreshProgress}
+      />
+
+      {loading ? (
+        <div className="flex gap-4 p-4 overflow-x-auto">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="min-w-[300px] h-[400px] rounded-xl" />
+          ))}
+        </div>
+      ) : (
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex flex-1 min-h-0">
+            {/* Dynamic columns with scroll navigation */}
+            <MapaServicoScrollContainer>
+              {dynamicColumns
+                .filter(col => (filteredDynamic[col.id]?.length || 0) > 0)
+                .map(col => (
+                  <MapaServicoColumn
+                    key={col.id}
+                    id={col.id}
+                    title={col.title}
+                    motoristas={filteredDynamic[col.id] || []}
+                    missoesPorMotorista={missoesPorMotorista}
+                    onChamarBase={m => setChamarBaseMotorista(m)}
+                    isSpecial={col.isSpecial}
+                    color={col.color}
+                    collapsed={collapsedColumns.has(col.id)}
+                    onToggleCollapse={() => toggleCollapse(col.id)}
+                  />
+                ))}
+            </MapaServicoScrollContainer>
+
+            {/* Separator */}
+            <div className="w-px bg-border shrink-0" />
+
+            {/* Fixed columns: Em Viagem, Retornando, Outros */}
+            <div className="flex gap-2 p-3 shrink-0 bg-muted/20 max-w-[50vw] overflow-y-auto">
+              {filteredEmViagem.length > 0 && (
+                <MapaServicoColumn
+                  id="em_transito"
+                  title="Em Viagem"
+                  motoristas={filteredEmViagem}
+                  missoesPorMotorista={missoesPorMotorista}
+                  onChamarBase={m => setChamarBaseMotorista(m)}
+                  isFixed
+                  color="bg-blue-500/10"
+                  collapsed={collapsedColumns.has('em_transito')}
+                  onToggleCollapse={() => toggleCollapse('em_transito')}
+                />
+              )}
+              {filteredRetornando.length > 0 && (
+                <MapaServicoColumn
+                  id="retornando_base"
+                  title={`Retornando pra ${baseNome}`}
+                  motoristas={filteredRetornando}
+                  missoesPorMotorista={missoesPorMotorista}
+                  onChamarBase={m => setChamarBaseMotorista(m)}
+                  isFixed
+                  color="bg-amber-500/10"
+                  collapsed={collapsedColumns.has('retornando_base')}
+                  onToggleCollapse={() => toggleCollapse('retornando_base')}
+                />
+              )}
+              {outrosNome && filteredOutros.length > 0 && (
+                <MapaServicoColumn
+                  id="outros_fixo"
+                  title="Outros"
+                  motoristas={filteredOutros}
+                  missoesPorMotorista={missoesPorMotorista}
+                  onChamarBase={m => setChamarBaseMotorista(m)}
+                  isFixed
+                  color="bg-purple-500/10"
+                  collapsed={collapsedColumns.has('outros_fixo')}
+                  onToggleCollapse={() => toggleCollapse('outros_fixo')}
+                />
+              )}
+            </div>
+          </div>
+
+          <DragOverlay>
+            {activeMotorista ? (
+              <MapaServicoCard
+                motorista={activeMotorista}
+                missao={missoesPorMotorista.get(activeMotorista.id) || null}
+                onChamarBase={() => {}}
+                isDragOverlay
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
+    </div>
+  );
+
   return (
     <EventLayout>
-      <div className="flex flex-col h-[calc(100vh-4rem)] min-h-0">
-        <MapaServicoHeader
-          statusCount={statusCount}
-          filters={filters}
-          onSearchChange={setSearch}
-          onToggleStatus={toggleStatus}
-          onToggleBackup={() => setBackupOnly(v => !v)}
-          onToggleSemVeiculo={() => setSemVeiculo(v => !v)}
-          onRefresh={refetch}
-          refreshProgress={refreshProgress}
+      <div className="flex min-h-[calc(100vh-4rem)]">
+        <InnerSidebar
+          sections={sections}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          storageKey="mapa-servico-sidebar-collapsed"
         />
-
-        {loading ? (
-          <div className="flex gap-4 p-4 overflow-x-auto">
-            {[1, 2, 3].map(i => (
-              <Skeleton key={i} className="min-w-[300px] h-[400px] rounded-xl" />
-            ))}
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className={activeSection === 'localizacao' ? 'block' : 'hidden'}>
+            {localizacaoContent}
           </div>
-        ) : (
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="flex flex-1 min-h-0">
-              {/* Dynamic columns with scroll navigation */}
-              <MapaServicoScrollContainer>
-                {dynamicColumns
-                  .filter(col => (filteredDynamic[col.id]?.length || 0) > 0)
-                  .map(col => (
-                    <MapaServicoColumn
-                      key={col.id}
-                      id={col.id}
-                      title={col.title}
-                      motoristas={filteredDynamic[col.id] || []}
-                      missoesPorMotorista={missoesPorMotorista}
-                      onChamarBase={m => setChamarBaseMotorista(m)}
-                      isSpecial={col.isSpecial}
-                      color={col.color}
-                      collapsed={collapsedColumns.has(col.id)}
-                      onToggleCollapse={() => toggleCollapse(col.id)}
-                    />
-                  ))}
-              </MapaServicoScrollContainer>
-
-              {/* Separator */}
-              <div className="w-px bg-border shrink-0" />
-
-              {/* Fixed columns: Em Viagem, Retornando, Outros */}
-              <div className="flex gap-2 p-3 shrink-0 bg-muted/20 max-w-[50vw] overflow-y-auto">
-                {filteredEmViagem.length > 0 && (
-                  <MapaServicoColumn
-                    id="em_transito"
-                    title="Em Viagem"
-                    motoristas={filteredEmViagem}
-                    missoesPorMotorista={missoesPorMotorista}
-                    onChamarBase={m => setChamarBaseMotorista(m)}
-                    isFixed
-                    color="bg-blue-500/10"
-                    collapsed={collapsedColumns.has('em_transito')}
-                    onToggleCollapse={() => toggleCollapse('em_transito')}
-                  />
-                )}
-                {filteredRetornando.length > 0 && (
-                  <MapaServicoColumn
-                    id="retornando_base"
-                    title={`Retornando pra ${baseNome}`}
-                    motoristas={filteredRetornando}
-                    missoesPorMotorista={missoesPorMotorista}
-                    onChamarBase={m => setChamarBaseMotorista(m)}
-                    isFixed
-                    color="bg-amber-500/10"
-                    collapsed={collapsedColumns.has('retornando_base')}
-                    onToggleCollapse={() => toggleCollapse('retornando_base')}
-                  />
-                )}
-                {outrosNome && filteredOutros.length > 0 && (
-                  <MapaServicoColumn
-                    id="outros_fixo"
-                    title="Outros"
-                    motoristas={filteredOutros}
-                    missoesPorMotorista={missoesPorMotorista}
-                    onChamarBase={m => setChamarBaseMotorista(m)}
-                    isFixed
-                    color="bg-purple-500/10"
-                    collapsed={collapsedColumns.has('outros_fixo')}
-                    onToggleCollapse={() => toggleCollapse('outros_fixo')}
-                  />
-                )}
-              </div>
-            </div>
-
-            <DragOverlay>
-              {activeMotorista ? (
-                <MapaServicoCard
-                  motorista={activeMotorista}
-                  missao={missoesPorMotorista.get(activeMotorista.id) || null}
-                  onChamarBase={() => {}}
-                  isDragOverlay
-                />
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
+          <div className={activeSection === 'missoes' ? 'block' : 'hidden'}>
+            <MissoesPanel eventoId={eventoId} />
+          </div>
+        </div>
       </div>
 
       <ChamarBaseModal
