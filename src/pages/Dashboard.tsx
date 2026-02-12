@@ -4,6 +4,8 @@ import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy
 import { EventLayout } from '@/components/layout/EventLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
+import { MotoristaStatusPanel } from '@/components/dashboard/MotoristaStatusPanel';
+import { useMotoristasDashboard } from '@/hooks/useMotoristasDashboard';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
 import { RoutePerformanceChart } from '@/components/dashboard/RoutePerformanceChart';
@@ -92,6 +94,13 @@ export default function Dashboard() {
   }, [viagensFiltradas]);
 
   const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas, motoristas: metricasMotoristas } = useCalculos(viagensFiltradas);
+
+  // Set de motorista_ids com viagem ativa (para o hook de motoristas dashboard)
+  const motoristasEmViagemSet = useMemo(() => {
+    return new Set(viagensAtivas.map(v => v.motorista_id).filter(Boolean) as string[]);
+  }, [viagensAtivas]);
+
+  const motoristasDash = useMotoristasDashboard(eventoId, dataOperacional, motoristasEmViagemSet);
 
   // Real-time metrics
   const metricsRealTime = useMemo(() => {
@@ -256,12 +265,6 @@ export default function Dashboard() {
             highlight={true}
           />
           <MetricCard 
-            title="Motoristas" 
-            value={metricsRealTime.motoristasAtivos} 
-            subtitle={`${motoristas.length} cadastrados`} 
-            icon={<Users className="w-5 h-5 md:w-6 md:h-6" />} 
-          />
-          <MetricCard 
             title="Veículos" 
             value={metricsRealTime.veiculosAtivos} 
             subtitle={`${metricsRealTime.onibus} ôn. ${metricsRealTime.vans} vans`} 
@@ -275,6 +278,14 @@ export default function Dashboard() {
             className="col-span-2 sm:col-span-1"
           />
         </div>
+
+        {/* Motoristas em Tempo Real */}
+        <MotoristaStatusPanel
+          online={motoristasDash.online}
+          disponiveis={motoristasDash.disponiveis}
+          emTransito={motoristasDash.emTransito}
+          totalCadastrados={motoristas.length}
+        />
 
         {/* Cards de Status - Grid responsivo */}
         <div className="grid grid-cols-3 gap-2 md:gap-4">
