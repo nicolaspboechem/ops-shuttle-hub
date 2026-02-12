@@ -1,128 +1,79 @@
 
 
-# Sistema de Alerta de Combustivel + Notificacoes no Header
+# Preservar Historico de Presenca ao Liberar Check-in
 
-## Resumo
+## Problema Atual
 
-Criar um fluxo completo para motoristas reportarem combustivel baixo, com alertas automaticos no CCO e no App Supervisor. Tambem mover o sino de notificacoes da sidebar para o header de todas as paginas do CCO.
+Quando "Liberar Check-in" e acionado, o sistema limpa o `checkout_at` do registro existente e, ao fazer novo check-in, o `upsert` com `onConflict` sobrescreve o mesmo registro. O primeiro turno (check-in + check-out) e **perdido**.
 
-## 1. Botao "Reportar Combustivel" no App do Motorista
+## Solucao
 
-Adicionar um botao na aba **Veiculo** (`MotoristaVeiculoTab.tsx`) que abre um modal/drawer com:
-- O gauge de combustivel existente (`CombustivelGauge`) para o motorista selecionar o nivel atual
-- Campo opcional de observacao (ex: "Preciso abastecer urgente")
-- Botao "Enviar Alerta"
+Mudar a logica para **preservar o registro antigo** e **criar um novo** para o segundo turno do dia.
 
-Ao confirmar:
-- Atualiza `veiculos.nivel_combustivel` no Supabase
-- Insere um registro em `viagem_logs` com acao `alerta_combustivel` (ou uma nova tabela dedicada - veja opcao abaixo)
-- Exibe toast de confirmacao
+### Mudancas necessarias
 
-**Nova tabela `alertas_frota`** para armazenar alertas estruturados:
+**1. Remover a constraint UNIQUE (motorista_id, evento_id, data)**
 
-| Coluna | Tipo | Descricao |
-|---|---|---|
-| id | uuid | PK |
-| evento_id | uuid | FK evento |
-| veiculo_id | uuid | FK veiculo |
-| motorista_id | uuid | FK motorista |
-| tipo | varchar | 'combustivel_baixo' |
-| nivel_combustivel | varchar | Nivel reportado |
-| observacao | text | Texto livre |
-| status | varchar | 'aberto', 'pendente', 'resolvido' |
-| resolvido_por | uuid | Quem resolveu |
-| resolvido_em | timestamptz | Quando resolveu |
-| created_at | timestamptz | default now() |
+Atualmente so permite 1 registro por motorista/dia. Precisamos permitir multiplos turnos no mesmo dia.
 
-Isso permite rastrear o ciclo completo: alerta -> pendente (na base) -> resolvido (abastecido e liberado).
+Migracao SQL:
+- Dropar a constraint unica existente
+- Adicionar um indice nao-unico para performance de consulta
 
-## 2. Barra de Notificacao no Header do Supervisor
+**2. Alterar `handleLiberarCheckin` em `Motoristas.tsx`**
 
-No `AppSupervisor.tsx`, adicionar um icone de sino no header (ao lado do menu de 3 pontinhos) que:
-- Mostra badge com contagem de alertas abertos
-- Ao clicar, abre um modal/sheet com a lista de alertas ativos
-- Cada alerta mostra: placa do veiculo, nome do motorista, nivel de combustivel, tempo desde o alerta
-- Acoes disponiveis por alerta:
-  - **"Chamar Base"** - usa a logica existente de ChamarBaseModal para trazer o motorista
-  - **"Marcar Pendente"** - atualiza status para `pendente` (veiculo na base aguardando abastecimento)
-  - **"Resolver"** - marca como resolvido (veiculo abastecido e liberado)
+Em vez de limpar o `checkout_at` do registro existente, a funcao passa a apenas atualizar o status do motorista para `disponivel`. O registro com checkout permanece intacto.
 
-O hook buscara alertas da tabela `alertas_frota` com Realtime subscription.
+**3. Alterar `realizarCheckin` em `useMotoristaPresenca.ts`**
 
-## 3. Mover Sino de Notificacoes para o Header do CCO
+Em vez de `upsert` (que sobrescreve), usar logica:
+- Verificar se ja existe um registro ativo (com checkin e sem checkout) para hoje
+- Se nao existe, criar um **novo** registro (INSERT), independente de ja ter registros anteriores no dia
+- Se ja existe um ativo, nao faz nada (ja esta com check-in)
 
-Atualmente o `NotificationsPanel` esta na sidebar (`MainLayout.tsx` linha 89 e `AppSidebar.tsx` - nao foi encontrado la, esta apenas no MainLayout).
+**4. Alterar `fetchPresenca` em `useMotoristaPresenca.ts`**
 
-Mudancas:
-- **`MainLayout.tsx`**: Remover o NotificationsPanel da sidebar e adicionar um header fixo acima do conteudo com relogio + sino
-- **`EventLayout.tsx`**: O header ja e renderizado dentro de cada pagina (Dashboard, Operacao, etc). Adicionar o NotificationsPanel ao componente `Header.tsx` que ja existe e ja importa o NotificationsPanel (ja esta feito!)
-- **Pagina Home**: Ja usa MainLayout. Adicionar header com relogio + sino
+Buscar o registro **ativo** do dia (checkin != null e checkout == null), em vez de qualquer registro do dia. Se nao encontrar ativo, buscar o mais recente (para saber se ja fez checkout).
 
-Na pratica:
-- `Header.tsx` ja tem o NotificationsPanel integrado - esta correto para paginas dentro de evento
-- `MainLayout.tsx` precisa mover o sino da sidebar para um header superior inline com o conteudo
+### Resultado esperado
 
-## 4. Exibir Alertas de Combustivel no CCO
+Para o Edenilson hoje:
+- Registro 1: checkin 14:06, checkout (o que tiver sido feito) - **preservado**
+- Registro 2: checkin 20:27 (liberacao), checkout null - **novo registro independente**
 
-### Na Home (`Home.tsx`)
-- Adicionar uma secao "Alertas de Frota" que mostra alertas abertos de todos os eventos
-- Cards com status colorido (vermelho = vazio/1-4, amarelo = 1/2)
+### Sobre recuperar os dados do Edenilson
 
-### No Dashboard (`Dashboard.tsx`)
-- Adicionar um card/badge dentro do painel de metricas mostrando quantidade de alertas de combustivel abertos
-- Ou integrar na secao de alertas existente (`AlertsPanel`)
+Infelizmente, o check-in/check-out original do Edenilson ja foi sobrescrito no banco. O registro atual mostra apenas `checkin_at: 14:06` sem checkout. Nao e possivel recuperar os horarios exatos do primeiro turno porque o upsert os substituiu.
 
-## 5. Integracao com Notificacoes Existentes
+Podemos ajustar manualmente via SQL se voce lembrar os horarios aproximados.
 
-Adicionar o tipo `alerta_combustivel` ao sistema de notificacoes (`useNotifications.tsx`):
-- Novo canal Realtime ouvindo `alertas_frota`
-- Config de icone: Fuel icon, cor vermelha
-- Aparece no sino do CCO e na Home
+## Arquivos afetados
 
-## Detalhes Tecnicos
-
-### Arquivos novos
-| Arquivo | Descricao |
-|---|---|
-| `src/components/app/ReportarCombustivelModal.tsx` | Modal com gauge + observacao para motorista |
-| `src/hooks/useAlertasFrota.ts` | Hook para CRUD de alertas com Realtime |
-| `src/components/app/SupervisorAlertasModal.tsx` | Modal de alertas no supervisor |
-
-### Arquivos modificados
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/app/MotoristaVeiculoTab.tsx` | Adicionar botao "Reportar Combustivel" |
-| `src/pages/app/AppSupervisor.tsx` | Adicionar sino de alertas no header |
-| `src/components/layout/MainLayout.tsx` | Mover NotificationsPanel da sidebar para header inline |
-| `src/hooks/useNotifications.tsx` | Adicionar tipo `alerta_combustivel` e canal Realtime |
-| `src/pages/Home.tsx` | Exibir secao de alertas de frota |
-| `src/pages/Dashboard.tsx` | Exibir contagem de alertas de combustivel |
+| Nova migracao SQL | Remover constraint UNIQUE, adicionar indice |
+| `src/hooks/useMotoristaPresenca.ts` | Trocar upsert por INSERT, ajustar fetch para buscar registro ativo |
+| `src/pages/Motoristas.tsx` | Simplificar handleLiberarCheckin (nao altera mais o registro antigo) |
 
-### Migracao SQL
-- Criar tabela `alertas_frota` com RLS policies permissivas (mesmo padrao das outras tabelas)
-
-### Fluxo completo
+## Detalhe tecnico: logica do novo check-in
 
 ```text
-Motorista reporta combustivel baixo
-  |
-  v
-Registro em alertas_frota (status: aberto)
-+ Atualiza veiculos.nivel_combustivel
-  |
-  v
-Realtime dispara para:
-  - Supervisor: badge no sino do header
-  - CCO: notificacao no sino + card na Home
-  |
-  v
-Supervisor aciona "Chamar Base"
-  -> Motorista retorna a base
-  -> Supervisor marca "Pendente"
-  |
-  v
-Veiculo abastecido
-  -> Supervisor marca "Resolvido"
-  -> Alerta sai da lista
+fetchPresenca():
+  1. Buscar registro ATIVO do dia (checkin != null, checkout == null)
+  2. Se encontrar -> motorista ja tem check-in ativo
+  3. Se nao encontrar -> buscar ultimo registro do dia (para saber se ja fez checkout)
+
+realizarCheckin():
+  1. INSERT novo registro (nunca upsert)
+  2. Cada turno = novo registro
+
+handleLiberarCheckin():
+  1. NAO altera registro antigo
+  2. Apenas muda status do motorista para 'disponivel'
+  3. Motorista faz check-in normal -> cria novo registro
 ```
+
+## Impacto no auto-checkout
+
+A Edge Function `auto-checkout` busca registros com `checkout_at IS NULL` — continuara funcionando normalmente, pois fechara apenas registros abertos.
 
