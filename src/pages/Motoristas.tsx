@@ -362,30 +362,13 @@ export default function Motoristas() {
     refetchMotoristas();
   };
 
-  // Handler para liberar check-in (limpar checkout do dia)
+  // Handler para liberar check-in (preserva registro anterior, apenas libera status)
   const handleLiberarCheckin = async (motoristaId: string) => {
     if (!eventoId) return;
-    const agora = getAgoraSync();
-    const evento = getEventoById(eventoId);
-    const horarioVirada = evento?.horario_virada_dia || '04:00';
-    const today = getDataOperacional(agora, horarioVirada);
 
     try {
-      const { data: existing } = await supabase
-        .from('motorista_presenca')
-        .select('id')
-        .eq('motorista_id', motoristaId)
-        .eq('evento_id', eventoId)
-        .eq('data', today)
-        .single();
-
-      if (existing) {
-        await supabase
-          .from('motorista_presenca')
-          .update({ checkout_at: null, observacao_checkout: null })
-          .eq('id', existing.id);
-      }
-
+      // Apenas atualiza o status do motorista para disponível
+      // O registro antigo com checkout permanece intacto
       await supabase
         .from('motoristas')
         .update({ status: 'disponivel' })

@@ -95,16 +95,37 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         setVeiculoAtribuido(null);
       }
 
-      // Fetch today's presence record using operational date
-      const { data, error } = await supabase
+      // Fetch ACTIVE presence record (checkin exists, no checkout) for today
+      const { data: activeRecord, error: activeError } = await supabase
         .from('motorista_presenca')
         .select('*')
         .eq('motorista_id', motoristaId)
         .eq('evento_id', eventoId)
         .eq('data', dataOperacional)
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (activeError) throw activeError;
+
+      // If no active record, fetch the most recent one (to know if checkout was done)
+      let data = activeRecord;
+      if (!data) {
+        const { data: latestRecord, error: latestError } = await supabase
+          .from('motorista_presenca')
+          .select('*')
+          .eq('motorista_id', motoristaId)
+          .eq('evento_id', eventoId)
+          .eq('data', dataOperacional)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (latestError) throw latestError;
+        data = latestRecord;
+      }
       
       // If presence has a vehicle, fetch it
       if (data?.veiculo_id) {
@@ -201,17 +222,36 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       const now = getAgoraSync().toISOString();
       const dataOperacional = getDataHoje();
 
-      // Upsert presence record with vehicle_id
+      // Check if there's already an active record (checkin without checkout)
+      const { data: existingActive } = await supabase
+        .from('motorista_presenca')
+        .select('id')
+        .eq('motorista_id', motoristaId)
+        .eq('evento_id', eventoId)
+        .eq('data', dataOperacional)
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingActive) {
+        // Already has an active check-in, skip
+        toast({
+          title: 'Check-in já ativo',
+          description: 'Você já possui um check-in ativo hoje.',
+        });
+        return true;
+      }
+
+      // INSERT new record (never upsert) — each shift = new record
       const { data, error } = await supabase
         .from('motorista_presenca')
-        .upsert({
+        .insert({
           motorista_id: motoristaId,
           evento_id: eventoId,
           data: dataOperacional,
           checkin_at: now,
           veiculo_id: veiculoId,
-        }, {
-          onConflict: 'motorista_id,evento_id,data'
         })
         .select()
         .single();
