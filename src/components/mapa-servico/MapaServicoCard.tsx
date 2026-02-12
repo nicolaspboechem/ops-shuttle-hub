@@ -117,20 +117,20 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
       {/* Row 2: Nome */}
       <span className="font-bold text-sm text-foreground leading-tight truncate">{motorista.nome}</span>
 
-      {/* Row 3: Veículo + Backup */}
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        <VeiculoIcon className="w-3.5 h-3.5 shrink-0" />
+      {/* Row 3: Veículo + Backup - ALWAYS visible */}
+      <div className="flex items-center gap-1.5 bg-muted/40 rounded px-1.5 py-0.5">
+        <VeiculoIcon className="w-3.5 h-3.5 shrink-0 text-primary" />
         {hasVeiculo ? (
           <>
-            <span className="text-xs font-medium text-foreground truncate">
+            <span className="text-xs font-semibold text-foreground truncate">
               {motorista.veiculo?.nome || motorista.veiculo?.placa}
             </span>
             {motorista.veiculo?.nome && motorista.veiculo?.placa && (
-              <span className="text-[10px] text-muted-foreground">• {motorista.veiculo.placa}</span>
+              <span className="text-[10px] font-medium text-muted-foreground">• {motorista.veiculo.placa}</span>
             )}
           </>
         ) : (
-          <span className="text-xs italic opacity-50">Sem veículo</span>
+          <span className="text-xs italic text-muted-foreground">Sem veículo</span>
         )}
         {isBackupActive && (
           <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 border-orange-500/50 text-orange-400 bg-orange-500/10">

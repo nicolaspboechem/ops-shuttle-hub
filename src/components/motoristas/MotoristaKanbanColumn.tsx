@@ -27,6 +27,7 @@ interface MotoristaKanbanColumnProps {
   getPresenca?: (motoristaId: string) => { checkin_at?: string | null; checkout_at?: string | null } | null;
   onCheckin?: (motoristaId: string) => void;
   onCheckout?: (motoristaId: string) => void;
+  onLiberarCheckin?: (motoristaId: string) => void;
 }
 
 interface StatusConfigItem {
@@ -94,7 +95,8 @@ export function MotoristaKanbanColumn({
   onEditLocalizacao,
   getPresenca,
   onCheckin,
-  onCheckout
+  onCheckout,
+  onLiberarCheckin
 }: MotoristaKanbanColumnProps) {
   const config = statusConfig[status] || statusConfig.disponivel;
   const Icon = config.icon;
@@ -167,6 +169,7 @@ export function MotoristaKanbanColumn({
                   presenca={getPresenca?.(motorista.id)}
                   onCheckin={onCheckin ? () => onCheckin(motorista.id) : undefined}
                   onCheckout={onCheckout ? () => onCheckout(motorista.id) : undefined}
+                  onLiberarCheckin={onLiberarCheckin ? () => onLiberarCheckin(motorista.id) : undefined}
                 />
               ))
             ) : (
