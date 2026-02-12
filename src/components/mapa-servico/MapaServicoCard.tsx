@@ -171,23 +171,61 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
       )}
 
       {/* Row 6: Observação editável */}
-      <div className="min-h-[20px]">
+      <div
+        className="min-h-[20px]"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+      >
         {editingObs ? (
-          <Input
-            ref={inputRef}
-            value={obsValue}
-            onChange={e => setObsValue(e.target.value)}
-            onBlur={handleSaveObs}
-            onKeyDown={e => e.key === 'Enter' && handleSaveObs()}
-            className="h-6 text-[10px] px-1.5 bg-muted"
-            placeholder="Observação..."
-            onPointerDown={e => e.stopPropagation()}
-          />
+          <div className="flex items-center gap-1">
+            <Input
+              ref={inputRef}
+              value={obsValue}
+              onChange={e => setObsValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveObs();
+                }
+                if (e.key === 'Escape') {
+                  setObsValue(motorista.observacao || '');
+                  setEditingObs(false);
+                }
+              }}
+              className="h-6 text-[10px] px-1.5 bg-muted flex-1"
+              placeholder="Observação..."
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-green-500 hover:text-green-400 shrink-0"
+              onClick={handleSaveObs}
+            >
+              ✓
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-red-500 hover:text-red-400 shrink-0"
+              onClick={() => {
+                if (obsValue.trim()) {
+                  setObsValue('');
+                  // Save empty to clear
+                  supabase.from('motoristas').update({ observacao: null }).eq('id', motorista.id)
+                    .then(({ error }) => { if (error) toast.error('Erro ao apagar observação'); });
+                }
+                setEditingObs(false);
+              }}
+            >
+              ✕
+            </Button>
+          </div>
         ) : (
           <button
             className="text-[10px] text-muted-foreground hover:text-foreground italic w-full text-left truncate"
-            onClick={e => { e.stopPropagation(); setEditingObs(true); }}
-            onPointerDown={e => e.stopPropagation()}
+            onClick={() => setEditingObs(true)}
           >
             {obsValue || 'Adicionar obs...'}
           </button>
