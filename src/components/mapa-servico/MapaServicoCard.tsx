@@ -60,6 +60,13 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
 
   const isBackupActive = optimisticBackup ?? backup;
 
+  // Sync obsValue with prop when not editing (realtime/refresh updates)
+  useEffect(() => {
+    if (!editingObs) {
+      setObsValue(motorista.observacao || '');
+    }
+  }, [motorista.observacao, editingObs]);
+
   useEffect(() => {
     if (editingObs && inputRef.current) inputRef.current.focus();
   }, [editingObs]);
@@ -181,7 +188,7 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
             onClick={e => { e.stopPropagation(); setEditingObs(true); }}
             onPointerDown={e => e.stopPropagation()}
           >
-            {motorista.observacao || 'Adicionar obs...'}
+            {obsValue || 'Adicionar obs...'}
           </button>
         )}
       </div>
