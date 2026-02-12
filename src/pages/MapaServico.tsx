@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 import { EventLayout } from '@/components/layout/EventLayout';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { useMissoes } from '@/hooks/useMissoes';
@@ -52,6 +53,7 @@ export default function MapaServico() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { motoristas, motoristasPorLocalizacao, localizacoes, loading, refetch } = useLocalizadorMotoristas(eventoId);
   const { missoesAtivas, createMissao } = useMissoes(eventoId);
+  const { user } = useAuth();
 
   // --- InnerSidebar ---
   const [activeSection, setActiveSection] = useState<string>('localizacao');
@@ -247,13 +249,49 @@ export default function MapaServico() {
 
   const handleChamarBase = useCallback(async () => {
     if (!chamarBaseMotorista || !eventoId) return;
-    await createMissao({
+    
+    const missao = await createMissao({
       motorista_id: chamarBaseMotorista.id,
       titulo: 'Retorno à Base',
       ponto_embarque: chamarBaseMotorista.ultima_localizacao || 'Local atual',
       ponto_desembarque: baseNome,
       prioridade: 'normal',
     });
+
+    // Criar viagem no histórico para rastreabilidade
+    if (missao) {
+      const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+      
+      const { data: viagem } = await supabase
+        .from('viagens')
+        .insert({
+          evento_id: eventoId,
+          motorista_id: chamarBaseMotorista.id,
+          motorista: chamarBaseMotorista.nome,
+          tipo_operacao: 'missao',
+          ponto_embarque: chamarBaseMotorista.ultima_localizacao || 'Local atual',
+          ponto_desembarque: baseNome,
+          observacao: 'Retorno a base solicitado',
+          origem_missao_id: missao.id,
+          status: 'agendado',
+          veiculo_id: chamarBaseMotorista.veiculo_id || null,
+          placa: chamarBaseMotorista.veiculo?.placa || null,
+          tipo_veiculo: chamarBaseMotorista.veiculo?.tipo_veiculo || null,
+          h_pickup: horaAtual,
+          criado_por: user?.id,
+        })
+        .select('id')
+        .single();
+
+      // Vincular viagem à missão (bidirecional)
+      if (viagem) {
+        await supabase
+          .from('missoes')
+          .update({ viagem_id: viagem.id })
+          .eq('id', missao.id);
+      }
+    }
+
     if (retornandoPontoNome) {
       await supabase
         .from('motoristas')
@@ -261,7 +299,7 @@ export default function MapaServico() {
         .eq('id', chamarBaseMotorista.id);
     }
     setChamarBaseMotorista(null);
-  }, [chamarBaseMotorista, eventoId, createMissao, baseNome, retornandoPontoNome]);
+  }, [chamarBaseMotorista, eventoId, createMissao, baseNome, retornandoPontoNome, user]);
 
   // --- Collapsed columns ---
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
