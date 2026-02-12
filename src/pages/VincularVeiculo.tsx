@@ -21,6 +21,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 export default function VincularVeiculo() {
   const { eventoId, motoristaId } = useParams();
   const navigate = useNavigate();
+  const isAppContext = window.location.pathname.startsWith('/app/');
   const { toast } = useToast();
   
   const { motoristas, updateMotorista } = useMotoristas(eventoId);
@@ -101,7 +102,7 @@ export default function VincularVeiculo() {
         description: `${selectedVeiculo?.placa} vinculado a ${motorista.nome}`,
       });
 
-      navigate(`/evento/${eventoId}/motoristas`);
+      navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`);
     } catch (error) {
       toast({
         title: "Erro ao vincular",
@@ -127,7 +128,7 @@ export default function VincularVeiculo() {
         description: `${currentVeiculo?.placa} foi desvinculado de ${motorista.nome}`,
       });
 
-      navigate(`/evento/${eventoId}/motoristas`);
+      navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`);
     } catch (error) {
       toast({
         title: "Erro ao desvincular",
@@ -156,7 +157,7 @@ export default function VincularVeiculo() {
             <Button 
               variant="ghost" 
               size="sm"
-              onClick={() => navigate(`/evento/${eventoId}/motoristas`)}
+              onClick={() => navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`)}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
