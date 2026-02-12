@@ -20,17 +20,22 @@ interface MapaServicoCardProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; textColor: string }> = {
-  disponivel: { label: 'Disponível', color: 'bg-green-500', textColor: 'text-green-400' },
-  em_viagem: { label: 'Em Viagem', color: 'bg-blue-500', textColor: 'text-blue-400' },
-  indisponivel: { label: 'Indisponível', color: 'bg-red-500', textColor: 'text-red-400' },
+  disponivel: { label: 'Disponível', color: 'bg-green-500', textColor: 'text-green-500' },
+  missao_pendente: { label: 'Missão Pendente', color: 'bg-amber-500', textColor: 'text-amber-500' },
+  missao_aceita: { label: 'Missão Aceita', color: 'bg-blue-500', textColor: 'text-blue-500' },
+  em_transito: { label: 'Em Trânsito', color: 'bg-blue-600 animate-pulse', textColor: 'text-blue-400' },
+  indisponivel: { label: 'Indisponível', color: 'bg-red-500', textColor: 'text-red-500' },
   inativo: { label: 'Inativo', color: 'bg-gray-500', textColor: 'text-gray-400' },
 };
 
-const missaoStatusConfig: Record<string, { label: string; className: string }> = {
-  pendente: { label: 'Missão Pendente', className: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
-  aceita: { label: 'Missão Aceita', className: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-  em_andamento: { label: 'Em Andamento', className: 'bg-green-500/20 text-green-300 border-green-500/30' },
-};
+function getDisplayStatus(motorista: MotoristaComVeiculo, missao?: Missao | null) {
+  if (motorista.status === 'indisponivel') return 'indisponivel';
+  if (motorista.status === 'em_viagem') return 'em_transito';
+  if (missao?.status === 'em_andamento') return 'em_transito';
+  if (missao?.status === 'aceita') return 'missao_aceita';
+  if (missao?.status === 'pendente') return 'missao_pendente';
+  return 'disponivel';
+}
 
 function isBackup(veiculo: MotoristaComVeiculo['veiculo']): boolean {
   return !!veiculo?.observacoes_gerais?.includes('[BACKUP]');
@@ -43,7 +48,8 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
     disabled: isDragOverlay,
   });
 
-  const status = statusConfig[motorista.status as string] || statusConfig.inativo;
+  const derivedStatus = getDisplayStatus(motorista, missao);
+  const status = statusConfig[derivedStatus] || statusConfig.inativo;
   const VeiculoIcon = motorista.veiculo?.tipo_veiculo === 'Ônibus' ? Bus : Car;
   const hasVeiculo = !!motorista.veiculo;
   const backup = hasVeiculo && isBackup(motorista.veiculo);
@@ -99,7 +105,7 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
 
   const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined;
 
-  const activeMissaoStatus = missao ? missaoStatusConfig[missao.status] : null;
+  const showMissaoRoute = missao?.ponto_embarque && missao?.ponto_desembarque;
 
   return (
     <div
@@ -116,7 +122,7 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
       <div className="flex items-center gap-1.5">
         <div className={cn("w-2 h-2 rounded-full shrink-0", status.color)} />
         <span className={cn("text-xs font-medium", status.textColor)}>{status.label}</span>
-        {tempoNoLocal && motorista.status !== 'em_viagem' && (
+        {tempoNoLocal && derivedStatus === 'disponivel' && (
           <span className="text-xs text-muted-foreground ml-auto">há {tempoNoLocal}</span>
         )}
       </div>
@@ -146,22 +152,17 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
         )}
       </div>
 
-      {/* Row 4: Missão badge */}
-      {activeMissaoStatus && (
-        <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", activeMissaoStatus.className)}>
-            {activeMissaoStatus.label}
-          </Badge>
-          {missao?.ponto_embarque && missao.ponto_desembarque && (
-            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 truncate">
-              {missao.ponto_embarque} <ArrowRight className="w-2.5 h-2.5 inline" /> {missao.ponto_desembarque}
-            </span>
-          )}
+      {/* Row 4: Mission route */}
+      {showMissaoRoute && (
+        <div className="flex items-center gap-1 text-[10px] text-blue-400 flex-wrap">
+          <span>{missao.ponto_embarque}</span>
+          <ArrowRight className="w-2.5 h-2.5 shrink-0" />
+          <span className="font-medium">{missao.ponto_desembarque}</span>
         </div>
       )}
 
-      {/* Row 5: Trajeto em trânsito */}
-      {motorista.status === 'em_viagem' && motorista.viagem_destino && !activeMissaoStatus && (
+      {/* Row 5: Trajeto em trânsito (fallback when no mission route) */}
+      {!showMissaoRoute && derivedStatus === 'em_transito' && motorista.viagem_destino && (
         <div className="flex items-center gap-1 text-[10px] text-blue-400 flex-wrap">
           {motorista.viagem_origem && <span>{motorista.viagem_origem}</span>}
           <ArrowRight className="w-2.5 h-2.5 shrink-0" />

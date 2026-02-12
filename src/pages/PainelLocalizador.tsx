@@ -354,6 +354,7 @@ export default function PainelLocalizador() {
                 titulo={local}
                 motoristas={dynamicMotoristas[local] || []}
                 tipo="local"
+                missoesPorMotorista={missoesPorMotorista}
               />
             ))}
 
@@ -362,6 +363,7 @@ export default function PainelLocalizador() {
                 titulo="Em Trânsito"
                 motoristas={dynamicMotoristas['em_transito']}
                 tipo="em_transito"
+                missoesPorMotorista={missoesPorMotorista}
               />
             )}
 
@@ -370,6 +372,7 @@ export default function PainelLocalizador() {
                 titulo="Sem Localização"
                 motoristas={dynamicMotoristas['sem_local']}
                 tipo="sem_local"
+                missoesPorMotorista={missoesPorMotorista}
               />
             )}
           </MapaServicoScrollContainer>
@@ -384,6 +387,7 @@ export default function PainelLocalizador() {
               motoristas={retornandoBaseMotoristas}
               tipo="retornando_base"
               isFixed
+              missoesPorMotorista={missoesPorMotorista}
             />
             {outrosNome && (
               <LocalizadorColumn
@@ -391,6 +395,7 @@ export default function PainelLocalizador() {
                 motoristas={outrosMotoristas}
                 tipo="outros"
                 isFixed
+                missoesPorMotorista={missoesPorMotorista}
               />
             )}
           </div>

@@ -9,6 +9,7 @@ interface LocalizadorColumnProps {
   motoristas: MotoristaComVeiculo[];
   tipo: 'local' | 'em_transito' | 'sem_local' | 'retornando_base' | 'outros';
   isFixed?: boolean;
+  missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string }>;
 }
 
 const columnConfig = {
@@ -48,7 +49,8 @@ export function LocalizadorColumn({
   titulo, 
   motoristas,
   tipo,
-  isFixed
+  isFixed,
+  missoesPorMotorista
 }: LocalizadorColumnProps) {
   const config = columnConfig[tipo];
   const Icon = config.icon;
@@ -87,7 +89,7 @@ export function LocalizadorColumn({
             </div>
           ) : (
             motoristas.map(motorista => (
-              <LocalizadorCard key={motorista.id} motorista={motorista} />
+              <LocalizadorCard key={motorista.id} motorista={motorista} missao={missoesPorMotorista?.get(motorista.id)} />
             ))
           )}
         </div>
