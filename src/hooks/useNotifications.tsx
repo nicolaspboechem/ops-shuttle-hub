@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, Clock, Car, UserCheck } from 'lucide-react';
+import { Bell, Play, MapPin, RotateCcw, CheckCircle, XCircle, Clock, Car, UserCheck, Fuel } from 'lucide-react';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 export interface Notification {
   id: string;
-  type: 'viagem' | 'veiculo' | 'motorista' | 'presenca' | 'vistoria';
+  type: 'viagem' | 'veiculo' | 'motorista' | 'presenca' | 'vistoria' | 'alerta_combustivel';
   action: string;
   title: string;
   description: string;
@@ -76,6 +76,18 @@ interface VistoriaLogResult {
   } | null;
 }
 
+interface AlertaFrotaResult {
+  id: string;
+  tipo: string;
+  nivel_combustivel: string | null;
+  status: string;
+  created_at: string;
+  evento_id: string | null;
+  veiculo: { placa: string } | null;
+  motorista: { nome: string } | null;
+  evento: { nome_planilha: string } | null;
+}
+
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 const actionConfig: Record<string, { label: string; icon: ReactNode; color: string }> = {
@@ -88,6 +100,7 @@ const actionConfig: Record<string, { label: string; icon: ReactNode; color: stri
   checkout: { label: 'Check-out Realizado', icon: <Clock className="h-4 w-4" />, color: 'bg-orange-500' },
   inspecao: { label: 'Veículo Inspecionado', icon: <Car className="h-4 w-4" />, color: 'bg-purple-500' },
   liberacao: { label: 'Veículo Liberado', icon: <CheckCircle className="h-4 w-4" />, color: 'bg-teal-500' },
+  alerta_combustivel: { label: 'Combustível Baixo', icon: <Fuel className="h-4 w-4" />, color: 'bg-red-600' },
 };
 
 // Helper to load Set from localStorage
@@ -134,30 +147,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchNotifications = useCallback(async () => {
-    const [viagemLogsRes, presencaLogsRes, vistoriaLogsRes] = await Promise.all([
+    const [viagemLogsRes, presencaLogsRes, vistoriaLogsRes, alertasFrotaRes] = await Promise.all([
       supabase
         .from('viagem_logs')
         .select(`
-          id,
-          acao,
-          created_at,
-          viagem:viagens!viagem_id(
-            motorista, 
-            placa, 
-            evento_id,
-            evento:eventos!evento_id(nome_planilha)
-          )
+          id, acao, created_at,
+          viagem:viagens!viagem_id(motorista, placa, evento_id, evento:eventos!evento_id(nome_planilha))
         `)
         .order('created_at', { ascending: false })
         .limit(30),
       supabase
         .from('motorista_presenca')
         .select(`
-          id,
-          checkin_at,
-          checkout_at,
-          updated_at,
-          evento_id,
+          id, checkin_at, checkout_at, updated_at, evento_id,
           motorista:motoristas!motorista_id(nome),
           evento:eventos!evento_id(nome_planilha)
         `)
@@ -166,15 +168,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       supabase
         .from('veiculo_vistoria_historico')
         .select(`
-          id,
-          tipo_vistoria,
-          status_novo,
-          created_at,
-          evento_id,
+          id, tipo_vistoria, status_novo, created_at, evento_id,
           veiculo:veiculos!veiculo_id(placa),
           realizado_por_nome,
           evento:eventos!evento_id(nome_planilha)
         `)
+        .order('created_at', { ascending: false })
+        .limit(15),
+      supabase
+        .from('alertas_frota')
+        .select(`
+          id, tipo, nivel_combustivel, status, created_at, evento_id,
+          veiculo:veiculos!veiculo_id(placa),
+          motorista:motoristas!motorista_id(nome),
+          evento:eventos!evento_id(nome_planilha)
+        `)
+        .in('status', ['aberto', 'pendente'])
         .order('created_at', { ascending: false })
         .limit(15),
     ]);
@@ -182,6 +191,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const viagemLogs = (viagemLogsRes.data || []) as unknown as ViagemLogResult[];
     const presencaLogs = (presencaLogsRes.data || []) as unknown as PresencaLogResult[];
     const vistoriaLogs = (vistoriaLogsRes.data || []) as unknown as VistoriaLogResult[];
+    const alertasFrota = (alertasFrotaRes.data || []) as unknown as AlertaFrotaResult[];
 
     const newNotifications: Notification[] = [];
 
@@ -242,6 +252,28 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         placa: placaVeiculo,
         eventoId: log.evento_id || undefined,
         eventoNome: log.evento?.nome_planilha || undefined,
+      });
+    });
+
+    // Alertas de combustível
+    alertasFrota.forEach((alerta) => {
+      const config = actionConfig.alerta_combustivel;
+      const placaVeiculo = alerta.veiculo?.placa || 'Veículo';
+      const motoristaNome = alerta.motorista?.nome || 'Motorista';
+      newNotifications.push({
+        id: `alerta-${alerta.id}`,
+        type: 'alerta_combustivel',
+        action: 'alerta_combustivel',
+        title: `${config.label} - ${alerta.nivel_combustivel || '?'}`,
+        description: `${motoristaNome} (${placaVeiculo})`,
+        timestamp: alerta.created_at,
+        read: false,
+        icon: config.icon,
+        color: config.color,
+        motorista: motoristaNome,
+        placa: placaVeiculo,
+        eventoId: alerta.evento_id || undefined,
+        eventoNome: alerta.evento?.nome_planilha || undefined,
       });
     });
 
@@ -322,10 +354,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, () => fetchNotifications())
       .subscribe();
 
+    const alertasFrotaChannel = supabase
+      .channel('shared-alertas-frota')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, () => fetchNotifications())
+      .subscribe();
+
     return () => {
       supabase.removeChannel(viagemLogsChannel);
       supabase.removeChannel(presencaChannel);
       supabase.removeChannel(vistoriaChannel);
+      supabase.removeChannel(alertasFrotaChannel);
     };
   }, [fetchNotifications]);
 

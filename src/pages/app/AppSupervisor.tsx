@@ -13,7 +13,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { 
   ChevronLeft,
   MoreVertical,
-  LogOut
+  LogOut,
+  Bell,
+  Fuel
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -36,6 +38,8 @@ import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
+import { useAlertasFrota } from '@/hooks/useAlertasFrota';
+import { SupervisorAlertasModal } from '@/components/app/SupervisorAlertasModal';
 
 // Memoized tab components
 const MemoizedFrotaTab = memo(SupervisorFrotaTab);
@@ -62,6 +66,7 @@ export default function AppSupervisor() {
   const [showNovaViagem, setShowNovaViagem] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
+  const [showAlertasModal, setShowAlertasModal] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   
   // Dia operacional
@@ -94,6 +99,7 @@ export default function AppSupervisor() {
   const { createMissao } = useMissoes(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
+  const { alertas, atualizarStatus: atualizarAlertaStatus } = useAlertasFrota(eventoId);
 
   useEffect(() => {
     if (eventoId) {
@@ -238,6 +244,21 @@ export default function AppSupervisor() {
               </div>
             </div>
 
+            {/* Bell icon for fuel alerts */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary-foreground hover:bg-white/10 relative"
+              onClick={() => setShowAlertasModal(true)}
+            >
+              <Fuel className="h-5 w-5" />
+              {alertas.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-bold">
+                  {alertas.length}
+                </span>
+              )}
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
@@ -297,6 +318,14 @@ export default function AppSupervisor() {
         onSave={async (data) => {
           await createMissao(data);
         }}
+      />
+
+      {/* Alertas de Combustível */}
+      <SupervisorAlertasModal
+        open={showAlertasModal}
+        onOpenChange={setShowAlertasModal}
+        alertas={alertas}
+        onAtualizarStatus={atualizarAlertaStatus}
       />
     </div>
   );

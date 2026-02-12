@@ -21,9 +21,12 @@ import { VeiculoFotosModal } from './VeiculoFotosModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useVistoriaHistorico } from '@/hooks/useVistoriaHistorico';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { ReportarCombustivelModal } from './ReportarCombustivelModal';
 
 interface MotoristaVeiculoTabProps {
   veiculo: Veiculo | null;
+  eventoId?: string;
+  motoristaId?: string;
 }
 
 interface VeiculoFoto {
@@ -43,11 +46,12 @@ interface AvariaCompleta {
   motoristaEmUso: string | null;
 }
 
-export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
+export function MotoristaVeiculoTab({ veiculo, eventoId, motoristaId }: MotoristaVeiculoTabProps) {
   const [showFotosModal, setShowFotosModal] = useState(false);
   const [fotos, setFotos] = useState<VeiculoFoto[]>([]);
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [showReportarCombustivel, setShowReportarCombustivel] = useState(false);
 
   // Buscar histórico de vistorias para obter detalhes das avarias
   const { data: vistoriasHistorico } = useVistoriaHistorico(veiculo?.id || null);
@@ -235,6 +239,18 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
               </p>
             </div>
           )}
+
+          {/* Botão Reportar Combustível */}
+          {eventoId && motoristaId && veiculo?.id && (
+            <Button
+              variant="outline"
+              className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
+              onClick={() => setShowReportarCombustivel(true)}
+            >
+              <Fuel className="h-4 w-4 mr-2" />
+              Reportar Combustível Baixo
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -399,6 +415,18 @@ export function MotoristaVeiculoTab({ veiculo }: MotoristaVeiculoTabProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal Reportar Combustível */}
+      {eventoId && motoristaId && veiculo?.id && (
+        <ReportarCombustivelModal
+          open={showReportarCombustivel}
+          onOpenChange={setShowReportarCombustivel}
+          eventoId={eventoId}
+          veiculoId={veiculo.id}
+          motoristaId={motoristaId}
+          nivelAtual={veiculo.nivel_combustivel}
+        />
+      )}
     </div>
   );
 }

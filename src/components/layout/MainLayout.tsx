@@ -82,13 +82,8 @@ export function MainLayout({ children }: MainLayoutProps) {
           ))}
         </nav>
 
-        {/* Notifications & User section */}
+        {/* User section */}
         <div className="px-3 py-4 border-t border-sidebar-border space-y-3">
-          {/* Notifications button */}
-          <div className={cn("flex", collapsed ? "justify-center" : "px-3")}>
-            <NotificationsPanel />
-          </div>
-          
           {!collapsed && profile && (
             <div className="px-3 py-2">
               <p className="text-sm font-medium truncate">{profile.full_name || profile.email}</p>
@@ -106,8 +101,14 @@ export function MainLayout({ children }: MainLayoutProps) {
         </button>
       </aside>
 
-        <main className={cn("flex-1 transition-all duration-300", collapsed ? "ml-16" : "ml-64")}>
-          {children}
+        <main className={cn("flex-1 transition-all duration-300 flex flex-col", collapsed ? "ml-16" : "ml-64")}>
+          {/* Top header bar with notifications */}
+          <div className="sticky top-0 z-40 bg-background border-b border-border px-6 py-3 flex items-center justify-end gap-3">
+            <NotificationsPanel />
+          </div>
+          <div className="flex-1">
+            {children}
+          </div>
         </main>
       </div>
     </TooltipProvider>
