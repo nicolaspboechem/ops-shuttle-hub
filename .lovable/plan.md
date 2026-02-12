@@ -1,123 +1,62 @@
 
+# Correcao de 3 Bugs: Vinculacao de Veiculo, Edicao de Nome e Wizard Travado
 
-# Otimizacao de Fluxos, Limpeza de Codigo e Atualizacao de Versao
+## Bug 1: Supervisor redirecionado para login ao vincular veiculo
 
-## Resumo
-
-Tres frentes de trabalho: (1) remover o dropdown redundante de tipo no formulario de viagem, (2) garantir que o status do motorista se atualize automaticamente em todos os fluxos, e (3) limpar codigo morto e atualizar a versao.
-
----
-
-## 1. Remover Dropdown Redundante no CreateViagemForm
-
-**Problema**: Quando o operador/supervisor clica em "Transfer" ou "Shuttle" no `NewActionModal`, o formulario `CreateViagemForm` abre com o tipo pre-selecionado via `defaultTipoOperacao`. Porem, dentro do formulario ainda existe um dropdown `<Select>` para trocar o tipo (linhas 463-474), o que e redundante -- o usuario ja escolheu antes.
-
-**Solucao**:
-- Remover o dropdown de tipo de operacao do `CreateViagemForm.tsx`
-- O tipo sera definido exclusivamente pelo `defaultTipoOperacao` recebido como prop
-- O campo fica invisivel, mas o valor continua sendo enviado ao Supabase
-- Ajustar o layout: o campo "Qtd PAX" ocupa a largura inteira ao inves de `grid-cols-2`
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/components/app/CreateViagemForm.tsx` | Remover Select de tipo_operacao, campo PAX ocupa largura cheia |
-
----
-
-## 2. Status Automatico do Motorista (Comunicacao entre apps)
-
-**O que ja funciona**: O `useViagemOperacao.ts` ja atualiza automaticamente o status do motorista para `em_viagem` ao iniciar e `disponivel` ao encerrar. Porem, o fluxo de criacao de viagem no `CreateViagemForm.tsx` (usado pelo Operador e Supervisor) NAO atualiza o status do motorista.
-
-**Solucao**: Adicionar atualizacao automatica de status nos pontos que faltam:
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/components/app/CreateViagemForm.tsx` | Apos criar viagem com sucesso, atualizar `motoristas.status = 'em_viagem'` usando o `motorista_id` resolvido |
-| `src/components/app/CreateViagemMotoristaForm.tsx` | Ja atualiza (linha 178-183) -- sem mudanca necessaria |
-| `src/hooks/useViagemOperacao.ts` | Ja atualiza -- sem mudanca necessaria |
-
-Isso garante que quando o CCO/Operador/Supervisor cria uma viagem, o motorista aparece automaticamente como "em viagem" em todos os paineis (Localizador, Mapa de Servico, App do Supervisor, etc.) via Realtime.
-
----
-
-## 3. Missoes no Operador -- sempre instantanea
-
-**Problema atual**: Quando o Operador clica em Missao, aparece o `MissaoTipoModal` perguntando "Instantanea ou Agendada?". Conforme solicitado, no Operador e Supervisor a missao sera sempre instantanea.
-
-**Solucao**:
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/app/AppOperador.tsx` | Remover `MissaoTipoModal` -- ao selecionar "Missao" no `NewActionModal`, abrir diretamente o `MissaoInstantaneaModal` |
-| `src/pages/app/AppSupervisor.tsx` | Remover `MissaoTipoModal` -- ao selecionar "Missao", abrir diretamente o `MissaoInstantaneaModal` |
-
-Isso remove um clique intermediario desnecessario.
-
----
-
-## 4. Limpeza de Codigo Morto
-
-| Arquivo | Limpeza |
-|---|---|
-| `src/pages/app/AppOperador.tsx` | Remover import e estado do `MissaoTipoModal` e `MissaoModal` (agendada) que nao serao mais usados |
-| `src/pages/app/AppSupervisor.tsx` | Remover import e estado do `MissaoTipoModal` e `MissaoModal` (agendada) que nao serao mais usados |
-| `src/components/app/CreateViagemForm.tsx` | Remover import e JSX do Select de tipo_operacao |
-
----
-
-## 5. Atualizar Versao do App
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/lib/version.ts` | `APP_VERSION` de `'1.3.0'` para `'1.4.0'` (nova funcionalidade: kanban de missoes + otimizacao de fluxos) |
-
----
-
-## Detalhes Tecnicos
-
-### CreateViagemForm.tsx -- remocao do dropdown
-
-```text
-ANTES (grid-cols-2):
-  [ Qtd PAX ] [ Tipo (dropdown) ]
-
-DEPOIS (largura cheia):
-  [ Qtd PAX .......................... ]
-  (tipo definido pela prop, sem UI)
+### Causa raiz
+Em `SupervisorFrotaTab.tsx` (linha 93), ao clicar "Vincular Veiculo", o sistema navega para:
 ```
-
-### Status automatico -- fluxo completo
-
-```text
-CCO/Operador/Supervisor cria viagem
-  -> Supabase INSERT viagens (status: em_andamento)
-  -> Supabase UPDATE motoristas (status: em_viagem)   <-- ADICIONADO
-  -> Realtime propaga para todos os apps
-
-Motorista/Operador encerra viagem
-  -> useViagemOperacao.encerrarViagem()
-  -> Supabase UPDATE motoristas (status: disponivel)  <-- JA EXISTE
-  -> Realtime propaga para todos os apps
+/evento/{eventoId}/vincular-veiculo/{motoristaId}
 ```
+Essa rota esta protegida por `AdminRoute` em `App.tsx` (linha 151), que exige autenticacao Supabase Auth (admin). O supervisor usa Staff JWT (auth customizada), que nao e reconhecida pelo `AdminRoute`, causando redirecionamento para `/auth`.
 
-### Missao no Operador/Supervisor -- fluxo simplificado
+### Solucao
 
-```text
-ANTES:
-  + Nova > Missao > [Instantanea/Agendada?] > Formulario
+| Arquivo | Mudanca |
+|---|---|
+| `src/App.tsx` | Adicionar rota `/app/:eventoId/vincular-veiculo/:motoristaId` protegida por `StaffRoute` com roles `['supervisor']` |
+| `src/components/app/SupervisorFrotaTab.tsx` | Alterar navigate de `/evento/...` para `/app/...` |
+| `src/pages/VincularVeiculo.tsx` | Ajustar botao "Voltar" para detectar contexto (`/app/` vs `/evento/`) e navegar corretamente |
 
-DEPOIS:
-  + Nova > Missao > Formulario Instantaneo (direto)
-```
+---
+
+## Bug 2: Wizard de criacao de veiculo - botao "Proximo" nao funciona (Etapa 1)
+
+### Causa raiz
+A validacao em `canProceed()` (linha 82) exige `placa.trim().length >= 7`. Com o input tendo `maxLength={7}`, o usuario precisa digitar exatamente 7 caracteres para habilitar o botao. Isso e correto para placas brasileiras, mas pode confundir o usuario se ele digitar com espaco, hifen ou formato diferente. Alem disso, nao ha feedback visual indicando por que o botao esta desabilitado.
+
+### Solucao
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/components/veiculos/CreateVeiculoWizard.tsx` | (1) Relaxar validacao para `>= 2` caracteres -- aceitar placas de formatos variados. (2) Aumentar `maxLength` de 7 para 8 para acomodar formatos com hifen (ABC-1234). (3) Adicionar texto auxiliar abaixo do campo placa indicando o formato esperado e quantos caracteres faltam. (4) Adicionar auto-uppercase no valor (ja tem `className="uppercase"` mas nao transforma o valor real). |
+
+---
+
+## Bug 3: Permitir edicao do nome/apelido do veiculo (Supervisor e CCO)
+
+### Situacao atual
+O card do supervisor (`VeiculoCardSupervisor.tsx`) exibe o nome do veiculo mas NAO permite edita-lo. O modal do CCO (`VeiculoDetalheModal.tsx`) tambem nao oferece edicao do nome.
+
+### Solucao
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/components/app/VeiculoCardSupervisor.tsx` | Adicionar item "Editar Nome" no dropdown do card. Ao clicar, exibir mini-dialog com input para novo nome. Ao confirmar, atualizar via Supabase e chamar callback de refetch. |
+| `src/components/app/SupervisorFrotaTab.tsx` | Adicionar handler `handleEditNome` que faz `UPDATE veiculos SET nome = ... WHERE id = ...` e refetch |
+| `src/components/veiculos/VeiculoDetalheModal.tsx` | Tornar o campo "Nome" editavel inline com botao de edicao/salvar |
+
+A sincronizacao entre apps acontece automaticamente: ao atualizar o nome no banco, qualquer tela que faz refetch (ou usa Realtime) vera o nome atualizado.
 
 ---
 
 ## Resumo de Arquivos Modificados
 
-| # | Arquivo | Tipo |
+| # | Arquivo | Mudanca |
 |---|---|---|
-| 1 | `src/components/app/CreateViagemForm.tsx` | Remover dropdown tipo + adicionar sync status motorista |
-| 2 | `src/pages/app/AppOperador.tsx` | Remover MissaoTipoModal e MissaoModal, ir direto para instantanea |
-| 3 | `src/pages/app/AppSupervisor.tsx` | Remover MissaoTipoModal e MissaoModal, ir direto para instantanea |
-| 4 | `src/lib/version.ts` | Atualizar para 1.4.0 |
-
+| 1 | `src/App.tsx` | Nova rota `/app/:eventoId/vincular-veiculo/:motoristaId` com StaffRoute |
+| 2 | `src/components/app/SupervisorFrotaTab.tsx` | Corrigir navigate + adicionar handler editNome |
+| 3 | `src/pages/VincularVeiculo.tsx` | Ajustar "Voltar" para detectar contexto app vs evento |
+| 4 | `src/components/veiculos/CreateVeiculoWizard.tsx` | Relaxar validacao da placa + feedback visual |
+| 5 | `src/components/app/VeiculoCardSupervisor.tsx` | Adicionar "Editar Nome" no dropdown com mini-dialog |
+| 6 | `src/components/veiculos/VeiculoDetalheModal.tsx` | Tornar nome editavel inline no modal do CCO |
