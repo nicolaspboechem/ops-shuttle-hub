@@ -1,122 +1,95 @@
 
 
-# Corrigir "Chamar Base" - Rota visivel no card + registro no historico
+# Atualizar design do Kanban de Veiculos para seguir o padrao do Kanban de Missoes
 
-## Problemas identificados
+## Resumo
 
-### 1. Rota nao aparece no card do Mapa de Servico
-No `MapaServicoCard.tsx` (linha 155), a rota (origem -> destino) da missao so aparece quando `missao.status === 'em_andamento'`. Missoes de "Chamar Base" comecam com status `pendente`, entao a rota fica invisivel ate o motorista iniciar a missao.
+O Kanban de missoes e limpo e rapido: card inteiro arrastavel (sem icone de 6 pontos), sem animacoes pesadas do framer-motion, colunas simples com bolinha colorida + badge de contagem. O Kanban de veiculos usa `GripVertical` como handle de arraste, `framer-motion` com layout animations (causando delay), e colunas com header colorido pesado. Vamos alinhar o estilo.
 
-### 2. Nenhuma viagem e criada no historico
-O `handleChamarBase` em `MapaServico.tsx` apenas cria uma missao via `createMissao()`, mas nunca insere um registro na tabela `viagens`. Por isso, o retorno a base nao aparece no historico de viagens do motorista.
+## Mudancas
 
-## Solucao
+### 1. VeiculoKanbanCardFull.tsx - Remover drag handle e framer-motion
 
-### Etapa 1: Exibir rota para TODOS os status ativos no card
+**Antes:** Card usa `GripVertical` como zona de arraste separada + `motion.div` com layout animations, `AnimatePresence`, e overlay com rotacao/escala animada.
 
-**Arquivo:** `src/components/mapa-servico/MapaServicoCard.tsx`
+**Depois:**
+- Remover import de `GripVertical`
+- Remover imports de `motion`, `AnimatePresence`, `CSS` do framer-motion
+- Tornar o card inteiro arrastavel (como no MissaoKanbanCard): aplicar `listeners` e `attributes` no container principal
+- Trocar `motion.div` por `div` simples
+- Manter o estilo de `cursor-grab active:cursor-grabbing` no card inteiro
+- Overlay simplificado: `div` com `shadow-xl ring-2 ring-primary/50` (sem animacao de rotacao)
+- Classes de transicao: `transition-shadow hover:shadow-md`, `isDragging && "opacity-40"`
 
-Alterar a condicao da linha 155 de:
+Estrutura resultante (similar ao MissaoKanbanCard):
 ```tsx
-{missao?.status === 'em_andamento' && missao.ponto_embarque && missao.ponto_desembarque && (
-```
-Para:
-```tsx
-{missao?.ponto_embarque && missao.ponto_desembarque && (
-```
-
-Isso mostra a rota (ex: "Ponto X -> Base") em qualquer status ativo (pendente, aceita, em_andamento), ja que o badge so renderiza para status ativos.
-
-### Etapa 2: Criar viagem no historico ao chamar base
-
-**Arquivo:** `src/pages/MapaServico.tsx`
-
-No `handleChamarBase`, apos criar a missao, inserir um registro na tabela `viagens` com:
-- `evento_id`: o evento atual
-- `motorista_id`: o motorista chamado
-- `motorista`: nome do motorista (campo legado)
-- `tipo_operacao`: `'missao'`
-- `ponto_embarque`: localizacao atual do motorista
-- `ponto_desembarque`: nome da base
-- `observacao`: `'Retorno a base solicitado'` (identificador diferenciador)
-- `origem_missao_id`: ID da missao criada (vinculo bidirecional)
-- `status`: `'agendado'`
-- `placa`, `tipo_veiculo`: preenchidos a partir do veiculo vinculado ao motorista
-- `veiculo_id`: veiculo do motorista
-- `h_pickup`: horario atual (para registro de quando foi solicitado)
-- `criado_por`: usuario logado
-
-Apos criar a viagem, atualizar a missao com o `viagem_id` para manter o vinculo bidirecional (missao -> viagem e viagem -> missao via `origem_missao_id`).
-
-Codigo aproximado:
-```tsx
-const handleChamarBase = useCallback(async () => {
-  if (!chamarBaseMotorista || !eventoId) return;
-  
-  const missao = await createMissao({
-    motorista_id: chamarBaseMotorista.id,
-    titulo: 'Retorno a Base',
-    ponto_embarque: chamarBaseMotorista.ultima_localizacao || 'Local atual',
-    ponto_desembarque: baseNome,
-    prioridade: 'normal',
-  });
-
-  // Criar viagem no historico
-  if (missao) {
-    const agora = new Date().toISOString();
-    const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
-    
-    const { data: viagem } = await supabase
-      .from('viagens')
-      .insert({
-        evento_id: eventoId,
-        motorista_id: chamarBaseMotorista.id,
-        motorista: chamarBaseMotorista.nome,
-        tipo_operacao: 'missao',
-        ponto_embarque: chamarBaseMotorista.ultima_localizacao || 'Local atual',
-        ponto_desembarque: baseNome,
-        observacao: 'Retorno a base solicitado',
-        origem_missao_id: missao.id,
-        status: 'agendado',
-        veiculo_id: chamarBaseMotorista.veiculo_id || null,
-        placa: chamarBaseMotorista.veiculo?.placa || null,
-        tipo_veiculo: chamarBaseMotorista.veiculo?.tipo_veiculo || null,
-        h_pickup: horaAtual,
-        criado_por: user?.id,
-      })
-      .select('id')
-      .single();
-
-    // Vincular viagem a missao
-    if (viagem) {
-      await supabase
-        .from('missoes')
-        .update({ viagem_id: viagem.id })
-        .eq('id', missao.id);
-    }
-  }
-
-  if (retornandoPontoNome) {
-    await supabase
-      .from('motoristas')
-      .update({ ultima_localizacao: retornandoPontoNome, ultima_localizacao_at: new Date().toISOString() })
-      .eq('id', chamarBaseMotorista.id);
-  }
-  setChamarBaseMotorista(null);
-}, [chamarBaseMotorista, eventoId, createMissao, baseNome, retornandoPontoNome, user]);
+<div
+  ref={setNodeRef}
+  style={style}
+  {...(!isDragOverlay ? { ...listeners, ...attributes } : {})}
+  className={cn(
+    "bg-card border border-border rounded-lg p-4 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md flex flex-col gap-3 select-none",
+    isDragging && "opacity-40",
+    isDragOverlay && "shadow-xl ring-2 ring-primary/50",
+  )}
+>
+  {/* conteudo do card sem GripVertical */}
+</div>
 ```
 
-Isso requer acesso ao `user` do `useAuth()`, que precisa ser importado no `MapaServico.tsx`.
+### 2. VeiculoKanbanColumnFull.tsx - Simplificar para padrao MissaoKanbanColumn
+
+**Antes:** Coluna usa `motion.div` com animacao de scale ao hover, header com background colorido forte, `AnimatePresence mode="popLayout"`.
+
+**Depois:**
+- Remover imports de `motion`, `AnimatePresence` do framer-motion
+- Trocar `motion.div` por `div` simples
+- Header simplificado: bolinha colorida + titulo + Badge de contagem (como MissaoKanbanColumn)
+- Manter a transicao suave ao receber drop: `isOver && "bg-primary/5 border-primary/30"`
+- Remover `AnimatePresence` do wrapper dos cards
+- Manter `ScrollArea` para scroll
+
+Estrutura resultante:
+```tsx
+<div
+  ref={setNodeRef}
+  className={cn(
+    "flex flex-col bg-muted/30 rounded-xl border border-border/50 min-w-[300px] flex-1 transition-colors",
+    isOver && "bg-primary/5 border-primary/30"
+  )}
+>
+  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">
+    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", config.accentColor)} />
+    <span className="text-sm font-semibold text-foreground">{config.title}</span>
+    <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 h-5">
+      {veiculos.length}
+    </Badge>
+  </div>
+  <ScrollArea ...>
+    <div className="p-2 space-y-2 min-h-[60px]">
+      {cards...}
+    </div>
+  </ScrollArea>
+</div>
+```
+
+O `statusConfig` sera simplificado para ter apenas `accentColor` (cor da bolinha) em vez de multiplas propriedades de cor:
+- liberado: `bg-emerald-500`
+- pendente: `bg-amber-500`
+- em_inspecao: `bg-blue-500`
+- manutencao: `bg-gray-500`
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/mapa-servico/MapaServicoCard.tsx` | Remover condicao `status === 'em_andamento'` da exibicao de rota |
-| `src/pages/MapaServico.tsx` | Importar `useAuth`, criar viagem + vincular missao no `handleChamarBase` |
+| `src/components/veiculos/VeiculoKanbanCardFull.tsx` | Remover GripVertical, remover framer-motion, card inteiro arrastavel |
+| `src/components/veiculos/VeiculoKanbanColumnFull.tsx` | Remover framer-motion, header com bolinha + badge simples |
 
 ## Resultado
 
-- Card do Mapa de Servico mostra a rota "Ponto X -> Base" imediatamente apos chamar base (status pendente)
-- Historico de viagens do motorista exibe a viagem com ponto de origem, destino (Base), horario e a observacao "Retorno a base solicitado" para identificacao
+- Design consistente entre os dois kanbans
+- Sem delay de animacao ao arrastar
+- Sem icone de 6 pontos (GripVertical) - card inteiro e arrastavel
+- Visual limpo e minimalista
 
