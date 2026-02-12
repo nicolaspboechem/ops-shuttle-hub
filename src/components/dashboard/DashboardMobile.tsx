@@ -1,16 +1,21 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { MobileHeader } from '@/components/layout/MobileHeader';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
+import { MotoristaStatusPanel } from '@/components/dashboard/MotoristaStatusPanel';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
+import { useMotoristasDashboard } from '@/hooks/useMotoristasDashboard';
+import { useEventos } from '@/hooks/useEventos';
+import { useServerTime } from '@/hooks/useServerTime';
 import { formatarMinutos } from '@/lib/utils/calculadores';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -75,6 +80,15 @@ function StatusCard({ title, value, icon, variant }: StatusCardProps) {
 
 export function DashboardMobile() {
   const { eventoId } = useParams<{ eventoId: string }>();
+  const { getEventoById } = useEventos();
+  const { getAgoraSync } = useServerTime();
+  const evento = eventoId ? getEventoById(eventoId) : null;
+
+  const dataOperacional = useMemo(() => {
+    const virada = evento?.horario_virada_dia || '04:00';
+    return getDataOperacional(getAgoraSync(), virada);
+  }, [evento?.horario_virada_dia, getAgoraSync]);
+
   const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   
@@ -95,9 +109,15 @@ export function DashboardMobile() {
 
   const { kpis, viagensAtivas, viagensFinalizadas } = useCalculos(viagensFiltradas);
 
+  // Set de motorista_ids com viagem ativa
+  const motoristasEmViagemSet = useMemo(() => {
+    return new Set(viagensAtivas.map(v => v.motorista_id).filter(Boolean) as string[]);
+  }, [viagensAtivas]);
+
+  const motoristasDash = useMotoristasDashboard(eventoId, dataOperacional, motoristasEmViagemSet);
+
   // Real-time metrics
   const metricsRealTime = useMemo(() => {
-    const motoristasAtivos = new Set(viagensAtivas.map(v => v.motorista));
     const veiculosAtivos = new Set(viagensAtivas.map(v => v.placa).filter(Boolean));
     
     const tiposVeiculosAtivos = viagensAtivas.reduce((acc, v) => {
@@ -108,7 +128,6 @@ export function DashboardMobile() {
 
     return {
       viagensAtivas: viagensAtivas.length,
-      motoristasAtivos: motoristasAtivos.size,
       veiculosAtivos: veiculosAtivos.size,
       onibus: tiposVeiculosAtivos['Ônibus'] || 0,
       vans: tiposVeiculosAtivos['Van'] || 0,
@@ -180,18 +199,20 @@ export function DashboardMobile() {
             highlight
           />
           <MobileMetricCard 
-            title="Motoristas" 
-            value={metricsRealTime.motoristasAtivos} 
-            subtitle={`${motoristas.length} cadastrados`} 
-            icon={<Users className="w-5 h-5" />} 
-          />
-          <MobileMetricCard 
             title="Veículos" 
             value={metricsRealTime.veiculosAtivos} 
             subtitle={`${metricsRealTime.onibus} ôn. ${metricsRealTime.vans} vans`} 
             icon={<Truck className="w-5 h-5" />} 
           />
         </div>
+
+        {/* Motoristas em Tempo Real */}
+        <MotoristaStatusPanel
+          online={motoristasDash.online}
+          disponiveis={motoristasDash.disponiveis}
+          emTransito={motoristasDash.emTransito}
+          compact
+        />
 
         {/* Tempo médio */}
         <Card>
