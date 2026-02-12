@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ClienteLocalizadorTabProps {
   eventoId: string;
@@ -16,6 +17,38 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
   const { motoristas, loading, refetch } = useLocalizadorMotoristas(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [missoesAtivas, setMissoesAtivas] = useState<any[]>([]);
+
+  // Fetch active missions
+  useEffect(() => {
+    const fetchMissoes = () => {
+      supabase
+        .from('missoes')
+        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status')
+        .eq('evento_id', eventoId)
+        .in('status', ['pendente', 'aceita', 'em_andamento'])
+        .then(({ data }) => setMissoesAtivas(data || []));
+    };
+    fetchMissoes();
+
+    const channel = supabase
+      .channel('cliente-loc-missoes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missoes' }, fetchMissoes)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [eventoId]);
+
+  const missoesPorMotorista = useMemo(() => {
+    const map = new Map<string, typeof missoesAtivas[number]>();
+    missoesAtivas.forEach(m => {
+      const existing = map.get(m.motorista_id);
+      if (!existing || m.status === 'em_andamento' || (m.status === 'aceita' && existing.status === 'pendente')) {
+        map.set(m.motorista_id, m);
+      }
+    });
+    return map;
+  }, [missoesAtivas]);
 
   const handleRefresh = () => {
     refetch();
@@ -69,6 +102,7 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
             titulo="Em Trânsito"
             motoristas={motoristasEmTransito}
             tipo="em_transito"
+            missoesPorMotorista={missoesPorMotorista}
           />
         )}
 
@@ -82,6 +116,7 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
               titulo={loc}
               motoristas={motsDisponiveis}
               tipo="local"
+              missoesPorMotorista={missoesPorMotorista}
             />
           );
         })}

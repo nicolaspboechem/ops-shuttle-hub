@@ -3,25 +3,36 @@ import { cn } from '@/lib/utils';
 import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Badge } from '@/components/ui/badge';
 
 interface LocalizadorCardProps {
   motorista: MotoristaComVeiculo;
+  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string } | null;
 }
 
 const statusConfig = {
   disponivel: { label: 'Disponível', color: 'bg-green-500', textColor: 'text-green-400' },
-  em_viagem: { label: 'Em Viagem', color: 'bg-blue-500', textColor: 'text-blue-400' },
+  missao_pendente: { label: 'Missão Pendente', color: 'bg-amber-500', textColor: 'text-amber-400' },
+  missao_aceita: { label: 'Missão Aceita', color: 'bg-blue-500', textColor: 'text-blue-400' },
+  em_transito: { label: 'Em Trânsito', color: 'bg-blue-600 animate-pulse', textColor: 'text-blue-400' },
   indisponivel: { label: 'Indisponível', color: 'bg-red-500', textColor: 'text-red-400' },
-  inativo: { label: 'Inativo', color: 'bg-gray-500', textColor: 'text-gray-400' },
 };
+
+function getDisplayStatus(motorista: MotoristaComVeiculo, missao?: { status: string } | null) {
+  if (motorista.status === 'indisponivel') return 'indisponivel';
+  if (motorista.status === 'em_viagem') return 'em_transito';
+  if (missao?.status === 'em_andamento') return 'em_transito';
+  if (missao?.status === 'aceita') return 'missao_aceita';
+  if (missao?.status === 'pendente') return 'missao_pendente';
+  return 'disponivel';
+}
 
 function isBackup(veiculo: MotoristaComVeiculo['veiculo']): boolean {
   return !!veiculo?.observacoes_gerais?.includes('[BACKUP]');
 }
 
-export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
-  const status = statusConfig[motorista.status as keyof typeof statusConfig] || statusConfig.inativo;
+export function LocalizadorCard({ motorista, missao }: LocalizadorCardProps) {
+  const displayStatus = getDisplayStatus(motorista, missao);
+  const status = statusConfig[displayStatus];
   const VeiculoIcon = motorista.veiculo?.tipo_veiculo === 'Ônibus' ? Bus : Car;
   const hasVeiculo = !!motorista.veiculo;
   const backup = hasVeiculo && isBackup(motorista.veiculo);
@@ -33,13 +44,16 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
       })
     : null;
 
+  // Show route from mission if available
+  const showRoute = missao?.ponto_embarque && missao?.ponto_desembarque;
+
   return (
     <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-3 hover:bg-card transition-colors flex flex-col gap-1.5">
       {/* Status */}
       <div className="flex items-center gap-1.5">
         <div className={cn("w-2 h-2 rounded-full shrink-0", status.color)} />
         <span className={cn("text-xs font-medium", status.textColor)}>{status.label}</span>
-        {tempoNoLocal && motorista.status !== 'em_viagem' && (
+        {tempoNoLocal && displayStatus === 'disponivel' && (
           <span className="text-xs text-muted-foreground ml-auto">há {tempoNoLocal}</span>
         )}
       </div>
@@ -67,12 +81,19 @@ export function LocalizadorCard({ motorista }: LocalizadorCardProps) {
         )}
       </div>
 
-      {/* Trajeto (em trânsito) */}
-      {motorista.status === 'em_viagem' && motorista.viagem_destino && (
+      {/* Route (from mission or trip) */}
+      {showRoute && (
         <div className="flex items-center gap-1 text-xs text-blue-400 flex-wrap">
-          {motorista.viagem_origem && (
-            <span>{motorista.viagem_origem}</span>
-          )}
+          <span>{missao.ponto_embarque}</span>
+          <ArrowRight className="w-3 h-3 shrink-0" />
+          <span className="font-medium">{missao.ponto_desembarque}</span>
+        </div>
+      )}
+
+      {/* Trip route fallback (no mission but in transit) */}
+      {!showRoute && displayStatus === 'em_transito' && motorista.viagem_destino && (
+        <div className="flex items-center gap-1 text-xs text-blue-400 flex-wrap">
+          {motorista.viagem_origem && <span>{motorista.viagem_origem}</span>}
           <ArrowRight className="w-3 h-3 shrink-0" />
           <span className="font-medium">{motorista.viagem_destino}</span>
         </div>
