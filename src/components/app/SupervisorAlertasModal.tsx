@@ -1,12 +1,13 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Fuel, MapPin, Clock, CheckCircle, Loader2 } from 'lucide-react';
+import { Fuel, MapPin, Clock, CheckCircle, Loader2, Wrench } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertaFrota } from '@/hooks/useAlertasFrota';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SupervisorAlertasModalProps {
   open: boolean;
@@ -36,6 +37,19 @@ export function SupervisorAlertasModal({
     try {
       await onAtualizarStatus(id, status);
       toast.success(status === 'pendente' ? 'Marcado como pendente' : 'Alerta resolvido!');
+    } catch {
+      toast.error('Erro ao atualizar');
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleManutencao = async (alerta: AlertaFrota) => {
+    setLoadingId(alerta.id);
+    try {
+      await supabase.from('veiculos').update({ status: 'em_manutencao' }).eq('id', alerta.veiculo_id);
+      await onAtualizarStatus(alerta.id, 'resolvido');
+      toast.success('Veículo enviado para manutenção');
     } catch {
       toast.error('Erro ao atualizar');
     } finally {
@@ -100,9 +114,19 @@ export function SupervisorAlertasModal({
                         onClick={() => handleAction(alerta.id, 'pendente')}
                       >
                         {loadingId === alerta.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4 mr-1" />}
-                        Chamar Base
+                        Base
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={loadingId === alerta.id}
+                      onClick={() => handleManutencao(alerta)}
+                    >
+                      {loadingId === alerta.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wrench className="h-4 w-4 mr-1" />}
+                      Manutenção
+                    </Button>
                     <Button
                       size="sm"
                       variant="default"
