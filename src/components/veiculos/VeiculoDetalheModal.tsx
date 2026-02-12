@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -16,7 +17,10 @@ import {
   Calendar,
   Building,
   Info,
-  History
+  History,
+  Pencil,
+  Check,
+  X as XIcon
 } from 'lucide-react';
 import {
   Dialog,
@@ -30,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { VeiculoStatusBadge, FuelIndicator, AvariaIndicator } from './VeiculoStatusBadge';
 import { VistoriaHistoricoCard } from './VistoriaHistoricoCard';
 import { VistoriaDetalheModal } from './VistoriaDetalheModal';
@@ -84,6 +89,8 @@ export function VeiculoDetalheModal({
   eventoId
 }: VeiculoDetalheModalProps) {
   const [selectedVistoria, setSelectedVistoria] = useState<VistoriaHistorico | null>(null);
+  const [editingNome, setEditingNome] = useState(false);
+  const [nomeValue, setNomeValue] = useState('');
 
   // Buscar histórico de vistorias
   const { data: vistoriasHistorico, isLoading: vistoriasLoading } = useVistoriaHistorico(veiculo?.id || null);
@@ -167,9 +174,49 @@ export function VeiculoDetalheModal({
                 <TipoIcon className="h-8 w-8" />
               </div>
               <div className="flex-1 min-w-0">
-                <DialogTitle className="text-xl mb-1">
-                  {veiculo.nome || veiculo.placa}
-                </DialogTitle>
+                {editingNome ? (
+                  <div className="flex items-center gap-2 mb-1">
+                    <Input
+                      value={nomeValue}
+                      onChange={e => setNomeValue(e.target.value)}
+                      placeholder="Nome/Apelido"
+                      className="h-8 text-lg font-semibold"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          supabase.from('veiculos').update({ nome: nomeValue.trim() || null }).eq('id', veiculo.id).then(({ error }) => {
+                            if (error) { toast.error('Erro ao salvar nome'); }
+                            else { toast.success('Nome atualizado'); veiculo.nome = nomeValue.trim() || undefined; }
+                            setEditingNome(false);
+                          });
+                        }
+                        if (e.key === 'Escape') setEditingNome(false);
+                      }}
+                    />
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                      supabase.from('veiculos').update({ nome: nomeValue.trim() || null }).eq('id', veiculo.id).then(({ error }) => {
+                        if (error) { toast.error('Erro ao salvar nome'); }
+                        else { toast.success('Nome atualizado'); veiculo.nome = nomeValue.trim() || undefined; }
+                        setEditingNome(false);
+                      });
+                    }}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingNome(false)}>
+                      <XIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <DialogTitle className="text-xl mb-1 flex items-center gap-2">
+                    {veiculo.nome || veiculo.placa}
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                      setNomeValue(veiculo.nome || '');
+                      setEditingNome(true);
+                    }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </DialogTitle>
+                )}
                 <div className="flex items-center gap-2 flex-wrap">
                   {veiculo.nome && (
                     <code className="text-sm bg-muted px-2 py-0.5 rounded font-mono">

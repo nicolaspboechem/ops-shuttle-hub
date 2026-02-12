@@ -79,7 +79,7 @@ export function CreateVeiculoWizard({
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return placa.trim().length >= 7;
+        return placa.trim().length >= 2;
       case 2:
         return true; // Inspeção é opcional
       case 3:
@@ -285,11 +285,12 @@ export function CreateVeiculoWizard({
                   <Input
                     id="placa"
                     value={placa}
-                    onChange={e => setPlaca(e.target.value)}
+                    onChange={e => setPlaca(e.target.value.toUpperCase())}
                     placeholder="ABC1234"
                     className="uppercase"
-                    maxLength={7}
+                    maxLength={8}
                   />
+                  <p className="text-xs text-muted-foreground">Ex: ABC1234 ou ABC-1D23</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome/Apelido</Label>

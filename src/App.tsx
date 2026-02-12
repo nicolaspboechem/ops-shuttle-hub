@@ -136,7 +136,11 @@ const App = () => (
                         <AppCliente />
                       </StaffRoute>
                     } />
-                    
+                    <Route path="/app/:eventoId/vincular-veiculo/:motoristaId" element={
+                      <StaffRoute allowedRoles={['supervisor']}>
+                        <Suspense fallback={<PageLoader />}><VincularVeiculo /></Suspense>
+                      </StaffRoute>
+                    } />
                     {/* Admin Routes (CCO - only for admins) */}
                     <Route path="/home" element={<AdminRoute><Home /></AdminRoute>} />
                     <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />

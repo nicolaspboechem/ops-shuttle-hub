@@ -90,7 +90,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
   };
 
   const handleLinkVehicle = (motorista: MotoristaComVeiculo) => {
-    navigate(`/evento/${eventoId}/vincular-veiculo/${motorista.id}`);
+    navigate(`/app/${eventoId}/vincular-veiculo/${motorista.id}`);
   };
 
   const handleUnlinkVehicle = async (motorista: MotoristaComVeiculo) => {
@@ -133,6 +133,20 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
   const handleReInspecao = (veiculo: Veiculo) => {
     setSelectedVeiculo(veiculo);
     setWizardOpen(true);
+  };
+
+  const handleEditNome = async (veiculoId: string, novoNome: string) => {
+    const { error } = await supabase
+      .from('veiculos')
+      .update({ nome: novoNome || null, atualizado_por: user?.id })
+      .eq('id', veiculoId);
+    
+    if (error) {
+      toast.error('Erro ao atualizar nome');
+    } else {
+      toast.success('Nome atualizado');
+      refetchVeiculos();
+    }
   };
 
   // Stats
@@ -445,6 +459,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                     veiculo={veiculo}
                     onStatusChange={handleStatusChange}
                     onReInspecao={handleReInspecao}
+                    onEditNome={handleEditNome}
                   />
                 ))
               )}
@@ -465,6 +480,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                         veiculo={veiculo}
                         onStatusChange={handleStatusChange}
                         onReInspecao={handleReInspecao}
+                        onEditNome={handleEditNome}
                       />
                     ))}
                   </div>
@@ -485,6 +501,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                         veiculo={veiculo}
                         onStatusChange={handleStatusChange}
                         onReInspecao={handleReInspecao}
+                        onEditNome={handleEditNome}
                       />
                     ))}
                   </div>
@@ -505,6 +522,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                         veiculo={veiculo}
                         onStatusChange={handleStatusChange}
                         onReInspecao={handleReInspecao}
+                        onEditNome={handleEditNome}
                       />
                     ))}
                   </div>
@@ -525,6 +543,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                         veiculo={veiculo}
                         onStatusChange={handleStatusChange}
                         onReInspecao={handleReInspecao}
+                        onEditNome={handleEditNome}
                       />
                     ))}
                   </div>

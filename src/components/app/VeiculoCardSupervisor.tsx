@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Veiculo } from '@/hooks/useCadastros';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { 
   Car, 
   Bus, 
@@ -19,7 +28,8 @@ import {
   Wrench,
   Camera,
   Fuel,
-  User
+  User,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
@@ -28,6 +38,7 @@ interface VeiculoCardSupervisorProps {
   veiculo: Veiculo;
   onStatusChange: (id: string, status: string) => void;
   onReInspecao: (veiculo: Veiculo) => void;
+  onEditNome?: (id: string, nome: string) => void;
 }
 
 const statusConfig = {
@@ -73,10 +84,13 @@ export function VeiculoCardSupervisor({
   veiculo,
   onStatusChange,
   onReInspecao,
+  onEditNome,
 }: VeiculoCardSupervisorProps) {
+  const [editNomeOpen, setEditNomeOpen] = useState(false);
+  const [novoNome, setNovoNome] = useState(veiculo.nome || '');
+
   const status = statusConfig[veiculo.status as keyof typeof statusConfig] || statusConfig.em_inspecao;
   const StatusIcon = status.icon;
-
   const VehicleIcon = veiculo.tipo_veiculo === 'Ônibus' || veiculo.tipo_veiculo === 'Van' ? Bus : Car;
 
   // Swipe actions based on current status
@@ -104,102 +118,138 @@ export function VeiculoCardSupervisor({
 
   const swipeActions = getSwipeActions();
 
+  const handleSaveNome = () => {
+    onEditNome?.(veiculo.id, novoNome.trim());
+    setEditNomeOpen(false);
+  };
+
   return (
-    <SwipeableCard
-      leftAction={swipeActions.leftAction}
-      rightAction={swipeActions.rightAction}
-    >
-      <Card className={cn('transition-all interactive-card', status.border, status.bg)}>
-        <CardContent className="p-3">
-          <div className="flex items-start gap-3">
-            {/* Vehicle Icon */}
-            <div className={cn(
-              'flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center',
-              status.bg
-            )}>
-              <VehicleIcon className={cn('h-6 w-6', status.color)} />
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base">{veiculo.nome || veiculo.placa}</span>
-                {veiculo.nome && (
-                  <span className="text-xs text-muted-foreground">
-                    {veiculo.placa}
-                  </span>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{veiculo.tipo_veiculo}</span>
-                {veiculo.capacidade && (
-                  <span className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {veiculo.capacidade}
-                  </span>
-                )}
-                {veiculo.nivel_combustivel && (
-                  <span className="flex items-center gap-1">
-                    <Fuel className="h-3 w-3" />
-                    {fuelLabels[veiculo.nivel_combustivel] || veiculo.nivel_combustivel}
-                  </span>
-                )}
+    <>
+      <SwipeableCard
+        leftAction={swipeActions.leftAction}
+        rightAction={swipeActions.rightAction}
+      >
+        <Card className={cn('transition-all interactive-card', status.border, status.bg)}>
+          <CardContent className="p-3">
+            <div className="flex items-start gap-3">
+              {/* Vehicle Icon */}
+              <div className={cn(
+                'flex-shrink-0 h-12 w-12 rounded-lg flex items-center justify-center',
+                status.bg
+              )}>
+                <VehicleIcon className={cn('h-6 w-6', status.color)} />
               </div>
 
-              <div className="flex items-center gap-2">
-                <Badge 
-                  variant="outline" 
-                  className={cn('text-xs gap-1', status.color, status.border)}
-                >
-                  <StatusIcon className="h-3 w-3" />
-                  {status.label}
-                </Badge>
-                {veiculo.possui_avarias && (
-                  <Badge variant="destructive" className="text-xs gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    Avarias
+              {/* Info */}
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-base">{veiculo.nome || veiculo.placa}</span>
+                  {veiculo.nome && (
+                    <span className="text-xs text-muted-foreground">
+                      {veiculo.placa}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{veiculo.tipo_veiculo}</span>
+                  {veiculo.capacidade && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {veiculo.capacidade}
+                    </span>
+                  )}
+                  {veiculo.nivel_combustivel && (
+                    <span className="flex items-center gap-1">
+                      <Fuel className="h-3 w-3" />
+                      {fuelLabels[veiculo.nivel_combustivel] || veiculo.nivel_combustivel}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant="outline" 
+                    className={cn('text-xs gap-1', status.color, status.border)}
+                  >
+                    <StatusIcon className="h-3 w-3" />
+                    {status.label}
                   </Badge>
-                )}
+                  {veiculo.possui_avarias && (
+                    <Badge variant="destructive" className="text-xs gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Avarias
+                    </Badge>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Actions dropdown (alternative to swipe) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onReInspecao(veiculo)}>
-                  <Camera className="h-4 w-4 mr-2" />
-                  Re-vistoriar
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {veiculo.status !== 'liberado' && (
-                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'liberado')}>
-                    <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600" />
-                    Liberar
+              {/* Actions dropdown (alternative to swipe) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => {
+                    setNovoNome(veiculo.nome || '');
+                    setEditNomeOpen(true);
+                  }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar Nome
                   </DropdownMenuItem>
-                )}
-                {veiculo.status !== 'pendente' && (
-                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'pendente')}>
-                    <AlertTriangle className="h-4 w-4 mr-2 text-destructive" />
-                    Marcar Pendente
+                  <DropdownMenuItem onClick={() => onReInspecao(veiculo)}>
+                    <Camera className="h-4 w-4 mr-2" />
+                    Re-vistoriar
                   </DropdownMenuItem>
-                )}
-                {veiculo.status !== 'manutencao' && (
-                  <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'manutencao')}>
-                    <Wrench className="h-4 w-4 mr-2" />
-                    Enviar Manutenção
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuSeparator />
+                  {veiculo.status !== 'liberado' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'liberado')}>
+                      <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-600" />
+                      Liberar
+                    </DropdownMenuItem>
+                  )}
+                  {veiculo.status !== 'pendente' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'pendente')}>
+                      <AlertTriangle className="h-4 w-4 mr-2 text-destructive" />
+                      Marcar Pendente
+                    </DropdownMenuItem>
+                  )}
+                  {veiculo.status !== 'manutencao' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'manutencao')}>
+                      <Wrench className="h-4 w-4 mr-2" />
+                      Enviar Manutenção
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardContent>
+        </Card>
+      </SwipeableCard>
+
+      {/* Dialog para editar nome */}
+      <Dialog open={editNomeOpen} onOpenChange={setEditNomeOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar Nome do Veículo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Placa: {veiculo.placa}</p>
+            <Input
+              value={novoNome}
+              onChange={e => setNovoNome(e.target.value)}
+              placeholder="Ex: Sprinter 01"
+              autoFocus
+            />
           </div>
-        </CardContent>
-      </Card>
-    </SwipeableCard>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditNomeOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveNome}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
