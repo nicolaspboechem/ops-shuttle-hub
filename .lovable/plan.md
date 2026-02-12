@@ -1,95 +1,125 @@
 
 
-# Atualizar design do Kanban de Veiculos para seguir o padrao do Kanban de Missoes
+# Atualizar status dos motoristas no Localizador para refletir estado de missoes
 
-## Resumo
+## Problema atual
 
-O Kanban de missoes e limpo e rapido: card inteiro arrastavel (sem icone de 6 pontos), sem animacoes pesadas do framer-motion, colunas simples com bolinha colorida + badge de contagem. O Kanban de veiculos usa `GripVertical` como handle de arraste, `framer-motion` com layout animations (causando delay), e colunas com header colorido pesado. Vamos alinhar o estilo.
+1. **Status "Disponivel" permanente**: O card do Localizador exibe sempre "Disponivel" porque le o campo `motorista.status` do banco, que raramente muda para refletir missoes pendentes/aceitas.
+2. **Badges de missao com baixo contraste**: As badges "Missao Pendente" e "Missao Aceita" no MapaServicoCard sao pequenas, com cores fracas, e geram confusao - deveriam SER o status principal.
+3. **Falta de logica Online/Offline**: O Localizador ja filtra motoristas com check-in ativo, mas nao exibe "Online/Offline" como conceito visual.
+
+## Nova logica de status
+
+O status exibido no card sera **derivado** da combinacao de presenca + missao + status DB:
+
+| Condicao | Status exibido | Cor |
+|---|---|---|
+| Check-in ativo, sem missao, status != em_viagem | **Disponivel** | Verde |
+| Missao com status `pendente` | **Missao Pendente** | Amarelo |
+| Missao com status `aceita` | **Missao Aceita** | Azul |
+| Status `em_viagem` ou missao `em_andamento` | **Em Transito** | Azul intenso |
+| Status `indisponivel` (manutencao manual) | **Indisponivel** | Vermelho |
 
 ## Mudancas
 
-### 1. VeiculoKanbanCardFull.tsx - Remover drag handle e framer-motion
+### 1. LocalizadorCard.tsx - Status derivado de missoes
 
-**Antes:** Card usa `GripVertical` como zona de arraste separada + `motion.div` com layout animations, `AnimatePresence`, e overlay com rotacao/escala animada.
+**Receber missao como prop** e calcular o status exibido:
 
-**Depois:**
-- Remover import de `GripVertical`
-- Remover imports de `motion`, `AnimatePresence`, `CSS` do framer-motion
-- Tornar o card inteiro arrastavel (como no MissaoKanbanCard): aplicar `listeners` e `attributes` no container principal
-- Trocar `motion.div` por `div` simples
-- Manter o estilo de `cursor-grab active:cursor-grabbing` no card inteiro
-- Overlay simplificado: `div` com `shadow-xl ring-2 ring-primary/50` (sem animacao de rotacao)
-- Classes de transicao: `transition-shadow hover:shadow-md`, `isDragging && "opacity-40"`
-
-Estrutura resultante (similar ao MissaoKanbanCard):
 ```tsx
-<div
-  ref={setNodeRef}
-  style={style}
-  {...(!isDragOverlay ? { ...listeners, ...attributes } : {})}
-  className={cn(
-    "bg-card border border-border rounded-lg p-4 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md flex flex-col gap-3 select-none",
-    isDragging && "opacity-40",
-    isDragOverlay && "shadow-xl ring-2 ring-primary/50",
-  )}
->
-  {/* conteudo do card sem GripVertical */}
-</div>
+interface LocalizadorCardProps {
+  motorista: MotoristaComVeiculo;
+  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string } | null;
+}
 ```
 
-### 2. VeiculoKanbanColumnFull.tsx - Simplificar para padrao MissaoKanbanColumn
+**Novo statusConfig** com 5 estados claros e alto contraste:
+- `disponivel`: verde (bolinha verde + "Disponivel")
+- `missao_pendente`: amarelo/amber (bolinha amarela + "Missao Pendente")
+- `missao_aceita`: azul (bolinha azul + "Missao Aceita")
+- `em_transito`: azul intenso (bolinha azul pulsante + "Em Transito")
+- `indisponivel`: vermelho (bolinha vermelha + "Indisponivel")
 
-**Antes:** Coluna usa `motion.div` com animacao de scale ao hover, header com background colorido forte, `AnimatePresence mode="popLayout"`.
-
-**Depois:**
-- Remover imports de `motion`, `AnimatePresence` do framer-motion
-- Trocar `motion.div` por `div` simples
-- Header simplificado: bolinha colorida + titulo + Badge de contagem (como MissaoKanbanColumn)
-- Manter a transicao suave ao receber drop: `isOver && "bg-primary/5 border-primary/30"`
-- Remover `AnimatePresence` do wrapper dos cards
-- Manter `ScrollArea` para scroll
-
-Estrutura resultante:
+**Logica de derivacao** dentro do componente:
 ```tsx
-<div
-  ref={setNodeRef}
-  className={cn(
-    "flex flex-col bg-muted/30 rounded-xl border border-border/50 min-w-[300px] flex-1 transition-colors",
-    isOver && "bg-primary/5 border-primary/30"
-  )}
->
-  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">
-    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", config.accentColor)} />
-    <span className="text-sm font-semibold text-foreground">{config.title}</span>
-    <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 h-5">
-      {veiculos.length}
-    </Badge>
-  </div>
-  <ScrollArea ...>
-    <div className="p-2 space-y-2 min-h-[60px]">
-      {cards...}
-    </div>
-  </ScrollArea>
-</div>
+function getDisplayStatus(motorista, missao) {
+  if (motorista.status === 'indisponivel') return 'indisponivel';
+  if (motorista.status === 'em_viagem') return 'em_transito';
+  if (missao?.status === 'em_andamento') return 'em_transito';
+  if (missao?.status === 'aceita') return 'missao_aceita';
+  if (missao?.status === 'pendente') return 'missao_pendente';
+  return 'disponivel';
+}
 ```
 
-O `statusConfig` sera simplificado para ter apenas `accentColor` (cor da bolinha) em vez de multiplas propriedades de cor:
-- liberado: `bg-emerald-500`
-- pendente: `bg-amber-500`
-- em_inspecao: `bg-blue-500`
-- manutencao: `bg-gray-500`
+**Remover** as badges separadas de missao - o status principal ja comunica tudo. Manter apenas a rota (origem -> destino) quando existir missao com pontos.
+
+### 2. LocalizadorColumn.tsx - Passar missao para o card
+
+Receber um mapa de missoes por motorista:
+```tsx
+interface LocalizadorColumnProps {
+  // ...existing
+  missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string }>;
+}
+```
+
+Passar para cada `LocalizadorCard`:
+```tsx
+<LocalizadorCard 
+  motorista={motorista} 
+  missao={missoesPorMotorista?.get(motorista.id)} 
+/>
+```
+
+### 3. PainelLocalizador.tsx - Passar missoes para as colunas
+
+O `PainelLocalizador` ja busca `missoesAtivas` e cria `missoesPorMotorista`. Basta passar esse mapa para cada `LocalizadorColumn`:
+
+```tsx
+<LocalizadorColumn
+  titulo={local}
+  motoristas={dynamicMotoristas[local] || []}
+  tipo="local"
+  missoesPorMotorista={missoesPorMotorista}
+/>
+```
+
+### 4. ClienteLocalizadorTab.tsx - Buscar missoes e passar
+
+Adicionar fetch de missoes ativas (igual ao PainelLocalizador) e passar o mapa para as colunas.
+
+### 5. MapaServicoCard.tsx - Unificar status
+
+Aplicar a mesma logica de status derivado: remover as badges separadas de missao (linhas 150-161) e fazer o status principal (Row 1) refletir o estado da missao. O status vira o indicador unico com cores de alto contraste.
+
+Novo `statusConfig` no MapaServicoCard:
+```tsx
+const statusConfig = {
+  disponivel: { label: 'Disponivel', color: 'bg-green-500', textColor: 'text-green-500' },
+  missao_pendente: { label: 'Missao Pendente', color: 'bg-amber-500', textColor: 'text-amber-500' },
+  missao_aceita: { label: 'Missao Aceita', color: 'bg-blue-500', textColor: 'text-blue-500' },
+  em_transito: { label: 'Em Transito', color: 'bg-blue-600', textColor: 'text-blue-400' },
+  indisponivel: { label: 'Indisponivel', color: 'bg-red-500', textColor: 'text-red-500' },
+};
+```
+
+A rota (origem -> destino) continua exibida abaixo do status quando houver missao com pontos, mas sem a badge separada.
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/veiculos/VeiculoKanbanCardFull.tsx` | Remover GripVertical, remover framer-motion, card inteiro arrastavel |
-| `src/components/veiculos/VeiculoKanbanColumnFull.tsx` | Remover framer-motion, header com bolinha + badge simples |
+| `src/components/localizador/LocalizadorCard.tsx` | Receber prop `missao`, derivar status, remover badges separadas |
+| `src/components/localizador/LocalizadorColumn.tsx` | Receber e repassar `missoesPorMotorista` |
+| `src/pages/PainelLocalizador.tsx` | Passar `missoesPorMotorista` para cada `LocalizadorColumn` |
+| `src/components/app/ClienteLocalizadorTab.tsx` | Buscar missoes ativas, passar mapa para colunas |
+| `src/components/mapa-servico/MapaServicoCard.tsx` | Unificar status derivado, remover badges de missao separadas |
 
 ## Resultado
 
-- Design consistente entre os dois kanbans
-- Sem delay de animacao ao arrastar
-- Sem icone de 6 pontos (GripVertical) - card inteiro e arrastavel
-- Visual limpo e minimalista
+- Status unico e claro com 5 estados visiveis e alto contraste
+- Sem badges pequenas e confusas de missao
+- Atualizacao em tempo real via realtime (missoes ja tem subscription)
+- Consistencia entre Localizador CCO, Localizador Cliente e Mapa de Servico
 
