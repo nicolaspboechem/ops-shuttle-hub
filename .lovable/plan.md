@@ -1,125 +1,103 @@
 
 
-# Atualizar status dos motoristas no Localizador para refletir estado de missoes
+# Melhorar o Dashboard com Status de Motoristas em Tempo Real
 
 ## Problema atual
 
-1. **Status "Disponivel" permanente**: O card do Localizador exibe sempre "Disponivel" porque le o campo `motorista.status` do banco, que raramente muda para refletir missoes pendentes/aceitas.
-2. **Badges de missao com baixo contraste**: As badges "Missao Pendente" e "Missao Aceita" no MapaServicoCard sao pequenas, com cores fracas, e geram confusao - deveriam SER o status principal.
-3. **Falta de logica Online/Offline**: O Localizador ja filtra motoristas com check-in ativo, mas nao exibe "Online/Offline" como conceito visual.
+O dashboard mostra "Motoristas" apenas como o numero de motoristas em viagens ativas (derivado das viagens), sem considerar o sistema de presenca (check-in/check-out) nem o status de missoes. Falta visibilidade sobre quem esta online, disponivel ou ocupado.
 
-## Nova logica de status
+## Nova secao: Motoristas em Tempo Real
 
-O status exibido no card sera **derivado** da combinacao de presenca + missao + status DB:
+Adicionar um painel de status de motoristas logo abaixo das metricas principais, usando dados de presenca (`motorista_presenca`) e missoes ativas (`missoes`).
 
-| Condicao | Status exibido | Cor |
+### Metricas de motoristas (3 indicadores visuais)
+
+| Indicador | Fonte de dados | Cor |
 |---|---|---|
-| Check-in ativo, sem missao, status != em_viagem | **Disponivel** | Verde |
-| Missao com status `pendente` | **Missao Pendente** | Amarelo |
-| Missao com status `aceita` | **Missao Aceita** | Azul |
-| Status `em_viagem` ou missao `em_andamento` | **Em Transito** | Azul intenso |
-| Status `indisponivel` (manutencao manual) | **Indisponivel** | Vermelho |
+| **Online** | Motoristas com check-in ativo (sem checkout) no dia | Verde |
+| **Disponiveis** | Online, sem missao ativa nem viagem em andamento | Verde claro |
+| **Em Transito** | Com viagem ativa ou missao `em_andamento` | Azul |
 
-## Mudancas
+### Dados operacionais que o dashboard deve exibir
 
-### 1. LocalizadorCard.tsx - Status derivado de missoes
+Alem dos motoristas, vamos garantir que os KPIs existentes reflitam dados corretos:
 
-**Receber missao como prop** e calcular o status exibido:
+1. **Viagens Ativas** - ja existe, manter
+2. **PAX em Transito** - ja existe, manter
+3. **Motoristas Online / Disponiveis / Em Transito** - NOVO
+4. **Veiculos em uso** - ja existe, manter
+5. **Tempo Medio** - ja existe, manter
+6. **Alertas** - ja existe, manter
+7. **Rankings** - ja existe, manter
+
+## Detalhes tecnicos
+
+### 1. Dashboard.tsx e DashboardMobile.tsx - Buscar presenca e missoes
+
+Adicionar fetch de:
+- `motorista_presenca` do dia operacional (check-in ativo, sem checkout) para contar motoristas **online**
+- `missoes` ativas (status `pendente`, `aceita`, `em_andamento`) para derivar quem esta disponivel vs ocupado
 
 ```tsx
-interface LocalizadorCardProps {
-  motorista: MotoristaComVeiculo;
-  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string } | null;
+// Buscar presencas ativas do dia
+const { data: presencasAtivas } = await supabase
+  .from('motorista_presenca')
+  .select('motorista_id')
+  .eq('evento_id', eventoId)
+  .eq('data', dataOperacional)
+  .not('checkin_at', 'is', null)
+  .is('checkout_at', null);
+
+// Buscar missoes ativas
+const { data: missoesAtivas } = await supabase
+  .from('missoes')
+  .select('motorista_id, status')
+  .eq('evento_id', eventoId)
+  .in('status', ['pendente', 'aceita', 'em_andamento']);
+```
+
+Calcular:
+- **Online** = total de motoristas com presenca ativa
+- **Em Transito** = motoristas com missao `em_andamento` ou viagem ativa
+- **Disponiveis** = Online - Em Transito - com missao pendente/aceita
+
+### 2. Novo componente: MotoristaStatusPanel
+
+Card horizontal com 3 indicadores circulares lado a lado, estilo semaforo:
+
+```
+[  Online: 8  ] [  Disponiveis: 5  ] [  Em Transito: 3  ]
+     verde            verde claro          azul
+```
+
+Sera exibido tanto no desktop (Dashboard.tsx) quanto no mobile (DashboardMobile.tsx).
+
+### 3. Substituir o card "Motoristas" atual
+
+O card atual mostra "motoristas ativos" baseado apenas em viagens. Sera substituido pelo novo painel com os 3 indicadores, que sao mais precisos e uteis para a operacao.
+
+### 4. Criar hook useMotoristasDashboard
+
+Hook dedicado para o dashboard que busca presenca + missoes e retorna as contagens. Inclui Realtime subscription para atualizacao automatica.
+
+```tsx
+export function useMotoristasDashboard(eventoId: string, dataOperacional: string) {
+  // Retorna { online, disponiveis, emTransito, loading }
 }
 ```
-
-**Novo statusConfig** com 5 estados claros e alto contraste:
-- `disponivel`: verde (bolinha verde + "Disponivel")
-- `missao_pendente`: amarelo/amber (bolinha amarela + "Missao Pendente")
-- `missao_aceita`: azul (bolinha azul + "Missao Aceita")
-- `em_transito`: azul intenso (bolinha azul pulsante + "Em Transito")
-- `indisponivel`: vermelho (bolinha vermelha + "Indisponivel")
-
-**Logica de derivacao** dentro do componente:
-```tsx
-function getDisplayStatus(motorista, missao) {
-  if (motorista.status === 'indisponivel') return 'indisponivel';
-  if (motorista.status === 'em_viagem') return 'em_transito';
-  if (missao?.status === 'em_andamento') return 'em_transito';
-  if (missao?.status === 'aceita') return 'missao_aceita';
-  if (missao?.status === 'pendente') return 'missao_pendente';
-  return 'disponivel';
-}
-```
-
-**Remover** as badges separadas de missao - o status principal ja comunica tudo. Manter apenas a rota (origem -> destino) quando existir missao com pontos.
-
-### 2. LocalizadorColumn.tsx - Passar missao para o card
-
-Receber um mapa de missoes por motorista:
-```tsx
-interface LocalizadorColumnProps {
-  // ...existing
-  missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string }>;
-}
-```
-
-Passar para cada `LocalizadorCard`:
-```tsx
-<LocalizadorCard 
-  motorista={motorista} 
-  missao={missoesPorMotorista?.get(motorista.id)} 
-/>
-```
-
-### 3. PainelLocalizador.tsx - Passar missoes para as colunas
-
-O `PainelLocalizador` ja busca `missoesAtivas` e cria `missoesPorMotorista`. Basta passar esse mapa para cada `LocalizadorColumn`:
-
-```tsx
-<LocalizadorColumn
-  titulo={local}
-  motoristas={dynamicMotoristas[local] || []}
-  tipo="local"
-  missoesPorMotorista={missoesPorMotorista}
-/>
-```
-
-### 4. ClienteLocalizadorTab.tsx - Buscar missoes e passar
-
-Adicionar fetch de missoes ativas (igual ao PainelLocalizador) e passar o mapa para as colunas.
-
-### 5. MapaServicoCard.tsx - Unificar status
-
-Aplicar a mesma logica de status derivado: remover as badges separadas de missao (linhas 150-161) e fazer o status principal (Row 1) refletir o estado da missao. O status vira o indicador unico com cores de alto contraste.
-
-Novo `statusConfig` no MapaServicoCard:
-```tsx
-const statusConfig = {
-  disponivel: { label: 'Disponivel', color: 'bg-green-500', textColor: 'text-green-500' },
-  missao_pendente: { label: 'Missao Pendente', color: 'bg-amber-500', textColor: 'text-amber-500' },
-  missao_aceita: { label: 'Missao Aceita', color: 'bg-blue-500', textColor: 'text-blue-500' },
-  em_transito: { label: 'Em Transito', color: 'bg-blue-600', textColor: 'text-blue-400' },
-  indisponivel: { label: 'Indisponivel', color: 'bg-red-500', textColor: 'text-red-500' },
-};
-```
-
-A rota (origem -> destino) continua exibida abaixo do status quando houver missao com pontos, mas sem a badge separada.
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/localizador/LocalizadorCard.tsx` | Receber prop `missao`, derivar status, remover badges separadas |
-| `src/components/localizador/LocalizadorColumn.tsx` | Receber e repassar `missoesPorMotorista` |
-| `src/pages/PainelLocalizador.tsx` | Passar `missoesPorMotorista` para cada `LocalizadorColumn` |
-| `src/components/app/ClienteLocalizadorTab.tsx` | Buscar missoes ativas, passar mapa para colunas |
-| `src/components/mapa-servico/MapaServicoCard.tsx` | Unificar status derivado, remover badges de missao separadas |
+| `src/hooks/useMotoristasDashboard.ts` | NOVO - hook para buscar presenca + missoes do dashboard |
+| `src/components/dashboard/MotoristaStatusPanel.tsx` | NOVO - painel visual com 3 indicadores |
+| `src/pages/Dashboard.tsx` | Usar novo hook e componente, substituir card "Motoristas" |
+| `src/components/dashboard/DashboardMobile.tsx` | Mesmo: usar novo hook e componente |
 
 ## Resultado
 
-- Status unico e claro com 5 estados visiveis e alto contraste
-- Sem badges pequenas e confusas de missao
-- Atualizacao em tempo real via realtime (missoes ja tem subscription)
-- Consistencia entre Localizador CCO, Localizador Cliente e Mapa de Servico
-
+- Visibilidade imediata de quantos motoristas estao online, disponiveis e em transito
+- Dados derivados de presenca real (check-in) + missoes, nao apenas viagens
+- Atualizacao em tempo real via Supabase Realtime
+- Consistente com a logica de status implementada no Localizador (v1.6.0)
