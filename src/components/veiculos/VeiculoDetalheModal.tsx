@@ -78,6 +78,7 @@ interface VeiculoDetalheModalProps {
   viagens: Viagem[];
   motoristas: Motorista[];
   eventoId?: string;
+  onUpdate?: () => void;
 }
 
 export function VeiculoDetalheModal({
@@ -86,7 +87,8 @@ export function VeiculoDetalheModal({
   onClose,
   viagens,
   motoristas,
-  eventoId
+  eventoId,
+  onUpdate
 }: VeiculoDetalheModalProps) {
   const [selectedVistoria, setSelectedVistoria] = useState<VistoriaHistorico | null>(null);
   const [editingNome, setEditingNome] = useState(false);
@@ -186,7 +188,7 @@ export function VeiculoDetalheModal({
                         if (e.key === 'Enter') {
                           supabase.from('veiculos').update({ nome: nomeValue.trim() || null }).eq('id', veiculo.id).then(({ error }) => {
                             if (error) { toast.error('Erro ao salvar nome'); }
-                            else { toast.success('Nome atualizado'); veiculo.nome = nomeValue.trim() || undefined; }
+                            else { toast.success('Nome atualizado'); onUpdate?.(); }
                             setEditingNome(false);
                           });
                         }
@@ -196,7 +198,7 @@ export function VeiculoDetalheModal({
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
                       supabase.from('veiculos').update({ nome: nomeValue.trim() || null }).eq('id', veiculo.id).then(({ error }) => {
                         if (error) { toast.error('Erro ao salvar nome'); }
-                        else { toast.success('Nome atualizado'); veiculo.nome = nomeValue.trim() || undefined; }
+                        else { toast.success('Nome atualizado'); onUpdate?.(); }
                         setEditingNome(false);
                       });
                     }}>
