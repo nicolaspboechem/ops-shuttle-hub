@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Fuel } from 'lucide-react';
 import { MobileHeader } from '@/components/layout/MobileHeader';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useMotoristasDashboard } from '@/hooks/useMotoristasDashboard';
+import { useAlertasFrota } from '@/hooks/useAlertasFrota';
 import { useEventos } from '@/hooks/useEventos';
 import { useServerTime } from '@/hooks/useServerTime';
 import { formatarMinutos } from '@/lib/utils/calculadores';
@@ -91,6 +92,7 @@ export function DashboardMobile() {
 
   const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas } = useMotoristas(eventoId);
+  const { alertas, alertasAbertos } = useAlertasFrota(eventoId);
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
 
@@ -252,6 +254,33 @@ export function DashboardMobile() {
 
         {/* Painel de Alertas */}
         {kpis && <AlertsPanel criticos={kpis.alertasCriticos} alertas={kpis.alertas} />}
+
+        {/* Alertas de Combustível */}
+        {alertas.length > 0 && (
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Fuel className="w-4 h-4 text-status-alert" />
+                <span className="text-sm font-semibold">Combustível</span>
+                <Badge variant="destructive" className="text-[10px] ml-auto">{alertasAbertos.length}</Badge>
+              </div>
+              <div className="space-y-2">
+                {alertas.slice(0, 5).map(alerta => (
+                  <div key={alerta.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 border">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Fuel className="w-3.5 h-3.5 text-status-alert shrink-0" />
+                      <code className="text-[10px] bg-background px-1 rounded">{alerta.veiculo?.placa || '---'}</code>
+                      <span className="text-xs truncate">{alerta.motorista?.nome || '---'}</span>
+                    </div>
+                    <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px] shrink-0">
+                      {alerta.nivel_combustivel}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <MobileBottomNav />

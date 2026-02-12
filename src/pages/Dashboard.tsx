@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle, Fuel } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
+import { useAlertasFrota } from '@/hooks/useAlertasFrota';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useTutorial, adminEventoSteps } from '@/hooks/useTutorial';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
@@ -60,6 +61,7 @@ export default function Dashboard() {
   const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId, viagensOptions);
   const { veiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
+  const { alertas, alertasAbertos, alertasPendentes } = useAlertasFrota(eventoId);
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
@@ -311,6 +313,61 @@ export default function Dashboard() {
 
         {/* Painel de Alertas */}
         {kpis && <AlertsPanel criticos={kpis.alertasCriticos} alertas={kpis.alertas} />}
+
+        {/* Alertas de Combustível */}
+        {alertas.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Fuel className="w-5 h-5 text-status-alert" />
+                Alertas de Combustível
+                <Badge variant="destructive" className="ml-auto">{alertasAbertos.length} abertos</Badge>
+                {alertasPendentes.length > 0 && (
+                  <Badge variant="secondary">{alertasPendentes.length} pendentes</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {alertas.map(alerta => {
+                  const nivelColors: Record<string, string> = {
+                    'vazio': 'bg-status-critical/10 border-status-critical/30 text-status-critical',
+                    '1/4': 'bg-status-critical/10 border-status-critical/30 text-status-critical',
+                    '1/2': 'bg-status-alert/10 border-status-alert/30 text-status-alert',
+                    '3/4': 'bg-status-ok/10 border-status-ok/30 text-status-ok',
+                    'cheio': 'bg-status-ok/10 border-status-ok/30 text-status-ok',
+                  };
+                  const colorClass = nivelColors[alerta.nivel_combustivel || ''] || 'bg-muted';
+                  
+                  return (
+                    <div key={alerta.id} className={`flex items-center justify-between p-3 rounded-lg border ${colorClass}`}>
+                      <div className="flex items-center gap-3">
+                        <Fuel className="w-4 h-4 shrink-0" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <code className="text-xs bg-background/50 px-1.5 py-0.5 rounded font-mono">
+                              {alerta.veiculo?.placa || '---'}
+                            </code>
+                            <span className="text-sm font-medium">{alerta.motorista?.nome || 'Desconhecido'}</span>
+                          </div>
+                          {alerta.observacao && (
+                            <p className="text-xs mt-0.5 opacity-80">{alerta.observacao}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{alerta.nivel_combustivel}</Badge>
+                        <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-xs">
+                          {alerta.status === 'aberto' ? 'Aberto' : 'Pendente'}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Rankings - Oculto em mobile para economizar espaço */}
         <div className="hidden md:grid md:grid-cols-2 gap-6">
