@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle, Fuel } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Trophy, MapPin, HelpCircle, Fuel, MoreVertical, Wrench } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
@@ -16,6 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
@@ -61,7 +64,22 @@ export default function Dashboard() {
   const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId, viagensOptions);
   const { veiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
-  const { alertas, alertasAbertos, alertasPendentes } = useAlertasFrota(eventoId);
+  const { alertas, alertasAbertos, alertasPendentes, atualizarStatus } = useAlertasFrota(eventoId);
+
+  const handleAlertaAction = async (alertaId: string, action: 'pendente' | 'resolvido' | 'manutencao', veiculoId?: string) => {
+    try {
+      if (action === 'manutencao' && veiculoId) {
+        await supabase.from('veiculos').update({ status: 'em_manutencao' }).eq('id', veiculoId);
+        await atualizarStatus(alertaId, 'resolvido');
+        toast.success('Veículo enviado para manutenção');
+      } else {
+        await atualizarStatus(alertaId, action);
+        toast.success(action === 'pendente' ? 'Veículo chamado para a base' : 'Alerta resolvido');
+      }
+    } catch {
+      toast.error('Erro ao atualizar alerta');
+    }
+  };
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
@@ -360,6 +378,29 @@ export default function Dashboard() {
                         <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-xs">
                           {alerta.status === 'aberto' ? 'Aberto' : 'Pendente'}
                         </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {alerta.status === 'aberto' && (
+                              <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
+                                <MapPin className="h-4 w-4 mr-2" />
+                                Chamar p/ Base
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
+                              <Wrench className="h-4 w-4 mr-2" />
+                              Enviar p/ Manutenção
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Resolver
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   );

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Fuel } from 'lucide-react';
+import { Bus, Users, Clock, Truck, CheckCircle, AlertTriangle, RefreshCw, Fuel, MoreVertical, MapPin, Wrench } from 'lucide-react';
 import { MobileHeader } from '@/components/layout/MobileHeader';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
@@ -21,6 +21,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface MobileMetricCardProps {
   title: string;
@@ -92,7 +95,22 @@ export function DashboardMobile() {
 
   const { viagens, loading, refreshing, lastUpdate, refetch } = useViagens(eventoId);
   const { motoristas } = useMotoristas(eventoId);
-  const { alertas, alertasAbertos } = useAlertasFrota(eventoId);
+  const { alertas, alertasAbertos, atualizarStatus } = useAlertasFrota(eventoId);
+
+  const handleAlertaAction = async (alertaId: string, action: 'pendente' | 'resolvido' | 'manutencao', veiculoId?: string) => {
+    try {
+      if (action === 'manutencao' && veiculoId) {
+        await supabase.from('veiculos').update({ status: 'em_manutencao' }).eq('id', veiculoId);
+        await atualizarStatus(alertaId, 'resolvido');
+        toast.success('Veículo enviado para manutenção');
+      } else {
+        await atualizarStatus(alertaId, action);
+        toast.success(action === 'pendente' ? 'Veículo chamado para a base' : 'Alerta resolvido');
+      }
+    } catch {
+      toast.error('Erro ao atualizar alerta');
+    }
+  };
   
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
 
@@ -272,9 +290,34 @@ export function DashboardMobile() {
                       <code className="text-[10px] bg-background px-1 rounded">{alerta.veiculo?.placa || '---'}</code>
                       <span className="text-xs truncate">{alerta.motorista?.nome || '---'}</span>
                     </div>
-                    <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px] shrink-0">
-                      {alerta.nivel_combustivel}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px]">
+                        {alerta.nivel_combustivel}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {alerta.status === 'aberto' && (
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
+                              <MapPin className="h-4 w-4 mr-2" />
+                              Chamar p/ Base
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
+                            <Wrench className="h-4 w-4 mr-2" />
+                            Enviar p/ Manutenção
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Resolver
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 ))}
               </div>
