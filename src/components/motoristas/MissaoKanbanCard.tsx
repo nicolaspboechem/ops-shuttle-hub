@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar, Play, Users } from 'lucide-react';
+import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar, Play, Users, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MissaoKanbanCardProps {
@@ -118,6 +118,18 @@ export function MissaoKanbanCard({ missao, motoristaNome, onEdit, onDelete, onSt
         <User className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate font-medium text-foreground">{displayNome}</span>
       </div>
+
+      {/* Vehicle */}
+      {(missao.veiculo_nome || missao.veiculo_placa) && (
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Car className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {missao.veiculo_nome && <span className="font-medium text-foreground">{missao.veiculo_nome}</span>}
+            {missao.veiculo_nome && missao.veiculo_placa && ' - '}
+            {missao.veiculo_placa}
+          </span>
+        </div>
+      )}
 
       {/* Route */}
       {(missao.ponto_embarque || missao.ponto_desembarque) && (

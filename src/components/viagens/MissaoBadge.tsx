@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ClipboardList, Clock, MapPin, User, Flag } from 'lucide-react';
+import { ClipboardList, Clock, MapPin, User, Flag, Car } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
 import { cn } from '@/lib/utils';
@@ -44,15 +44,18 @@ export function MissaoBadge({ missaoId, compact = false }: MissaoBadgeProps) {
         .from('missoes')
         .select(`
           *,
-          motorista:motoristas(nome)
+          motorista:motoristas(nome, veiculos(nome, placa))
         `)
         .eq('id', missaoId)
         .single();
 
       if (!error && data) {
+        const motoristaData = data.motorista as any;
         setMissao({
           ...data,
-          motorista_nome: data.motorista?.nome,
+          motorista_nome: motoristaData?.nome,
+          veiculo_nome: motoristaData?.veiculos?.nome || undefined,
+          veiculo_placa: motoristaData?.veiculos?.placa || undefined,
         } as unknown as Missao);
       }
       setLoading(false);
@@ -113,6 +116,17 @@ export function MissaoBadge({ missaoId, compact = false }: MissaoBadgeProps) {
               <div className="flex items-center gap-2">
                 <User className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>Motorista: <strong>{missao.motorista_nome}</strong></span>
+              </div>
+            )}
+
+            {(missao.veiculo_nome || missao.veiculo_placa) && (
+              <div className="flex items-center gap-2">
+                <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>
+                  {missao.veiculo_nome && <strong>{missao.veiculo_nome}</strong>}
+                  {missao.veiculo_nome && missao.veiculo_placa && ' - '}
+                  {missao.veiculo_placa}
+                </span>
               </div>
             )}
             
