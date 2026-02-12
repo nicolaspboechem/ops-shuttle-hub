@@ -30,6 +30,7 @@ import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { formatarMinutos } from '@/lib/utils/calculadores';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -269,7 +270,7 @@ export default function Dashboard() {
         </div>
 
         {/* Cards de Métricas em Tempo Real - Grid responsivo */}
-        <div data-tutorial="metrics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
+        <div data-tutorial="metrics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-2 md:gap-4">
           <MetricCard 
             title="Viagens Ativas" 
             value={metricsRealTime.viagensAtivas} 
@@ -297,6 +298,66 @@ export default function Dashboard() {
             icon={<Clock className="w-5 h-5 md:w-6 md:h-6" />} 
             className="col-span-2 sm:col-span-1"
           />
+          {/* Card de Combustível - sempre visível */}
+          <Card className={cn(
+            "overflow-hidden",
+            alertasAbertos.length > 0 ? "ring-2 ring-status-critical/50 bg-status-critical/5" : ""
+          )}>
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Combustível</p>
+                  <p className="text-2xl md:text-3xl font-bold">{alertasAbertos.length}</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">
+                    {alertasPendentes.length > 0 ? `${alertasPendentes.length} pendentes` : 'alertas abertos'}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 text-primary">
+                  <Fuel className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+              </div>
+              {alertas.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                  {alertas.slice(0, 4).map(alerta => (
+                    <div key={alerta.id} className="flex items-center justify-between text-xs p-1.5 rounded bg-background/50 border">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <code className="text-[10px] font-mono">{alerta.veiculo?.placa || '---'}</code>
+                        <span className="truncate">{alerta.motorista?.nome || '---'}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
+                          {alerta.nivel_combustivel}
+                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-5 w-5">
+                              <MoreVertical className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {alerta.status === 'aberto' && (
+                              <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
+                                <MapPin className="h-4 w-4 mr-2" />
+                                Chamar p/ Base
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
+                              <Wrench className="h-4 w-4 mr-2" />
+                              Enviar p/ Manutenção
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Resolver
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Motoristas em Tempo Real */}
@@ -332,83 +393,7 @@ export default function Dashboard() {
         {/* Painel de Alertas */}
         {kpis && <AlertsPanel criticos={kpis.alertasCriticos} alertas={kpis.alertas} />}
 
-        {/* Alertas de Combustível */}
-        {alertas.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Fuel className="w-5 h-5 text-status-alert" />
-                Alertas de Combustível
-                <Badge variant="destructive" className="ml-auto">{alertasAbertos.length} abertos</Badge>
-                {alertasPendentes.length > 0 && (
-                  <Badge variant="secondary">{alertasPendentes.length} pendentes</Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {alertas.map(alerta => {
-                  const nivelColors: Record<string, string> = {
-                    'vazio': 'bg-status-critical/10 border-status-critical/30 text-status-critical',
-                    '1/4': 'bg-status-critical/10 border-status-critical/30 text-status-critical',
-                    '1/2': 'bg-status-alert/10 border-status-alert/30 text-status-alert',
-                    '3/4': 'bg-status-ok/10 border-status-ok/30 text-status-ok',
-                    'cheio': 'bg-status-ok/10 border-status-ok/30 text-status-ok',
-                  };
-                  const colorClass = nivelColors[alerta.nivel_combustivel || ''] || 'bg-muted';
-                  
-                  return (
-                    <div key={alerta.id} className={`flex items-center justify-between p-3 rounded-lg border ${colorClass}`}>
-                      <div className="flex items-center gap-3">
-                        <Fuel className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <code className="text-xs bg-background/50 px-1.5 py-0.5 rounded font-mono">
-                              {alerta.veiculo?.placa || '---'}
-                            </code>
-                            <span className="text-sm font-medium">{alerta.motorista?.nome || 'Desconhecido'}</span>
-                          </div>
-                          {alerta.observacao && (
-                            <p className="text-xs mt-0.5 opacity-80">{alerta.observacao}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{alerta.nivel_combustivel}</Badge>
-                        <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-xs">
-                          {alerta.status === 'aberto' ? 'Aberto' : 'Pendente'}
-                        </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {alerta.status === 'aberto' && (
-                              <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
-                                <MapPin className="h-4 w-4 mr-2" />
-                                Chamar p/ Base
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
-                              <Wrench className="h-4 w-4 mr-2" />
-                              Enviar p/ Manutenção
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Resolver
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
 
         {/* Rankings - Oculto em mobile para economizar espaço */}
         <div className="hidden md:grid md:grid-cols-2 gap-6">
