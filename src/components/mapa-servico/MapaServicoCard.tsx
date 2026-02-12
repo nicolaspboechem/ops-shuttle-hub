@@ -152,7 +152,7 @@ export function MapaServicoCard({ motorista, missao, onChamarBase, isDragOverlay
           <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", activeMissaoStatus.className)}>
             {activeMissaoStatus.label}
           </Badge>
-          {missao?.status === 'em_andamento' && missao.ponto_embarque && missao.ponto_desembarque && (
+          {missao?.ponto_embarque && missao.ponto_desembarque && (
             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 truncate">
               {missao.ponto_embarque} <ArrowRight className="w-2.5 h-2.5 inline" /> {missao.ponto_desembarque}
             </span>
