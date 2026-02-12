@@ -164,8 +164,16 @@ export default function PainelLocalizador() {
 
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
+        // Check if driver has an active mission (em_andamento) - they should be in em_transito
+        const missao = missoesPorMotorista.get(m.id);
+        const emTransitoPorMissao = missao?.status === 'em_andamento';
+
         if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
+        } else if (emTransitoPorMissao && loc !== 'em_transito') {
+          // Driver has em_andamento mission but is in a location column - move to em_transito
+          if (!dynamicGroups['em_transito']) dynamicGroups['em_transito'] = [];
+          dynamicGroups['em_transito'].push(m);
         } else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {
           outros.push(m);
         } else {
@@ -183,7 +191,7 @@ export default function PainelLocalizador() {
       outrosMotoristas: outros,
       dynamicLocalizacoes: dynLocs,
     };
-  }, [motoristasPorLocalizacao, retornandoBaseIds, outrosNome, localizacoes]);
+  }, [motoristasPorLocalizacao, retornandoBaseIds, outrosNome, localizacoes, missoesPorMotorista]);
 
   // Calculate stats for motoristas
   const stats = useMemo(() => {

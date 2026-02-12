@@ -63,8 +63,15 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
     return acc;
   }, {} as Record<string, typeof motoristas>);
 
-  // Motoristas em viagem (status em_viagem)
-  const motoristasEmTransito = motoristas.filter(m => m.status === 'em_viagem');
+  // Motoristas em trânsito (status em_viagem OU missão em_andamento)
+  const motoristasEmTransito = motoristas.filter(m => {
+    if (m.status === 'em_viagem') return true;
+    const missao = missoesPorMotorista.get(m.id);
+    return missao?.status === 'em_andamento';
+  });
+
+  // IDs de motoristas em trânsito para excluir das colunas de localização
+  const emTransitoIds = new Set(motoristasEmTransito.map(m => m.id));
 
   // Lista de localizações (pontos + Base)
   const localizacoes = ['Base', ...pontos.map(p => p.nome)];
@@ -108,7 +115,7 @@ export function ClienteLocalizadorTab({ eventoId }: ClienteLocalizadorTabProps) 
 
         {localizacoes.map(loc => {
           const mots = motoristasAgrupados[loc] || [];
-          const motsDisponiveis = mots.filter(m => m.status !== 'em_viagem');
+          const motsDisponiveis = mots.filter(m => !emTransitoIds.has(m.id));
           
           return (
             <LocalizadorColumn
