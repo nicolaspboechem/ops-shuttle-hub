@@ -1,9 +1,8 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CheckCircle, AlertTriangle, Loader, Wrench } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { VeiculoKanbanCardFull } from "./VeiculoKanbanCardFull";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
-import { AnimatePresence, motion } from "framer-motion";
 
 interface Veiculo {
   id: string;
@@ -41,38 +40,10 @@ interface VeiculoKanbanColumnFullProps {
 }
 
 const statusConfig = {
-  liberado: {
-    title: 'Liberados',
-    icon: CheckCircle,
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-    headerColor: 'bg-emerald-100 dark:bg-emerald-900/50',
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
-    borderColor: 'border-emerald-200 dark:border-emerald-800',
-  },
-  pendente: {
-    title: 'Pendentes',
-    icon: AlertTriangle,
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-    headerColor: 'bg-amber-100 dark:bg-amber-900/50',
-    iconColor: 'text-amber-600 dark:text-amber-400',
-    borderColor: 'border-amber-200 dark:border-amber-800',
-  },
-  em_inspecao: {
-    title: 'Em Inspeção',
-    icon: Loader,
-    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
-    headerColor: 'bg-blue-100 dark:bg-blue-900/50',
-    iconColor: 'text-blue-600 dark:text-blue-400',
-    borderColor: 'border-blue-200 dark:border-blue-800',
-  },
-  manutencao: {
-    title: 'Manutenção',
-    icon: Wrench,
-    bgColor: 'bg-gray-50 dark:bg-gray-900/30',
-    headerColor: 'bg-gray-100 dark:bg-gray-800/50',
-    iconColor: 'text-gray-600 dark:text-gray-400',
-    borderColor: 'border-gray-200 dark:border-gray-700',
-  },
+  liberado: { title: 'Liberados', accentColor: 'bg-emerald-500' },
+  pendente: { title: 'Pendentes', accentColor: 'bg-amber-500' },
+  em_inspecao: { title: 'Em Inspeção', accentColor: 'bg-blue-500' },
+  manutencao: { title: 'Manutenção', accentColor: 'bg-gray-500' },
 };
 
 export function VeiculoKanbanColumnFull({ 
@@ -88,84 +59,58 @@ export function VeiculoKanbanColumnFull({
   onViewDetails
 }: VeiculoKanbanColumnFullProps) {
   const config = statusConfig[status];
-  const Icon = config.icon;
 
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
 
   return (
-    <motion.div 
+    <div 
       ref={setNodeRef}
-      animate={{
-        scale: isOver ? 1.02 : 1,
-        boxShadow: isOver ? "0 0 0 2px hsl(var(--primary))" : "none",
-      }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
       className={cn(
-        "flex flex-col rounded-xl border min-w-[300px] flex-1",
-        config.bgColor,
-        config.borderColor
+        "flex flex-col bg-muted/30 rounded-xl border border-border/50 min-w-[300px] flex-1 transition-colors",
+        isOver && "bg-primary/5 border-primary/30"
       )}
     >
       {/* Header */}
-      <div className={cn(
-        "flex items-center gap-2 px-4 py-3 rounded-t-xl border-b",
-        config.headerColor,
-        config.borderColor
-      )}>
-        <Icon className={cn("h-5 w-5", config.iconColor)} />
-        <span className="font-semibold">{config.title}</span>
-        <motion.span 
-          key={veiculos.length}
-          initial={{ scale: 1.3 }}
-          animate={{ scale: 1 }}
-          className={cn(
-            "ml-auto px-2 py-0.5 rounded-full text-xs font-medium",
-            config.iconColor,
-            "bg-white/50 dark:bg-black/20"
-          )}
-        >
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">
+        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", config.accentColor)} />
+        <span className="text-sm font-semibold text-foreground">{config.title}</span>
+        <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 h-5">
           {veiculos.length}
-        </motion.span>
+        </Badge>
       </div>
 
       {/* Cards */}
       <ScrollArea className="flex-1 max-h-[calc(100vh-320px)]">
-        <div className="p-3 space-y-3">
-          <AnimatePresence mode="popLayout">
-            {veiculos.length === 0 ? (
-              <motion.p 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-sm text-muted-foreground text-center py-8"
-              >
-                Nenhum veículo
-              </motion.p>
-            ) : (
-              veiculos.map((veiculo) => {
-                const stats = veiculosStats.get(veiculo.placa);
-                const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
-                
-                return (
-                  <VeiculoKanbanCardFull
-                    key={veiculo.id}
-                    veiculo={veiculo}
-                    stats={stats}
-                    motoristaVinculado={motoristaVinculado}
-                    eventoId={eventoId}
-                    onSave={onSave}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                    getName={getName}
-                    onViewDetails={onViewDetails}
-                  />
-                );
-              })
-            )}
-          </AnimatePresence>
+        <div className="p-2 space-y-2 min-h-[60px]">
+          {veiculos.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Nenhum veículo
+            </p>
+          ) : (
+            veiculos.map((veiculo) => {
+              const stats = veiculosStats.get(veiculo.placa);
+              const motoristaVinculado = motoristas.find(m => m.veiculo_id === veiculo.id);
+              
+              return (
+                <VeiculoKanbanCardFull
+                  key={veiculo.id}
+                  veiculo={veiculo}
+                  stats={stats}
+                  motoristaVinculado={motoristaVinculado}
+                  eventoId={eventoId}
+                  onSave={onSave}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  getName={getName}
+                  onViewDetails={onViewDetails}
+                />
+              );
+            })
+          )}
         </div>
       </ScrollArea>
-    </motion.div>
+    </div>
   );
 }
