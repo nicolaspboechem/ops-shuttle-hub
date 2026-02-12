@@ -81,7 +81,7 @@ export function useMissoes(eventoId: string | undefined) {
         .from('missoes')
         .select(`
           *,
-          motorista:motoristas(nome, veiculos(nome, placa))
+          motorista:motoristas(nome, veiculos!motoristas_veiculo_id_fkey(nome, placa))
         `)
         .eq('evento_id', eventoId)
         .order('created_at', { ascending: false });
