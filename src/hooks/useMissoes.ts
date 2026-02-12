@@ -12,7 +12,7 @@ type MissaoRow = Database['public']['Tables']['missoes']['Row'];
 
 // Extended type with motorista relation
 interface MissaoWithMotorista extends MissaoRow {
-  motorista: { nome: string } | null;
+  motorista: { nome: string; veiculos: { nome: string | null; placa: string } | null } | null;
 }
 
 export interface Missao {
@@ -39,6 +39,9 @@ export interface Missao {
   data_atualizacao: string;
   // Campo para vincular diretamente à viagem criada
   viagem_id: string | null;
+  // Veículo vinculado ao motorista
+  veiculo_nome?: string;
+  veiculo_placa?: string;
 }
 
 export interface MissaoInput {
@@ -78,7 +81,7 @@ export function useMissoes(eventoId: string | undefined) {
         .from('missoes')
         .select(`
           *,
-          motorista:motoristas(nome)
+          motorista:motoristas(nome, veiculos(nome, placa))
         `)
         .eq('evento_id', eventoId)
         .order('created_at', { ascending: false });
@@ -90,6 +93,8 @@ export function useMissoes(eventoId: string | undefined) {
         const missoesFormatadas = ((data || []) as unknown as MissaoWithMotorista[]).map((m) => ({
           ...m,
           motorista_nome: m.motorista?.nome,
+          veiculo_nome: m.motorista?.veiculos?.nome || undefined,
+          veiculo_placa: m.motorista?.veiculos?.placa || undefined,
           status: m.status as MissaoStatus,
           prioridade: (m.prioridade || 'normal') as MissaoPrioridade,
           qtd_pax: (m as any).qtd_pax || 0,

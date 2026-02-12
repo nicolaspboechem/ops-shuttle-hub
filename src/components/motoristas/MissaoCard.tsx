@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar, Play } from 'lucide-react';
+import { MapPin, Clock, MoreVertical, Pencil, Trash2, User, CheckCircle, XCircle, Calendar, Play, Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface MissaoCardProps {
@@ -116,6 +116,18 @@ export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusCh
           <User className="h-4 w-4 text-muted-foreground" />
           <span className="font-medium">{displayNome}</span>
         </div>
+
+        {/* Veículo */}
+        {(missao.veiculo_nome || missao.veiculo_placa) && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <Car className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {missao.veiculo_nome && <span className="font-medium text-foreground">{missao.veiculo_nome}</span>}
+              {missao.veiculo_nome && missao.veiculo_placa && ' - '}
+              {missao.veiculo_placa}
+            </span>
+          </div>
+        )}
 
         {/* Pontos */}
         {(missao.ponto_embarque || missao.ponto_desembarque) && (
