@@ -119,6 +119,27 @@ export function VeiculoDetalheModal({
     enabled: !!veiculo?.id && open
   });
 
+  // Buscar histórico de alertas de combustível
+  const { data: alertasCombustivel, isLoading: alertasLoading } = useQuery({
+    queryKey: ['veiculo-alertas-combustivel', veiculo?.id],
+    queryFn: async () => {
+      if (!veiculo?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('alertas_frota')
+        .select(`
+          *,
+          motorista:motoristas!motorista_id(nome)
+        `)
+        .eq('veiculo_id', veiculo.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!veiculo?.id && open
+  });
+
   // Calcular métricas
   const metricas = useMemo(() => {
     if (!veiculo) return null;
@@ -285,18 +306,22 @@ export function VeiculoDetalheModal({
 
           {/* Tabs */}
           <Tabs defaultValue="resumo" className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="mx-6 mt-4 grid w-auto grid-cols-3">
+            <TabsList className="mx-6 mt-4 grid w-auto grid-cols-4">
               <TabsTrigger value="resumo" className="flex items-center gap-1.5">
                 <Info className="h-4 w-4" />
                 Resumo
               </TabsTrigger>
               <TabsTrigger value="uso" className="flex items-center gap-1.5">
                 <History className="h-4 w-4" />
-                Histórico de Uso
+                Hist. Uso
               </TabsTrigger>
               <TabsTrigger value="vistorias" className="flex items-center gap-1.5">
                 <ClipboardCheck className="h-4 w-4" />
                 Vistorias
+              </TabsTrigger>
+              <TabsTrigger value="combustivel" className="flex items-center gap-1.5">
+                <Fuel className="h-4 w-4" />
+                Combustível
               </TabsTrigger>
             </TabsList>
 
@@ -568,6 +593,100 @@ export function VeiculoDetalheModal({
                   <div className="text-center py-8 text-muted-foreground">
                     <ClipboardCheck className="h-12 w-12 mx-auto mb-2 opacity-30" />
                     <p>Nenhuma vistoria registrada</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Aba Combustível */}
+              <TabsContent value="combustivel" className="mt-0 space-y-4">
+                {alertasLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Carregando histórico...
+                  </div>
+                ) : alertasCombustivel && alertasCombustivel.length > 0 ? (
+                  <>
+                    {/* Métricas resumidas */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Card className="bg-card/50">
+                        <CardContent className="p-3 flex items-center gap-3">
+                          <Fuel className="h-5 w-5 text-amber-500" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Alertas registrados</p>
+                            <p className="text-lg font-bold">{alertasCombustivel.length}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-card/50">
+                        <CardContent className="p-3 flex items-center gap-3">
+                          <Calendar className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Último alerta</p>
+                            <p className="text-sm font-medium">
+                              {format(parseISO(alertasCombustivel[0].created_at), "dd/MM/yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Lista de alertas */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data/Hora</TableHead>
+                          <TableHead>Motorista</TableHead>
+                          <TableHead>Nível</TableHead>
+                          <TableHead>Observação</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {alertasCombustivel.map((alerta: any) => (
+                          <TableRow key={alerta.id}>
+                            <TableCell className="font-medium whitespace-nowrap">
+                              {format(parseISO(alerta.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <UserCheck className="h-3 w-3 text-muted-foreground" />
+                                <span>{alerta.motorista?.nome || 'Desconhecido'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn(
+                                "font-mono",
+                                alerta.nivel_combustivel === 'vazio' && "border-destructive text-destructive",
+                                alerta.nivel_combustivel === '1/4' && "border-amber-500 text-amber-600",
+                              )}>
+                                {alerta.nivel_combustivel || '-'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate text-muted-foreground text-sm">
+                              {alerta.observacao || '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                alerta.status === 'resolvido' ? 'default' :
+                                alerta.status === 'pendente' ? 'secondary' : 'destructive'
+                              } className="text-xs">
+                                {alerta.status === 'resolvido' ? 'Resolvido' :
+                                 alerta.status === 'pendente' ? 'Pendente' : 'Aberto'}
+                              </Badge>
+                              {alerta.resolvido_em && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {format(parseISO(alerta.resolvido_em), "dd/MM HH:mm")}
+                                </p>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Fuel className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                    <p>Nenhum alerta de combustível registrado</p>
                   </div>
                 )}
               </TabsContent>
