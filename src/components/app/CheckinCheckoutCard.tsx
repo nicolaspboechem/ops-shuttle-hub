@@ -20,6 +20,7 @@ interface CheckinCheckoutCardProps {
   loading?: boolean;
   viagensHoje?: number;
   hideCheckout?: boolean; // Ocultar botão de checkout (usado quando está na aba de histórico)
+  submitting?: boolean; // True enquanto ação de check-in/checkout está sendo executada
 }
 
 export function CheckinCheckoutCard({ 
@@ -29,7 +30,8 @@ export function CheckinCheckoutCard({
   onCheckout, 
   loading,
   viagensHoje = 0,
-  hideCheckout = false
+  hideCheckout = false,
+  submitting = false
 }: CheckinCheckoutCardProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showVistoriaModal, setShowVistoriaModal] = useState(false);
@@ -143,7 +145,7 @@ export function CheckinCheckoutCard({
                 onCheckin();
               }
             }}
-            disabled={loading}
+            disabled={submitting}
           >
             <LogIn className="h-4 w-4" />
             {veiculoAtribuido ? 'Verificar e Fazer Check-in' : 'Fazer Check-in'}
@@ -231,7 +233,7 @@ export function CheckinCheckoutCard({
                 variant="destructive" 
                 className="w-full gap-2" 
                 onClick={() => setShowCheckoutModal(true)}
-                disabled={loading}
+                disabled={submitting}
               >
                 <LogOut className="h-4 w-4" />
                 Encerrar Expediente

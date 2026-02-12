@@ -571,6 +571,7 @@ export default function Veiculos() {
         viagens={viagens}
         motoristas={motoristas}
         eventoId={eventoId}
+        onUpdate={refetchVeiculos}
       />
     </EventLayout>
   );
