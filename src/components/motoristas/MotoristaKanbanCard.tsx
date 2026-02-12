@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route, LogIn, LogOut } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route, LogIn, LogOut, RotateCcw } from "lucide-react";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
@@ -39,6 +39,7 @@ interface MotoristaKanbanCardProps {
   presenca?: { checkin_at?: string | null; checkout_at?: string | null } | null;
   onCheckin?: () => void;
   onCheckout?: () => void;
+  onLiberarCheckin?: () => void;
 }
 
 export function MotoristaKanbanCard({ 
@@ -54,7 +55,8 @@ export function MotoristaKanbanCard({
   isDragOverlay = false,
   presenca,
   onCheckin,
-  onCheckout
+  onCheckout,
+  onLiberarCheckin
 }: MotoristaKanbanCardProps) {
   const TipoIcon = veiculo?.tipo_veiculo?.toLowerCase().includes('van') ? Car : Bus;
 
@@ -182,6 +184,16 @@ export function MotoristaKanbanCard({
                     <DropdownMenuItem onClick={onEdit}>
                       <Pencil className="w-4 h-4 mr-2" />
                       Editar Motorista
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {/* Liberar Check-in - only when checkout already done */}
+                {onLiberarCheckin && presenca?.checkin_at && presenca?.checkout_at && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onLiberarCheckin} className="text-emerald-600">
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Liberar Check-in
                     </DropdownMenuItem>
                   </>
                 )}

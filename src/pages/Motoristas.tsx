@@ -42,6 +42,7 @@ import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoM
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { EditarLocalizacaoModal } from '@/components/motoristas/EditarLocalizacaoModal';
 import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useEquipe } from '@/hooks/useEquipe';
 
@@ -71,7 +72,7 @@ export default function Motoristas() {
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { getEventoById } = useEventos();
-  const { membros: equipeMembros, handleCheckin, handleCheckout } = useEquipe(eventoId);
+  const { membros: equipeMembros, handleCheckin, handleCheckout, refetch: refetchEquipe } = useEquipe(eventoId);
   
   // Hooks de missões - devem estar antes de qualquer return condicional
   const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
@@ -382,6 +383,43 @@ export default function Motoristas() {
     refetchMotoristas();
   };
 
+  // Handler para liberar check-in (limpar checkout do dia)
+  const handleLiberarCheckin = async (motoristaId: string) => {
+    if (!eventoId) return;
+    const agora = getAgoraSync();
+    const evento = getEventoById(eventoId);
+    const horarioVirada = evento?.horario_virada_dia || '04:00';
+    const today = getDataOperacional(agora, horarioVirada);
+
+    try {
+      const { data: existing } = await supabase
+        .from('motorista_presenca')
+        .select('id')
+        .eq('motorista_id', motoristaId)
+        .eq('evento_id', eventoId)
+        .eq('data', today)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('motorista_presenca')
+          .update({ checkout_at: null, observacao_checkout: null })
+          .eq('id', existing.id);
+      }
+
+      await supabase
+        .from('motoristas')
+        .update({ status: 'disponivel' })
+        .eq('id', motoristaId);
+
+      toast.success('Check-in liberado! Motorista pode fazer check-in novamente.');
+      refetchEquipe();
+      refetchMotoristas();
+    } catch (error: any) {
+      toast.error(`Erro ao liberar check-in: ${error.message}`);
+    }
+  };
+
   const filteredCadastrados = useMemo(() => {
     let filtered = [...motoristasCadastrados];
 
@@ -669,6 +707,7 @@ export default function Motoristas() {
                 getPresenca={getPresenca}
                 onCheckin={handleCheckin}
                 onCheckout={handleCheckout}
+                onLiberarCheckin={handleLiberarCheckin}
               />
             ))}
           </div>
