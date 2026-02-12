@@ -1,43 +1,77 @@
 
-# Adicionar Aba de Historico de Combustivel no Modal de Detalhes do Veiculo
+# Melhorias nos Alertas de Combustivel - CCO e Supervisor
 
-## O que sera feito
+## Resumo
 
-Adicionar uma nova aba **"Combustivel"** no `VeiculoDetalheModal`, ao lado das abas existentes (Resumo, Historico de Uso, Vistorias). Essa aba mostrara o historico de alertas de combustivel emitidos pelos motoristas para aquele veiculo, usando dados da tabela `alertas_frota`.
+Adicionar acoes interativas nos cards de alerta de combustivel no Dashboard (CCO) e transformar o fluxo do Supervisor para uma experiencia mais completa.
 
-## Dados exibidos por alerta
+---
 
-- Data e hora do alerta
-- Motorista que reportou
-- Nivel de combustivel no momento do alerta
-- Observacao do motorista (se houver)
-- Status do alerta (aberto, pendente, resolvido)
-- Data de resolucao (se resolvido)
+## 1. Dashboard CCO - Menu de 3 pontos nos cards
 
-## Metricas resumidas no topo da aba
+Cada card de alerta de combustivel no Dashboard (desktop e mobile) ganhara um botao de 3 pontos (MoreVertical) com as seguintes opcoes:
 
-- Total de abastecimentos/alertas registrados
-- Ultimo alerta (data)
+- **Chamar de volta para a base** - Muda o status do alerta para `pendente`
+- **Enviar para manutencao** - Muda o status do veiculo para `em_manutencao` na tabela `veiculos` e resolve o alerta
+- **Resolver** - Marca o alerta como `resolvido`
 
-## Mudancas tecnicas
+### Arquivos alterados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/veiculos/VeiculoDetalheModal.tsx` | Adicionar query para buscar alertas de `alertas_frota` filtrados por `veiculo_id`. Adicionar nova aba "Combustivel" com icone `Fuel`. Alterar grid de tabs de `grid-cols-3` para `grid-cols-4`. Renderizar lista de alertas com data, motorista, nivel, observacao e status. |
+| `src/pages/Dashboard.tsx` | Adicionar DropdownMenu com 3 pontos em cada card de alerta. Importar `useAlertasFrota` com `atualizarStatus`. Adicionar funcao para enviar veiculo para manutencao (update em `veiculos`). |
+| `src/components/dashboard/DashboardMobile.tsx` | Mesmo tratamento: DropdownMenu com 3 pontos em cada card de alerta de combustivel. |
 
-## Estrutura da aba
+### Estrutura do card atualizado
 
 ```text
-[Resumo] [Hist. Uso] [Vistorias] [Combustivel]
-
---- Aba Combustivel ---
-Metricas: "X alertas registrados"
-
-Tabela/Lista:
-| Data/Hora | Motorista | Nivel | Observacao | Status |
-|-----------|-----------|-------|------------|--------|
-| 12/02 20:30 | Edenilson | 1/4 | Precisa abastecer | Resolvido |
-| 11/02 15:00 | Joao | Vazio | - | Aberto |
+[Fuel icon] ABC-1234  Edenilson     [1/4] [Aberto]  [...]
+                                                       |
+                                          Chamar p/ Base
+                                          Enviar p/ Manutencao
+                                          Resolver
 ```
 
-Nao envolve mudancas no banco de dados -- os dados ja existem na tabela `alertas_frota` com join para `motoristas`.
+---
+
+## 2. Supervisor - Modal com acoes completas
+
+O `SupervisorAlertasModal` ja existe e funciona bem como bottom sheet. O ajuste sera:
+
+- Adicionar a opcao **"Enviar para manutencao"** ao lado das acoes existentes (Chamar Base / Resolver)
+- Manter o modal como esta (bottom sheet), pois e o padrao mobile do app
+
+### Arquivos alterados
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/components/app/SupervisorAlertasModal.tsx` | Adicionar botao "Manutencao" que atualiza o status do veiculo para `em_manutencao` e resolve o alerta. Importar `supabase` para o update direto. |
+
+---
+
+## 3. Logica de "Enviar para Manutencao"
+
+Ao clicar em "Enviar para manutencao":
+
+1. Atualizar `veiculos.status` para `em_manutencao` usando `veiculo_id` do alerta
+2. Resolver o alerta (`status = 'resolvido'`)
+3. Exibir toast de confirmacao
+
+---
+
+## 4. Versao
+
+Atualizar `APP_VERSION` para `1.7.1` em `src/lib/version.ts`.
+
+---
+
+## Resumo de arquivos
+
+| Arquivo | Tipo |
+|---|---|
+| `src/pages/Dashboard.tsx` | Editar |
+| `src/components/dashboard/DashboardMobile.tsx` | Editar |
+| `src/components/app/SupervisorAlertasModal.tsx` | Editar |
+| `src/lib/version.ts` | Editar |
+
+Nao requer mudancas no banco de dados -- os campos `veiculos.status` e `alertas_frota.status` ja existem.
