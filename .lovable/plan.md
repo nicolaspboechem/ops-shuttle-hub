@@ -1,79 +1,43 @@
 
+# Adicionar Aba de Historico de Combustivel no Modal de Detalhes do Veiculo
 
-# Preservar Historico de Presenca ao Liberar Check-in
+## O que sera feito
 
-## Problema Atual
+Adicionar uma nova aba **"Combustivel"** no `VeiculoDetalheModal`, ao lado das abas existentes (Resumo, Historico de Uso, Vistorias). Essa aba mostrara o historico de alertas de combustivel emitidos pelos motoristas para aquele veiculo, usando dados da tabela `alertas_frota`.
 
-Quando "Liberar Check-in" e acionado, o sistema limpa o `checkout_at` do registro existente e, ao fazer novo check-in, o `upsert` com `onConflict` sobrescreve o mesmo registro. O primeiro turno (check-in + check-out) e **perdido**.
+## Dados exibidos por alerta
 
-## Solucao
+- Data e hora do alerta
+- Motorista que reportou
+- Nivel de combustivel no momento do alerta
+- Observacao do motorista (se houver)
+- Status do alerta (aberto, pendente, resolvido)
+- Data de resolucao (se resolvido)
 
-Mudar a logica para **preservar o registro antigo** e **criar um novo** para o segundo turno do dia.
+## Metricas resumidas no topo da aba
 
-### Mudancas necessarias
+- Total de abastecimentos/alertas registrados
+- Ultimo alerta (data)
 
-**1. Remover a constraint UNIQUE (motorista_id, evento_id, data)**
-
-Atualmente so permite 1 registro por motorista/dia. Precisamos permitir multiplos turnos no mesmo dia.
-
-Migracao SQL:
-- Dropar a constraint unica existente
-- Adicionar um indice nao-unico para performance de consulta
-
-**2. Alterar `handleLiberarCheckin` em `Motoristas.tsx`**
-
-Em vez de limpar o `checkout_at` do registro existente, a funcao passa a apenas atualizar o status do motorista para `disponivel`. O registro com checkout permanece intacto.
-
-**3. Alterar `realizarCheckin` em `useMotoristaPresenca.ts`**
-
-Em vez de `upsert` (que sobrescreve), usar logica:
-- Verificar se ja existe um registro ativo (com checkin e sem checkout) para hoje
-- Se nao existe, criar um **novo** registro (INSERT), independente de ja ter registros anteriores no dia
-- Se ja existe um ativo, nao faz nada (ja esta com check-in)
-
-**4. Alterar `fetchPresenca` em `useMotoristaPresenca.ts`**
-
-Buscar o registro **ativo** do dia (checkin != null e checkout == null), em vez de qualquer registro do dia. Se nao encontrar ativo, buscar o mais recente (para saber se ja fez checkout).
-
-### Resultado esperado
-
-Para o Edenilson hoje:
-- Registro 1: checkin 14:06, checkout (o que tiver sido feito) - **preservado**
-- Registro 2: checkin 20:27 (liberacao), checkout null - **novo registro independente**
-
-### Sobre recuperar os dados do Edenilson
-
-Infelizmente, o check-in/check-out original do Edenilson ja foi sobrescrito no banco. O registro atual mostra apenas `checkin_at: 14:06` sem checkout. Nao e possivel recuperar os horarios exatos do primeiro turno porque o upsert os substituiu.
-
-Podemos ajustar manualmente via SQL se voce lembrar os horarios aproximados.
-
-## Arquivos afetados
+## Mudancas tecnicas
 
 | Arquivo | Mudanca |
 |---|---|
-| Nova migracao SQL | Remover constraint UNIQUE, adicionar indice |
-| `src/hooks/useMotoristaPresenca.ts` | Trocar upsert por INSERT, ajustar fetch para buscar registro ativo |
-| `src/pages/Motoristas.tsx` | Simplificar handleLiberarCheckin (nao altera mais o registro antigo) |
+| `src/components/veiculos/VeiculoDetalheModal.tsx` | Adicionar query para buscar alertas de `alertas_frota` filtrados por `veiculo_id`. Adicionar nova aba "Combustivel" com icone `Fuel`. Alterar grid de tabs de `grid-cols-3` para `grid-cols-4`. Renderizar lista de alertas com data, motorista, nivel, observacao e status. |
 
-## Detalhe tecnico: logica do novo check-in
+## Estrutura da aba
 
 ```text
-fetchPresenca():
-  1. Buscar registro ATIVO do dia (checkin != null, checkout == null)
-  2. Se encontrar -> motorista ja tem check-in ativo
-  3. Se nao encontrar -> buscar ultimo registro do dia (para saber se ja fez checkout)
+[Resumo] [Hist. Uso] [Vistorias] [Combustivel]
 
-realizarCheckin():
-  1. INSERT novo registro (nunca upsert)
-  2. Cada turno = novo registro
+--- Aba Combustivel ---
+Metricas: "X alertas registrados"
 
-handleLiberarCheckin():
-  1. NAO altera registro antigo
-  2. Apenas muda status do motorista para 'disponivel'
-  3. Motorista faz check-in normal -> cria novo registro
+Tabela/Lista:
+| Data/Hora | Motorista | Nivel | Observacao | Status |
+|-----------|-----------|-------|------------|--------|
+| 12/02 20:30 | Edenilson | 1/4 | Precisa abastecer | Resolvido |
+| 11/02 15:00 | Joao | Vazio | - | Aberto |
 ```
 
-## Impacto no auto-checkout
-
-A Edge Function `auto-checkout` busca registros com `checkout_at IS NULL` — continuara funcionando normalmente, pois fechara apenas registros abertos.
-
+Nao envolve mudancas no banco de dados -- os dados ja existem na tabela `alertas_frota` com join para `motoristas`.
