@@ -437,7 +437,7 @@ export default function AppMotorista() {
         );
 
       case 'veiculo':
-        return <MotoristaVeiculoTab veiculo={veiculoExibir} />;
+        return <MotoristaVeiculoTab veiculo={veiculoExibir} eventoId={eventoId} motoristaId={motoristaData?.id} />;
 
       case 'corrida':
         return (

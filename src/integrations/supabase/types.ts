@@ -14,6 +14,70 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_frota: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          motorista_id: string
+          nivel_combustivel: string | null
+          observacao: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          status: string
+          tipo: string
+          veiculo_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          motorista_id: string
+          nivel_combustivel?: string | null
+          observacao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo?: string
+          veiculo_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          motorista_id?: string
+          nivel_combustivel?: string | null
+          observacao?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          status?: string
+          tipo?: string
+          veiculo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_frota_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_frota_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alertas_frota_veiculo_id_fkey"
+            columns: ["veiculo_id"]
+            isOneToOne: false
+            referencedRelation: "veiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evento_usuarios: {
         Row: {
           created_at: string | null
