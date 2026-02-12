@@ -270,7 +270,7 @@ export default function Dashboard() {
         </div>
 
         {/* Cards de Métricas em Tempo Real - Grid responsivo */}
-        <div data-tutorial="metrics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-2 md:gap-4">
+        <div data-tutorial="metrics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-4">
           <MetricCard 
             title="Viagens Ativas" 
             value={metricsRealTime.viagensAtivas} 
@@ -296,12 +296,13 @@ export default function Dashboard() {
             value={kpis ? formatarMinutos(kpis.tempoMedioGeral) : '-'} 
             subtitle="Pickup → Retorno" 
             icon={<Clock className="w-5 h-5 md:w-6 md:h-6" />} 
-            className="col-span-2 sm:col-span-1"
           />
-          {/* Card de Combustível - sempre visível */}
+          {/* Card de Combustível - compacto sem alertas, expandido com alertas */}
           <Card className={cn(
-            "overflow-hidden",
-            alertasAbertos.length > 0 ? "ring-2 ring-status-critical/50 bg-status-critical/5" : ""
+            "overflow-hidden transition-all duration-300",
+            alertasAbertos.length > 0
+              ? "lg:col-span-2 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-400 dark:ring-amber-600"
+              : ""
           )}>
             <CardContent className="p-3 md:p-4">
               <div className="flex items-start justify-between">
@@ -312,46 +313,47 @@ export default function Dashboard() {
                     {alertasPendentes.length > 0 ? `${alertasPendentes.length} pendentes` : 'alertas abertos'}
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 text-primary">
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl",
+                  alertasAbertos.length > 0 ? "bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200" : "bg-primary/10 text-primary"
+                )}>
                   <Fuel className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
               </div>
               {alertas.length > 0 && (
-                <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-                  {alertas.slice(0, 4).map(alerta => (
-                    <div key={alerta.id} className="flex items-center justify-between text-xs p-1.5 rounded bg-background/50 border">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <code className="text-[10px] font-mono">{alerta.veiculo?.placa || '---'}</code>
-                        <span className="truncate">{alerta.motorista?.nome || '---'}</span>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
+                <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+                  {alertas.map(alerta => (
+                    <div key={alerta.id} className="flex items-center justify-between text-xs p-2 rounded-md bg-background/80 border">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">{alerta.motorista?.nome || '---'}</span>
+                        <code className="text-[10px] font-mono text-muted-foreground shrink-0">{alerta.veiculo?.placa || '---'}</code>
+                        <Badge variant={alerta.status === 'aberto' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0 shrink-0">
                           {alerta.nivel_combustivel}
                         </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-5 w-5">
-                              <MoreVertical className="h-3 w-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {alerta.status === 'aberto' && (
-                              <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
-                                <MapPin className="h-4 w-4 mr-2" />
-                                Chamar p/ Base
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
-                              <Wrench className="h-4 w-4 mr-2" />
-                              Enviar p/ Manutenção
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Resolver
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {alerta.status === 'aberto' && (
+                            <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'pendente')}>
+                              <MapPin className="h-4 w-4 mr-2" />
+                              Chamar p/ Base
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'manutencao', alerta.veiculo_id)}>
+                            <Wrench className="h-4 w-4 mr-2" />
+                            Enviar p/ Manutenção
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAlertaAction(alerta.id, 'resolvido')}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Resolver
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   ))}
                 </div>
