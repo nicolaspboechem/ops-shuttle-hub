@@ -1,96 +1,62 @@
 
 
-# 3 Melhorias: Auto-Checkout na Virada, Liberar Check-in Duplo, e Veiculo no Mapa de Servico
+# Exibir Veiculo + Placa nos Cards de Missao (Kanban e Lista)
 
-## 1. Auto-Checkout na Virada do Dia Operacional
+## Objetivo
+Adicionar uma linha com o nome (apelido) e placa do veiculo logo abaixo do nome do motorista em cada card de missao, seguindo a ordem:
 
-### Problema
-Motoristas esquecem de fazer checkout, deixando registros de presenca abertos indefinidamente. Isso impede que o dia anterior seja consolidado corretamente.
-
-### Solucao
-Criar uma Edge Function `auto-checkout` que sera executada por cron job no horario de virada de cada evento. A funcao:
-
-1. Busca todos os eventos ativos com `habilitar_missoes = true`
-2. Para cada evento, calcula a data operacional do dia ANTERIOR baseada no `horario_virada_dia`
-3. Encontra registros de `motorista_presenca` com `checkin_at` preenchido mas `checkout_at` nulo para essa data
-4. Faz checkout automatico de todos esses motoristas (preenche `checkout_at` e muda status para `indisponivel`)
-5. Opcionalmente desvincula o veiculo (`veiculo_id = null` na tabela motoristas)
-
-| Arquivo | Mudanca |
-|---|---|
-| `supabase/functions/auto-checkout/index.ts` | Nova Edge Function que faz checkout em massa de motoristas pendentes |
-| Cron job (SQL insert) | Agendar execucao a cada 15 minutos para cobrir horarios de virada variados |
-
-A funcao verifica o `horario_virada_dia` de cada evento e so age quando o horario atual estiver dentro de uma janela (ex: nos 15 minutos apos a virada). Observacao no checkout automatico: "Checkout automatico - virada do dia operacional".
-
-### Logica simplificada
-```
-Para cada evento ativo com missoes:
-  virada = evento.horario_virada_dia (ex: 02:30)
-  Se agora esta entre virada e virada+15min:
-    data_ontem = data operacional anterior
-    Buscar presencas com checkin_at != null AND checkout_at = null AND data = data_ontem
-    Para cada presenca:
-      UPDATE checkout_at = now(), observacao_checkout = 'Auto-checkout'
-      UPDATE motoristas SET status = 'indisponivel'
+```text
++---------------------------+
+| [Badge Prioridade]   [...] |
+| Titulo da Missao           |
+| [User] Motorista           |
+| [Car]  Veiculo - ABC1234   |
+| [Pin]  Origem -> Destino   |
+| [Clock] 14:30  [PAX] 3     |
++---------------------------+
 ```
 
----
+## Mudancas
 
-## 2. Liberar Check-in (permitir re-check-in no mesmo dia)
+### 1. Hook `useMissoes.ts` - Buscar dados do veiculo junto com o motorista
 
-### Problema
-Quando um motorista tem checkout realizado (manual ou automatico), ele nao consegue fazer check-in novamente no mesmo dia porque ja existe um registro de presenca com checkout. O admin precisa de uma opcao manual para "liberar" o check-in.
+A query atual faz:
+```
+select *, motorista:motoristas(nome)
+```
 
-### Solucao
-A tabela `motorista_presenca` tem constraint UNIQUE em `(motorista_id, evento_id, data)`. O handleCheckin em `useEquipe.ts` ja faz upsert (se existe, atualiza; se nao, insere). O problema e que quando ja existe um registro com checkout, o check-in deveria poder limpar o checkout e reabrir.
+Precisa expandir para incluir o veiculo vinculado ao motorista:
+```
+select *, motorista:motoristas(nome, veiculo_id, veiculos(nome, placa))
+```
 
-Na verdade, olhando o codigo do `handleCheckin`, ele ja faz `update({ checkin_at: now, checkout_at: null })` se existir registro. Entao o check-in "re-abre" automaticamente. Porem, a interface pode estar escondendo o botao de check-in quando ja existe checkout.
+Isso traz o veiculo atualmente vinculado ao motorista sem queries adicionais.
 
-A solucao e adicionar um botao "Liberar Check-in" no dropdown do card/kanban do motorista que:
-1. Limpa o `checkout_at` do registro de presenca do dia
-2. Atualiza o status do motorista para `disponivel`
-3. Forca refetch para atualizar a UI
+Atualizar a interface `MissaoWithMotorista` e o tipo `Missao` para incluir `veiculo_nome` e `veiculo_placa`.
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/Motoristas.tsx` | Adicionar handler `handleLiberarCheckin` e passa-lo aos cards/kanban |
-| `src/components/motoristas/MotoristaKanbanCard.tsx` | Adicionar item "Liberar Check-in" no dropdown (visivel apenas quando presenca tem checkout) |
+Na formatacao, extrair `m.motorista?.veiculos?.nome` e `m.motorista?.veiculos?.placa`.
 
-O botao so aparece quando:
-- O motorista tem presenca do dia (`checkin_at` preenchido)
-- E o `checkout_at` tambem esta preenchido (jornada encerrada)
+### 2. Interface `Missao` - Novos campos
 
-Ao clicar, o admin limpa o checkout e o motorista pode fazer check-in novamente pelo app.
+Adicionar ao tipo `Missao`:
+- `veiculo_nome?: string`
+- `veiculo_placa?: string`
 
----
+### 3. Card `MissaoKanbanCard.tsx` - Nova linha visual
 
-## 3. Exibir Veiculo no Card do Mapa de Servico
+Adicionar uma linha entre o motorista e a rota com icone de carro (lucide `Car`), exibindo:
+- Nome do veiculo (se existir) + placa, no formato: **Viatura 1** - ABC1234
+- Se so tiver placa: ABC1234
+- Se nao tiver veiculo: nao exibe a linha
 
-### Problema
-O CCO precisa saber qual veiculo esta com cada motorista no Mapa de Servico, mas essa informacao nao esta visivel quando o motorista esta em missao.
+### 4. Componente `MissaoBadge.tsx` - Mesma info no popover
 
-### Situacao atual
-O `MapaServicoCard` ja exibe o veiculo na Row 3 (nome + placa). Porem, a informacao pode nao estar aparecendo corretamente quando o motorista esta em missao (Row 4/5 podem estar ocupando o espaco visual).
+Adicionar a info do veiculo no dropdown de detalhes da missao, caso seja relevante (opcional, baixa prioridade).
 
-### Solucao
-Garantir que a Row 3 (veiculo) esteja SEMPRE visivel, independente do status de missao. Ajustar o layout para que o veiculo apareca logo abaixo do nome do motorista com destaque visual.
+## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/mapa-servico/MapaServicoCard.tsx` | Reorganizar para garantir que veiculo + placa fique sempre visivel abaixo do nome, com estilo mais destacado |
-
-Na pratica, o card ja mostra o veiculo. A mudanca e cosmetic: tornar mais visivel com fonte um pouco maior e cor mais destacada para nome do veiculo.
-
----
-
-## Resumo de Arquivos
-
-| # | Arquivo | Tipo |
-|---|---|---|
-| 1 | `supabase/functions/auto-checkout/index.ts` | Novo - Edge Function para checkout automatico |
-| 2 | SQL (cron job via insert) | Agendar execucao periodica |
-| 3 | `src/pages/Motoristas.tsx` | Adicionar handler `handleLiberarCheckin` |
-| 4 | `src/components/motoristas/MotoristaKanbanCard.tsx` | Adicionar botao "Liberar Check-in" no dropdown |
-| 5 | `src/components/mapa-servico/MapaServicoCard.tsx` | Destacar info do veiculo no card |
+| `src/hooks/useMissoes.ts` | Expandir query para incluir veiculo via motorista, adicionar campos ao tipo Missao |
+| `src/components/motoristas/MissaoKanbanCard.tsx` | Adicionar linha de veiculo+placa abaixo do motorista |
 
