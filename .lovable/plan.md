@@ -1,36 +1,43 @@
 
 
-# Corrigir "useAuth must be used within an AuthProvider" no App Motorista
+# Corrigir MIME type error no Vercel - Chunks JS servidos como HTML
 
 ## Problema
 
-O erro ocorre porque a rota `/app/:eventoId/motorista` fica **fora** do `AuthLayout` (que fornece o `AuthProvider`). Isso foi feito de proposito para que motoristas nao precisem do Supabase Auth. Porem, 3 componentes filhos do `AppMotorista` chamam `useAuth()` diretamente:
+O `vercel.json` atual tem uma regra `"source": "/(.*)"` que redireciona **todas** as URLs para `index.html`, incluindo arquivos estáticos como `.js`, `.css`, `.woff2`.
 
-- `VistoriaVeiculoWizard.tsx` - linha 58: `const { user } = useAuth()`
-- `CreateViagemForm.tsx` - linha 60: `const { user } = useAuth()`
-- `RetornoViagemForm.tsx` - linha 48: `const { user } = useAuth()`
+Quando o Vercel faz um novo deploy, os hashes dos chunks mudam (ex: `AppMotorista-CRnTW4US.js` vira `AppMotorista-CItxCaYv.js`). Se o usuario esta com a aba aberta e navega para uma rota que carrega um chunk lazy, o browser pede o chunk antigo, que nao existe mais. O Vercel entao serve `index.html` (HTML) no lugar, causando o erro:
 
-Esses componentes usam `useAuth()` para obter o `user` e tambem `useCurrentUser()` para obter `userId`/`userName`. O `useCurrentUser` tem protecao try/catch, mas a chamada direta a `useAuth()` explode.
+> Failed to load module script: server responded with MIME type "text/html"
 
 ## Solucao
 
-Remover a chamada direta `useAuth()` desses 3 componentes e usar apenas `useCurrentUser()`, que ja tenta todos os auth contexts com protecao try/catch.
+Alterar o `vercel.json` para usar a configuracao padrao de SPAs no Vercel: redirecionar apenas rotas que **nao** correspondem a arquivos estaticos reais. O Vercel ja faz isso nativamente quando nao ha regra catch-all conflitante.
 
-## Alteracoes
+A configuracao correta exclui assets estaticos do rewrite, redirecionando apenas rotas de navegacao (sem extensao de arquivo) para `index.html`.
 
-### 1. `src/components/app/VistoriaVeiculoWizard.tsx`
-- Remover `import { useAuth }` e `const { user } = useAuth()`
-- Substituir referencias a `user` por `userId` (ja disponivel via `useCurrentUser`)
+## Alteracao
 
-### 2. `src/components/app/CreateViagemForm.tsx`
-- Remover `import { useAuth }` e `const { user } = useAuth()`
-- Substituir referencias a `user` por `userId` (ja disponivel via `useCurrentUser`)
+### `vercel.json`
 
-### 3. `src/components/app/RetornoViagemForm.tsx`
-- Remover `import { useAuth }` e `const { user } = useAuth()`
-- Substituir referencias a `user` por `userId` (ja disponivel via `useCurrentUser`)
+Substituir a regra atual por uma que exclua arquivos com extensao conhecida:
 
-## Impacto
+```json
+{
+  "rewrites": [
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
 
-Esses componentes ja possuem `useCurrentUser()` que fornece `userId` e `userName`. A chamada extra a `useAuth()` era redundante e causava o crash. Apos a correcao, o app do motorista carregara normalmente no Vercel.
+Isso garante que qualquer URL dentro de `/assets/` (onde o Vite coloca os chunks JS/CSS) sera servida diretamente pelo Vercel como arquivo estatico. Rotas de navegacao como `/app/123/motorista` continuam sendo redirecionadas para `index.html` normalmente.
+
+### Melhoria adicional no `lazyRetry` (App.tsx)
+
+O `lazyRetry` atual tenta re-importar o chunk 3 vezes. Quando o erro e MIME type (chunk antigo apos deploy), nenhuma retry vai funcionar. Adicionar deteccao desse caso para forcar reload imediato da pagina (que carrega o novo `index.html` com os hashes corretos).
+
+No `App.tsx`, dentro do `lazyRetry`, adicionar verificacao se o erro e de MIME type ou chunk nao encontrado, e nesse caso forcar `window.location.reload()` em vez de mostrar a tela de erro.
 
