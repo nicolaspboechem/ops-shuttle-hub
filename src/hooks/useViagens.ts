@@ -141,6 +141,78 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
   };
 }
 
+/**
+ * Hook otimizado para o app do motorista - carrega apenas viagens do motorista logado
+ * com realtime filtrado por motorista_id (evita cascade de refetch em todos os motoristas)
+ */
+export function useViagensPorMotorista(eventoId?: string, motoristaId?: string) {
+  const [viagens, setViagens] = useState<Viagem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchViagens = useCallback(async (showLoading = false, isManualRefresh = false) => {
+    const isValidUUID = (id?: string) => id && id.length >= 36 && /^[0-9a-f-]{36}$/i.test(id);
+    
+    if (!isValidUUID(eventoId) || !isValidUUID(motoristaId)) {
+      setViagens([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+    
+    if (showLoading) setLoading(true);
+    if (isManualRefresh) setRefreshing(true);
+
+    const { data, error } = await supabase
+      .from('viagens')
+      .select(`
+        *,
+        veiculo:veiculos!veiculo_id (nome, placa, tipo_veiculo)
+      `)
+      .eq('evento_id', eventoId!)
+      .eq('motorista_id', motoristaId!)
+      .order('h_pickup', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar viagens do motorista:', error);
+    } else {
+      setViagens((data as Viagem[]) || []);
+    }
+    setLoading(false);
+    setRefreshing(false);
+  }, [eventoId, motoristaId]);
+
+  useEffect(() => {
+    fetchViagens(true);
+
+    const isValidUUID = (id?: string) => id && id.length >= 36 && /^[0-9a-f-]{36}$/i.test(id);
+    if (!isValidUUID(eventoId) || !isValidUUID(motoristaId)) return;
+
+    // Realtime filtrado por motorista_id - só dispara quando a viagem é deste motorista
+    const channel = supabase
+      .channel(`viagens-motorista-${motoristaId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'viagens',
+          filter: `motorista_id=eq.${motoristaId}`,
+        },
+        () => fetchViagens(false)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchViagens, eventoId, motoristaId]);
+
+  const refetch = useCallback(() => fetchViagens(false, true), [fetchViagens]);
+
+  return { viagens, loading, refreshing, refetch };
+}
+
 export function useCalculos(viagens: Viagem[]) {
   const kpis = useMemo(() => {
     if (viagens.length === 0) return null;

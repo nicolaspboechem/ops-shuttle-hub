@@ -336,6 +336,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
     
     if (!isValidEventoId || !isValidMotoristaId) return;
 
+    // Realtime filtrado por motorista_id - evita cascade em todos os motoristas
     const channel = supabase
       .channel(`missoes-motorista-${motoristaId}`)
       .on(
@@ -344,6 +345,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
           event: '*',
           schema: 'public',
           table: 'missoes',
+          filter: `motorista_id=eq.${motoristaId}`,
         },
         () => fetchMissoes()
       )
