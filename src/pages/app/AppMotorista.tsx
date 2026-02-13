@@ -584,10 +584,12 @@ export default function AppMotorista() {
     }
   };
 
-  if (loading) {
+  if (loading || !motoristaData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+        <img src={logoAS} alt="AS Brasil" className="h-14 w-14 rounded-lg object-contain opacity-60" />
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Carregando dados...</p>
       </div>
     );
   }
