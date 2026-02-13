@@ -1,69 +1,40 @@
 
-# Correção: Veículo não desvinculado na virada do dia
+# Recuperar exibicao de rota no Localizador (Painel TV)
 
-## Problema
+## Problema encontrado
 
-Motoristas reclamam que o veículo do dia anterior permanece no app mesmo após a troca. A causa é que a Edge Function `auto-checkout` (executada na virada do dia operacional) **não desvincula o veículo do motorista** -- ela apenas muda o status para "indisponível" e fecha a presença, mas o campo `veiculo_id` na tabela `motoristas` continua apontando para o veículo antigo.
+O card do localizador ja tem o codigo para exibir a rota (origem -> destino), mas dois bugs impedem a exibicao:
 
-Comparação:
-- **Checkout manual** (feito pelo motorista): desvincula o veículo corretamente (`veiculo_id = null`)
-- **Auto-checkout** (virada do dia): apenas muda status, veículo fica "preso"
+1. **Query de missoes incompleta**: No `PainelLocalizador.tsx` (linha 82), a query de missoes busca apenas `ponto_desembarque` mas NAO busca `ponto_embarque`. O `LocalizadorCard` precisa dos dois campos para exibir a rota.
 
-## Correção
+2. **Truncamento excessivo para TV**: O `LocalizadorVeiculoCard` (usado no painel de veiculos) trunca nomes de rota com `max-w-[80px]`, muito pequeno para leitura em TV.
 
-### 1. Edge Function `auto-checkout/index.ts`
+## Correcoes
 
-Adicionar `veiculo_id: null` na atualização dos motoristas, igualando o comportamento ao checkout manual:
+| Arquivo | Mudanca |
+|---|---|
+| `src/pages/PainelLocalizador.tsx` | Linha 82: adicionar `ponto_embarque` na query de missoes: `.select('id, motorista_id, ponto_embarque, ponto_desembarque, status')` |
+| `src/components/localizador/LocalizadorCard.tsx` | Aumentar a visibilidade da rota no card: fonte maior, remover truncamento agressivo, destacar com cor de fundo para leitura em TV |
 
-```text
-// ANTES (linha 122):
-.update({ status: "indisponivel" })
+## Detalhes tecnicos
 
-// DEPOIS:
-.update({ status: "indisponivel", veiculo_id: null })
-```
-
-### 2. Hook `useMotoristaPresenca.ts` -- Proteção extra no app
-
-Atualmente o veículo exibido no app segue esta lógica:
-
-```text
-veiculoExibir = presenca?.veiculo || veiculoAtribuido
-```
-
-O `presenca?.veiculo` vem do `veiculo_id` gravado no registro de presença do check-in (que pode ser de ontem). Se o motorista já fez checkout (manual ou auto), a presença com checkout feito não deveria mais fornecer o veículo antigo.
-
-Ajuste no `fetchPresenca`: quando a presença retornada JA TEM checkout (checkout_at != null), não carregar o veículo dessa presença -- pois o turno encerrou.
-
-### 3. Proteção na exibição (`AppMotorista.tsx`)
-
-Ajustar a lógica de `veiculoExibir` para considerar apenas presença ativa (sem checkout):
+### PainelLocalizador.tsx - Query de missoes (linha 82)
 
 ```text
 // ANTES:
-const veiculoExibir = presenca?.veiculo || veiculoAtribuido;
+.select('id, motorista_id, ponto_desembarque, status')
 
 // DEPOIS:
-const presencaAtiva = presenca && presenca.checkin_at && !presenca.checkout_at;
-const veiculoExibir = (presencaAtiva ? presenca?.veiculo : null) || veiculoAtribuido;
+.select('id, motorista_id, ponto_embarque, ponto_desembarque, status')
 ```
 
-Isso garante que, após o checkout (manual ou automático), o veículo antigo não "grude" na tela.
+Isso faz com que `missao.ponto_embarque` deixe de ser `undefined` e o card passe a exibir a rota completa.
 
----
+### LocalizadorCard.tsx - Melhorar visualizacao para TV
 
-## Resumo de arquivos
+- Aumentar fonte da rota de `text-xs` para `text-sm`
+- Remover `flex-wrap` para manter a rota em uma unica linha
+- Adicionar fundo sutil (`bg-blue-500/10 rounded px-2 py-1`) para destacar a rota visualmente
+- Manter o fallback de viagem (quando nao tem missao mas esta em transito)
 
-| Arquivo | Tipo | Mudança |
-|---|---|---|
-| `supabase/functions/auto-checkout/index.ts` | Editar | Adicionar `veiculo_id: null` no update de motoristas |
-| `src/hooks/useMotoristaPresenca.ts` | Editar | Não popular `presenca.veiculo` quando checkout já foi feito |
-| `src/pages/app/AppMotorista.tsx` | Editar | Só usar veículo da presença se presença estiver ativa |
-| `src/lib/version.ts` | Editar | Atualizar versão para 1.7.2 |
-
-## Impacto
-
-- Corrige o problema imediatamente para novos auto-checkouts (próxima virada)
-- Protege o app contra dados residuais de presenças encerradas
-- Não afeta checkout manual (que já funciona corretamente)
-- Não requer alterações no banco de dados
+Essas duas correcoes sao suficientes para restaurar a exibicao da rota nos cards do painel localizador.
