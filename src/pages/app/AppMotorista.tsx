@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
@@ -11,10 +11,9 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import { useViagens } from '@/hooks/useViagens';
+import { useViagensPorMotorista } from '@/hooks/useViagens';
 import { useViagemOperacaoMotorista } from '@/hooks/useViagemOperacaoMotorista';
-import { useMissoes } from '@/hooks/useMissoes';
-import { useMotoristas } from '@/hooks/useCadastros';
+import { useMissoesPorMotorista } from '@/hooks/useMissoes';
 import { useMotoristaPresenca } from '@/hooks/useMotoristaPresenca';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useTutorial, motoristaSteps } from '@/hooks/useTutorial';
@@ -50,12 +49,13 @@ export default function AppMotorista() {
   
   // Use driver auth instead of Supabase auth
   const { driverSession, signOut } = useDriverAuth();
+  const motoristaId = driverSession?.motorista_id;
   
-  const { viagens, loading, refetch } = useViagens(eventoId);
+  // Hooks filtrados por motorista - carrega apenas dados do motorista logado
+  const { viagens, loading, refetch } = useViagensPorMotorista(eventoId, motoristaId);
   const { eventos } = useEventos();
   const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
-  const { motoristas } = useMotoristas(eventoId);
-  const { missoes, loading: loadingMissoes, updateMissao, refetch: refetchMissoes } = useMissoes(eventoId);
+  const { missoes, loading: loadingMissoes, refetch: refetchMissoes } = useMissoesPorMotorista(eventoId, motoristaId);
   const { getAgoraSync } = useServerTime();
   
   const [operando, setOperando] = useState<string | null>(null);
@@ -74,11 +74,32 @@ export default function AppMotorista() {
 
   const evento = eventos.find(e => e.id === eventoId);
   
-  // Get motorista directly from driver session
-  const motoristaData = useMemo(() => {
-    if (!driverSession?.motorista_id) return null;
-    return motoristas.find(m => m.id === driverSession.motorista_id);
-  }, [motoristas, driverSession?.motorista_id]);
+  // Buscar dados do motorista diretamente (em vez de carregar todos os 41)
+  const [motoristaData, setMotoristaData] = useState<any>(null);
+  const fetchMotorista = useCallback(async () => {
+    if (!motoristaId) return;
+    const { data } = await supabase
+      .from('motoristas')
+      .select('*')
+      .eq('id', motoristaId)
+      .single();
+    setMotoristaData(data);
+  }, [motoristaId]);
+  
+  useEffect(() => { fetchMotorista(); }, [fetchMotorista]);
+
+  // Realtime para atualizar dados do motorista (veiculo_id, status, etc)
+  useEffect(() => {
+    if (!motoristaId) return;
+    const ch = supabase
+      .channel(`motorista-self-${motoristaId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'motoristas',
+        filter: `id=eq.${motoristaId}`,
+      }, () => fetchMotorista())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [motoristaId, fetchMotorista]);
 
   const nomeMotorista = driverSession?.motorista_nome || motoristaData?.nome || '';
 
@@ -91,7 +112,7 @@ export default function AppMotorista() {
     realizarCheckout,
     loading: loadingPresenca,
     refetch: refetchPresenca
-  } = useMotoristaPresenca(eventoId, motoristaData?.id);
+  } = useMotoristaPresenca(eventoId, motoristaId);
 
   // Veículo a exibir: só usa veículo da presença se presença estiver ativa (sem checkout)
   const presencaAtiva = presenca && presenca.checkin_at && !presenca.checkout_at;
@@ -182,9 +203,9 @@ export default function AppMotorista() {
           setShowVeiculoAlert(true);
           return;
         }
-        await updateMissao(missaoId, { status: 'aceita' });
+        await supabase.from('missoes').update({ status: 'aceita' }).eq('id', missaoId);
       } else if (action === 'recusar') {
-        await updateMissao(missaoId, { status: 'cancelada' });
+        await supabase.from('missoes').update({ status: 'cancelada' }).eq('id', missaoId);
       } else if (action === 'iniciar') {
         // Verificar se tem veículo vinculado
         if (!motoristaData?.veiculo_id) {
@@ -192,14 +213,13 @@ export default function AppMotorista() {
           return;
         }
         // Criar viagem ao iniciar a missão
-        const motorista = motoristas.find(m => m.id === missao.motorista_id);
-        if (!motorista || !eventoId) {
+        if (!motoristaData || !eventoId) {
           toast.error('Motorista não encontrado');
           return;
         }
 
         // Encontrar veículo vinculado ao motorista
-        const veiculoVinculado = motorista.veiculo_id;
+        const veiculoVinculado = motoristaData.veiculo_id;
 
         const now = getAgoraSync();
         const horaPickup = now.toTimeString().slice(0, 8);
@@ -209,12 +229,12 @@ export default function AppMotorista() {
           .insert({
             evento_id: eventoId,
             // Campos FK normalizados
-            motorista_id: motorista.id,
+            motorista_id: motoristaData.id,
             veiculo_id: veiculoVinculado || null,
             ponto_embarque_id: missao.ponto_embarque_id || null,
             ponto_desembarque_id: missao.ponto_desembarque_id || null,
             // Campos de texto (compatibilidade)
-            motorista: motorista.nome,
+            motorista: motoristaData.nome,
             placa: veiculoExibir?.placa || null,
             tipo_veiculo: veiculoExibir?.tipo_veiculo || null,
             ponto_embarque: missao.ponto_embarque,
@@ -239,11 +259,11 @@ export default function AppMotorista() {
         // Registrar log de início (gera notificação)
         await supabase.from('viagem_logs').insert([{
           viagem_id: novaViagem.id,
-          user_id: motorista.id,
+          user_id: motoristaData.id,
           acao: 'inicio',
           detalhes: {
             via: 'app_motorista_missao',
-            motorista_nome: motorista.nome,
+            motorista_nome: motoristaData.nome,
             placa: veiculoExibir?.placa || null,
           }
         }]);
@@ -273,9 +293,7 @@ export default function AppMotorista() {
         refetchMissoes();
         refetch(); // Refetch viagens
       } else if (action === 'finalizar') {
-        // Usar viagem_id diretamente da missão
-        const motorista = motoristas.find(m => m.id === missao.motorista_id);
-        if (!motorista) {
+        if (!motoristaData) {
           toast.error('Motorista não encontrado');
           return;
         }
@@ -301,7 +319,7 @@ export default function AppMotorista() {
         const { data: outrasViagens } = await supabase
           .from('viagens')
           .select('id')
-          .eq('motorista_id', motorista.id)
+          .eq('motorista_id', motoristaData.id)
           .eq('evento_id', eventoId)
           .eq('encerrado', false);
 
@@ -323,7 +341,7 @@ export default function AppMotorista() {
             .eq('id', missao.motorista_id);
         }
 
-        await updateMissao(missaoId, { status: 'concluida' });
+        await supabase.from('missoes').update({ status: 'concluida' }).eq('id', missaoId);
         refetch(); // Refetch viagens
       }
       refetchMissoes();

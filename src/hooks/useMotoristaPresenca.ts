@@ -195,11 +195,11 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       )
       .subscribe();
 
-    // Polling fallback (a cada 30s) caso Realtime falhe silenciosamente
+    // Polling fallback (a cada 60s) caso Realtime falhe silenciosamente
     const pollInterval = setInterval(() => {
       console.log('[Presença] Polling fallback...');
       fetchPresenca();
-    }, 30000);
+    }, 60000);
 
     return () => {
       supabase.removeChannel(channel);
