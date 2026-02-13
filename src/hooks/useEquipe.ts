@@ -56,12 +56,29 @@ export function useEquipe(eventoId?: string) {
     
     setLoading(true);
     try {
-      // Fetch event settings for horario virada
-      const { data: evento } = await supabase
-        .from('eventos')
-        .select('horario_virada_dia')
-        .eq('id', eventoId)
-        .single();
+      // BATCH 1: Fetch event settings + evento_usuarios + motoristas in parallel
+      const [eventoRes, eventUsuariosRes, motoristasRes] = await Promise.all([
+        supabase
+          .from('eventos')
+          .select('horario_virada_dia')
+          .eq('id', eventoId)
+          .single(),
+        supabase
+          .from('evento_usuarios')
+          .select('*')
+          .eq('evento_id', eventoId),
+        supabase
+          .from('motoristas')
+          .select('*, veiculos!veiculo_id(placa)')
+          .eq('evento_id', eventoId),
+      ]);
+
+      if (eventUsuariosRes.error) throw eventUsuariosRes.error;
+      if (motoristasRes.error) throw motoristasRes.error;
+
+      const evento = eventoRes.data;
+      const eventUsuarios = eventUsuariosRes.data || [];
+      const motoristas = motoristasRes.data || [];
 
       const virada = evento?.horario_virada_dia || '04:00:00';
       setHorarioVirada(virada.substring(0, 5));
@@ -70,69 +87,29 @@ export function useEquipe(eventoId?: string) {
       const agora = getAgoraSync();
       const today = getDataOperacional(agora, virada.substring(0, 5));
 
-      // Fetch evento_usuarios (staff: operadores, supervisores)
-      const { data: eventUsuarios, error: euError } = await supabase
-        .from('evento_usuarios')
-        .select('*')
-        .eq('evento_id', eventoId);
+      const staffUserIds = eventUsuarios.map(eu => eu.user_id);
+      const motoristaIds = motoristas.map(m => m.id);
 
-      if (euError) throw euError;
+      // BATCH 2: Fetch all dependent data in parallel (was sequential!)
+      const [profilesRes, credenciaisRes, presencaRes, staffCredRes] = await Promise.all([
+        staffUserIds.length > 0
+          ? supabase.from('profiles').select('*').in('user_id', staffUserIds)
+          : Promise.resolve({ data: [] as ProfileRow[], error: null }),
+        motoristaIds.length > 0
+          ? supabase.from('motorista_credenciais').select('motorista_id, telefone, ativo').in('motorista_id', motoristaIds).eq('ativo', true)
+          : Promise.resolve({ data: [] as MotoristaCredencial[], error: null }),
+        motoristaIds.length > 0
+          ? supabase.from('motorista_presenca').select('*').eq('evento_id', eventoId).eq('data', today).in('motorista_id', motoristaIds)
+          : Promise.resolve({ data: [] as MotoristaPresencaRow[], error: null }),
+        staffUserIds.length > 0
+          ? supabase.from('staff_credenciais').select('user_id, telefone, ativo, role').in('user_id', staffUserIds).eq('evento_id', eventoId).eq('ativo', true)
+          : Promise.resolve({ data: [] as StaffCredencial[], error: null }),
+      ]);
 
-      // Fetch profiles for staff members
-      const staffUserIds = (eventUsuarios || []).map(eu => eu.user_id);
-      let profiles: ProfileRow[] = [];
-      if (staffUserIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('user_id', staffUserIds);
-        profiles = profilesData || [];
-      }
-
-      // Fetch motoristas for this event
-      // Especificar FK explícita para evitar ambiguidade no relacionamento bidirecional
-      const { data: motoristas, error: motError } = await supabase
-        .from('motoristas')
-        .select('*, veiculos!veiculo_id(placa)')
-        .eq('evento_id', eventoId);
-
-      if (motError) throw motError;
-
-      // Fetch motorista_credenciais to check who has login
-      const motoristaIds = (motoristas || []).map(m => m.id);
-      let credenciais: MotoristaCredencial[] = [];
-      if (motoristaIds.length > 0) {
-        const { data: credenciaisData } = await supabase
-          .from('motorista_credenciais')
-          .select('motorista_id, telefone, ativo')
-          .in('motorista_id', motoristaIds)
-          .eq('ativo', true);
-        credenciais = (credenciaisData || []) as MotoristaCredencial[];
-      }
-
-      // Fetch today's presença using synced date
-      let presencas: MotoristaPresencaRow[] = [];
-      if (motoristaIds.length > 0) {
-        const { data: presencaData } = await supabase
-          .from('motorista_presenca')
-          .select('*')
-          .eq('evento_id', eventoId)
-          .eq('data', today)
-          .in('motorista_id', motoristaIds);
-        presencas = presencaData || [];
-      }
-
-      // Fetch staff_credenciais to check who has login
-      let staffCredenciais: StaffCredencial[] = [];
-      if (staffUserIds.length > 0) {
-        const { data: staffCredData } = await supabase
-          .from('staff_credenciais')
-          .select('user_id, telefone, ativo, role')
-          .in('user_id', staffUserIds)
-          .eq('evento_id', eventoId)
-          .eq('ativo', true);
-        staffCredenciais = (staffCredData || []) as StaffCredencial[];
-      }
+      const profiles = (profilesRes.data || []) as ProfileRow[];
+      const credenciais = (credenciaisRes.data || []) as MotoristaCredencial[];
+      const presencas = (presencaRes.data || []) as MotoristaPresencaRow[];
+      const staffCredenciais = (staffCredRes.data || []) as StaffCredencial[];
 
       // Map staff members (not motoristas)
       const staffMembros: EquipeMembro[] = ((eventUsuarios || []) as EventoUsuarioRow[])

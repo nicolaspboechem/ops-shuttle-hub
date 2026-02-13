@@ -52,9 +52,15 @@ export function useMotoristasDashboard(
     fetchData();
   }, [fetchData]);
 
-  // Realtime subscriptions
+  // Realtime subscriptions with debounce
   useEffect(() => {
     if (!eventoId) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchData(), 2000);
+    };
 
     const channel = supabase
       .channel(`dashboard-motoristas-${eventoId}`)
@@ -63,16 +69,17 @@ export function useMotoristasDashboard(
         schema: 'public',
         table: 'motorista_presenca',
         filter: `evento_id=eq.${eventoId}`,
-      }, () => fetchData())
+      }, debouncedFetch)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'missoes',
         filter: `evento_id=eq.${eventoId}`,
-      }, () => fetchData())
+      }, debouncedFetch)
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [eventoId, fetchData]);

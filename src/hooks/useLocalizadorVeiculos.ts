@@ -150,12 +150,18 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [eventoId, fetchVeiculos]);
 
-  // Realtime subscription
+  // Realtime subscription with debounce
   useEffect(() => {
     if (!eventoId) return;
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchVeiculos(), 2000);
+    };
+
     const channel = supabase
-      .channel('localizador-veiculos')
+      .channel(`localizador-veiculos-${eventoId}`)
       .on(
         'postgres_changes',
         {
@@ -164,9 +170,7 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
           table: 'veiculos',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchVeiculos();
-        }
+        debouncedFetch
       )
       .on(
         'postgres_changes',
@@ -176,9 +180,7 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
           table: 'motoristas',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchVeiculos();
-        }
+        debouncedFetch
       )
       .on(
         'postgres_changes',
@@ -188,13 +190,12 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
           table: 'viagens',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchVeiculos();
-        }
+        debouncedFetch
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [eventoId, fetchVeiculos]);

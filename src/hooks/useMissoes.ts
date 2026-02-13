@@ -121,6 +121,13 @@ export function useMissoes(eventoId: string | undefined) {
     
     if (!isValidUUID) return;
 
+    // Debounce to prevent cascade refetches
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchMissoes(), 2000);
+    };
+
     // Realtime filtrado por evento_id para evitar cross-talk entre eventos
     const channel = supabase
       .channel(`missoes-changes-${eventoId}`)
@@ -132,11 +139,12 @@ export function useMissoes(eventoId: string | undefined) {
           table: 'missoes',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => fetchMissoes()
+        debouncedFetch
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchMissoes, eventoId]);
@@ -339,6 +347,13 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
     
     if (!isValidEventoId || !isValidMotoristaId) return;
 
+    // Debounce to prevent rapid refetches
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchMissoes(), 1500);
+    };
+
     // Realtime filtrado por motorista_id - evita cascade em todos os motoristas
     const channel = supabase
       .channel(`missoes-motorista-${motoristaId}`)
@@ -350,11 +365,12 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
           table: 'missoes',
           filter: `motorista_id=eq.${motoristaId}`,
         },
-        () => fetchMissoes()
+        debouncedFetch
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchMissoes, eventoId, motoristaId]);

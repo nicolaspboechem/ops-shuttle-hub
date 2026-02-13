@@ -60,21 +60,28 @@ export function useViagensPublicas(eventoId: string | null) {
   useEffect(() => {
     fetchViagens();
 
-    // Realtime subscription
+    // Realtime subscription with debounce
     if (eventoId) {
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+      const debouncedFetch = () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fetchViagens(), 2000); // 2s debounce
+      };
+
       const channel = supabase
-        .channel('viagens-publicas-changes')
+        .channel(`viagens-publicas-${eventoId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'viagens', filter: `evento_id=eq.${eventoId}` },
-          () => fetchViagens()
+          debouncedFetch
         )
         .subscribe();
 
-      // Refresh every 30 seconds
-      const interval = setInterval(fetchViagens, 30000);
+      // Refresh every 90 seconds (was 30s - too aggressive)
+      const interval = setInterval(fetchViagens, 90000);
 
       return () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
         supabase.removeChannel(channel);
         clearInterval(interval);
       };

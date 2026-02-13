@@ -15,16 +15,29 @@ import { StaffRoute } from "@/components/auth/StaffRoute";
 import { Loader2 } from 'lucide-react';
 
 // Auto-retry dynamic imports on chunk load failure (stale cache after deploy)
+// Uses a counter to prevent infinite reload loops on unstable networks
 function lazyRetry(importFn: () => Promise<any>) {
   return lazy(() =>
-    importFn().catch(() => {
-      // Force reload once to get fresh assets
-      const key = 'chunk-retry';
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, '1');
-        window.location.reload();
+    importFn().catch((err) => {
+      const key = 'chunk-retry-count';
+      const count = parseInt(sessionStorage.getItem(key) || '0', 10);
+      
+      // Allow max 2 retries, then show error instead of infinite reload
+      if (count < 2) {
+        sessionStorage.setItem(key, String(count + 1));
+        // Small delay before reload to avoid rapid loops
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            window.location.reload();
+            // This resolve never fires due to reload, but satisfies TypeScript
+            resolve({ default: () => null });
+          }, 1000 * (count + 1)); // Exponential backoff: 1s, 2s
+        });
       }
+      
+      // After max retries, clear counter and try one last import
       sessionStorage.removeItem(key);
+      console.error('Chunk load failed after retries:', err);
       return importFn();
     })
   );
@@ -72,10 +85,12 @@ const PageLoader = () => (
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2, // 2 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      staleTime: 1000 * 60 * 3, // 3 minutes (increased from 2)
+      gcTime: 1000 * 60 * 15, // 15 minutes (increased from 10)
       refetchOnWindowFocus: false,
-      retry: 1,
+      refetchOnReconnect: 'always', // Refetch on reconnect for reliability
+      retry: 2, // 2 retries (increased from 1 for unstable networks)
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
     },
   },
 });

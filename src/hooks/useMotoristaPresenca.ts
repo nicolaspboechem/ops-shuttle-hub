@@ -142,13 +142,20 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     fetchPresenca();
   }, [fetchPresenca]);
 
-  // Realtime subscription + polling fallback for sync
+  // CONSOLIDATED Realtime subscription with debounce + reduced polling
   useEffect(() => {
     if (!eventoId || !motoristaId) return;
 
-    // Realtime subscription para mudanças de presença
+    // Debounce timer to prevent cascade refetches
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchPresenca(), 1500); // 1.5s debounce
+    };
+
+    // SINGLE consolidated channel for both presenca AND motorista updates
     const channel = supabase
-      .channel(`presenca-${motoristaId}`)
+      .channel(`motorista-presenca-${motoristaId}`)
       .on(
         'postgres_changes',
         {
@@ -157,13 +164,8 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
           table: 'motorista_presenca',
           filter: `motorista_id=eq.${motoristaId}`
         },
-        () => fetchPresenca()
+        debouncedFetch
       )
-      .subscribe();
-
-    // Realtime subscription para mudanças no registro do motorista (veiculo_id)
-    const motoristaChannel = supabase
-      .channel(`motorista-${motoristaId}`)
       .on(
         'postgres_changes',
         {
@@ -172,18 +174,18 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
           table: 'motoristas',
           filter: `id=eq.${motoristaId}`
         },
-        () => fetchPresenca()
+        debouncedFetch
       )
       .subscribe();
 
-    // Polling fallback (a cada 60s) caso Realtime falhe silenciosamente
+    // Polling fallback reduced to 3 minutes (was 60s)
     const pollInterval = setInterval(() => {
       fetchPresenca();
-    }, 60000);
+    }, 180000);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
-      supabase.removeChannel(motoristaChannel);
       clearInterval(pollInterval);
     };
   }, [eventoId, motoristaId, fetchPresenca]);

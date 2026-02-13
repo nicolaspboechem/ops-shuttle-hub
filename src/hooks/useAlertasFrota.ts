@@ -87,6 +87,13 @@ export function useAlertasFrota(eventoId?: string) {
   useEffect(() => {
     fetchAlertas();
 
+    // Debounce to prevent rapid refetches
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchAlertas(), 2000);
+    };
+
     const realtimeConfig: any = {
       event: '*', schema: 'public', table: 'alertas_frota',
       ...(eventoId ? { filter: `evento_id=eq.${eventoId}` } : {}),
@@ -94,10 +101,13 @@ export function useAlertasFrota(eventoId?: string) {
 
     const channel = supabase
       .channel(`alertas-frota-${eventoId || 'all'}`)
-      .on('postgres_changes', realtimeConfig, () => fetchAlertas())
+      .on('postgres_changes', realtimeConfig, debouncedFetch)
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [fetchAlertas]);
 
   return {

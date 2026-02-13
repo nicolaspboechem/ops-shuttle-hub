@@ -95,17 +95,15 @@ export default function AppMotorista() {
   
   useEffect(() => { fetchMotorista(); }, [fetchMotorista]);
 
-  // Realtime para atualizar dados do motorista (veiculo_id, status, etc)
+  // Realtime para atualizar dados do motorista - CONSOLIDADO
+  // O channel `motorista-{motoristaId}` no useMotoristaPresenca já escuta
+  // UPDATE na tabela motoristas. Aqui usamos o refetch da presença para
+  // também atualizar os dados do motorista, evitando channel duplicado.
+  // Fallback: polling leve a cada 2 minutos apenas como safety net
   useEffect(() => {
     if (!motoristaId) return;
-    const ch = supabase
-      .channel(`motorista-self-${motoristaId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'motoristas',
-        filter: `id=eq.${motoristaId}`,
-      }, () => fetchMotorista())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const interval = setInterval(() => fetchMotorista(), 120000); // 2 min fallback
+    return () => clearInterval(interval);
   }, [motoristaId, fetchMotorista]);
 
   const nomeMotorista = driverSession?.motorista_nome || motoristaData?.nome || '';

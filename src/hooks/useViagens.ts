@@ -97,12 +97,19 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: `evento_id=eq.${eventoId}` }
       : { event: '*' as const, schema: 'public' as const, table: 'viagens' as const };
 
+    // Debounce to prevent cascade refetches when multiple viagens change rapidly
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchViagens(false), 2000); // 2s debounce
+    };
+
     const channel = supabase
       .channel(`viagens-changes-${eventoId || 'all'}`)
       .on(
         'postgres_changes',
         channelConfig,
-        () => fetchViagens(false) // Refetch silencioso
+        debouncedFetch // Debounced refetch
       )
       .subscribe();
 
@@ -110,6 +117,7 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
     const interval = setInterval(() => fetchViagens(false), 300000);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
       clearInterval(interval);
     };

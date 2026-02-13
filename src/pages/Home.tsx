@@ -134,20 +134,34 @@ export default function Home() {
   useEffect(() => {
     fetchStats();
 
-    // Realtime for stats updates
-    const presencaChannel = supabase
-      .channel('home-stats-presenca')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, () => fetchStats())
-      .subscribe();
+    // THROTTLE: Stats don't need instant updates - throttle to 5s
+    let lastFetch = Date.now();
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    const throttledFetchStats = () => {
+      const now = Date.now();
+      const elapsed = now - lastFetch;
+      if (elapsed >= 5000) {
+        lastFetch = now;
+        fetchStats();
+      } else if (!throttleTimer) {
+        throttleTimer = setTimeout(() => {
+          throttleTimer = null;
+          lastFetch = Date.now();
+          fetchStats();
+        }, 5000 - elapsed);
+      }
+    };
 
-    const viagensChannel = supabase
-      .channel('home-stats-viagens')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, () => fetchStats())
+    // CONSOLIDATED: Single channel for both tables (was 2 separate channels)
+    const statsChannel = supabase
+      .channel('home-stats-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, throttledFetchStats)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'viagens' }, throttledFetchStats)
       .subscribe();
 
     return () => {
-      supabase.removeChannel(presencaChannel);
-      supabase.removeChannel(viagensChannel);
+      if (throttleTimer) clearTimeout(throttleTimer);
+      supabase.removeChannel(statsChannel);
     };
   }, [fetchStats]);
 

@@ -339,31 +339,41 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchNotifications();
 
-    const viagemLogsChannel = supabase
-      .channel('shared-viagem-logs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, () => fetchNotifications())
+    // THROTTLE: Prevent fetchNotifications from firing more than once per 5 seconds
+    // This is critical because 4 different tables can trigger simultaneously
+    let lastFetch = Date.now();
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    const throttledFetch = () => {
+      const now = Date.now();
+      const elapsed = now - lastFetch;
+      if (elapsed >= 5000) {
+        lastFetch = now;
+        fetchNotifications();
+      } else if (!throttleTimer) {
+        throttleTimer = setTimeout(() => {
+          throttleTimer = null;
+          lastFetch = Date.now();
+          fetchNotifications();
+        }, 5000 - elapsed);
+      }
+    };
+
+    // CONSOLIDATED: Single channel listening to all 4 tables (was 4 separate channels)
+    const notificationsChannel = supabase
+      .channel('shared-notifications-all')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, throttledFetch)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, throttledFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, throttledFetch)
       .subscribe();
 
-    const presencaChannel = supabase
-      .channel('shared-presenca')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, () => fetchNotifications())
-      .subscribe();
-
-    const vistoriaChannel = supabase
-      .channel('shared-vistoria')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, () => fetchNotifications())
-      .subscribe();
-
-    const alertasFrotaChannel = supabase
-      .channel('shared-alertas-frota')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, () => fetchNotifications())
-      .subscribe();
+    // Polling fallback every 2 minutes (instead of relying solely on realtime)
+    const pollInterval = setInterval(() => fetchNotifications(), 120000);
 
     return () => {
-      supabase.removeChannel(viagemLogsChannel);
-      supabase.removeChannel(presencaChannel);
-      supabase.removeChannel(vistoriaChannel);
-      supabase.removeChannel(alertasFrotaChannel);
+      if (throttleTimer) clearTimeout(throttleTimer);
+      supabase.removeChannel(notificationsChannel);
+      clearInterval(pollInterval);
     };
   }, [fetchNotifications]);
 

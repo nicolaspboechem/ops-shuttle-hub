@@ -76,8 +76,15 @@ export default function Motoristas() {
     
     if (!isValidUUID) return;
 
+    // Debounce to prevent rapid refetches when multiple motoristas change
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => refetchMotoristas(), 2000);
+    };
+
     const channel = supabase
-      .channel('motoristas-status-changes')
+      .channel(`motoristas-status-${eventoId}`)
       .on(
         'postgres_changes',
         { 
@@ -86,14 +93,12 @@ export default function Motoristas() {
           table: 'motoristas',
           filter: `evento_id=eq.${eventoId}`
         },
-        () => {
-          // Refetch silencioso quando o status mudar
-          refetchMotoristas();
-        }
+        debouncedRefetch
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [eventoId, refetchMotoristas]);

@@ -39,13 +39,20 @@ export function useEventos() {
   useEffect(() => {
     fetchEventos(true); // Carregamento inicial com loading
 
+    // Debounce realtime updates
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchEventos(false), 2000);
+    };
+
     // Realtime subscription - atualização em segundo plano
     const channel = supabase
       .channel('eventos-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'eventos' },
-        () => fetchEventos(false) // Refetch silencioso
+        debouncedFetch
       )
       .subscribe();
 
@@ -53,6 +60,7 @@ export function useEventos() {
     const interval = setInterval(() => fetchEventos(false), 300000);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
