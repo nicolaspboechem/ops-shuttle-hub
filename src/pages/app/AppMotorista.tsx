@@ -93,8 +93,9 @@ export default function AppMotorista() {
     refetch: refetchPresenca
   } = useMotoristaPresenca(eventoId, motoristaData?.id);
 
-  // Veículo a exibir: do check-in de hoje ou o atualmente atribuído
-  const veiculoExibir = presenca?.veiculo || veiculoAtribuido;
+  // Veículo a exibir: só usa veículo da presença se presença estiver ativa (sem checkout)
+  const presencaAtiva = presenca && presenca.checkin_at && !presenca.checkout_at;
+  const veiculoExibir = (presencaAtiva ? presenca?.veiculo : null) || veiculoAtribuido;
 
   // Detectar transição de veiculoAtribuido: null -> veículo válido
   const prevVeiculoRef = useRef<typeof veiculoAtribuido>(undefined);

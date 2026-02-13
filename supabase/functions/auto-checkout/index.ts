@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       // Update motorista status to indisponivel
       const { error: updateMotoristaError } = await supabase
         .from("motoristas")
-        .update({ status: "indisponivel" })
+        .update({ status: "indisponivel", veiculo_id: null })
         .in("id", motoristaIds)
         .eq("evento_id", evento.id);
 
