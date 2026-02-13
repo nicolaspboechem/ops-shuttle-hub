@@ -19,7 +19,7 @@ interface StaffAuthContextType {
   isAuthenticated: boolean;
 }
 
-const StaffAuthContext = createContext<StaffAuthContextType | undefined>(undefined);
+export const StaffAuthContext = createContext<StaffAuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'staff_session';
 const SUPABASE_URL = 'https://gkrczwtldvondiehsesh.supabase.co';

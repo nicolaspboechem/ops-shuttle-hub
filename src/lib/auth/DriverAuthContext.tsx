@@ -16,7 +16,7 @@ interface DriverAuthContextType {
   isAuthenticated: boolean;
 }
 
-const DriverAuthContext = createContext<DriverAuthContextType | undefined>(undefined);
+export const DriverAuthContext = createContext<DriverAuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'driver_session';
 const SUPABASE_URL = 'https://gkrczwtldvondiehsesh.supabase.co';
