@@ -1,83 +1,158 @@
 
 
-# Otimizacao Fase 2 - Operador e Supervisor tambem sobrecarregam o Supabase
+# Otimizacao Fase 3 - Queries sequenciais e Realtime sem filtro
 
 ## Diagnostico
 
-A v1.7.4 otimizou apenas o **app do motorista**. Mas os apps do **Operador** e **Supervisor** continuam com os mesmos problemas que causavam a sobrecarga:
+Apos as otimizacoes v1.7.4 e v1.7.5, restam problemas significativos:
 
-### Problemas que persistem
+### 1. useMotoristaPresenca - 5 queries sequenciais por motorista
 
-| App | Hook | Problema |
-|---|---|---|
-| AppMotorista | `useEventos()` | Realtime **sem filtro** na tabela `eventos` - desnecessario no app do motorista |
-| AppOperador | `useMissoes(eventoId)` | Realtime **sem filtro** na tabela `missoes` - cada missao criada dispara refetch |
-| AppOperador | `useMotoristas(eventoId)` x2 | Carrega motoristas **duas vezes** (linhas 88 e 91) |
-| AppSupervisor | `useMissoes(eventoId)` | Realtime **sem filtro** na tabela `missoes` |
-| AppSupervisor | `useLocalizadorMotoristas` | **3 subscricoes Realtime** no mesmo canal (motoristas + viagens + presenca), cada uma dispara `fetchMotoristas()` que faz **4 queries sequenciais** |
-| Todos | `useViagens` | Canal Realtime generico `viagens-changes` sem filtro de `evento_id` |
+Cada motorista conectado executa a funcao `fetchPresenca` que faz **5 queries em serie** (cada uma espera a anterior terminar):
 
-### Calculo do impacto atual
+```text
+Query 1: SELECT eventos (horario_virada)
+Query 2: SELECT motorista_presenca (presencas ativas)
+Query 3: SELECT motoristas (veiculo_id)
+Query 4: SELECT veiculos (dados do veiculo)
+Query 5: SELECT motorista_presenca (fallback se nao achou ativa)
+Query 6: SELECT veiculos (veiculo da presenca - condicional)
+```
 
-Com ~10 operadores/supervisores + 41 motoristas conectados:
-- Cada missao criada dispara refetch em **todos** os operadores/supervisores (useMissoes sem filtro)
-- `useLocalizadorMotoristas` faz 4 queries a cada evento Realtime (motoristas, presenca, veiculos, viagens)
-- `useViagens` no Operador/Supervisor escuta TODAS as viagens de todos os eventos
-- Total estimado: **200-400 queries/minuto** desnecessarias
+Em 4G com latencia de ~200ms, isso significa **1-1.2 segundos** so para carregar a presenca. Com polling a cada 60s, sao 5 queries x 41 motoristas = **205 queries/minuto** so de presenca.
+
+Alem disso, tem `console.log` em cada callback Realtime, gerando lixo no console.
+
+### 2. useAlertasFrota - Realtime SEM filtro de evento_id
+
+Linha 92: escuta TODAS as mudancas em `alertas_frota` sem filtro. Cada alerta criado em qualquer evento dispara refetch no supervisor.
+
+### 3. useMissoes (global) - Carrega missoes concluidas/canceladas
+
+O hook global usado pelo Operador/Supervisor carrega TODAS as missoes incluindo concluidas e canceladas. Em eventos grandes, isso pode ser centenas de registros desnecessarios.
+
+### 4. useLocalizadorMotoristas - 4 queries sequenciais
+
+Faz 4 queries separadas (evento, presencas, motoristas, veiculos, viagens) quando poderia usar JOINs.
+
+### 5. SupervisorFrotaTab - veiculos sem Realtime
+
+Os veiculos sao carregados uma unica vez no mount, sem Realtime. Mudancas de status nao aparecem automaticamente.
 
 ## Solucao
 
-### 1. useViagens.ts - Adicionar filtro `evento_id` no Realtime
+### 1. Criar RPC no Supabase para presenca do motorista
 
-O canal `viagens-changes` escuta TODAS as viagens de todos os eventos. Adicionar filtro:
+Uma unica funcao que retorna presenca + veiculo + config do evento em uma chamada:
 
-```text
-filter: `evento_id=eq.${eventoId}`
+```sql
+CREATE OR REPLACE FUNCTION get_motorista_presenca(
+  p_evento_id UUID,
+  p_motorista_id UUID,
+  p_data DATE
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  SELECT json_build_object(
+    'habilitar_missoes', e.habilitar_missoes,
+    'horario_virada_dia', e.horario_virada_dia,
+    'veiculo_id', m.veiculo_id,
+    'veiculo', CASE WHEN m.veiculo_id IS NOT NULL THEN (
+      SELECT row_to_json(v) FROM veiculos v WHERE v.id = m.veiculo_id
+    ) ELSE NULL END,
+    'presenca_ativa', (
+      SELECT row_to_json(mp) FROM motorista_presenca mp
+      WHERE mp.motorista_id = p_motorista_id
+        AND mp.evento_id = p_evento_id
+        AND mp.data = p_data
+        AND mp.checkin_at IS NOT NULL
+        AND mp.checkout_at IS NULL
+      ORDER BY mp.created_at DESC LIMIT 1
+    ),
+    'presenca_recente', (
+      SELECT row_to_json(mp) FROM motorista_presenca mp
+      WHERE mp.motorista_id = p_motorista_id
+        AND mp.evento_id = p_evento_id
+        AND mp.data = p_data
+      ORDER BY mp.created_at DESC LIMIT 1
+    )
+  ) INTO result
+  FROM eventos e
+  CROSS JOIN motoristas m
+  WHERE e.id = p_evento_id
+    AND m.id = p_motorista_id;
+  
+  RETURN result;
+END;
+$$;
 ```
 
-### 2. useMissoes.ts - Adicionar filtro `evento_id` no Realtime do hook global
+Isso reduz de **5-6 queries** para **1 chamada RPC**.
 
-O hook `useMissoes` (usado por Operador/Supervisor) escuta todas as missoes sem filtro. Adicionar:
+### 2. useMotoristaPresenca - Usar RPC e limpar console.logs
 
-```text
-filter: `evento_id=eq.${eventoId}`
+- Substituir as 5 queries sequenciais por uma chamada `supabase.rpc('get_motorista_presenca', {...})`
+- Remover todos os `console.log` dos callbacks Realtime
+- Manter Realtime apenas para invalidar/refetch (ja esta filtrado por motorista_id)
+
+### 3. useAlertasFrota - Adicionar filtro evento_id no Realtime
+
+```typescript
+// ANTES (sem filtro):
+.on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, ...)
+
+// DEPOIS (com filtro):
+.on('postgres_changes', { 
+  event: '*', schema: 'public', table: 'alertas_frota',
+  filter: `evento_id=eq.${eventoId}`
+}, ...)
 ```
 
-### 3. AppMotorista.tsx - Remover useEventos desnecessario
+### 4. useMissoes (global) - Filtrar apenas missoes ativas
 
-O motorista usa `useEventos()` apenas para encontrar o nome do evento. Isso cria uma subscricao Realtime na tabela `eventos` que e totalmente desnecessaria. Substituir por uma query direta pontual.
+Adicionar `.in('status', ['pendente', 'aceita', 'em_andamento'])` na query do hook global para nao carregar missoes concluidas/canceladas que nao sao exibidas no painel.
 
-### 4. AppOperador.tsx - Remover duplicacao de useMotoristas
+### 5. useLocalizadorMotoristas - Combinar queries com JOINs
 
-Linhas 88 e 91 carregam motoristas duas vezes com o mesmo eventoId. Remover a duplicacao.
+Substituir 4 queries sequenciais por uma query unica com JOINs:
 
-### 5. useLocalizadorMotoristas.ts - Debounce nos eventos Realtime
+```typescript
+// ANTES: 4 queries separadas (evento, presencas, motoristas, veiculos)
+// DEPOIS: 1 query com JOINs
+const { data } = await supabase
+  .from('motoristas')
+  .select('*, veiculo:veiculos!motoristas_veiculo_id_fkey(*)')
+  .eq('evento_id', eventoId);
+```
 
-O hook escuta 3 tabelas e cada evento dispara `fetchMotoristas()` que faz 4 queries. Adicionar um debounce de 2 segundos para agrupar eventos rapidos em uma unica query.
+E buscar presencas e viagens ativas em paralelo com `Promise.all`.
 
-### 6. useAlertasFrota.ts - Sem Realtime (OK, mas sem polling)
+### 6. Versao
 
-Este hook nao tem Realtime nem polling - alertas so atualizam no mount. Nao e critico mas vale notar.
-
-### 7. Versao
-
-Atualizar `APP_VERSION` para `1.7.5`.
+Atualizar `APP_VERSION` para `1.7.6`.
 
 ## Resumo de mudancas
 
 | Arquivo | Mudanca | Impacto |
 |---|---|---|
-| `src/hooks/useViagens.ts` | Filtrar canal Realtime por `evento_id` | -80% eventos Realtime processados |
-| `src/hooks/useMissoes.ts` | Filtrar canal Realtime por `evento_id` no hook global | -80% eventos Realtime processados |
-| `src/pages/app/AppMotorista.tsx` | Remover `useEventos()`, buscar evento diretamente | -1 subscricao Realtime por motorista |
-| `src/pages/app/AppOperador.tsx` | Remover `useMotoristas` duplicado | -50% queries de motoristas |
-| `src/hooks/useLocalizadorMotoristas.ts` | Adicionar debounce de 2s nos callbacks Realtime | -70% queries em rajada |
-| `src/lib/version.ts` | Atualizar para 1.7.5 | - |
+| Migration SQL | Criar RPC `get_motorista_presenca` | Reduz 5 queries para 1 por motorista |
+| `src/hooks/useMotoristaPresenca.ts` | Usar RPC, remover console.logs | -80% queries de presenca |
+| `src/hooks/useAlertasFrota.ts` | Adicionar filtro evento_id no Realtime | Elimina cross-talk entre eventos |
+| `src/hooks/useMissoes.ts` | Filtrar apenas missoes ativas no hook global | -50% dados transferidos |
+| `src/hooks/useLocalizadorMotoristas.ts` | Usar JOINs + Promise.all em vez de queries sequenciais | -60% round-trips |
+| `src/lib/version.ts` | Atualizar para 1.7.6 | - |
 
 ## Resultado esperado
 
-- Reducao de ~70% nas queries desnecessarias do Operador/Supervisor
-- Realtime filtrado por evento evita cross-talk entre eventos diferentes
-- App mais responsivo em 4G porque cada update Realtime gera menos queries cascata
-- Combinado com v1.7.4, reducao total estimada de ~90% na carga do Supabase
+- Presenca do motorista carrega em **1 round-trip** em vez de 5 (200ms vs 1s em 4G)
+- Alertas Realtime filtrados por evento
+- Missoes carregam apenas dados ativos (payload ~50% menor)
+- Localizador faz queries em paralelo em vez de sequencial
+- Reducao total estimada: **~60% menos queries/minuto** comparado com v1.7.5
 
