@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut, Play } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut, Play, RotateCcw } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -443,11 +443,15 @@ export default function Motoristas() {
   const MotoristaDropdownActions = ({
     motoristaNome, 
     motoristaCadastrado, 
-    veiculo 
+    veiculo,
+    presenca: presencaData,
+    onLiberarCheckin,
   }: { 
     motoristaNome: string;
     motoristaCadastrado?: typeof motoristasCadastrados[0];
     veiculo?: typeof veiculos[0];
+    presenca?: { checkin_at?: string | null; checkout_at?: string | null } | null;
+    onLiberarCheckin?: () => void;
   }) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -535,6 +539,16 @@ export default function Motoristas() {
               </DropdownMenuItem>
             }
           />
+        )}
+        {/* Liberar Check-in: só aparece quando tem checkout (jornada encerrada) */}
+        {motoristaCadastrado && presencaData?.checkin_at && presencaData?.checkout_at && onLiberarCheckin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onLiberarCheckin}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Liberar Check-in
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -757,6 +771,8 @@ export default function Motoristas() {
                             motoristaNome={motorista.nome}
                             motoristaCadastrado={motorista}
                             veiculo={veiculo}
+                            presenca={getPresenca(motorista.id)}
+                            onLiberarCheckin={() => handleLiberarCheckin(motorista.id)}
                           />
                         </div>
                       </div>
@@ -1024,6 +1040,8 @@ export default function Motoristas() {
                             motoristaNome={motorista.nome}
                             motoristaCadastrado={motorista}
                             veiculo={veiculo}
+                            presenca={getPresenca(motorista.id)}
+                            onLiberarCheckin={() => handleLiberarCheckin(motorista.id)}
                           />
                         </TableCell>
                       </TableRow>

@@ -58,22 +58,27 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       // Calculate data operacional with current virada (will be refined after RPC)
       const dataOperacional = getDataOperacional(getAgoraSync(), horarioVirada);
 
-      // Single RPC call replaces 5-6 sequential queries
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('get_motorista_presenca', {
-        p_evento_id: eventoId,
-        p_motorista_id: motoristaId,
-        p_data: dataOperacional,
-      });
+      // Fetch RPC + motorista status in parallel
+      const [rpcResponse, motoristaResponse] = await Promise.all([
+        supabase.rpc('get_motorista_presenca', {
+          p_evento_id: eventoId,
+          p_motorista_id: motoristaId,
+          p_data: dataOperacional,
+        }),
+        supabase.from('motoristas').select('status').eq('id', motoristaId).single(),
+      ]);
 
-      if (rpcError) throw rpcError;
+      if (rpcResponse.error) throw rpcResponse.error;
 
-      if (!rpcResult) {
+      const motoristaStatus = motoristaResponse.data?.status || 'indisponivel';
+
+      if (!rpcResponse.data) {
         setCheckinEnabled(false);
         setLoading(false);
         return;
       }
 
-      const result = rpcResult as any;
+      const result = rpcResponse.data as any;
 
       setCheckinEnabled(result.habilitar_missoes || false);
 
@@ -93,7 +98,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         });
         if (rpcResult2) {
           const r2 = rpcResult2 as any;
-          processRpcResult(r2);
+          processRpcResult(r2, motoristaStatus);
           return;
         }
       }
@@ -103,7 +108,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         return;
       }
 
-      processRpcResult(result);
+      processRpcResult(result, motoristaStatus);
     } catch (error) {
       console.error('Erro ao buscar presença:', error);
     } finally {
@@ -111,8 +116,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     }
   }, [eventoId, motoristaId, getAgoraSync, horarioVirada]);
 
-  // Process result from RPC
-  const processRpcResult = useCallback((result: any) => {
+  const processRpcResult = useCallback((result: any, motoristaStatus?: string) => {
     // Set vehicle assigned to driver
     if (result.veiculo) {
       setVeiculoAtribuido(result.veiculo as Veiculo);
@@ -124,6 +128,13 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     const presencaAtiva = result.presenca_ativa;
     const presencaRecente = result.presenca_recente;
     const data = presencaAtiva || presencaRecente;
+
+    // KEY FIX: If motorista status is 'disponivel' but last presence has checkout,
+    // it means CCO "liberou check-in" — show check-in button instead of "encerrado"
+    if (!presencaAtiva && presencaRecente?.checkout_at && motoristaStatus === 'disponivel') {
+      setPresenca(null); // Forces CheckinCheckoutCard to show "Iniciar Expediente"
+      return;
+    }
 
     if (data) {
       // If active presence has vehicle, fetch it from the result
