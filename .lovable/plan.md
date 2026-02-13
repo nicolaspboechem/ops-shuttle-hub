@@ -1,41 +1,69 @@
 
+# Otimizar Painel CCO para Alta Utilizacao - Prevenir Crashes
 
-# Adicionar "Liberar Check-in" nas views Card/Lista + Corrigir notificacao no App Motorista
+## Diagnostico
 
-## Problema 1: Opcao "Liberar Check-in" ausente nas views Card e Lista
+Quando o painel CCO esta sob uso intenso (muitos motoristas ativos, viagens sendo criadas, missoes mudando), o sistema sofre de **cascata de refetches** que sobrecarrega tanto o Supabase quanto o navegador:
 
-A opcao "Liberar Check-in" existe apenas no Kanban (`MotoristaKanbanCard`). As views de Card e Lista usam o componente `MotoristaDropdownActions` (definido dentro de `Motoristas.tsx`), que nao possui esta opcao.
+### Canais Realtime simultaneos no CCO (por pagina)
 
-## Problema 2: Motorista nao ve que pode fazer check-in novamente
+Quando um operador esta na pagina **Motoristas**, por exemplo, os seguintes canais Realtime estao ativos ao mesmo tempo:
 
-Quando o CCO "libera check-in", o sistema atualiza `motoristas.status = 'disponivel'`. O hook `useMotoristaPresenca` recebe a mudanca via Realtime. Porem, a funcao `fetchPresenca` (via RPC `get_motorista_presenca`) continua retornando o registro antigo com `checkout_at` preenchido como `presenca_recente`. O `CheckinCheckoutCard` ve `hasCheckin = true` e `hasCheckout = true` e mostra "Expediente encerrado" em vez de permitir novo check-in.
+1. `motoristas-status-{eventoId}` - tabela `motoristas` (Motoristas.tsx)
+2. `viagens-changes-{eventoId}` - tabela `viagens` (useViagens)
+3. `eventos-changes` - tabela `eventos` (useEventos)
+4. `shared-notifications-all` - 4 tabelas SEM filtro de evento (useNotifications)
+5. `alertas-frota-{eventoId}` - tabela `alertas_frota` (useAlertasFrota)
 
-A correcao: quando o motorista tem `status = 'disponivel'` mas o ultimo registro de presenca ja tem checkout, o card deve mostrar o estado de "Iniciar Expediente" (permitir novo check-in), nao "Expediente encerrado".
+Total: **5 canais, ~8 subscriptions** em tabelas diferentes
 
-## Alteracoes
+### O problema principal: Notifications sem filtro
 
-### 1. `src/pages/Motoristas.tsx` - Adicionar "Liberar Check-in" ao `MotoristaDropdownActions`
+O canal `shared-notifications-all` escuta **todas** as mudancas em `viagem_logs`, `motorista_presenca`, `veiculo_vistoria_historico` e `alertas_frota` de **todos os eventos**. Cada mudanca dispara `fetchNotifications()`, que faz **4 queries sequenciais** a essas tabelas. Com muitos motoristas ativos, isso cria uma tempestade de queries.
 
-No componente `MotoristaDropdownActions` (linha ~443), adicionar:
-- Receber `presenca` e `onLiberarCheckin` como props
-- Adicionar item de menu "Liberar Check-in" condicional: so aparece quando `presenca?.checkin_at` e `presenca?.checkout_at` existem (jornada encerrada)
-- Importar icone `RotateCcw` de lucide-react
+### Efeito cascata
 
-Nas chamadas ao `MotoristaDropdownActions` (card view na linha ~756 e list view na linha ~1023), passar as novas props:
-- `presenca={getPresenca(motorista.id)}`
-- `onLiberarCheckin={() => handleLiberarCheckin(motorista.id)}`
+Uma unica mudanca de status de motorista dispara:
+1. Canal `motoristas-status` -> `refetchMotoristas()` (query completa)
+2. Canal `shared-notifications-all` (via `motorista_presenca`) -> `fetchNotifications()` (4 queries)
+3. Se Dashboard aberto: Canal `dashboard-motoristas` -> `fetchData()` (2 queries)
 
-### 2. `src/hooks/useMotoristaPresenca.ts` - Corrigir logica de presenca apos "liberar check-in"
+Total: **~7 queries** por **1 mudanca** de status
 
-No `processRpcResult`, adicionar logica: se o motorista tem `status = 'disponivel'` (vindo do resultado RPC ou consultado separadamente) e o ultimo registro de presenca tem checkout preenchido, tratar como se nao houvesse presenca ativa (setPresenca(null)). Isso faz o `CheckinCheckoutCard` renderizar o estado "Iniciar Expediente".
+## Solucao
 
-Alternativamente, buscar o status do motorista no RPC result e, quando status for 'disponivel' e a presenca mais recente tiver checkout, definir `presenca` como `null` para que o motorista veja o botao de check-in.
+### 1. Filtrar canal de Notifications por evento ativo
 
-### 3. `src/hooks/useMotoristaPresenca.ts` - Buscar status do motorista
+No `useNotifications.tsx`, adicionar filtro `evento_id` nas subscriptions Realtime. O hook ja tem acesso ao `eventoId` via contexto ou props. Isso reduz em ~90% os eventos Realtime recebidos.
 
-O RPC `get_motorista_presenca` pode ja retornar o status do motorista. Caso contrario, adicionar uma query ao campo `status` da tabela `motoristas` dentro do `fetchPresenca`. Usar esse status para decidir:
-- Se `status === 'disponivel'` e nao ha presenca ativa (so presenca com checkout) --> `setPresenca(null)` para mostrar tela de check-in
-- Se `status === 'indisponivel'` ou `expediente_encerrado` e ha presenca com checkout --> manter presenca com checkout (tela "encerrado")
+Mudanca: Adicionar `filter: evento_id=eq.{eventoId}` nas 4 subscriptions do canal `shared-notifications-all`.
 
-Isso garante que quando o CCO libera o check-in (muda status para 'disponivel'), o app do motorista automaticamente mostra o botao de check-in via Realtime.
+### 2. Consolidar canais duplicados
 
+Na pagina Motoristas, os canais `motoristas-status-{eventoId}` e o canal interno do `useViagens` escutam tabelas diferentes mas disparam refetches ao mesmo tempo. Consolidar em um unico canal por pagina.
+
+Mudanca em `Motoristas.tsx`: Remover o canal dedicado `motoristas-status-{eventoId}` e mover a subscription de `motoristas` para dentro do canal existente do `useViagens` (ou criar um canal consolidado unico).
+
+### 3. Aumentar debounce em alta carga
+
+Quando multiplos canais disparam ao mesmo tempo (como em alta utilizacao), os debounces individuais de 2s nao previnem a cascata. Implementar um **global refetch coordinator** simples: um timestamp compartilhado que impede mais de N refetches por intervalo.
+
+Mudanca: Criar um utilitario `src/lib/utils/refetchThrottle.ts` que wrapa as funcoes de refetch com throttle global (maximo 1 refetch por hook a cada 3 segundos).
+
+### 4. Lazy-load do fetchNotifications
+
+O `fetchNotifications` faz 4 queries simultaneas (viagem_logs, presenca, vistorias, alertas) a cada evento Realtime. Mudar para queries incrementais: em vez de refazer tudo, buscar apenas registros novos (com `created_at > lastFetchTime`).
+
+Mudanca em `useNotifications.tsx`: Manter um `lastFetchTime` ref e usar `.gte('created_at', lastFetchTime)` nas queries subsequentes (nao na initial load).
+
+## Resumo das alteracoes
+
+| Arquivo | Mudanca | Impacto |
+|---------|---------|---------|
+| `src/hooks/useNotifications.tsx` | Filtrar Realtime por evento_id + queries incrementais | -90% eventos Realtime, -80% dados por query |
+| `src/pages/Motoristas.tsx` | Remover canal duplicado de motoristas | -1 canal Realtime |
+| `src/lib/utils/refetchThrottle.ts` | Novo: throttle global de refetches | Previne cascata |
+| `src/hooks/useViagens.ts` | Aplicar throttle global | Reduz queries redundantes |
+| `src/hooks/useMotoristasDashboard.ts` | Aplicar throttle global | Reduz queries redundantes |
+
+Resultado esperado: reducao de ~70% nas queries ao Supabase sob alta carga, eliminando os crashes por sobrecarga.
