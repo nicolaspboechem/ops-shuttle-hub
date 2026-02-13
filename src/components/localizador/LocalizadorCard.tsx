@@ -83,19 +83,19 @@ export function LocalizadorCard({ motorista, missao }: LocalizadorCardProps) {
 
       {/* Route (from mission or trip) */}
       {showRoute && (
-        <div className="flex items-center gap-1 text-xs text-blue-400 flex-wrap">
-          <span>{missao.ponto_embarque}</span>
-          <ArrowRight className="w-3 h-3 shrink-0" />
-          <span className="font-medium">{missao.ponto_desembarque}</span>
+        <div className="flex items-center gap-1.5 text-sm text-blue-400 bg-blue-500/10 rounded px-2 py-1">
+          <span className="truncate">{missao.ponto_embarque}</span>
+          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold truncate">{missao.ponto_desembarque}</span>
         </div>
       )}
 
       {/* Trip route fallback (no mission but in transit) */}
       {!showRoute && displayStatus === 'em_transito' && motorista.viagem_destino && (
-        <div className="flex items-center gap-1 text-xs text-blue-400 flex-wrap">
-          {motorista.viagem_origem && <span>{motorista.viagem_origem}</span>}
-          <ArrowRight className="w-3 h-3 shrink-0" />
-          <span className="font-medium">{motorista.viagem_destino}</span>
+        <div className="flex items-center gap-1.5 text-sm text-blue-400 bg-blue-500/10 rounded px-2 py-1">
+          {motorista.viagem_origem && <span className="truncate">{motorista.viagem_origem}</span>}
+          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold truncate">{motorista.viagem_destino}</span>
         </div>
       )}
     </div>

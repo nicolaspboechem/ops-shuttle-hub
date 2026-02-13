@@ -78,7 +78,7 @@ export default function PainelLocalizador() {
     const fetchMissoes = () => {
       supabase
         .from('missoes')
-        .select('id, motorista_id, ponto_desembarque, status')
+        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status')
         .eq('evento_id', selectedEvento)
         .in('status', ['pendente', 'aceita', 'em_andamento'])
         .then(({ data }) => {
