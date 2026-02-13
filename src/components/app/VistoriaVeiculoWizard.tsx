@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Veiculo } from '@/hooks/useCadastros';
 import { Button } from '@/components/ui/button';
@@ -55,7 +54,6 @@ export function VistoriaVeiculoWizard({
   veiculoExistente,
   onComplete
 }: VistoriaVeiculoWizardProps) {
-  const { user } = useAuth();
   const { userId, userName } = useCurrentUser();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -182,7 +180,7 @@ export function VistoriaVeiculoWizard({
 
       // Usar nome do hook unificado (funciona para admin, staff e motorista)
       const realizadoPorNome = userName || null;
-      const realizadoPorId = userId || user?.id || null;
+      const realizadoPorId = userId || null;
 
       if (isEditing && veiculoExistente) {
         // Registrar no histórico ANTES de atualizar
@@ -212,12 +210,12 @@ export function VistoriaVeiculoWizard({
             possui_avarias: possuiAvarias,
             inspecao_dados: inspecaoDados,
             inspecao_data: new Date().toISOString(),
-            inspecao_por: user?.id || null,
+            inspecao_por: realizadoPorId,
             observacoes_gerais: observacoesGerais.trim() || null,
             status: statusFinal,
             liberado_em: statusFinal === 'liberado' ? new Date().toISOString() : null,
-            liberado_por: statusFinal === 'liberado' ? user?.id : null,
-            atualizado_por: user?.id || null,
+            liberado_por: statusFinal === 'liberado' ? realizadoPorId : null,
+            atualizado_por: realizadoPorId,
             ...(kmInicial && { km_inicial: parseInt(kmInicial) })
           })
           .eq('id', veiculoExistente.id);
@@ -291,7 +289,7 @@ export function VistoriaVeiculoWizard({
             url,
             tipo: 'geral',
             ordem: idx,
-            criado_por: user?.id || null
+            criado_por: realizadoPorId
           });
         });
 
@@ -304,7 +302,7 @@ export function VistoriaVeiculoWizard({
               area_veiculo: area.id,
               descricao: area.possuiAvaria ? area.descricao : null,
               ordem: idx,
-              criado_por: user?.id || null
+              criado_por: realizadoPorId
             });
           });
         });
