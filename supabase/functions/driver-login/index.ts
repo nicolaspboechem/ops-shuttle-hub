@@ -83,20 +83,22 @@ serve(async (req) => {
     let credencial = null;
     for (const phone of phonesToTry) {
       console.log('Trying phone:', phone);
+      // Use select() without maybeSingle to handle multiple credentials for same phone
       const { data, error } = await supabaseAdmin
         .from('motorista_credenciais')
         .select('*, motoristas(id, nome, evento_id, telefone)')
         .eq('telefone', phone)
         .eq('ativo', true)
-        .maybeSingle();
+        .order('updated_at', { ascending: false });
       
       if (error) {
         console.error('Query error:', error);
       }
       
-      if (data) {
-        console.log('Found credentials for phone:', phone);
-        credencial = data;
+      if (data && data.length > 0) {
+        // Pick the most recently updated credential (latest login or registration)
+        console.log(`Found ${data.length} credentials for phone:`, phone);
+        credencial = data[0];
         break;
       }
     }
