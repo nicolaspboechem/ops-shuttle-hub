@@ -1,50 +1,38 @@
-import { useAuth } from '@/lib/auth/AuthContext';
-import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { useContext } from 'react';
+import { AuthContext } from '@/lib/auth/AuthContext';
+import { StaffAuthContext } from '@/lib/auth/StaffAuthContext';
+import { DriverAuthContext } from '@/lib/auth/DriverAuthContext';
 
 /**
  * Hook unificado que retorna userId e userName do usuário autenticado,
  * independente do sistema de auth (Supabase Auth, Staff JWT ou Driver JWT).
+ * Usa useContext direto para não explodir fora dos providers.
  */
 export function useCurrentUser(): { userId: string | null; userName: string | null } {
-  // Try each auth context - they throw if not inside provider,
-  // so we use safe wrappers
-  let userId: string | null = null;
-  let userName: string | null = null;
+  const authCtx = useContext(AuthContext);
+  const staffCtx = useContext(StaffAuthContext);
+  const driverCtx = useContext(DriverAuthContext);
 
-  try {
-    const { user, profile } = useAuth();
-    if (user) {
-      userId = user.id;
-      userName = profile?.full_name || user.email || null;
-    }
-  } catch {
-    // Not inside AuthProvider
+  if (authCtx?.user) {
+    return {
+      userId: authCtx.user.id,
+      userName: authCtx.profile?.full_name || authCtx.user.email || null,
+    };
   }
 
-  if (!userId) {
-    try {
-      const { staffSession } = useStaffAuth();
-      if (staffSession && staffSession.expires_at > Date.now()) {
-        userId = staffSession.user_id;
-        userName = staffSession.user_nome;
-      }
-    } catch {
-      // Not inside StaffAuthProvider
-    }
+  if (staffCtx?.staffSession && staffCtx.staffSession.expires_at > Date.now()) {
+    return {
+      userId: staffCtx.staffSession.user_id,
+      userName: staffCtx.staffSession.user_nome,
+    };
   }
 
-  if (!userId) {
-    try {
-      const { driverSession } = useDriverAuth();
-      if (driverSession && driverSession.expires_at > Date.now()) {
-        userId = driverSession.motorista_id;
-        userName = driverSession.motorista_nome;
-      }
-    } catch {
-      // Not inside DriverAuthProvider
-    }
+  if (driverCtx?.driverSession && driverCtx.driverSession.expires_at > Date.now()) {
+    return {
+      userId: driverCtx.driverSession.motorista_id,
+      userName: driverCtx.driverSession.motorista_nome,
+    };
   }
 
-  return { userId, userName };
+  return { userId: null, userName: null };
 }

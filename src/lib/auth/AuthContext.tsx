@@ -34,7 +34,7 @@ interface AuthContextType {
   hasEventAccess: (eventoId: string, allowedRoles: EventRole[]) => boolean;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

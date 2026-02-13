@@ -283,7 +283,6 @@ export function useMissoes(eventoId: string | undefined) {
 
 // Hook para motorista ver suas missões
 export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId: string | undefined) {
-  const { user } = useAuth();
   const [missoes, setMissoes] = useState<Missao[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -379,7 +378,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
     try {
       const { error } = await supabase
         .from('missoes')
-        .update({ status: 'aceita', atualizado_por: user?.id })
+        .update({ status: 'aceita', atualizado_por: motoristaId })
         .eq('id', id);
 
       if (error) {
@@ -399,7 +398,7 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
     try {
       const { error } = await supabase
         .from('missoes')
-        .update({ status: 'cancelada', atualizado_por: user?.id })
+        .update({ status: 'cancelada', atualizado_por: motoristaId })
         .eq('id', id);
 
       if (error) {
