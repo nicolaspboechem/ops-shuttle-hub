@@ -67,8 +67,8 @@ export default function Motoristas() {
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
 
   // Realtime subscription para atualização automática do status
+  // CONSOLIDATED: Single channel for motoristas + presença (was separate channel)
   useEffect(() => {
-    // Validar se eventoId é um UUID válido
     const isValidUUID = eventoId && 
       eventoId !== ':eventoId' && 
       eventoId.length >= 36 && 
@@ -76,32 +76,33 @@ export default function Motoristas() {
     
     if (!isValidUUID) return;
 
-    // Debounce to prevent rapid refetches when multiple motoristas change
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => refetchMotoristas(), 2000);
+      debounceTimer = setTimeout(() => {
+        refetchMotoristas();
+        refetchEquipe();
+      }, 3000); // 3s debounce (increased from 2s)
     };
 
+    // Single consolidated channel for motoristas page
     const channel = supabase
-      .channel(`motoristas-status-${eventoId}`)
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'motoristas',
-          filter: `evento_id=eq.${eventoId}`
-        },
-        debouncedRefetch
-      )
+      .channel(`motoristas-consolidated-${eventoId}`)
+      .on('postgres_changes', { 
+        event: '*', schema: 'public', table: 'motoristas',
+        filter: `evento_id=eq.${eventoId}`
+      }, debouncedRefetch)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'motorista_presenca',
+        filter: `evento_id=eq.${eventoId}`
+      }, debouncedRefetch)
       .subscribe();
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [eventoId, refetchMotoristas]);
+  }, [eventoId, refetchMotoristas, refetchEquipe]);
 
   const userIds = useMemo(() => 
     motoristasCadastrados.flatMap(m => [m.criado_por, m.atualizado_por]),

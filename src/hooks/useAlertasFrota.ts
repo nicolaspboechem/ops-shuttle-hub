@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThrottle';
 
 export interface AlertaFrota {
   id: string;
@@ -87,12 +88,8 @@ export function useAlertasFrota(eventoId?: string) {
   useEffect(() => {
     fetchAlertas();
 
-    // Debounce to prevent rapid refetches
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchAlertas(), 2000);
-    };
+    const throttleKey = `useAlertasFrota-${eventoId || 'all'}`;
+    const throttledFetch = createThrottledRefetch(throttleKey, fetchAlertas, 3000);
 
     const realtimeConfig: any = {
       event: '*', schema: 'public', table: 'alertas_frota',
@@ -101,11 +98,11 @@ export function useAlertasFrota(eventoId?: string) {
 
     const channel = supabase
       .channel(`alertas-frota-${eventoId || 'all'}`)
-      .on('postgres_changes', realtimeConfig, debouncedFetch)
+      .on('postgres_changes', realtimeConfig, throttledFetch)
       .subscribe();
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
+      clearThrottleKey(throttleKey);
       supabase.removeChannel(channel);
     };
   }, [fetchAlertas]);

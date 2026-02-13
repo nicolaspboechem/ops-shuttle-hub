@@ -336,11 +336,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Get active eventoId from notifications or URL - filter realtime by event
+  const activeEventoId = useRef<string | null>(null);
+  
+  // Extract eventoId from URL path (e.g., /evento/{id}/...)
+  useEffect(() => {
+    const match = window.location.pathname.match(/\/evento\/([0-9a-f-]{36})\//i);
+    activeEventoId.current = match ? match[1] : null;
+  });
+
   useEffect(() => {
     fetchNotifications();
 
     // THROTTLE: Prevent fetchNotifications from firing more than once per 5 seconds
-    // This is critical because 4 different tables can trigger simultaneously
     let lastFetch = Date.now();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
     const throttledFetch = () => {
@@ -358,21 +366,34 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // CONSOLIDATED: Single channel listening to all 4 tables (was 4 separate channels)
-    const notificationsChannel = supabase
-      .channel('shared-notifications-all')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, throttledFetch)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, throttledFetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, throttledFetch)
-      .subscribe();
+    // Build channel with event-filtered subscriptions when possible
+    const evtId = activeEventoId.current;
+    const channel = supabase.channel(`notifications-${evtId || 'all'}`);
 
-    // Polling fallback every 2 minutes (instead of relying solely on realtime)
+    if (evtId) {
+      // FILTERED: Only listen to changes for the active event (~90% reduction)
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca', filter: `evento_id=eq.${evtId}` }, throttledFetch)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico', filter: `evento_id=eq.${evtId}` }, throttledFetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota', filter: `evento_id=eq.${evtId}` }, throttledFetch);
+    } else {
+      // Fallback: no event context, listen to all (admin Home page)
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, throttledFetch)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico' }, throttledFetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, throttledFetch);
+    }
+
+    channel.subscribe();
+
+    // Polling fallback every 2 minutes
     const pollInterval = setInterval(() => fetchNotifications(), 120000);
 
     return () => {
       if (throttleTimer) clearTimeout(throttleTimer);
-      supabase.removeChannel(notificationsChannel);
+      supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
   }, [fetchNotifications]);
