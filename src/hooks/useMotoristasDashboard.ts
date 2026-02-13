@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThrottle';
 
 interface MotoristasDashboardData {
   online: number;
@@ -52,34 +53,27 @@ export function useMotoristasDashboard(
     fetchData();
   }, [fetchData]);
 
-  // Realtime subscriptions with debounce
+  // Realtime subscriptions with global throttle
   useEffect(() => {
     if (!eventoId) return;
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchData(), 2000);
-    };
+    const throttleKey = `useMotoristasDashboard-${eventoId}`;
+    const throttledFetch = createThrottledRefetch(throttleKey, fetchData, 3000);
 
     const channel = supabase
       .channel(`dashboard-motoristas-${eventoId}`)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'motorista_presenca',
+        event: '*', schema: 'public', table: 'motorista_presenca',
         filter: `evento_id=eq.${eventoId}`,
-      }, debouncedFetch)
+      }, throttledFetch)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'missoes',
+        event: '*', schema: 'public', table: 'missoes',
         filter: `evento_id=eq.${eventoId}`,
-      }, debouncedFetch)
+      }, throttledFetch)
       .subscribe();
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
+      clearThrottleKey(throttleKey);
       supabase.removeChannel(channel);
     };
   }, [eventoId, fetchData]);

@@ -7,6 +7,7 @@ import {
   calcularMetricasMotorista 
 } from '@/lib/utils/calculadores';
 import { getLimitesDiaOperacional } from '@/lib/utils/diaOperacional';
+import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThrottle';
 
 export interface UseViagensOptions {
   dataOperacional?: string;  // "YYYY-MM-DD"
@@ -97,27 +98,20 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: `evento_id=eq.${eventoId}` }
       : { event: '*' as const, schema: 'public' as const, table: 'viagens' as const };
 
-    // Debounce to prevent cascade refetches when multiple viagens change rapidly
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchViagens(false), 2000); // 2s debounce
-    };
+    // Global throttled refetch to prevent cascade
+    const throttleKey = `useViagens-${eventoId || 'all'}`;
+    const throttledFetch = createThrottledRefetch(throttleKey, () => fetchViagens(false), 3000);
 
     const channel = supabase
       .channel(`viagens-changes-${eventoId || 'all'}`)
-      .on(
-        'postgres_changes',
-        channelConfig,
-        debouncedFetch // Debounced refetch
-      )
+      .on('postgres_changes', channelConfig, throttledFetch)
       .subscribe();
 
-    // Polling fallback every 5 minutes - silencioso
+    // Polling fallback every 5 minutes
     const interval = setInterval(() => fetchViagens(false), 300000);
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
+      clearThrottleKey(throttleKey);
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
