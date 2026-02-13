@@ -36,48 +36,40 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
       const horarioVirada = evento?.horario_virada_dia?.substring(0, 5) || '04:00';
       const dataOperacional = getDataOperacional(new Date(), horarioVirada);
 
-      // 2. Buscar presenças do dia com check-in ativo (sem checkout)
-      const { data: presencasAtivas } = await supabase
-        .from('motorista_presenca')
-        .select('motorista_id')
-        .eq('evento_id', eventoId)
-        .eq('data', dataOperacional)
-        .not('checkin_at', 'is', null)
-        .is('checkout_at', null);
+      // 2. Buscar motoristas com JOINs + presenças + viagens em paralelo
+      const [motoristasResult, presencasResult, viagensResult] = await Promise.all([
+        supabase
+          .from('motoristas')
+          .select('*, veiculo:veiculos!motoristas_veiculo_id_fkey(*)')
+          .eq('evento_id', eventoId)
+          .order('nome'),
+        supabase
+          .from('motorista_presenca')
+          .select('motorista_id')
+          .eq('evento_id', eventoId)
+          .eq('data', dataOperacional)
+          .not('checkin_at', 'is', null)
+          .is('checkout_at', null),
+        supabase
+          .from('viagens')
+          .select('motorista_id, motorista, ponto_embarque, ponto_desembarque')
+          .eq('evento_id', eventoId)
+          .eq('status', 'em_andamento')
+          .eq('encerrado', false),
+      ]);
+
+      if (motoristasResult.error) throw motoristasResult.error;
 
       // Criar Set de IDs de motoristas com check-in ativo
       const motoristasComCheckinAtivo = new Set(
-        presencasAtivas?.map(p => p.motorista_id) || []
+        presencasResult.data?.map(p => p.motorista_id) || []
       );
 
-      // 3. Buscar motoristas
-      const { data: motoristasData, error: motoristasError } = await supabase
-        .from('motoristas')
-        .select('*')
-        .eq('evento_id', eventoId)
-        .order('nome');
-
-      if (motoristasError) throw motoristasError;
-
-      // 4. Filtrar apenas motoristas com check-in ativo
-      const motoristasFiltrados = (motoristasData || [])
+      // Filtrar apenas motoristas com check-in ativo
+      const motoristasFiltrados = (motoristasResult.data || [])
         .filter(m => motoristasComCheckinAtivo.has(m.id));
 
-      // Fetch all vehicles for this event to map
-      const { data: veiculosData } = await supabase
-        .from('veiculos')
-        .select('*')
-        .eq('evento_id', eventoId);
-
-      const veiculosMap = new Map(veiculosData?.map(v => [v.id, v]) || []);
-
-      // Fetch active trips to get destinations for drivers in transit
-      const { data: viagensAtivas } = await supabase
-        .from('viagens')
-        .select('motorista_id, motorista, ponto_embarque, ponto_desembarque')
-        .eq('evento_id', eventoId)
-        .eq('status', 'em_andamento')
-        .eq('encerrado', false);
+      const viagensAtivas = viagensResult.data;
 
       // Criar mapa por motorista_id (prioridade) ou nome (fallback)
       const viagensPorMotoristaId = new Map<string, { origem: string; destino: string }>();
@@ -96,12 +88,12 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
         }
       });
 
-      // Combine data - using filtered motoristas
+      // Combine data - using filtered motoristas (veiculo already joined)
       const motoristasComVeiculos: MotoristaComVeiculo[] = motoristasFiltrados.map(m => {
         const viagemInfo = viagensPorMotoristaId.get(m.id) || viagensPorMotorista.get(m.nome);
         return {
           ...m,
-          veiculo: m.veiculo_id ? veiculosMap.get(m.veiculo_id) || null : null,
+          veiculo: (m as any).veiculo || null,
           viagem_origem: viagemInfo?.origem || null,
           viagem_destino: viagemInfo?.destino || null,
         };

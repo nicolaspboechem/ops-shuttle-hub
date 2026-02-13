@@ -1213,6 +1213,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_motorista_presenca: {
+        Args: { p_data: string; p_evento_id: string; p_motorista_id: string }
+        Returns: Json
+      }
       get_server_time: { Args: never; Returns: string }
       has_permission: {
         Args: {
