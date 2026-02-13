@@ -128,6 +128,17 @@ Deno.serve(async (req) => {
         console.error(`Error updating motoristas:`, updateMotoristaError);
       }
 
+      // Clear motorista_id on vehicles (bidirectional unlink)
+      const { error: updateVeiculoError } = await supabase
+        .from("veiculos")
+        .update({ motorista_id: null })
+        .in("motorista_id", motoristaIds)
+        .eq("evento_id", evento.id);
+
+      if (updateVeiculoError) {
+        console.error(`Error clearing vehicles:`, updateVeiculoError);
+      }
+
       totalCheckouts += presencasAbertas.length;
       results.push({
         evento: evento.nome_planilha,

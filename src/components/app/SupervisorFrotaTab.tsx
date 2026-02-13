@@ -104,10 +104,20 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
     
     if (error) {
       toast.error('Erro ao desvincular veículo');
-    } else {
-      toast.success('Veículo desvinculado');
-      refetchMotoristas();
+      return;
     }
+
+    // Limpar motorista_id no veículo (desvinculação bidirecional)
+    if (motorista.veiculo_id) {
+      await supabase
+        .from('veiculos')
+        .update({ motorista_id: null, atualizado_por: user?.id })
+        .eq('id', motorista.veiculo_id);
+    }
+
+    toast.success('Veículo desvinculado');
+    refetchMotoristas();
+    refetchVeiculos();
   };
 
   // Handlers for veículos
