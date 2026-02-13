@@ -107,21 +107,7 @@ serve(async (req) => {
       );
     }
 
-    // Check if phone is already in use by another motorista
-    const { data: phoneExists } = await supabaseAdmin
-      .from('motorista_credenciais')
-      .select('id')
-      .eq('telefone', phoneDigits)
-      .maybeSingle();
-
-    if (phoneExists) {
-      return new Response(
-        JSON.stringify({ error: 'Este telefone já está em uso por outro motorista' }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create new credentials
+    // Create new credentials (same phone allowed for different motoristas/events)
     const { error: insertError } = await supabaseAdmin
       .from('motorista_credenciais')
       .insert({

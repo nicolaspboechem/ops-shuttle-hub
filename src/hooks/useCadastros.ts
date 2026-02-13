@@ -165,6 +165,8 @@ export function useMotoristas(eventoId?: string) {
   };
 
   const deleteMotorista = async (id: string) => {
+    // FK constraints are now CASCADE for credenciais/presenca and SET NULL for viagens/veiculos
+    // So a direct delete should work without manual cleanup
     const { error } = await supabase
       .from('motoristas')
       .delete()
