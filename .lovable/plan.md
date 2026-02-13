@@ -1,75 +1,72 @@
 
-# Correcao: Desvinculacao de veiculo nao funciona corretamente
+# Otimizacao de Performance - App Motorista travando com muitas missoes
 
-## Problema
+## Diagnostico
 
-O supervisor desvincula o veiculo pelo app, mas o motorista continua vendo o veiculo antigo. O banco de dados confirma que o motorista Rafael Santos **ainda tem** `veiculo_id` apontando para o veiculo TKB0J35.
+O app do motorista esta sobrecarregando porque cada motorista conectado:
 
-## Causa Raiz
+1. **Carrega TODAS as 95 viagens do evento** - mesmo precisando apenas das suas
+2. **Carrega TODAS as 153 missoes do evento** (com JOINs) - mesmo precisando apenas das suas
+3. **Carrega TODOS os 41 motoristas** - so precisa dos seus dados
+4. **3 subscricoes Realtime SEM filtro de motorista** - cada missao criada para qualquer motorista dispara refetch em TODOS os 41 motoristas conectados
+5. **Polling de 30s na presenca** + realtime duplicado
+6. **fetchPresenca faz 4 queries sequenciais** a cada 30 segundos
 
-Existem **3 fluxos de desvinculacao** no sistema, e apenas 1 funciona corretamente:
+### Calculo do impacto
 
-| Fluxo | Limpa motoristas.veiculo_id | Limpa veiculos.motorista_id | Status |
-|---|---|---|---|
-| Pagina VincularVeiculo (handleDesvincular) | Sim | Sim | OK |
-| Supervisor swipe/menu (handleUnlinkVehicle) | Sim | **NAO** | BUG |
-| Auto-checkout (Edge Function) | Sim (v1.7.2) | **NAO** | BUG |
+Com 41 motoristas conectados e missoes sendo criadas rapidamente:
+- Cada nova missao dispara 41 refetches simultaneos de TODAS as missoes (153 registros com JOINs)
+- Cada nova viagem dispara 41 refetches de TODAS as viagens (95 registros com JOINs)
+- Polling de presenca: 41 motoristas x 4 queries x cada 30s = ~328 queries/min extras
+- **Resultado**: centenas de queries/minuto que congestionam a conexao, especialmente em 4G
 
-O fluxo do supervisor (`SupervisorFrotaTab.tsx` linha 96-111) so atualiza a tabela `motoristas` mas esquece de limpar `motorista_id` na tabela `veiculos`. Isso causa inconsistencia: quando o supervisor vincula um novo veiculo, o sistema pode nao detectar que o veiculo antigo ainda "acha" que pertence ao motorista.
+## Solucao
 
-## Correcoes
+### 1. AppMotorista.tsx - Usar hook filtrado por motorista
 
-### 1. SupervisorFrotaTab.tsx - Desvinculacao bidirecional
+Em vez de `useMissoes(eventoId)` que carrega TODAS as missoes, usar `useMissoesPorMotorista(eventoId, motoristaId)` que ja existe no codigo e carrega apenas as missoes do motorista logado.
 
-Adicionar limpeza do `motorista_id` na tabela `veiculos` quando o supervisor desvincula:
+Em vez de `useViagens(eventoId)` que carrega TODAS as viagens, filtrar apenas as do motorista logado.
 
+Remover `useMotoristas(eventoId)` que carrega todos os 41 motoristas - buscar apenas o motorista logado diretamente.
+
+### 2. useMissoes.ts - Filtrar realtime por motorista
+
+No hook `useMissoesPorMotorista`, adicionar filtro no canal Realtime:
 ```text
-// ANTES (linha 96-111):
-const handleUnlinkVehicle = async (motorista) => {
-  await supabase.from('motoristas').update({ veiculo_id: null }).eq('id', motorista.id);
-};
-
-// DEPOIS:
-const handleUnlinkVehicle = async (motorista) => {
-  // 1. Limpar veiculo_id do motorista
-  await supabase.from('motoristas').update({ veiculo_id: null }).eq('id', motorista.id);
-  // 2. Limpar motorista_id do veiculo (bidirecional)
-  if (motorista.veiculo_id) {
-    await supabase.from('veiculos').update({ motorista_id: null }).eq('id', motorista.veiculo_id);
-  }
-};
+filter: `motorista_id=eq.${motoristaId}`
 ```
+Isso evita que cada missao criada para outro motorista dispare refetch.
 
-### 2. Edge Function auto-checkout/index.ts - Limpar veiculos tambem
+### 3. useViagens.ts - Criar variante filtrada para motorista
 
-Apos setar `veiculo_id: null` nos motoristas, tambem limpar `motorista_id` nos veiculos correspondentes:
+Criar `useViagensPorMotorista(eventoId, motoristaId)` que:
+- Filtra `motorista_id=eq.${motoristaId}` na query
+- Filtra realtime pelo mesmo motorista_id
+- Reduz de 95 viagens para apenas as 2-5 do motorista
 
-```text
-// Apos o update de motoristas, adicionar:
-await supabase.from('veiculos')
-  .update({ motorista_id: null })
-  .in('motorista_id', motoristaIds)
-  .eq('evento_id', evento.id);
-```
+### 4. useMotoristaPresenca.ts - Reduzir polling
 
-### 3. Correcao imediata - Desvincular Rafael Santos via codigo
+- Aumentar polling de 30s para 60s (realtime ja cobre a maioria dos casos)
+- Combinar as 4 queries sequenciais em menos chamadas
 
-Limpar os dados residuais no banco usando o insert tool:
+### 5. AppMotorista.tsx - Buscar motorista diretamente
 
-```sql
-UPDATE motoristas SET veiculo_id = NULL WHERE id = 'e091cbcf-d325-4aeb-8440-a52bf89b27d9';
-UPDATE veiculos SET motorista_id = NULL WHERE id = 'f37a0f47-858f-4897-a3b6-8c628c6c1e03';
-```
+Em vez de carregar todos os 41 motoristas com `useMotoristas(eventoId)` e filtrar, buscar apenas o motorista logado via query direta com `driverSession.motorista_id`.
 
-### 4. Versao
+## Resumo de mudancas
 
-Atualizar `APP_VERSION` para `1.7.3`.
+| Arquivo | Mudanca | Impacto |
+|---|---|---|
+| `src/pages/app/AppMotorista.tsx` | Usar hooks filtrados por motorista em vez de carregar tudo | -90% dados transferidos |
+| `src/hooks/useMissoes.ts` | Adicionar filtro realtime em `useMissoesPorMotorista` | -97% eventos realtime processados |
+| `src/hooks/useViagens.ts` | Criar `useViagensPorMotorista` com query e realtime filtrados | -95% viagens carregadas |
+| `src/hooks/useMotoristaPresenca.ts` | Aumentar polling para 60s | -50% queries de presenca |
+| `src/lib/version.ts` | Atualizar para 1.7.4 | - |
 
-## Resumo de arquivos
+## Resultado esperado
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/components/app/SupervisorFrotaTab.tsx` | Adicionar limpeza bidirecional no handleUnlinkVehicle |
-| `supabase/functions/auto-checkout/index.ts` | Limpar motorista_id nos veiculos durante virada |
-| `src/lib/version.ts` | Atualizar para 1.7.3 |
-| Banco de dados | Desvincular Rafael Santos imediatamente |
+- Cada motorista carrega apenas seus proprios dados (2-5 missoes em vez de 153)
+- Realtime so dispara quando a missao e para aquele motorista especifico
+- Reducao de ~90% no trafego de dados e queries por motorista
+- App funcional mesmo em 4G lento
