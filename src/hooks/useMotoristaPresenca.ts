@@ -127,8 +127,9 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         data = latestRecord;
       }
       
-      // If presence has a vehicle, fetch it
-      if (data?.veiculo_id) {
+      // If presence has a vehicle AND is still active (no checkout), fetch it
+      // Don't load vehicle from closed presences to avoid showing stale vehicle
+      if (data?.veiculo_id && data.checkin_at && !data.checkout_at) {
         const { data: veiculoPresenca } = await supabase
           .from('veiculos')
           .select('*')
@@ -137,7 +138,7 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         
         setPresenca({ ...data, veiculo: veiculoPresenca });
       } else {
-        setPresenca(data);
+        setPresenca(data ? { ...data, veiculo: null } : null);
       }
     } catch (error) {
       console.error('Erro ao buscar presença:', error);
