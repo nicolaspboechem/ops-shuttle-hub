@@ -20,7 +20,7 @@ import { Veiculo } from '@/hooks/useCadastros';
 import { VeiculoFotosModal } from './VeiculoFotosModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useVistoriaHistorico } from '@/hooks/useVistoriaHistorico';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ReportarCombustivelModal } from './ReportarCombustivelModal';
 
 interface MotoristaVeiculoTabProps {
@@ -405,7 +405,8 @@ export function MotoristaVeiculoTab({ veiculo, eventoId, motoristaId }: Motorist
 
       {/* Modal de Foto da Avaria Ampliada */}
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-3xl p-1 bg-black/90">
+        <DialogContent className="max-w-3xl p-1 bg-black/90" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">Foto ampliada</DialogTitle>
           {selectedPhoto && (
             <img 
               src={selectedPhoto} 
