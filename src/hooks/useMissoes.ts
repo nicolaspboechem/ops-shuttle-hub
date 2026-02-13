@@ -84,6 +84,7 @@ export function useMissoes(eventoId: string | undefined) {
           motorista:motoristas(nome, veiculos!motoristas_veiculo_id_fkey(nome, placa))
         `)
         .eq('evento_id', eventoId)
+        .in('status', ['pendente', 'aceita', 'em_andamento'])
         .order('created_at', { ascending: false });
 
       if (error) {

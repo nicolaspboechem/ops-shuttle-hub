@@ -55,97 +55,87 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     }
 
     try {
-      // Check if event has missoes (and thus check-in) enabled and get virada time
-      const { data: evento } = await supabase
-        .from('eventos')
-        .select('habilitar_missoes, horario_virada_dia')
-        .eq('id', eventoId)
-        .single();
+      // Calculate data operacional with current virada (will be refined after RPC)
+      const dataOperacional = getDataOperacional(getAgoraSync(), horarioVirada);
 
-      setCheckinEnabled(evento?.habilitar_missoes || false);
-      
-      // Set horario virada from event settings
-      const virada = evento?.horario_virada_dia || '04:00:00';
-      setHorarioVirada(virada.substring(0, 5));
-      
-      // Calculate data operacional with the fetched virada time
-      const dataOperacional = getDataOperacional(getAgoraSync(), virada.substring(0, 5));
+      // Single RPC call replaces 5-6 sequential queries
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('get_motorista_presenca', {
+        p_evento_id: eventoId,
+        p_motorista_id: motoristaId,
+        p_data: dataOperacional,
+      });
 
-      if (!evento?.habilitar_missoes) {
+      if (rpcError) throw rpcError;
+
+      if (!rpcResult) {
+        setCheckinEnabled(false);
         setLoading(false);
         return;
       }
 
-      // Fetch driver's assigned vehicle
-      const { data: motorista } = await supabase
-        .from('motoristas')
-        .select('veiculo_id')
-        .eq('id', motoristaId)
-        .single();
+      const result = rpcResult as any;
 
-      if (motorista?.veiculo_id) {
-        const { data: veiculo } = await supabase
-          .from('veiculos')
-          .select('*')
-          .eq('id', motorista.veiculo_id)
-          .single();
-        
-        setVeiculoAtribuido(veiculo || null);
-      } else {
-        setVeiculoAtribuido(null);
+      setCheckinEnabled(result.habilitar_missoes || false);
+
+      // Update horario virada from event settings
+      const virada = result.horario_virada_dia || '04:00:00';
+      const viradaShort = typeof virada === 'string' ? virada.substring(0, 5) : '04:00';
+      setHorarioVirada(viradaShort);
+
+      // If virada changed, we may need to recalculate data operacional
+      const newDataOperacional = getDataOperacional(getAgoraSync(), viradaShort);
+      if (newDataOperacional !== dataOperacional) {
+        // Re-fetch with correct date - this is rare (only on first load)
+        const { data: rpcResult2 } = await supabase.rpc('get_motorista_presenca', {
+          p_evento_id: eventoId,
+          p_motorista_id: motoristaId,
+          p_data: newDataOperacional,
+        });
+        if (rpcResult2) {
+          const r2 = rpcResult2 as any;
+          processRpcResult(r2);
+          return;
+        }
       }
 
-      // Fetch ACTIVE presence record (checkin exists, no checkout) for today
-      const { data: activeRecord, error: activeError } = await supabase
-        .from('motorista_presenca')
-        .select('*')
-        .eq('motorista_id', motoristaId)
-        .eq('evento_id', eventoId)
-        .eq('data', dataOperacional)
-        .not('checkin_at', 'is', null)
-        .is('checkout_at', null)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (activeError) throw activeError;
-
-      // If no active record, fetch the most recent one (to know if checkout was done)
-      let data = activeRecord;
-      if (!data) {
-        const { data: latestRecord, error: latestError } = await supabase
-          .from('motorista_presenca')
-          .select('*')
-          .eq('motorista_id', motoristaId)
-          .eq('evento_id', eventoId)
-          .eq('data', dataOperacional)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (latestError) throw latestError;
-        data = latestRecord;
+      if (!result.habilitar_missoes) {
+        setLoading(false);
+        return;
       }
-      
-      // If presence has a vehicle AND is still active (no checkout), fetch it
-      // Don't load vehicle from closed presences to avoid showing stale vehicle
-      if (data?.veiculo_id && data.checkin_at && !data.checkout_at) {
-        const { data: veiculoPresenca } = await supabase
-          .from('veiculos')
-          .select('*')
-          .eq('id', data.veiculo_id)
-          .single();
-        
-        setPresenca({ ...data, veiculo: veiculoPresenca });
-      } else {
-        setPresenca(data ? { ...data, veiculo: null } : null);
-      }
+
+      processRpcResult(result);
     } catch (error) {
       console.error('Erro ao buscar presença:', error);
     } finally {
       setLoading(false);
     }
-  }, [eventoId, motoristaId, getAgoraSync]);
+  }, [eventoId, motoristaId, getAgoraSync, horarioVirada]);
+
+  // Process result from RPC
+  const processRpcResult = useCallback((result: any) => {
+    // Set vehicle assigned to driver
+    if (result.veiculo) {
+      setVeiculoAtribuido(result.veiculo as Veiculo);
+    } else {
+      setVeiculoAtribuido(null);
+    }
+
+    // Determine presence record
+    const presencaAtiva = result.presenca_ativa;
+    const presencaRecente = result.presenca_recente;
+    const data = presencaAtiva || presencaRecente;
+
+    if (data) {
+      // If active presence has vehicle, fetch it from the result
+      if (data.veiculo_id && data.checkin_at && !data.checkout_at && result.veiculo) {
+        setPresenca({ ...data, veiculo: result.veiculo });
+      } else {
+        setPresenca({ ...data, veiculo: null });
+      }
+    } else {
+      setPresenca(null);
+    }
+  }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -162,20 +152,14 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
       .on(
         'postgres_changes',
         {
-          event: '*', // INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'motorista_presenca',
           filter: `motorista_id=eq.${motoristaId}`
         },
-        (payload) => {
-          console.log('[Presença] Realtime update:', payload.eventType, payload);
-          // Refetch para garantir dados atualizados
-          fetchPresenca();
-        }
+        () => fetchPresenca()
       )
-      .subscribe((status) => {
-        console.log('[Presença] Subscription status:', status);
-      });
+      .subscribe();
 
     // Realtime subscription para mudanças no registro do motorista (veiculo_id)
     const motoristaChannel = supabase
@@ -188,16 +172,12 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
           table: 'motoristas',
           filter: `id=eq.${motoristaId}`
         },
-        (payload) => {
-          console.log('[Presença] Motorista update (veiculo_id?):', payload);
-          fetchPresenca();
-        }
+        () => fetchPresenca()
       )
       .subscribe();
 
     // Polling fallback (a cada 60s) caso Realtime falhe silenciosamente
     const pollInterval = setInterval(() => {
-      console.log('[Presença] Polling fallback...');
       fetchPresenca();
     }, 60000);
 
@@ -236,7 +216,6 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         .maybeSingle();
 
       if (existingActive) {
-        // Already has an active check-in, skip
         toast({
           title: 'Check-in já ativo',
           description: 'Você já possui um check-in ativo hoje.',

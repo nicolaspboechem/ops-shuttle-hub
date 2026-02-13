@@ -87,9 +87,14 @@ export function useAlertasFrota(eventoId?: string) {
   useEffect(() => {
     fetchAlertas();
 
+    const realtimeConfig: any = {
+      event: '*', schema: 'public', table: 'alertas_frota',
+      ...(eventoId ? { filter: `evento_id=eq.${eventoId}` } : {}),
+    };
+
     const channel = supabase
       .channel(`alertas-frota-${eventoId || 'all'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota' }, () => fetchAlertas())
+      .on('postgres_changes', realtimeConfig, () => fetchAlertas())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
