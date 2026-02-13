@@ -1,92 +1,67 @@
 
 
-# Service Worker + Reducao de Chunks para 4G
+# Corrigir Tela Branca no Vercel + Limpeza de Duplicatas
 
-## Resumo
+## Diagnostico
 
-O Service Worker (`public/sw.js`) ja foi criado. Faltam 3 passos para completar a otimizacao:
+O Supabase client usa URLs **hardcoded** no codigo (nao depende de variaveis de ambiente). A tela branca apos login no Vercel e causada por falha no carregamento dos chunks JS lazy-loaded, nao por falta de conexao com o banco.
 
-1. **Registrar o Service Worker** no `src/main.tsx`
-2. **Criar o manifest PWA** e linkar no `index.html`
-3. **Consolidar chunks** de 7 para 3 no `vite.config.ts`
-
----
+Tambem encontrei dois problemas de duplicacao introduzidos na ultima edicao:
+- `src/main.tsx`: registro do Service Worker duplicado (2x o mesmo bloco)
+- `index.html`: `<link rel="manifest">` duplicado (ja existia na linha 23)
 
 ## Alteracoes
 
-### 1. src/main.tsx - Registrar Service Worker
+### 1. Remover duplicatas
 
-Adicionar apos o `createRoot().render()`:
+**`src/main.tsx`**: Remover o bloco duplicado de registro do Service Worker (manter apenas um).
+
+**`index.html`**: Remover o `<link rel="manifest">` duplicado (manter apenas o original).
+
+### 2. Adicionar Error Boundary global para chunks
+
+Criar um componente `ErrorBoundary` que captura erros de renderizacao do React (incluindo falhas de chunks lazy) e exibe uma mensagem com botao de reload, em vez de tela branca.
+
+**`src/components/ErrorBoundary.tsx`**: Class component React com `componentDidCatch` que mostra UI de erro amigavel.
+
+Envolver as rotas principais no `App.tsx` com este `ErrorBoundary`.
+
+### 3. Melhorar loading do AppMotorista
+
+Adicionar um estado de loading mais visivel no `AppMotorista` enquanto os dados do motorista e presenca estao sendo buscados, para que o usuario veja feedback visual em vez de tela vazia.
+
+## Secao tecnica
+
+### Error Boundary
 
 ```typescript
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => {
-      console.warn('SW registration failed:', err);
-    });
-  });
+// src/components/ErrorBoundary.tsx
+class ErrorBoundary extends React.Component {
+  state = { hasError: false };
+  
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  
+  componentDidCatch(error) {
+    console.error('React Error Boundary:', error);
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return <div>Erro ao carregar. <button onClick={reload}>Recarregar</button></div>;
+    }
+    return this.props.children;
+  }
 }
 ```
 
-### 2. public/manifest.json - Criar manifest PWA
+### Duplicatas a remover
 
-```json
-{
-  "name": "CCO AS BRASIL",
-  "short_name": "CCO",
-  "start_url": "/login/motorista",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
-  "icons": []
-}
-```
+- `src/main.tsx` linhas 16-22 (segundo bloco de SW registration) -- manter apenas o primeiro
+- `index.html` linha 23 duplicada -- manter apenas uma instancia
 
-### 3. index.html - Linkar manifest
+## Nota importante
 
-Adicionar dentro do `<head>`:
-
-```html
-<link rel="manifest" href="/manifest.json">
-```
-
-### 4. vite.config.ts - Consolidar 7 chunks em 3
-
-Substituir os 7 `manualChunks` atuais por 3:
-
-```typescript
-manualChunks: {
-  'vendor-core': [
-    'react', 'react-dom', 'react-router-dom',
-    '@tanstack/react-query',
-    'clsx', 'tailwind-merge', 'zod', 'date-fns'
-  ],
-  'vendor-ui': [
-    '@radix-ui/react-dialog',
-    '@radix-ui/react-dropdown-menu',
-    '@radix-ui/react-popover',
-    '@radix-ui/react-select',
-    '@radix-ui/react-tabs',
-    '@radix-ui/react-toast',
-    '@radix-ui/react-tooltip',
-    'framer-motion',
-  ],
-  'vendor-services': [
-    '@supabase/supabase-js',
-    'recharts',
-  ],
-},
-```
-
----
-
-## Impacto esperado
-
-| Metrica | Antes | Depois |
-|---|---|---|
-| Primeiro acesso (4G) | ~10s | ~6s (3 chunks vs 7) |
-| Segundo acesso (4G) | ~10s | Menos de 1s (cache local) |
-| Requests paralelos | 7+ vendor chunks | 3 vendor chunks |
-
-A maior vitoria: apos o primeiro acesso, o motorista abre o app do cache local sem buscar nada no servidor. Isso resolve a tela branca no dia-a-dia.
+Se a tela branca persistir no Vercel apos estas correcoes, o usuario deve abrir o **Console do navegador** (F12) na URL do Vercel para verificar qual erro exato aparece. Isso permitira um diagnostico preciso do problema no deploy.
 
