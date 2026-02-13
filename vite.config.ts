@@ -32,8 +32,11 @@ export default defineConfig(({ mode }) => ({
       output: {
         // Manual chunk splitting for better caching
         manualChunks: {
-          // Vendor chunks
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-core': [
+            'react', 'react-dom', 'react-router-dom',
+            '@tanstack/react-query',
+            'clsx', 'tailwind-merge', 'zod', 'date-fns',
+          ],
           'vendor-ui': [
             '@radix-ui/react-dialog',
             '@radix-ui/react-dropdown-menu',
@@ -42,12 +45,12 @@ export default defineConfig(({ mode }) => ({
             '@radix-ui/react-tabs',
             '@radix-ui/react-toast',
             '@radix-ui/react-tooltip',
+            'framer-motion',
           ],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-charts': ['recharts'],
-          'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge', 'zod'],
-          'vendor-motion': ['framer-motion'],
+          'vendor-services': [
+            '@supabase/supabase-js',
+            'recharts',
+          ],
         },
       },
     },
