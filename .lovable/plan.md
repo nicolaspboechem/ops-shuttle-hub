@@ -1,72 +1,83 @@
 
-# Otimizacao de Performance - App Motorista travando com muitas missoes
+
+# Otimizacao Fase 2 - Operador e Supervisor tambem sobrecarregam o Supabase
 
 ## Diagnostico
 
-O app do motorista esta sobrecarregando porque cada motorista conectado:
+A v1.7.4 otimizou apenas o **app do motorista**. Mas os apps do **Operador** e **Supervisor** continuam com os mesmos problemas que causavam a sobrecarga:
 
-1. **Carrega TODAS as 95 viagens do evento** - mesmo precisando apenas das suas
-2. **Carrega TODAS as 153 missoes do evento** (com JOINs) - mesmo precisando apenas das suas
-3. **Carrega TODOS os 41 motoristas** - so precisa dos seus dados
-4. **3 subscricoes Realtime SEM filtro de motorista** - cada missao criada para qualquer motorista dispara refetch em TODOS os 41 motoristas conectados
-5. **Polling de 30s na presenca** + realtime duplicado
-6. **fetchPresenca faz 4 queries sequenciais** a cada 30 segundos
+### Problemas que persistem
 
-### Calculo do impacto
+| App | Hook | Problema |
+|---|---|---|
+| AppMotorista | `useEventos()` | Realtime **sem filtro** na tabela `eventos` - desnecessario no app do motorista |
+| AppOperador | `useMissoes(eventoId)` | Realtime **sem filtro** na tabela `missoes` - cada missao criada dispara refetch |
+| AppOperador | `useMotoristas(eventoId)` x2 | Carrega motoristas **duas vezes** (linhas 88 e 91) |
+| AppSupervisor | `useMissoes(eventoId)` | Realtime **sem filtro** na tabela `missoes` |
+| AppSupervisor | `useLocalizadorMotoristas` | **3 subscricoes Realtime** no mesmo canal (motoristas + viagens + presenca), cada uma dispara `fetchMotoristas()` que faz **4 queries sequenciais** |
+| Todos | `useViagens` | Canal Realtime generico `viagens-changes` sem filtro de `evento_id` |
 
-Com 41 motoristas conectados e missoes sendo criadas rapidamente:
-- Cada nova missao dispara 41 refetches simultaneos de TODAS as missoes (153 registros com JOINs)
-- Cada nova viagem dispara 41 refetches de TODAS as viagens (95 registros com JOINs)
-- Polling de presenca: 41 motoristas x 4 queries x cada 30s = ~328 queries/min extras
-- **Resultado**: centenas de queries/minuto que congestionam a conexao, especialmente em 4G
+### Calculo do impacto atual
+
+Com ~10 operadores/supervisores + 41 motoristas conectados:
+- Cada missao criada dispara refetch em **todos** os operadores/supervisores (useMissoes sem filtro)
+- `useLocalizadorMotoristas` faz 4 queries a cada evento Realtime (motoristas, presenca, veiculos, viagens)
+- `useViagens` no Operador/Supervisor escuta TODAS as viagens de todos os eventos
+- Total estimado: **200-400 queries/minuto** desnecessarias
 
 ## Solucao
 
-### 1. AppMotorista.tsx - Usar hook filtrado por motorista
+### 1. useViagens.ts - Adicionar filtro `evento_id` no Realtime
 
-Em vez de `useMissoes(eventoId)` que carrega TODAS as missoes, usar `useMissoesPorMotorista(eventoId, motoristaId)` que ja existe no codigo e carrega apenas as missoes do motorista logado.
+O canal `viagens-changes` escuta TODAS as viagens de todos os eventos. Adicionar filtro:
 
-Em vez de `useViagens(eventoId)` que carrega TODAS as viagens, filtrar apenas as do motorista logado.
-
-Remover `useMotoristas(eventoId)` que carrega todos os 41 motoristas - buscar apenas o motorista logado diretamente.
-
-### 2. useMissoes.ts - Filtrar realtime por motorista
-
-No hook `useMissoesPorMotorista`, adicionar filtro no canal Realtime:
 ```text
-filter: `motorista_id=eq.${motoristaId}`
+filter: `evento_id=eq.${eventoId}`
 ```
-Isso evita que cada missao criada para outro motorista dispare refetch.
 
-### 3. useViagens.ts - Criar variante filtrada para motorista
+### 2. useMissoes.ts - Adicionar filtro `evento_id` no Realtime do hook global
 
-Criar `useViagensPorMotorista(eventoId, motoristaId)` que:
-- Filtra `motorista_id=eq.${motoristaId}` na query
-- Filtra realtime pelo mesmo motorista_id
-- Reduz de 95 viagens para apenas as 2-5 do motorista
+O hook `useMissoes` (usado por Operador/Supervisor) escuta todas as missoes sem filtro. Adicionar:
 
-### 4. useMotoristaPresenca.ts - Reduzir polling
+```text
+filter: `evento_id=eq.${eventoId}`
+```
 
-- Aumentar polling de 30s para 60s (realtime ja cobre a maioria dos casos)
-- Combinar as 4 queries sequenciais em menos chamadas
+### 3. AppMotorista.tsx - Remover useEventos desnecessario
 
-### 5. AppMotorista.tsx - Buscar motorista diretamente
+O motorista usa `useEventos()` apenas para encontrar o nome do evento. Isso cria uma subscricao Realtime na tabela `eventos` que e totalmente desnecessaria. Substituir por uma query direta pontual.
 
-Em vez de carregar todos os 41 motoristas com `useMotoristas(eventoId)` e filtrar, buscar apenas o motorista logado via query direta com `driverSession.motorista_id`.
+### 4. AppOperador.tsx - Remover duplicacao de useMotoristas
+
+Linhas 88 e 91 carregam motoristas duas vezes com o mesmo eventoId. Remover a duplicacao.
+
+### 5. useLocalizadorMotoristas.ts - Debounce nos eventos Realtime
+
+O hook escuta 3 tabelas e cada evento dispara `fetchMotoristas()` que faz 4 queries. Adicionar um debounce de 2 segundos para agrupar eventos rapidos em uma unica query.
+
+### 6. useAlertasFrota.ts - Sem Realtime (OK, mas sem polling)
+
+Este hook nao tem Realtime nem polling - alertas so atualizam no mount. Nao e critico mas vale notar.
+
+### 7. Versao
+
+Atualizar `APP_VERSION` para `1.7.5`.
 
 ## Resumo de mudancas
 
 | Arquivo | Mudanca | Impacto |
 |---|---|---|
-| `src/pages/app/AppMotorista.tsx` | Usar hooks filtrados por motorista em vez de carregar tudo | -90% dados transferidos |
-| `src/hooks/useMissoes.ts` | Adicionar filtro realtime em `useMissoesPorMotorista` | -97% eventos realtime processados |
-| `src/hooks/useViagens.ts` | Criar `useViagensPorMotorista` com query e realtime filtrados | -95% viagens carregadas |
-| `src/hooks/useMotoristaPresenca.ts` | Aumentar polling para 60s | -50% queries de presenca |
-| `src/lib/version.ts` | Atualizar para 1.7.4 | - |
+| `src/hooks/useViagens.ts` | Filtrar canal Realtime por `evento_id` | -80% eventos Realtime processados |
+| `src/hooks/useMissoes.ts` | Filtrar canal Realtime por `evento_id` no hook global | -80% eventos Realtime processados |
+| `src/pages/app/AppMotorista.tsx` | Remover `useEventos()`, buscar evento diretamente | -1 subscricao Realtime por motorista |
+| `src/pages/app/AppOperador.tsx` | Remover `useMotoristas` duplicado | -50% queries de motoristas |
+| `src/hooks/useLocalizadorMotoristas.ts` | Adicionar debounce de 2s nos callbacks Realtime | -70% queries em rajada |
+| `src/lib/version.ts` | Atualizar para 1.7.5 | - |
 
 ## Resultado esperado
 
-- Cada motorista carrega apenas seus proprios dados (2-5 missoes em vez de 153)
-- Realtime so dispara quando a missao e para aquele motorista especifico
-- Reducao de ~90% no trafego de dados e queries por motorista
-- App funcional mesmo em 4G lento
+- Reducao de ~70% nas queries desnecessarias do Operador/Supervisor
+- Realtime filtrado por evento evita cross-talk entre eventos diferentes
+- App mais responsivo em 4G porque cada update Realtime gera menos queries cascata
+- Combinado com v1.7.4, reducao total estimada de ~90% na carga do Supabase
+
