@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
 import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
 import { StaffAuthProvider } from "@/lib/auth/StaffAuthContext";
@@ -132,6 +133,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* ========================================= */}
@@ -204,6 +206,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </StaffAuthProvider>
