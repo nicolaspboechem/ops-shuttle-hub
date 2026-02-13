@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Viagem } from '@/lib/types/viagem';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
@@ -45,7 +44,6 @@ export function RetornoViagemForm({
   onSuccess 
 }: RetornoViagemFormProps) {
   const { eventoId } = useParams();
-  const { user } = useAuth();
   const { userId, userName } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
   
@@ -89,7 +87,7 @@ export function RetornoViagemForm({
   };
 
   const handleSubmit = async () => {
-    if (!user || !eventoId) {
+    if (!userId || !eventoId) {
       toast.error('Erro de autenticação');
       return;
     }
@@ -134,9 +132,9 @@ export function RetornoViagemForm({
         status: 'em_andamento',
         h_pickup: horaPickup,
         h_inicio_real: serverNow.toISOString(),
-        iniciado_por: user.id,
-        criado_por: user.id,
-        atualizado_por: user.id,
+        iniciado_por: userId,
+        criado_por: userId,
+        atualizado_por: userId,
         observacao: `Retorno - Rota continuação`,
         viagem_pai_id: viagemOriginal.id // Vincula à viagem anterior para rastreamento
       };
@@ -154,7 +152,7 @@ export function RetornoViagemForm({
       // Registrar log
       await supabase.from('viagem_logs').insert([{
         viagem_id: viagemOriginal.id,
-        user_id: user.id,
+        user_id: userId,
         acao: 'retorno',
         detalhes: {
           tipo: 'nova_viagem_retorno',

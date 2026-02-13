@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
@@ -57,7 +56,6 @@ export function CreateViagemForm({
   defaultTipoOperacao,
   onCreated
 }: CreateViagemFormProps) {
-  const { user } = useAuth();
   const { userId, userName } = useCurrentUser();
   const { motoristas, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos } = useVeiculos(eventoId);
@@ -162,9 +160,9 @@ export function CreateViagemForm({
           status: 'em_andamento',
           h_pickup: horaPickup,
           h_inicio_real: agora.toISOString(),
-          iniciado_por: user?.id,
-          criado_por: user?.id,
-          atualizado_por: user?.id
+          iniciado_por: userId,
+          criado_por: userId,
+          atualizado_por: userId
         }]);
 
       if (error) {
@@ -187,7 +185,7 @@ export function CreateViagemForm({
       if (viagemData) {
         await supabase.from('viagem_logs').insert([{
           viagem_id: viagemData.id,
-          user_id: user?.id,
+          user_id: userId,
           acao: 'inicio',
           detalhes: { motorista, placa, ponto_embarque: pontoEmbarque, ponto_desembarque: pontoDesembarque, nome_usuario: userName }
         }]);
