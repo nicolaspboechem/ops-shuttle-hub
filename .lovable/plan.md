@@ -1,38 +1,41 @@
 
 
-# Corrigir "useAuth must be used within an AuthProvider" - Causa Raiz Definitiva
+# Adicionar "Liberar Check-in" nas views Card/Lista + Corrigir notificacao no App Motorista
 
-## Problema
+## Problema 1: Opcao "Liberar Check-in" ausente nas views Card e Lista
 
-A correcao anterior removeu `useAuth()` de 3 componentes, mas o erro persiste porque existem **mais 2 fontes** do problema:
+A opcao "Liberar Check-in" existe apenas no Kanban (`MotoristaKanbanCard`). As views de Card e Lista usam o componente `MotoristaDropdownActions` (definido dentro de `Motoristas.tsx`), que nao possui esta opcao.
 
-### Fonte 1: `useMissoesPorMotorista` (src/hooks/useMissoes.ts)
-O hook `useMissoesPorMotorista` chama `const { user } = useAuth()` na linha 286. Este hook e importado diretamente pelo `AppMotorista`, que roda **fora** do `AuthProvider`. O `user` e usado apenas nas funcoes `aceitarMissao` e `recusarMissao` para preencher `atualizado_por`.
+## Problema 2: Motorista nao ve que pode fazer check-in novamente
 
-### Fonte 2: `useCurrentUser` (src/hooks/useCurrentUser.ts)
-Este hook chama `useAuth()` dentro de um bloco `try/catch`. Isso viola as **Rules of Hooks** do React: hooks devem ser chamados incondicionalmente, na mesma ordem, em todo render. Em modo de producao, o React pode interceptar o erro antes do `catch`, causando crash.
+Quando o CCO "libera check-in", o sistema atualiza `motoristas.status = 'disponivel'`. O hook `useMotoristaPresenca` recebe a mudanca via Realtime. Porem, a funcao `fetchPresenca` (via RPC `get_motorista_presenca`) continua retornando o registro antigo com `checkout_at` preenchido como `presenca_recente`. O `CheckinCheckoutCard` ve `hasCheckin = true` e `hasCheckout = true` e mostra "Expediente encerrado" em vez de permitir novo check-in.
 
-## Solucao
+A correcao: quando o motorista tem `status = 'disponivel'` mas o ultimo registro de presenca ja tem checkout, o card deve mostrar o estado de "Iniciar Expediente" (permitir novo check-in), nao "Expediente encerrado".
 
-### 1. Corrigir `useMissoesPorMotorista` em `src/hooks/useMissoes.ts`
-- Remover `const { user } = useAuth()` (linha 286)
-- Remover import de `useAuth` (ja usado pelo `useMissoes` no mesmo arquivo, entao manter o import)
-- Substituir `user?.id` por `motoristaId` nas funcoes `aceitarMissao` (linha 382) e `recusarMissao` (linha 402), ja que `motoristaId` esta disponivel como parametro do hook
+## Alteracoes
 
-### 2. Reescrever `useCurrentUser` em `src/hooks/useCurrentUser.ts`
-Em vez de chamar os hooks diretamente (violando Rules of Hooks quando fora do provider), usar `useContext` diretamente com os contextos brutos. `useContext` retorna `null`/`undefined` quando fora do provider sem explodir, diferente dos hooks customizados que fazem `throw`.
+### 1. `src/pages/Motoristas.tsx` - Adicionar "Liberar Check-in" ao `MotoristaDropdownActions`
 
-A nova implementacao:
-- Importar os contextos brutos (AuthContext, StaffAuthContext, DriverAuthContext) via `useContext` direto
-- Verificar se cada contexto esta disponivel (nao-null) antes de acessar dados
-- Nenhum try/catch necessario — `useContext` e seguro por design
+No componente `MotoristaDropdownActions` (linha ~443), adicionar:
+- Receber `presenca` e `onLiberarCheckin` como props
+- Adicionar item de menu "Liberar Check-in" condicional: so aparece quando `presenca?.checkin_at` e `presenca?.checkout_at` existem (jornada encerrada)
+- Importar icone `RotateCcw` de lucide-react
 
-### 3. Exportar os contextos brutos
-- Exportar `AuthContext` de `src/lib/auth/AuthContext.tsx` (adicionar export no createContext)
-- Exportar `StaffAuthContext` de `src/lib/auth/StaffAuthContext.tsx`
-- Exportar `DriverAuthContext` de `src/lib/auth/DriverAuthContext.tsx`
+Nas chamadas ao `MotoristaDropdownActions` (card view na linha ~756 e list view na linha ~1023), passar as novas props:
+- `presenca={getPresenca(motorista.id)}`
+- `onLiberarCheckin={() => handleLiberarCheckin(motorista.id)}`
 
-## Resultado
+### 2. `src/hooks/useMotoristaPresenca.ts` - Corrigir logica de presenca apos "liberar check-in"
 
-Apos essas alteracoes, nenhum componente ou hook dentro de `/app/:eventoId/motorista` chamara `useAuth()`, eliminando definitivamente o erro. O `useCurrentUser` funcionara de forma segura em qualquer contexto da aplicacao.
+No `processRpcResult`, adicionar logica: se o motorista tem `status = 'disponivel'` (vindo do resultado RPC ou consultado separadamente) e o ultimo registro de presenca tem checkout preenchido, tratar como se nao houvesse presenca ativa (setPresenca(null)). Isso faz o `CheckinCheckoutCard` renderizar o estado "Iniciar Expediente".
+
+Alternativamente, buscar o status do motorista no RPC result e, quando status for 'disponivel' e a presenca mais recente tiver checkout, definir `presenca` como `null` para que o motorista veja o botao de check-in.
+
+### 3. `src/hooks/useMotoristaPresenca.ts` - Buscar status do motorista
+
+O RPC `get_motorista_presenca` pode ja retornar o status do motorista. Caso contrario, adicionar uma query ao campo `status` da tabela `motoristas` dentro do `fetchPresenca`. Usar esse status para decidir:
+- Se `status === 'disponivel'` e nao ha presenca ativa (so presenca com checkout) --> `setPresenca(null)` para mostrar tela de check-in
+- Se `status === 'indisponivel'` ou `expediente_encerrado` e ha presenca com checkout --> manter presenca com checkout (tela "encerrado")
+
+Isso garante que quando o CCO libera o check-in (muda status para 'disponivel'), o app do motorista automaticamente mostra o botao de check-in via Realtime.
 
