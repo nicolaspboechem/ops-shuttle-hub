@@ -120,14 +120,16 @@ export function useMissoes(eventoId: string | undefined) {
     
     if (!isValidUUID) return;
 
+    // Realtime filtrado por evento_id para evitar cross-talk entre eventos
     const channel = supabase
-      .channel('missoes-changes')
+      .channel(`missoes-changes-${eventoId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'missoes',
+          filter: `evento_id=eq.${eventoId}`,
         },
         () => fetchMissoes()
       )

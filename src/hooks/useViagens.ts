@@ -87,11 +87,21 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
     fetchViagens(true); // Carregamento inicial com loading
 
     // Realtime subscription - atualização em segundo plano
+    // Realtime filtrado por evento_id (se disponível) para evitar cross-talk entre eventos
+    const isValidUUID = eventoId && 
+      eventoId !== ':eventoId' && 
+      eventoId.length >= 36 && 
+      /^[0-9a-f-]{36}$/i.test(eventoId);
+
+    const channelConfig = isValidUUID
+      ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: `evento_id=eq.${eventoId}` }
+      : { event: '*' as const, schema: 'public' as const, table: 'viagens' as const };
+
     const channel = supabase
-      .channel('viagens-changes')
+      .channel(`viagens-changes-${eventoId || 'all'}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'viagens' },
+        channelConfig,
         () => fetchViagens(false) // Refetch silencioso
       )
       .subscribe();

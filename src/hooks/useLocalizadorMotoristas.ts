@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Motorista, Veiculo } from '@/hooks/useCadastros';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
@@ -131,12 +131,28 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [eventoId, fetchMotoristas]);
 
-  // Realtime subscription
+  // Debounced fetch para agrupar eventos Realtime rápidos
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      fetchMotoristas();
+    }, 2000);
+  }, [fetchMotoristas]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  // Realtime subscription with debounce
   useEffect(() => {
     if (!eventoId) return;
 
     const channel = supabase
-      .channel('localizador-motoristas')
+      .channel(`localizador-motoristas-${eventoId}`)
       .on(
         'postgres_changes',
         {
@@ -145,9 +161,7 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
           table: 'motoristas',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchMotoristas();
-        }
+        debouncedFetch
       )
       .on(
         'postgres_changes',
@@ -157,9 +171,7 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
           table: 'viagens',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchMotoristas();
-        }
+        debouncedFetch
       )
       .on(
         'postgres_changes',
@@ -169,16 +181,14 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
           table: 'motorista_presenca',
           filter: `evento_id=eq.${eventoId}`,
         },
-        () => {
-          fetchMotoristas();
-        }
+        debouncedFetch
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [eventoId, fetchMotoristas]);
+  }, [eventoId, debouncedFetch]);
 
   // Group motoristas by location
   const motoristasPorLocalizacao = useMemo(() => {

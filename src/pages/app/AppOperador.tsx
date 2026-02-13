@@ -15,7 +15,7 @@ import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWi
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
 import { useMissoes } from '@/hooks/useMissoes';
-import { useMotoristas as useMotoristasCadastros } from '@/hooks/useCadastros';
+
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
 import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
@@ -85,10 +85,9 @@ export default function AppOperador() {
 
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
   
-  const { refetch: refetchMotoristas } = useMotoristas(eventoId);
+  const { motoristas: motoristasCadastrados, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { createMissao } = useMissoes(eventoId);
-  const { motoristas: motoristasCadastrados } = useMotoristasCadastros(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
   
   // Estado para modal de navegação

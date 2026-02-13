@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useEventos } from '@/hooks/useEventos';
+
 
 import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
 import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
@@ -53,7 +53,14 @@ export default function AppMotorista() {
   
   // Hooks filtrados por motorista - carrega apenas dados do motorista logado
   const { viagens, loading, refetch } = useViagensPorMotorista(eventoId, motoristaId);
-  const { eventos } = useEventos();
+  
+  // Buscar evento diretamente (sem Realtime desnecessário)
+  const [evento, setEvento] = useState<any>(null);
+  useEffect(() => {
+    if (!eventoId) return;
+    supabase.from('eventos').select('id, nome_planilha, horario_virada_dia').eq('id', eventoId).single()
+      .then(({ data }) => setEvento(data));
+  }, [eventoId]);
   const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
   const { missoes, loading: loadingMissoes, refetch: refetchMissoes } = useMissoesPorMotorista(eventoId, motoristaId);
   const { getAgoraSync } = useServerTime();
@@ -72,7 +79,7 @@ export default function AppMotorista() {
   // Tutorial system
   const tutorial = useTutorial('motorista', motoristaSteps);
 
-  const evento = eventos.find(e => e.id === eventoId);
+  
   
   // Buscar dados do motorista diretamente (em vez de carregar todos os 41)
   const [motoristaData, setMotoristaData] = useState<any>(null);
