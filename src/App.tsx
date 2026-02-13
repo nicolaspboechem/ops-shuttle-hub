@@ -31,6 +31,23 @@ function lazyRetry(importFn: () => Promise<any>) {
   return lazy(() => {
     const attempt = (retriesLeft: number, delay: number): Promise<any> =>
       importFn().catch((err) => {
+        const msg = String(err?.message || err || '');
+        const isStaleChunk =
+          msg.includes('MIME') ||
+          msg.includes('Failed to fetch dynamically imported module') ||
+          msg.includes('Loading chunk') ||
+          msg.includes('Loading CSS chunk');
+
+        // Stale chunk after deploy → reload to get new index.html with correct hashes
+        if (isStaleChunk) {
+          const key = 'lazyRetry_reload';
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1');
+            window.location.reload();
+          }
+          // If we already reloaded once this session, fall through to error UI
+        }
+
         if (retriesLeft <= 0) {
           console.error('Chunk load failed after all retries:', err);
           return {
