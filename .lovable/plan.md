@@ -1,43 +1,38 @@
 
 
-# Corrigir MIME type error no Vercel - Chunks JS servidos como HTML
+# Corrigir "useAuth must be used within an AuthProvider" - Causa Raiz Definitiva
 
 ## Problema
 
-O `vercel.json` atual tem uma regra `"source": "/(.*)"` que redireciona **todas** as URLs para `index.html`, incluindo arquivos estáticos como `.js`, `.css`, `.woff2`.
+A correcao anterior removeu `useAuth()` de 3 componentes, mas o erro persiste porque existem **mais 2 fontes** do problema:
 
-Quando o Vercel faz um novo deploy, os hashes dos chunks mudam (ex: `AppMotorista-CRnTW4US.js` vira `AppMotorista-CItxCaYv.js`). Se o usuario esta com a aba aberta e navega para uma rota que carrega um chunk lazy, o browser pede o chunk antigo, que nao existe mais. O Vercel entao serve `index.html` (HTML) no lugar, causando o erro:
+### Fonte 1: `useMissoesPorMotorista` (src/hooks/useMissoes.ts)
+O hook `useMissoesPorMotorista` chama `const { user } = useAuth()` na linha 286. Este hook e importado diretamente pelo `AppMotorista`, que roda **fora** do `AuthProvider`. O `user` e usado apenas nas funcoes `aceitarMissao` e `recusarMissao` para preencher `atualizado_por`.
 
-> Failed to load module script: server responded with MIME type "text/html"
+### Fonte 2: `useCurrentUser` (src/hooks/useCurrentUser.ts)
+Este hook chama `useAuth()` dentro de um bloco `try/catch`. Isso viola as **Rules of Hooks** do React: hooks devem ser chamados incondicionalmente, na mesma ordem, em todo render. Em modo de producao, o React pode interceptar o erro antes do `catch`, causando crash.
 
 ## Solucao
 
-Alterar o `vercel.json` para usar a configuracao padrao de SPAs no Vercel: redirecionar apenas rotas que **nao** correspondem a arquivos estaticos reais. O Vercel ja faz isso nativamente quando nao ha regra catch-all conflitante.
+### 1. Corrigir `useMissoesPorMotorista` em `src/hooks/useMissoes.ts`
+- Remover `const { user } = useAuth()` (linha 286)
+- Remover import de `useAuth` (ja usado pelo `useMissoes` no mesmo arquivo, entao manter o import)
+- Substituir `user?.id` por `motoristaId` nas funcoes `aceitarMissao` (linha 382) e `recusarMissao` (linha 402), ja que `motoristaId` esta disponivel como parametro do hook
 
-A configuracao correta exclui assets estaticos do rewrite, redirecionando apenas rotas de navegacao (sem extensao de arquivo) para `index.html`.
+### 2. Reescrever `useCurrentUser` em `src/hooks/useCurrentUser.ts`
+Em vez de chamar os hooks diretamente (violando Rules of Hooks quando fora do provider), usar `useContext` diretamente com os contextos brutos. `useContext` retorna `null`/`undefined` quando fora do provider sem explodir, diferente dos hooks customizados que fazem `throw`.
 
-## Alteracao
+A nova implementacao:
+- Importar os contextos brutos (AuthContext, StaffAuthContext, DriverAuthContext) via `useContext` direto
+- Verificar se cada contexto esta disponivel (nao-null) antes de acessar dados
+- Nenhum try/catch necessario — `useContext` e seguro por design
 
-### `vercel.json`
+### 3. Exportar os contextos brutos
+- Exportar `AuthContext` de `src/lib/auth/AuthContext.tsx` (adicionar export no createContext)
+- Exportar `StaffAuthContext` de `src/lib/auth/StaffAuthContext.tsx`
+- Exportar `DriverAuthContext` de `src/lib/auth/DriverAuthContext.tsx`
 
-Substituir a regra atual por uma que exclua arquivos com extensao conhecida:
+## Resultado
 
-```json
-{
-  "rewrites": [
-    {
-      "source": "/((?!assets/).*)",
-      "destination": "/index.html"
-    }
-  ]
-}
-```
-
-Isso garante que qualquer URL dentro de `/assets/` (onde o Vite coloca os chunks JS/CSS) sera servida diretamente pelo Vercel como arquivo estatico. Rotas de navegacao como `/app/123/motorista` continuam sendo redirecionadas para `index.html` normalmente.
-
-### Melhoria adicional no `lazyRetry` (App.tsx)
-
-O `lazyRetry` atual tenta re-importar o chunk 3 vezes. Quando o erro e MIME type (chunk antigo apos deploy), nenhuma retry vai funcionar. Adicionar deteccao desse caso para forcar reload imediato da pagina (que carrega o novo `index.html` com os hashes corretos).
-
-No `App.tsx`, dentro do `lazyRetry`, adicionar verificacao se o erro e de MIME type ou chunk nao encontrado, e nesse caso forcar `window.location.reload()` em vez de mostrar a tela de erro.
+Apos essas alteracoes, nenhum componente ou hook dentro de `/app/:eventoId/motorista` chamara `useAuth()`, eliminando definitivamente o erro. O `useCurrentUser` funcionara de forma segura em qualquer contexto da aplicacao.
 
