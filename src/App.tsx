@@ -14,41 +14,56 @@ import { DriverRoute } from "@/components/auth/DriverRoute";
 import { StaffRoute } from "@/components/auth/StaffRoute";
 import { Loader2 } from 'lucide-react';
 
-// Auto-retry dynamic imports on chunk load failure (stale cache after deploy)
-// Uses a counter to prevent infinite reload loops on unstable networks
+// ============================================================
+// CRITICAL PAGES: imported directly (NO lazy load)
+// These are the first pages users see — must load instantly on 4G
+// ============================================================
+import LoginMotorista from "./pages/LoginMotorista";
+import Auth from "./pages/Auth";
+import Index from "./pages/Index";
+import LoginEquipe from "./pages/LoginEquipe";
+import NotFound from "./pages/NotFound";
+
+// ============================================================
+// lazyRetry: retry the import itself (NO page reload)
+// On 4G, reload = re-download everything = infinite loading
+// Instead: retry the failed chunk import 3x with backoff
+// ============================================================
 function lazyRetry(importFn: () => Promise<any>) {
-  return lazy(() =>
-    importFn().catch((err) => {
-      const key = 'chunk-retry-count';
-      const count = parseInt(sessionStorage.getItem(key) || '0', 10);
-      
-      // Allow max 2 retries, then show error instead of infinite reload
-      if (count < 2) {
-        sessionStorage.setItem(key, String(count + 1));
-        // Small delay before reload to avoid rapid loops
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            window.location.reload();
-            // This resolve never fires due to reload, but satisfies TypeScript
-            resolve({ default: () => null });
-          }, 1000 * (count + 1)); // Exponential backoff: 1s, 2s
-        });
-      }
-      
-      // After max retries, clear counter and try one last import
-      sessionStorage.removeItem(key);
-      console.error('Chunk load failed after retries:', err);
-      return importFn();
-    })
-  );
+  return lazy(() => {
+    const attempt = (retriesLeft: number, delay: number): Promise<any> =>
+      importFn().catch((err) => {
+        if (retriesLeft <= 0) {
+          console.error('Chunk load failed after all retries:', err);
+          // Return a fallback component instead of crashing
+          return {
+            default: () => {
+              return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4 p-4">
+                  <p className="text-destructive text-center">Erro ao carregar página. Verifique sua conexão.</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              );
+            },
+          };
+        }
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(attempt(retriesLeft - 1, delay * 1.5)), delay)
+        );
+      });
+    return attempt(3, 1500); // 3 retries: 1.5s, 2.25s, 3.375s
+  });
 }
 
-// Lazy load pages for code splitting
-const Index = lazyRetry(() => import("./pages/Index"));
+// ============================================================
+// LAZY PAGES: only loaded when navigated to
+// ============================================================
 const Home = lazyRetry(() => import("./pages/Home"));
-const Auth = lazyRetry(() => import("./pages/Auth"));
-const LoginMotorista = lazyRetry(() => import("./pages/LoginMotorista"));
-const LoginEquipe = lazyRetry(() => import("./pages/LoginEquipe"));
 const Eventos = lazyRetry(() => import("./pages/Eventos"));
 const EventoUsuarios = lazyRetry(() => import("./pages/EventoUsuarios"));
 const EventoPainelConfig = lazyRetry(() => import("./pages/EventoPainelConfig"));
@@ -72,7 +87,6 @@ const AppSupervisor = lazyRetry(() => import("./pages/app/AppSupervisor"));
 const PainelPublico = lazyRetry(() => import("./pages/PainelPublico"));
 const PainelLocalizador = lazyRetry(() => import("./pages/PainelLocalizador"));
 const Suporte = lazyRetry(() => import("./pages/Suporte"));
-const NotFound = lazyRetry(() => import("./pages/NotFound"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -85,12 +99,12 @@ const PageLoader = () => (
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 3, // 3 minutes (increased from 2)
-      gcTime: 1000 * 60 * 15, // 15 minutes (increased from 10)
+      staleTime: 1000 * 60 * 3, // 3 minutes
+      gcTime: 1000 * 60 * 15, // 15 minutes
       refetchOnWindowFocus: false,
-      refetchOnReconnect: 'always', // Refetch on reconnect for reliability
-      retry: 2, // 2 retries (increased from 1 for unstable networks)
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
+      refetchOnReconnect: 'always',
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     },
   },
 });
@@ -114,6 +128,7 @@ const App = () => (
               <BrowserRouter>
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
+                    {/* Critical pages - NO lazy load, render instantly */}
                     <Route path="/" element={<Index />} />
                     <Route path="/auth" element={<Auth />} />
                     <Route path="/login/motorista" element={<LoginMotorista />} />

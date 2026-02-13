@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => ({
     include: ['react', 'react-dom', '@tanstack/react-query', 'react-router-dom'],
   },
   build: {
+    // CRITICAL: Disable modulepreload polyfill
+    // The default polyfill eagerly fetches ALL lazy chunks on page load.
+    // On 4G this saturates the connection and blocks rendering.
+    // With this disabled, lazy chunks are only fetched when navigated to.
+    modulePreload: false,
     // Enable source maps for production debugging
     sourcemap: mode === 'development',
     // Optimize chunk size
