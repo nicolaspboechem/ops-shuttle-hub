@@ -1,40 +1,75 @@
 
-# Recuperar exibicao de rota no Localizador (Painel TV)
+# Correcao: Desvinculacao de veiculo nao funciona corretamente
 
-## Problema encontrado
+## Problema
 
-O card do localizador ja tem o codigo para exibir a rota (origem -> destino), mas dois bugs impedem a exibicao:
+O supervisor desvincula o veiculo pelo app, mas o motorista continua vendo o veiculo antigo. O banco de dados confirma que o motorista Rafael Santos **ainda tem** `veiculo_id` apontando para o veiculo TKB0J35.
 
-1. **Query de missoes incompleta**: No `PainelLocalizador.tsx` (linha 82), a query de missoes busca apenas `ponto_desembarque` mas NAO busca `ponto_embarque`. O `LocalizadorCard` precisa dos dois campos para exibir a rota.
+## Causa Raiz
 
-2. **Truncamento excessivo para TV**: O `LocalizadorVeiculoCard` (usado no painel de veiculos) trunca nomes de rota com `max-w-[80px]`, muito pequeno para leitura em TV.
+Existem **3 fluxos de desvinculacao** no sistema, e apenas 1 funciona corretamente:
+
+| Fluxo | Limpa motoristas.veiculo_id | Limpa veiculos.motorista_id | Status |
+|---|---|---|---|
+| Pagina VincularVeiculo (handleDesvincular) | Sim | Sim | OK |
+| Supervisor swipe/menu (handleUnlinkVehicle) | Sim | **NAO** | BUG |
+| Auto-checkout (Edge Function) | Sim (v1.7.2) | **NAO** | BUG |
+
+O fluxo do supervisor (`SupervisorFrotaTab.tsx` linha 96-111) so atualiza a tabela `motoristas` mas esquece de limpar `motorista_id` na tabela `veiculos`. Isso causa inconsistencia: quando o supervisor vincula um novo veiculo, o sistema pode nao detectar que o veiculo antigo ainda "acha" que pertence ao motorista.
 
 ## Correcoes
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/PainelLocalizador.tsx` | Linha 82: adicionar `ponto_embarque` na query de missoes: `.select('id, motorista_id, ponto_embarque, ponto_desembarque, status')` |
-| `src/components/localizador/LocalizadorCard.tsx` | Aumentar a visibilidade da rota no card: fonte maior, remover truncamento agressivo, destacar com cor de fundo para leitura em TV |
+### 1. SupervisorFrotaTab.tsx - Desvinculacao bidirecional
 
-## Detalhes tecnicos
-
-### PainelLocalizador.tsx - Query de missoes (linha 82)
+Adicionar limpeza do `motorista_id` na tabela `veiculos` quando o supervisor desvincula:
 
 ```text
-// ANTES:
-.select('id, motorista_id, ponto_desembarque, status')
+// ANTES (linha 96-111):
+const handleUnlinkVehicle = async (motorista) => {
+  await supabase.from('motoristas').update({ veiculo_id: null }).eq('id', motorista.id);
+};
 
 // DEPOIS:
-.select('id, motorista_id, ponto_embarque, ponto_desembarque, status')
+const handleUnlinkVehicle = async (motorista) => {
+  // 1. Limpar veiculo_id do motorista
+  await supabase.from('motoristas').update({ veiculo_id: null }).eq('id', motorista.id);
+  // 2. Limpar motorista_id do veiculo (bidirecional)
+  if (motorista.veiculo_id) {
+    await supabase.from('veiculos').update({ motorista_id: null }).eq('id', motorista.veiculo_id);
+  }
+};
 ```
 
-Isso faz com que `missao.ponto_embarque` deixe de ser `undefined` e o card passe a exibir a rota completa.
+### 2. Edge Function auto-checkout/index.ts - Limpar veiculos tambem
 
-### LocalizadorCard.tsx - Melhorar visualizacao para TV
+Apos setar `veiculo_id: null` nos motoristas, tambem limpar `motorista_id` nos veiculos correspondentes:
 
-- Aumentar fonte da rota de `text-xs` para `text-sm`
-- Remover `flex-wrap` para manter a rota em uma unica linha
-- Adicionar fundo sutil (`bg-blue-500/10 rounded px-2 py-1`) para destacar a rota visualmente
-- Manter o fallback de viagem (quando nao tem missao mas esta em transito)
+```text
+// Apos o update de motoristas, adicionar:
+await supabase.from('veiculos')
+  .update({ motorista_id: null })
+  .in('motorista_id', motoristaIds)
+  .eq('evento_id', evento.id);
+```
 
-Essas duas correcoes sao suficientes para restaurar a exibicao da rota nos cards do painel localizador.
+### 3. Correcao imediata - Desvincular Rafael Santos via codigo
+
+Limpar os dados residuais no banco usando o insert tool:
+
+```sql
+UPDATE motoristas SET veiculo_id = NULL WHERE id = 'e091cbcf-d325-4aeb-8440-a52bf89b27d9';
+UPDATE veiculos SET motorista_id = NULL WHERE id = 'f37a0f47-858f-4897-a3b6-8c628c6c1e03';
+```
+
+### 4. Versao
+
+Atualizar `APP_VERSION` para `1.7.3`.
+
+## Resumo de arquivos
+
+| Arquivo | Mudanca |
+|---|---|
+| `src/components/app/SupervisorFrotaTab.tsx` | Adicionar limpeza bidirecional no handleUnlinkVehicle |
+| `supabase/functions/auto-checkout/index.ts` | Limpar motorista_id nos veiculos durante virada |
+| `src/lib/version.ts` | Atualizar para 1.7.3 |
+| Banco de dados | Desvincular Rafael Santos imediatamente |
