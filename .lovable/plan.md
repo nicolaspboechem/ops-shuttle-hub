@@ -1,44 +1,92 @@
 
 
-# Verificacao de Integridade de Dados - Resultado
+# Service Worker + Reducao de Chunks para 4G
 
-## Diagnostico: DADOS INTACTOS
+## Resumo
 
-Verifiquei diretamente no banco de dados Supabase e confirmei:
+O Service Worker (`public/sw.js`) ja foi criado. Faltam 3 passos para completar a otimizacao:
 
-| Dado | Status | Quantidade |
+1. **Registrar o Service Worker** no `src/main.tsx`
+2. **Criar o manifest PWA** e linkar no `index.html`
+3. **Consolidar chunks** de 7 para 3 no `vite.config.ts`
+
+---
+
+## Alteracoes
+
+### 1. src/main.tsx - Registrar Service Worker
+
+Adicionar apos o `createRoot().render()`:
+
+```typescript
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+```
+
+### 2. public/manifest.json - Criar manifest PWA
+
+```json
+{
+  "name": "CCO AS BRASIL",
+  "short_name": "CCO",
+  "start_url": "/login/motorista",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": []
+}
+```
+
+### 3. index.html - Linkar manifest
+
+Adicionar dentro do `<head>`:
+
+```html
+<link rel="manifest" href="/manifest.json">
+```
+
+### 4. vite.config.ts - Consolidar 7 chunks em 3
+
+Substituir os 7 `manualChunks` atuais por 3:
+
+```typescript
+manualChunks: {
+  'vendor-core': [
+    'react', 'react-dom', 'react-router-dom',
+    '@tanstack/react-query',
+    'clsx', 'tailwind-merge', 'zod', 'date-fns'
+  ],
+  'vendor-ui': [
+    '@radix-ui/react-dialog',
+    '@radix-ui/react-dropdown-menu',
+    '@radix-ui/react-popover',
+    '@radix-ui/react-select',
+    '@radix-ui/react-tabs',
+    '@radix-ui/react-toast',
+    '@radix-ui/react-tooltip',
+    'framer-motion',
+  ],
+  'vendor-services': [
+    '@supabase/supabase-js',
+    'recharts',
+  ],
+},
+```
+
+---
+
+## Impacto esperado
+
+| Metrica | Antes | Depois |
 |---|---|---|
-| Viagens (Rio Open 2026) | Intactas | 106 (91 encerradas + 15 em andamento) |
-| Motoristas ativos | Intactos | 43 motoristas |
-| Veiculos vinculados | Intactos | 28 motoristas com veiculo |
-| Registros de presenca | Intactos | Check-ins ativos do dia |
+| Primeiro acesso (4G) | ~10s | ~6s (3 chunks vs 7) |
+| Segundo acesso (4G) | ~10s | Menos de 1s (cache local) |
+| Requests paralelos | 7+ vendor chunks | 3 vendor chunks |
 
-## O que os motoristas estao vendo
-
-Quando o app nao consegue carregar os arquivos JS no 4G (servidor em Lisboa), ele exibe os "estados vazios" dos componentes:
-
-- `MotoristaVeiculoTab` mostra: "Nenhum veiculo atribuido" (porque `veiculo` e `null` enquanto os dados nao carregaram)
-- Lista de viagens mostra: "Tudo certo por aqui!" (porque `viagens` e `[]` enquanto carrega)
-- Historico mostra: vazio
-
-Isso **parece** que os dados sumiram, mas e apenas o app que nao terminou de carregar.
-
-## Nenhuma alteracao de codigo afetou os dados
-
-As mudancas recentes foram:
-1. `AuthProvider` separado das rotas de motorista -- nao afeta queries
-2. `Index.tsx` tornado lazy -- nao afeta o app do motorista
-3. Fonte async no `index.html` -- nao afeta dados
-
-O `AppMotorista` continua usando exatamente os mesmos hooks (`useViagensPorMotorista`, `useMotoristaPresenca`) com as mesmas queries ao Supabase.
-
-## Solucao: Service Worker (plano ja aprovado)
-
-O plano do Service Worker ja aprovado anteriormente resolve exatamente este problema. Apos o primeiro carregamento, os arquivos JS/CSS ficam no cache local do celular, e o app abre instantaneamente sem precisar buscar nada em Lisboa.
-
-Nao ha necessidade de alteracoes adicionais -- os dados estao seguros e o codigo esta correto. O problema e exclusivamente de infraestrutura (latencia do servidor).
-
-## Recomendacao imediata
-
-Implementar o Service Worker conforme o plano ja aprovado. Isso garante que, apos o primeiro acesso bem-sucedido (que pode ser feito via WiFi), o app do motorista carregue instantaneamente do cache local em acessos subsequentes via 4G.
+A maior vitoria: apos o primeiro acesso, o motorista abre o app do cache local sem buscar nada no servidor. Isso resolve a tela branca no dia-a-dia.
 
