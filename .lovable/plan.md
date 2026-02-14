@@ -1,76 +1,51 @@
 
 
-# Separar Dashboard por Tipo de Operacao com Abas
+# Missao como Aba Principal + Formulario Shuttle Simplificado
 
-## Resumo
+## 1. Reordenar Abas - Missao Primeiro
 
-Transformar o filtro `OperationTabs` existente em abas que separam completamente os dados do Dashboard. Cada aba (Transfer, Shuttle, Missao) tera seus proprios KPIs independentes -- sem dados consolidados. Remover shuttle do App Supervisor.
+Alterar `OperationTabs.tsx` para exibir as abas na ordem: **Missao > Transfer > Shuttle**. Missao passa a ser a primeira aba visualmente.
 
-## Como funciona hoje
+Alterar o estado inicial de `'transfer'` para `'missao'` nos seguintes arquivos:
+- `src/pages/Dashboard.tsx` (linha 85)
+- `src/components/dashboard/DashboardMobile.tsx` (linha 115)
+- `src/pages/ViagensAtivas.tsx` (linha 46)
+- `src/pages/ViagensFinalizadas.tsx` (linha 46)
+- `src/pages/Auditoria.tsx` (linha 25)
 
-- `useViagens(eventoId)` busca **todas** as viagens do evento numa unica query
-- `OperationTabs` filtra no frontend via `useMemo`
-- KPIs, graficos e rankings sao calculados sobre `viagensFiltradas`
-- Ao selecionar "Todos", os dados aparecem misturados
+## 2. Formulario Shuttle Simplificado para Operador
 
-## O que muda
+Criar um novo componente `src/components/app/CreateShuttleForm.tsx` -- um Drawer com formulario minimalista contendo apenas:
 
-### 1. Remover aba "Todos" do `OperationTabs`
+- **Ponto de Embarque** (combobox dos pontos cadastrados)
+- **Ponto de Desembarque** (combobox dos pontos cadastrados)
+- **Qtd PAX** (input numerico)
+- **Horario de Embarque** (input time, pre-preenchido com hora atual)
+- **Observacao** (textarea opcional)
 
-A aba "Todos" deixa de existir. O usuario entra direto numa operacao especifica. O valor padrao passa a ser `transfer`.
+Sem campo de motorista, veiculo ou tipo de veiculo. O registro grava na tabela `viagens` com:
+- `tipo_operacao: 'shuttle'`
+- `motorista: 'Shuttle'` (texto fixo para compatibilidade com campo NOT NULL)
+- `status: 'em_andamento'`
+- `h_pickup`: horario informado
+- `h_inicio_real`: timestamp atual
 
-**Arquivo:** `src/components/layout/OperationTabs.tsx`
-- Remover o `TabsTrigger` de "todos"
-- Alterar grid de `grid-cols-4` para `grid-cols-3`
-- Atualizar o tipo `TipoOperacaoFiltro` removendo `'todos'`
+## 3. Integrar no AppOperador
 
-### 2. Dashboard Desktop (`src/pages/Dashboard.tsx`)
-
-- Estado inicial: `useState<TipoOperacaoFiltro>('transfer')` em vez de `'todos'`
-- Remover logica de `if (tipoOperacao === 'todos')` no filtro -- agora sempre filtra
-- Contadores continuam mostrando a quantidade de cada tipo para as abas
-- KPIs, graficos e rankings sao 100% da operacao selecionada
-
-### 3. Dashboard Mobile (`src/components/dashboard/DashboardMobile.tsx`)
-
-- Mesma mudanca: estado inicial `'transfer'`, sem "todos"
-
-### 4. Viagens Ativas (`src/pages/ViagensAtivas.tsx`)
-
-- Estado inicial `'transfer'` em vez de `'todos'`
-- Ajustar filtro `viagensFiltradas` para remover condicao de `'todos'`
-
-### 5. Remover Shuttle do App Supervisor
-
-**Arquivo:** `src/pages/app/AppSupervisor.tsx`
-- No `handleActionSelect`, remover a opcao shuttle (manter apenas `missao` e `transfer`)
-
-**Arquivo:** `src/components/app/NewActionModal.tsx`
-- Criar uma prop opcional `hideShuttle?: boolean`
-- Quando `hideShuttle=true`, ocultar o botao Shuttle
-- No `AppSupervisor`, passar `hideShuttle={true}`
-- No `AppOperador`, manter como esta (com shuttle visivel)
-
-### 6. Queries -- sem alteracao
-
-A query do `useViagens` continua buscando tudo por `evento_id`. A separacao e 100% frontend via `filter(v => v.tipo_operacao === tipoOperacao)`. Nao ha custo extra de query nem necessidade de filtro por usuario -- admin, CCO e operador veem todos os dados do evento, separados por aba.
-
-## Comportamento final
-
-| Aba selecionada | KPIs mostram | Viagens listam |
-|-----------------|-------------|----------------|
-| Transfer | Apenas transfer (sem missao) | Apenas transfer |
-| Shuttle | Apenas shuttle | Apenas shuttle |
-| Missao | Apenas missao | Apenas missao |
+No `AppOperador.tsx`, alterar o `handleActionSelect`:
+- Quando `tipo === 'shuttle'`, abrir o novo `CreateShuttleForm` em vez do `CreateViagemForm`
+- Adicionar estado `showShuttleForm` e o componente no render
 
 ## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/layout/OperationTabs.tsx` | Remover "Todos", grid-cols-3, atualizar tipo |
-| `src/pages/Dashboard.tsx` | Estado inicial 'transfer', ajustar filtro |
-| `src/components/dashboard/DashboardMobile.tsx` | Estado inicial 'transfer', ajustar filtro |
-| `src/pages/ViagensAtivas.tsx` | Estado inicial 'transfer', ajustar filtro |
-| `src/components/app/NewActionModal.tsx` | Prop `hideShuttle` |
-| `src/pages/app/AppSupervisor.tsx` | Passar `hideShuttle={true}` |
+| `src/components/layout/OperationTabs.tsx` | Reordenar abas: Missao primeiro |
+| `src/pages/Dashboard.tsx` | Estado inicial `'missao'` |
+| `src/components/dashboard/DashboardMobile.tsx` | Estado inicial `'missao'` |
+| `src/pages/ViagensAtivas.tsx` | Estado inicial `'missao'` |
+| `src/pages/ViagensFinalizadas.tsx` | Estado inicial `'missao'` |
+| `src/pages/Auditoria.tsx` | Estado inicial `'missao'` |
+| `src/components/app/CreateShuttleForm.tsx` | **Novo** - formulario simplificado |
+| `src/pages/app/AppOperador.tsx` | Integrar CreateShuttleForm para shuttle |
 
