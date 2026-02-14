@@ -1,80 +1,67 @@
 
 
-# Sincronizar Mapa de Servico com Painel Localizador
+# Correcao: Motorista com missao em andamento nao aparece em "Em Viagem"
 
 ## Problema
 
-O Mapa de Servico (aba Localizacao) e o Painel Localizador usam logicas diferentes para agrupar motoristas nas colunas. O Localizador e o padrao correto. As diferencas encontradas:
+Quando uma missao e iniciada pelo CCO (kanban de missoes), a funcao `iniciarMissao` atualiza apenas o status da **missao** para `em_andamento`, mas NAO atualiza o status do **motorista** para `em_viagem`. Isso causa:
 
-| Aspecto | Localizador (correto) | Mapa de Servico (incorreto) |
-|---------|----------------------|---------------------------|
-| Missoes no mapa | Exclui `pendente` do mapa de missoes por motorista | Inclui `pendente` no mapa |
-| Filtro por dia operacional | Filtra missoes por `data_programada` do dia operacional | Nao filtra por dia -- usa TODAS as missoes ativas |
-| Coluna "Outros" | So move se missao `aceita` ou `em_andamento` | Move tambem se missao `pendente` |
-| Em Transito por missao | Motorista com missao `em_andamento` vai para Em Transito | Ignora missao, usa apenas `m.status === 'em_viagem'` |
-| Coluna Missoes Pendentes | Existe como coluna fixa | Nao existe |
+1. O `useLocalizadorMotoristas` agrupa o motorista pela sua `ultima_localizacao` (ex: GIG) em vez de coloca-lo em `em_transito`
+2. A logica `emTransitoPorMissao` no MapaServico deveria compensar, mas depende de um fetch separado de missoes que pode estar dessincronizado com os dados de motoristas
+3. Resultado: motoristas como Simmy e Renato ficam presos na coluna do ponto atual em vez de aparecer em "Em Viagem"
 
-Essas diferencas fazem com que um motorista como Marlon apareca em colunas diferentes nos dois paineis.
+Dados do banco confirmam o problema:
+
+```text
+Marlon   | motorista.status = em_viagem   | missao = em_andamento | Aparece em Em Viagem
+Simmy    | motorista.status = disponivel  | missao = em_andamento | NAO aparece (bug)
+Renato   | motorista.status = disponivel  | missao = em_andamento | NAO aparece (bug)
+```
 
 ## Solucao
 
-Reescrever a logica de agrupamento do `MapaServico.tsx` para replicar exatamente a do `PainelLocalizador.tsx`:
+### 1. Atualizar motorista.status ao iniciar missao (useMissoes.ts)
 
-### 1. Buscar missoes com filtro de dia operacional
-
-Atualmente o MapaServico usa `useMissoes(eventoId).missoesAtivas` que traz TODAS as missoes ativas sem filtrar por dia. Substituir por uma busca propria (como o Localizador faz) que filtra por `data_programada`:
+Na funcao `iniciarMissao`, apos validar e atualizar a missao, tambem atualizar o motorista:
 
 ```text
-// Buscar missoes filtradas pelo dia operacional
-const dataOp = getDataOperacional(new Date(), horarioVirada);
-supabase.from('missoes')
-  .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, ...')
-  .eq('evento_id', eventoId)
-  .in('status', ['pendente', 'aceita', 'em_andamento'])
-  .or(`data_programada.eq.${dataOp},data_programada.is.null`)
+const iniciarMissao = async (id: string) => {
+  // ... validacao existente ...
+
+  const result = await updateMissao(id, { status: 'em_andamento' });
+  
+  if (result && missao) {
+    // Atualizar status do motorista para em_viagem
+    await supabase
+      .from('motoristas')
+      .update({ status: 'em_viagem' })
+      .eq('id', missao.motorista_id);
+  }
+  
+  return result;
+};
 ```
 
-### 2. Excluir `pendente` do mapa de missoes por motorista
+Isso garante que `useLocalizadorMotoristas` imediatamente coloque o motorista no grupo `em_transito`, sem depender do fetch de missoes.
 
-No `missoesPorMotorista`, pular missoes com status `pendente` (igual ao Localizador linha 163):
+### 2. Atualizar motorista.status ao aceitar missao (useMissoes.ts)
 
-```text
-missoesAtivas.forEach(m => {
-  if (m.status === 'pendente') return;  // ADICIONAR
-  ...
-});
-```
+Na funcao `aceitarMissao`, atualizar o status para `em_missao_aceita` NAO e necessario, pois o motorista ainda esta fisicamente no ponto. Nenhuma alteracao aqui.
 
-### 3. Ajustar logica de "Outros" para excluir `pendente`
+### 3. Garantir consistencia ao concluir/cancelar (ja implementado)
 
-Mudar de `['pendente', 'aceita', 'em_andamento']` para `['aceita', 'em_andamento']`.
+A funcao `syncMotoristaAoEncerrarMissao` ja atualiza o motorista de volta para `disponivel` e atualiza a `ultima_localizacao` para o ponto de desembarque. Isso esta correto.
 
-### 4. Adicionar logica de "Em Transito por missao"
-
-Motorista com missao `em_andamento` (que nao seja retorno a base) deve ir para "Em Viagem", igual ao Localizador:
-
-```text
-const emTransitoPorMissao = missao?.status === 'em_andamento';
-// ...
-} else if (emTransitoPorMissao && loc !== 'em_transito') {
-  emViagem.push(m);
-}
-```
-
-### 5. Adicionar coluna "Missoes Pendentes"
-
-Criar a mesma logica de `motoristasPendentes` e `missoesPendentesPorMotorista` do Localizador e renderizar como coluna fixa no lado direito.
-
-## Arquivos modificados
+## Arquivo modificado
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/MapaServico.tsx` | Reescrever logica de missoes e agrupamento para espelhar PainelLocalizador; adicionar busca com filtro de dia operacional; adicionar coluna de Missoes Pendentes |
+| `src/hooks/useMissoes.ts` | `iniciarMissao`: adicionar update de `motoristas.status = 'em_viagem'` apos iniciar a missao com sucesso |
 
 ## Resultado
 
-- Ambos os paineis exibirao os mesmos motoristas nas mesmas colunas
-- Motorista com missao `pendente` (sem iniciar) permanece na sua coluna de localizacao atual
-- Motorista so muda de coluna quando a missao esta `aceita` ou `em_andamento`
-- Coluna de Missoes Pendentes aparece no Mapa de Servico para visibilidade
+- Motorista com missao `em_andamento` tera `motoristas.status = 'em_viagem'`
+- `useLocalizadorMotoristas` o colocara imediatamente em `em_transito`
+- MapaServico e PainelLocalizador exibirao o motorista em "Em Viagem" sem depender de fetch separado
+- Ao concluir ou cancelar a missao, o motorista volta para `disponivel` (ja implementado)
 
