@@ -1,43 +1,58 @@
 
 
-# Corrigir Coluna "Retornando para Base" no Localizador
+# Exibir Tempo por Status em Todos os Cards do Localizador
 
-## Problema
+## O que muda
 
-Atualmente, motoristas com missao **aceita** ou **pendente** cujo destino e a Base ja aparecem na coluna "Retornando para Base". Isso esta errado: o motorista so esta efetivamente retornando quando a missao foi **iniciada** (`em_andamento`).
+Atualmente, o tempo ("ha X minutos") so aparece para motoristas com status **Disponivel**. Com esta alteracao, cada status tera seu proprio tempo visivel:
 
-Com missao apenas aceita, o motorista ainda esta no ponto onde se encontra fisicamente.
+- **Disponivel**: tempo desde a ultima atualizacao de localizacao (comportamento atual)
+- **Missao Pendente**: tempo desde que a missao foi criada (quanto tempo esta pendente)
+- **Missao Aceita**: tempo desde que a missao foi aceita (usa `data_atualizacao` da missao)
+- **Em Transito**: tempo desde que a viagem/missao iniciou (usa `data_atualizacao` da missao)
 
-## Solucao
+## Detalhes tecnicos
 
-### `src/pages/PainelLocalizador.tsx`
+### 1. Query - adicionar `data_atualizacao` (`PainelLocalizador.tsx`, linha 87)
 
-**Linha 220** - Alterar o filtro de `retornandoBaseIds` para considerar apenas `em_andamento`:
-
-De:
-```typescript
-if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
+Incluir o campo `data_atualizacao` na query de missoes:
+```
+.select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto, data_atualizacao')
 ```
 
-Para:
+### 2. Interface da missao no card (`LocalizadorCard.tsx`)
+
+Expandir a interface `missao` para incluir os novos campos:
 ```typescript
-if (missao.ponto_desembarque === baseNome && missao.status === 'em_andamento') {
+missao?: {
+  status: string;
+  ponto_embarque?: string;
+  ponto_desembarque?: string;
+  created_at?: string | null;
+  data_atualizacao?: string | null;
+} | null;
 ```
 
-Isso garante que:
-- **Missao aceita com destino Base**: motorista fica na coluna da sua localizacao atual
-- **Missao em_andamento com destino Base**: motorista aparece na coluna "Retornando para Base"
-- **Missao pendente**: continua no fluxo separado de "Missoes Pendentes"
+### 3. Logica de tempo por status (`LocalizadorCard.tsx`)
 
-## Sobre aceitacao de missoes em qualquer ordem
+Substituir a logica atual (linhas 40-57) por uma que calcula o tempo baseado no status:
 
-Esse comportamento ja esta implementado. O sistema permite que o motorista aceite qualquer missao disponivel, independente do horario. A unica restricao e ter apenas uma missao ativa por vez (`aceita` ou `em_andamento`). A priorizacao por `horario_previsto` que implementamos e apenas para exibicao nos cards do Localizador, nao afeta a ordem de aceitacao no app do motorista.
+- `disponivel` -> usa `motorista.ultima_localizacao_at`
+- `missao_pendente` -> usa `missao.created_at` (quando a missao foi criada)
+- `missao_aceita` -> usa `missao.data_atualizacao` (quando mudou para aceita)
+- `em_transito` -> usa `missao.data_atualizacao` (quando mudou para em_andamento)
 
-## Resumo
+Remover a condicao `displayStatus === 'disponivel'` da linha 56, passando a exibir o tempo em todos os status.
+
+### 4. Interface `LocalizadorColumn.tsx`
+
+Atualizar o tipo do `missoesPorMotorista` para incluir os novos campos, garantindo que `created_at` e `data_atualizacao` fluam ate o card.
+
+## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/PainelLocalizador.tsx` | Linha 220: filtrar retornandoBaseIds apenas por `em_andamento` |
-
-1 linha alterada, 1 arquivo.
+| `src/pages/PainelLocalizador.tsx` | Adicionar `data_atualizacao` na query |
+| `src/components/localizador/LocalizadorCard.tsx` | Interface + logica de tempo por status |
+| `src/components/localizador/LocalizadorColumn.tsx` | Atualizar tipo da prop missoesPorMotorista |
 
