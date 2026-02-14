@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  X,
   Bus,
   Car,
   Users,
@@ -44,6 +43,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Viagem } from '@/lib/types/viagem';
 import { Motorista } from '@/hooks/useCadastros';
+import { useUserNames } from '@/hooks/useUserNames';
 
 interface VeiculoPerfil {
   full_name: string | null;
@@ -140,18 +140,71 @@ export function VeiculoDetalheModal({
     enabled: !!veiculo?.id && open
   });
 
+  // Buscar viagens do veículo (por veiculo_id ou placa)
+  const { data: viagensVeiculo, isLoading: viagensVeiculoLoading } = useQuery({
+    queryKey: ['veiculo-viagens-historico', veiculo?.id, veiculo?.placa],
+    queryFn: async () => {
+      if (!veiculo?.id) return [];
+      
+      // Query por veiculo_id
+      const { data: byId, error: err1 } = await supabase
+        .from('viagens')
+        .select('*')
+        .eq('veiculo_id', veiculo.id)
+        .order('data_criacao', { ascending: false })
+        .limit(50);
+      
+      if (err1) throw err1;
+      
+      // Query por placa (fallback para viagens sem veiculo_id)
+      let byPlaca: any[] = [];
+      if (veiculo.placa) {
+        const existingIds = new Set((byId || []).map(v => v.id));
+        const { data: plData, error: err2 } = await supabase
+          .from('viagens')
+          .select('*')
+          .eq('placa', veiculo.placa)
+          .order('data_criacao', { ascending: false })
+          .limit(50);
+        
+        if (!err2 && plData) {
+          byPlaca = plData.filter(v => !existingIds.has(v.id));
+        }
+      }
+      
+      const all = [...(byId || []), ...byPlaca];
+      all.sort((a, b) => new Date(b.data_criacao).getTime() - new Date(a.data_criacao).getTime());
+      return all.slice(0, 50);
+    },
+    enabled: !!veiculo?.id && open
+  });
+
+  // Resolver nomes de criadores/iniciadores das viagens
+  const criadoPorIds = useMemo(() => {
+    if (!viagensVeiculo) return [];
+    return viagensVeiculo.flatMap(v => [v.criado_por, v.iniciado_por]).filter(Boolean);
+  }, [viagensVeiculo]);
+
+  const { getName } = useUserNames(criadoPorIds);
+
   // Calcular métricas
   const metricas = useMemo(() => {
     if (!veiculo) return null;
 
-    const viagensVeiculo = viagens.filter(v => v.placa === veiculo.placa);
-    const totalViagens = viagensVeiculo.length;
-    const totalPax = viagensVeiculo.reduce((sum, v) => 
+    const viagensPlaca = viagens.filter(v => v.placa === veiculo.placa);
+    const totalViagens = viagensPlaca.length;
+    const totalPax = viagensPlaca.reduce((sum, v) => 
       sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
     
     const avariasCount = vistoriasHistorico?.filter(v => v.possui_avarias).length || 0;
     
-    const motoristasUsaram = new Set(presencasHistorico?.map(p => p.motorista_id) || []).size;
+    // Combinar motoristas únicos de presenças E viagens
+    const motoristasSet = new Set<string>();
+    presencasHistorico?.forEach(p => motoristasSet.add(p.motorista_id));
+    viagensVeiculo?.forEach(v => {
+      if (v.motorista_id) motoristasSet.add(v.motorista_id);
+    });
+    const motoristasUsaram = motoristasSet.size;
 
     return {
       totalViagens,
@@ -159,7 +212,7 @@ export function VeiculoDetalheModal({
       avariasCount,
       motoristasUsaram
     };
-  }, [veiculo, viagens, vistoriasHistorico, presencasHistorico]);
+  }, [veiculo, viagens, vistoriasHistorico, presencasHistorico, viagensVeiculo]);
 
   // Motorista vinculado
   const motoristaVinculado = useMemo(() => {
@@ -270,10 +323,19 @@ export function VeiculoDetalheModal({
               </Card>
               <Card className="bg-card/50">
                 <CardContent className="p-3 flex items-center gap-3">
-                  <Users className="h-5 w-5 text-blue-500" />
+                  <Users className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-xs text-muted-foreground">PAX Total</p>
                     <p className="text-lg font-bold">{metricas?.totalPax || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-card/50">
+                <CardContent className="p-3 flex items-center gap-3">
+                  <UserCheck className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Motoristas</p>
+                    <p className="text-lg font-bold">{metricas?.motoristasUsaram || 0}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -289,15 +351,6 @@ export function VeiculoDetalheModal({
                   <div>
                     <p className="text-xs text-muted-foreground">Avarias</p>
                     <p className="text-lg font-bold">{metricas?.avariasCount || 0}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-card/50">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <Fuel className="h-5 w-5 text-amber-500" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Combustível</p>
-                    <p className="text-sm font-medium">{veiculo.nivel_combustivel || '-'}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -513,65 +566,141 @@ export function VeiculoDetalheModal({
               </TabsContent>
 
               {/* Aba Histórico de Uso */}
-              <TabsContent value="uso" className="mt-0">
-                {presencasLoading ? (
+              <TabsContent value="uso" className="mt-0 space-y-6">
+                {(presencasLoading || viagensVeiculoLoading) ? (
                   <div className="text-center py-8 text-muted-foreground">
                     Carregando histórico...
                   </div>
-                ) : presencasHistorico && presencasHistorico.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Motorista</TableHead>
-                        <TableHead className="text-center">Check-in</TableHead>
-                        <TableHead className="text-center">Check-out</TableHead>
-                        <TableHead className="text-center">Duração</TableHead>
-                        <TableHead>Obs</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {presencasHistorico.map((p: any) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">
-                            {format(parseISO(p.data), "dd/MM/yyyy", { locale: ptBR })}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <UserCheck className="h-3 w-3 text-muted-foreground" />
-                              <span>{p.motorista?.nome || 'Desconhecido'}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center text-sm">
-                            {p.checkin_at 
-                              ? format(parseISO(p.checkin_at), "HH:mm") 
-                              : '-'}
-                          </TableCell>
-                          <TableCell className="text-center text-sm">
-                            {p.checkout_at 
-                              ? format(parseISO(p.checkout_at), "HH:mm") 
-                              : '-'}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {calcularDuracao(p.checkin_at, p.checkout_at) || '-'}
-                          </TableCell>
-                          <TableCell>
-                            {p.observacao_checkout ? (
-                              <Badge variant="outline" className="text-xs">
-                                <AlertTriangle className="h-3 w-3 mr-1 text-amber-500" />
-                                Obs
-                              </Badge>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <History className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                    <p>Nenhum registro de uso encontrado</p>
-                  </div>
+                  <>
+                    {/* Seção A: Presença (Check-in/Check-out) */}
+                    {presencasHistorico && presencasHistorico.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                          <UserCheck className="h-4 w-4" />
+                          Presença (Check-in/Check-out)
+                        </h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Data</TableHead>
+                              <TableHead>Motorista</TableHead>
+                              <TableHead className="text-center">Check-in</TableHead>
+                              <TableHead className="text-center">Check-out</TableHead>
+                              <TableHead className="text-center">Duração</TableHead>
+                              <TableHead>Obs</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {presencasHistorico.map((p: any) => (
+                              <TableRow key={p.id}>
+                                <TableCell className="font-medium">
+                                  {format(parseISO(p.data), "dd/MM/yyyy", { locale: ptBR })}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-1.5">
+                                    <UserCheck className="h-3 w-3 text-muted-foreground" />
+                                    <span>{p.motorista?.nome || 'Desconhecido'}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center text-sm">
+                                  {p.checkin_at ? format(parseISO(p.checkin_at), "HH:mm") : '-'}
+                                </TableCell>
+                                <TableCell className="text-center text-sm">
+                                  {p.checkout_at ? format(parseISO(p.checkout_at), "HH:mm") : '-'}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {calcularDuracao(p.checkin_at, p.checkout_at) || '-'}
+                                </TableCell>
+                                <TableCell>
+                                  {p.observacao_checkout ? (
+                                    <Badge variant="outline" className="text-xs">
+                                      <AlertTriangle className="h-3 w-3 mr-1 text-amber-500" />
+                                      Obs
+                                    </Badge>
+                                  ) : null}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+
+                    {/* Seção B: Viagens Realizadas */}
+                    {viagensVeiculo && viagensVeiculo.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                          <MapPin className="h-4 w-4" />
+                          Viagens Realizadas
+                        </h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Data/Hora</TableHead>
+                              <TableHead>Motorista</TableHead>
+                              <TableHead>Rota</TableHead>
+                              <TableHead className="text-center">PAX</TableHead>
+                              <TableHead className="text-center">Duração</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Criado por</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {viagensVeiculo.map((v: any) => {
+                              const duracao = v.h_inicio_real && v.h_fim_real
+                                ? calcularDuracao(v.h_inicio_real, v.h_fim_real)
+                                : null;
+                              const statusLabel = v.status === 'encerrado' ? 'Encerrado'
+                                : v.status === 'em_andamento' ? 'Em andamento'
+                                : v.status === 'agendado' ? 'Agendado'
+                                : v.status === 'cancelado' ? 'Cancelado'
+                                : v.status || '-';
+                              const statusClass = v.status === 'encerrado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                : v.status === 'em_andamento' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                : v.status === 'cancelado' ? 'bg-destructive/10 text-destructive'
+                                : 'bg-muted text-muted-foreground';
+
+                              return (
+                                <TableRow key={v.id}>
+                                  <TableCell className="font-medium whitespace-nowrap">
+                                    {format(parseISO(v.data_criacao), "dd/MM HH:mm", { locale: ptBR })}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm">{v.motorista || '-'}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm">
+                                      {v.ponto_embarque || '?'} → {v.ponto_desembarque || '?'}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-center">{v.qtd_pax || 0}</TableCell>
+                                  <TableCell className="text-center text-sm">{duracao || '-'}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className={cn("text-xs", statusClass)}>
+                                      {statusLabel}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {getName(v.criado_por)}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+
+                    {/* Nenhum registro em ambas as seções */}
+                    {(!presencasHistorico || presencasHistorico.length === 0) && 
+                     (!viagensVeiculo || viagensVeiculo.length === 0) && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <History className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                        <p>Nenhum registro de uso encontrado</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </TabsContent>
 
