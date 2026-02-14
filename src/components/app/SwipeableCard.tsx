@@ -30,7 +30,7 @@ export function SwipeableCard({
   
   // Action reveal thresholds
   const actionThreshold = 80;
-  const triggerThreshold = 120;
+  const triggerThreshold = 160;
 
   // Transform opacity based on drag position
   const leftOpacity = useTransform(x, [0, actionThreshold], [0, 1]);
