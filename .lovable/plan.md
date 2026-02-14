@@ -1,73 +1,53 @@
 
 
-# Limitar Motorista a Uma Missao Ativa por Vez
+# Corrigir Localizador: Filtrar por Data Operacional + Coluna de Missoes Pendentes
 
 ## Problema
 
-Atualmente, o CCO pode designar multiplas missoes para o mesmo motorista, e o motorista pode aceitar/iniciar varias simultaneamente. Isso causa:
-- Duplicacao de status no Localizador (motorista aparece em multiplos estados)
-- Queries desnecessarias (buscar viagens ativas de missoes sobrepostas)
-- Confusao operacional (qual missao esta realmente ativa?)
+1. O Painel Localizador busca missoes ativas **sem filtrar por data operacional**, causando missoes antigas (de dias anteriores) aparecendo no painel e gerando inconsistencias de rota.
+2. Missoes pendentes nao tem visibilidade propria - ficam misturadas nos cards dos motoristas, dificultando a operacao.
 
 ## Solucao
 
-Aplicar validacao no frontend para garantir que o motorista so pode ter **uma missao ativa** (aceita ou em_andamento) por vez. Novas missoes so podem ser aceitas se a anterior estiver concluida ou cancelada. Missoes pendentes continuam visiveis mas com botao bloqueado.
+### 1. Filtrar missoes por data operacional (`PainelLocalizador.tsx`)
 
-## Alteracoes
+- Buscar `horario_virada_dia` do evento (junto com `nome_planilha` no useEffect existente)
+- Usar `getDataOperacional()` para calcular o dia operacional atual
+- Na query `fetchMissoes`, adicionar filtro: `.or('data_programada.eq.${dataOp},data_programada.is.null')`
+- Incluir `created_at` no SELECT para desempate
+- No `missoesPorMotorista` (useMemo), priorizar: `em_andamento` > `aceita` > `pendente`, desempatando por `created_at` mais recente
 
-### 1. `src/pages/app/AppMotorista.tsx` (App do Motorista)
+### 2. Nova coluna "Missoes Pendentes" (fixa, ao lado de "Retornando")
 
-No `handleMissaoAction`, antes de aceitar ou iniciar:
-- Verificar se ja existe uma missao com status `aceita` ou `em_andamento` na lista `missoes`
-- Se existir, exibir toast de aviso: "Finalize ou cancele a missao atual antes de aceitar outra"
-- Bloquear a acao
+- Criar um `useMemo` que extrai missoes pendentes **nao atribuidas a motoristas com missao ativa** (ou seja, missoes pendentes cujo motorista NAO tem outra missao `aceita`/`em_andamento`)
+- Essas missoes pendentes serao exibidas como cards simples numa coluna fixa nova, usando um componente dedicado
+- A coluna mostra: nome do motorista, rota (origem -> destino), e status "Pendente"
+- Usa o tipo `pendente` no `LocalizadorColumn` com estilo amarelo/amber
 
-Na renderizacao dos cards, passar uma prop `disabled` para `MissaoCardMobile` quando houver outra missao ativa (aceita/em_andamento) e a missao atual for pendente. Isso desabilita o botao "Aceitar" e o swipe.
+### 3. Novo tipo de coluna no `LocalizadorColumn`
 
-### 2. `src/components/app/MissaoCardMobile.tsx`
+- Adicionar tipo `pendente` ao `columnConfig` com cor amber (similar a retornando_base mas amarelo)
 
-- Adicionar prop `disabled?: boolean` ao componente
-- Quando `disabled=true` e status for `pendente`:
-  - Botao "Aceitar Missao" fica desabilitado com texto "Finalize a missao atual"
-  - Swipe right desabilitado
-  - Card com opacidade reduzida (opacity-60)
-- Missoes `aceita` e `em_andamento` continuam com acoes normais (iniciar/finalizar)
+### Alteracoes tecnicas
 
-### 3. `src/hooks/useMissoes.ts` (Hook do CCO)
+**`src/pages/PainelLocalizador.tsx`**:
+- Import `getDataOperacional` de `@/lib/utils/diaOperacional`
+- Novo state `horarioVirada` (string, default '04:00')
+- Na query do evento, buscar tambem `horario_virada_dia`
+- `fetchMissoes`: adicionar `created_at` ao select + filtro `.or()` por data operacional
+- Novo `useMemo` para `missoesPendentes`: lista de missoes pendentes com nome do motorista (cruzando com os motoristas ja carregados)
+- Renderizar nova coluna fixa "Missoes Pendentes" nas colunas fixas (ao lado de Retornando e Outros)
+- Atualizar stat do header para incluir contagem de pendentes
 
-No `aceitarMissao` (linha 244), adicionar validacao:
-- Antes de mudar status para `aceita`, verificar se ja existe missao `aceita` ou `em_andamento` para o mesmo `motorista_id` no evento
-- Se existir, retornar erro com toast
+**`src/components/localizador/LocalizadorColumn.tsx`**:
+- Adicionar `pendente` ao tipo e ao `columnConfig` (icone Clock, cor amber)
 
-No `iniciarMissao` (linha 248), mesma validacao:
-- Verificar se ja existe missao `em_andamento` para o motorista
-- Bloquear se houver
-
-### Logica de validacao (reutilizavel)
-
-```text
-temMissaoAtiva = missoes.some(m =>
-  m.motorista_id === motorista_id &&
-  (m.status === 'aceita' || m.status === 'em_andamento') &&
-  m.id !== missaoAtualId
-)
-```
-
-### Resumo visual do fluxo
-
-```text
-Motorista tem missao em_andamento?
-  SIM -> Bloquear aceitar/iniciar novas. Mostrar cards pendentes como "aguardando"
-  NAO -> Motorista tem missao aceita?
-    SIM -> Bloquear aceitar novas. Permitir iniciar a aceita
-    NAO -> Permitir aceitar qualquer pendente
-```
+**`src/components/localizador/LocalizadorCard.tsx`** (sem alteracao - cards de motoristas com missao pendente ja exibem "Missao Pendente" corretamente)
 
 ### Arquivos modificados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/pages/app/AppMotorista.tsx` | Validacao antes de aceitar/iniciar + prop disabled nos cards |
-| `src/components/app/MissaoCardMobile.tsx` | Nova prop `disabled`, UI bloqueada para pendentes |
-| `src/hooks/useMissoes.ts` | Validacao no CCO para aceitarMissao e iniciarMissao |
+| `src/pages/PainelLocalizador.tsx` | Filtro por data operacional + coluna de pendentes |
+| `src/components/localizador/LocalizadorColumn.tsx` | Novo tipo `pendente` no columnConfig |
 
