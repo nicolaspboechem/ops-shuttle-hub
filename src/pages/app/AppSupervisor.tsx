@@ -294,6 +294,7 @@ export default function AppSupervisor() {
         open={showActionModal}
         onOpenChange={setShowActionModal}
         onSelect={handleActionSelect}
+        hideShuttle
       />
 
       {/* Nova Viagem (Transfer/Shuttle) */}

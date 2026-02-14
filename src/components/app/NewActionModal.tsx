@@ -13,9 +13,10 @@ interface NewActionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (tipo: ActionType) => void;
+  hideShuttle?: boolean;
 }
 
-export function NewActionModal({ open, onOpenChange, onSelect }: NewActionModalProps) {
+export function NewActionModal({ open, onOpenChange, onSelect, hideShuttle }: NewActionModalProps) {
   const handleSelect = (tipo: ActionType) => {
     onSelect(tipo);
     onOpenChange(false);
@@ -44,14 +45,16 @@ export function NewActionModal({ open, onOpenChange, onSelect }: NewActionModalP
             <ArrowRightLeft className="h-5 w-5 text-primary" />
             <span>Transfer</span>
           </Button>
-          <Button
-            variant="outline"
-            className="h-14 justify-start gap-3 text-base"
-            onClick={() => handleSelect('shuttle')}
-          >
-            <Bus className="h-5 w-5 text-primary" />
-            <span>Shuttle</span>
-          </Button>
+          {!hideShuttle && (
+            <Button
+              variant="outline"
+              className="h-14 justify-start gap-3 text-base"
+              onClick={() => handleSelect('shuttle')}
+            >
+              <Bus className="h-5 w-5 text-primary" />
+              <span>Shuttle</span>
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
