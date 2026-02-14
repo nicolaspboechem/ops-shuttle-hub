@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 
 interface CreateShuttleFormProps {
   open: boolean;
@@ -66,17 +66,20 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[85vh]">
-        <DrawerHeader>
-          <DrawerTitle>Novo Shuttle</DrawerTitle>
+    <Drawer open={open} onOpenChange={(val) => { if (!val) resetForm(); onOpenChange(val); }}>
+      <DrawerContent className="max-h-[90vh]">
+        <DrawerHeader className="pb-2">
+          <DrawerTitle className="flex items-center gap-2 justify-center">
+            <Users className="h-5 w-5 text-primary" />
+            Novo Shuttle
+          </DrawerTitle>
           <DrawerDescription>Registre a quantidade de passageiros</DrawerDescription>
         </DrawerHeader>
 
-        <div className="px-4 pb-6 space-y-4 overflow-y-auto">
-          {/* PAX */}
-          <div className="space-y-1.5">
-            <Label>Quantidade de Passageiros (PAX)</Label>
+        <div className="px-6 pb-8 pt-2 space-y-5">
+          {/* PAX - campo principal grande e claro */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Passageiros (PAX)</Label>
             <Input
               type="number"
               inputMode="numeric"
@@ -84,29 +87,30 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
               value={qtdPax}
               onChange={e => setQtdPax(e.target.value)}
               placeholder="0"
-              className="text-2xl text-center h-14 font-bold"
+              className="text-3xl text-center h-16 font-bold tracking-wider"
               autoFocus
             />
           </div>
 
           {/* Observação */}
-          <div className="space-y-1.5">
-            <Label>Observação (opcional)</Label>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Observação <span className="text-muted-foreground font-normal">(opcional)</span></Label>
             <Textarea
               value={observacao}
               onChange={e => setObservacao(e.target.value)}
               placeholder="Alguma informação extra..."
               rows={2}
+              className="resize-none"
             />
           </div>
 
           {/* Botão salvar */}
           <Button
-            className="w-full"
+            className="w-full h-12 text-base font-semibold"
             disabled={!canSave || saving}
             onClick={handleSave}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
             Registrar Shuttle
           </Button>
         </div>
