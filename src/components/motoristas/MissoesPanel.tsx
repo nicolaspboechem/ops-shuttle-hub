@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList } from 'lucide-react';
+import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,8 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   // Filter states
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
+  const [missaoPontoAFilter, setMissaoPontoAFilter] = useState<string>('all');
+  const [missaoPontoBFilter, setMissaoPontoBFilter] = useState<string>('all');
   const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
   const [missaoDataFilter, setMissaoDataFilter] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -78,6 +80,14 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     if (missaoMotoristaFilter !== 'all') {
       filtered = filtered.filter(m => m.motorista_id === missaoMotoristaFilter);
     }
+
+    if (missaoPontoAFilter !== 'all') {
+      filtered = filtered.filter(m => m.ponto_embarque === missaoPontoAFilter);
+    }
+
+    if (missaoPontoBFilter !== 'all') {
+      filtered = filtered.filter(m => m.ponto_desembarque === missaoPontoBFilter);
+    }
     
     if (missaoSearchTerm) {
       const term = missaoSearchTerm.toLowerCase();
@@ -90,7 +100,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     }
     
     return filtered;
-  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoSearchTerm, missaoDataFilter]);
+  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoPontoAFilter, missaoPontoBFilter, missaoSearchTerm, missaoDataFilter]);
 
   const handleSaveMissao = async (data: any) => {
     if (editingMissao) {
@@ -109,11 +119,13 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const clearMissaoFilters = () => {
     setMissaoFilter('all');
     setMissaoMotoristaFilter('all');
+    setMissaoPontoAFilter('all');
+    setMissaoPontoBFilter('all');
     setMissaoSearchTerm('');
     setMissaoDataFilter(new Date().toISOString().slice(0, 10));
   };
 
-  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
+  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
 
   const handleMissaoDragStart = (event: DragStartEvent) => {
     const missao = filteredMissoes.find(m => m.id === event.active.id);
@@ -202,6 +214,30 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
               <SelectItem value="all">Todos motoristas</SelectItem>
               {motoristasCadastrados.filter(m => m.ativo).map(m => (
                 <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={missaoPontoAFilter} onValueChange={setMissaoPontoAFilter}>
+            <SelectTrigger className="w-[160px]">
+              <MapPin className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Ponto A" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Ponto A</SelectItem>
+              {pontosEmbarque.map(p => (
+                <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={missaoPontoBFilter} onValueChange={setMissaoPontoBFilter}>
+            <SelectTrigger className="w-[160px]">
+              <MapPin className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Ponto B" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Ponto B</SelectItem>
+              {pontosEmbarque.map(p => (
+                <SelectItem key={p.id} value={p.nome}>{p.nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>

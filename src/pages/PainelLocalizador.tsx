@@ -232,14 +232,16 @@ export default function PainelLocalizador() {
 
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
-        // Check if driver has an active mission (em_andamento) - they should be in em_transito
         const missao = missoesPorMotorista.get(m.id);
         const emTransitoPorMissao = missao?.status === 'em_andamento';
+        const missaoEnvolveOutros = outrosNome && missao && ['aceita', 'em_andamento'].includes(missao.status) &&
+          (missao.ponto_embarque === outrosNome || missao.ponto_desembarque === outrosNome);
 
         if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
+        } else if (missaoEnvolveOutros) {
+          outros.push(m);
         } else if (emTransitoPorMissao && loc !== 'em_transito') {
-          // Driver has em_andamento mission but is in a location column - move to em_transito
           if (!dynamicGroups['em_transito']) dynamicGroups['em_transito'] = [];
           dynamicGroups['em_transito'].push(m);
         } else if (outrosNome && m.ultima_localizacao === outrosNome && m.status !== 'em_viagem') {

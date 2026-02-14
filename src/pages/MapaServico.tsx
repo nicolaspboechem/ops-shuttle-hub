@@ -154,10 +154,16 @@ export default function MapaServico() {
 
     Object.entries(motoristasPorLocalizacao).forEach(([loc, drivers]) => {
       drivers.forEach(m => {
-        if (m.status === 'em_viagem') {
-          emViagem.push(m);
-        } else if (retornandoBaseIds.has(m.id)) {
+        const missao = missoesPorMotorista.get(m.id);
+        const missaoEnvolveOutros = outrosNome && missao && ['pendente', 'aceita', 'em_andamento'].includes(missao.status) &&
+          (missao.ponto_embarque === outrosNome || missao.ponto_desembarque === outrosNome);
+
+        if (retornandoBaseIds.has(m.id)) {
           retornando.push(m);
+        } else if (missaoEnvolveOutros) {
+          outros.push(m);
+        } else if (m.status === 'em_viagem') {
+          emViagem.push(m);
         } else if (outrosNome && m.ultima_localizacao === outrosNome) {
           outros.push(m);
         } else if (loc !== 'em_transito') {
