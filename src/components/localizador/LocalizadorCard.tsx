@@ -6,7 +6,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface LocalizadorCardProps {
   motorista: MotoristaComVeiculo;
-  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string } | null;
+  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string; created_at?: string | null; data_atualizacao?: string | null } | null;
 }
 
 const statusConfig = {
@@ -37,8 +37,17 @@ export function LocalizadorCard({ motorista, missao }: LocalizadorCardProps) {
   const hasVeiculo = !!motorista.veiculo;
   const backup = hasVeiculo && isBackup(motorista.veiculo);
 
-  const tempoNoLocal = motorista.ultima_localizacao_at
-    ? formatDistanceToNow(new Date(motorista.ultima_localizacao_at), { 
+  // Calculate time based on status
+  const getStatusTimestamp = (): string | null | undefined => {
+    if (displayStatus === 'disponivel') return motorista.ultima_localizacao_at;
+    if (displayStatus === 'missao_pendente') return missao?.created_at;
+    // missao_aceita and em_transito use data_atualizacao
+    return missao?.data_atualizacao;
+  };
+
+  const statusTimestamp = getStatusTimestamp();
+  const tempoNoStatus = statusTimestamp
+    ? formatDistanceToNow(new Date(statusTimestamp), { 
         locale: ptBR, 
         addSuffix: false 
       })
@@ -53,8 +62,8 @@ export function LocalizadorCard({ motorista, missao }: LocalizadorCardProps) {
       <div className="flex items-center gap-1.5">
         <div className={cn("w-2 h-2 rounded-full shrink-0", status.color)} />
         <span className={cn("text-xs font-medium", status.textColor)}>{status.label}</span>
-        {tempoNoLocal && displayStatus === 'disponivel' && (
-          <span className="text-xs text-muted-foreground ml-auto">há {tempoNoLocal}</span>
+        {tempoNoStatus && (
+          <span className="text-xs text-muted-foreground ml-auto">há {tempoNoStatus}</span>
         )}
       </div>
 

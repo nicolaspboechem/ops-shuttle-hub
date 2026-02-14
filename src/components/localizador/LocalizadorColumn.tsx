@@ -9,7 +9,7 @@ interface LocalizadorColumnProps {
   motoristas: MotoristaComVeiculo[];
   tipo: 'local' | 'em_transito' | 'sem_local' | 'retornando_base' | 'outros' | 'pendente';
   isFixed?: boolean;
-  missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string }>;
+  missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string; created_at?: string | null; data_atualizacao?: string | null }>;
 }
 
 const columnConfig = {
