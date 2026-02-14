@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, KeyRound, Clock, LogIn, LogOut, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle, Lock } from 'lucide-react';
+import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, KeyRound, Clock, LogIn, LogOut, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle, Lock, Binoculars } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,6 +81,7 @@ export default function EventoUsuarios() {
     switch (role) {
       case 'operador': return <Radio className="w-4 h-4" />;
       case 'supervisor': return <ClipboardCheck className="w-4 h-4" />;
+      case 'cliente': return <Binoculars className="w-4 h-4" />;
       case 'motorista': return <Car className="w-4 h-4" />;
       default: return <Users className="w-4 h-4" />;
     }
@@ -90,6 +91,7 @@ export default function EventoUsuarios() {
     switch (role) {
       case 'operador': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
       case 'supervisor': return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
+      case 'cliente': return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20';
       case 'motorista': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
       default: return '';
     }
@@ -329,7 +331,7 @@ export default function EventoUsuarios() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-lg bg-primary/10">
@@ -374,6 +376,18 @@ export default function EventoUsuarios() {
               <div>
                 <p className="text-2xl font-bold">{stats.supervisores}</p>
                 <p className="text-xs text-muted-foreground">Supervisores</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-orange-500/10">
+                <Binoculars className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.clientes}</p>
+                <p className="text-xs text-muted-foreground">Clientes</p>
               </div>
             </CardContent>
           </Card>
@@ -423,6 +437,7 @@ export default function EventoUsuarios() {
               <SelectItem value="motorista">Motoristas</SelectItem>
               <SelectItem value="operador">Operadores</SelectItem>
               <SelectItem value="supervisor">Supervisores</SelectItem>
+              <SelectItem value="cliente">Clientes</SelectItem>
             </SelectContent>
           </Select>
           {(searchTerm || filterRole !== 'all') && (

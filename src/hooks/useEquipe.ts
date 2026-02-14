@@ -287,6 +287,7 @@ export function useEquipe(eventoId?: string) {
     const staff = membros.filter(m => m.tipo === 'staff');
     const operadores = staff.filter(m => m.role === 'operador');
     const supervisores = staff.filter(m => m.role === 'supervisor');
+    const clientes = staff.filter(m => m.role === 'cliente');
     const motoristasComLogin = motoristas.filter(m => m.has_login);
     const motoristasPresentes = motoristas.filter(m => m.checkin_at && !m.checkout_at);
 
@@ -295,6 +296,7 @@ export function useEquipe(eventoId?: string) {
       motoristas: motoristas.length,
       operadores: operadores.length,
       supervisores: supervisores.length,
+      clientes: clientes.length,
       motoristasComLogin: motoristasComLogin.length,
       motoristasPresentes: motoristasPresentes.length,
     };
