@@ -131,7 +131,12 @@ export function useEquipe(eventoId?: string) {
 
       // Map motoristas - check has_login from motorista_credenciais
       const motoristaMembros: EquipeMembro[] = ((motoristas || []) as unknown as MotoristaWithVeiculo[]).map(m => {
-        const presenca = presencas.find(p => p.motorista_id === m.id);
+        // Priorizar turno ativo (sem checkout), senão pegar o mais recente
+        const presencasDoMotorista = presencas
+          .filter(p => p.motorista_id === m.id)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const presenca = presencasDoMotorista.find(p => p.checkin_at && !p.checkout_at)
+          || presencasDoMotorista[0] || null;
         const credencial = credenciais.find(c => c.motorista_id === m.id);
         return {
           id: m.id,
@@ -172,32 +177,32 @@ export function useEquipe(eventoId?: string) {
     const now = agora.toISOString();
 
     try {
-      // Check if there's already a record for today
+      // Check if there's already an active shift (no checkout) for today
       const { data: existing } = await supabase
         .from('motorista_presenca')
-        .select('id')
+        .select('id, checkout_at')
         .eq('motorista_id', motoristaId)
         .eq('evento_id', eventoId)
         .eq('data', today)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (existing) {
-        // Update existing record
-        await supabase
-          .from('motorista_presenca')
-          .update({ checkin_at: now, checkout_at: null })
-          .eq('id', existing.id);
-      } else {
-        // Insert new record
-        await supabase
-          .from('motorista_presenca')
-          .insert({
-            motorista_id: motoristaId,
-            evento_id: eventoId,
-            data: today,
-            checkin_at: now,
-          });
+      if (existing && !existing.checkout_at) {
+        // Already has active checkin, do nothing
+        toast.info('Motorista já possui check-in ativo');
+        return;
       }
+
+      // Always INSERT for new shift (supports multiple shifts per day)
+      await supabase
+        .from('motorista_presenca')
+        .insert({
+          motorista_id: motoristaId,
+          evento_id: eventoId,
+          data: today,
+          checkin_at: now,
+        });
 
       // Update motorista status to disponivel
       await supabase
@@ -221,26 +226,39 @@ export function useEquipe(eventoId?: string) {
     const now = agora.toISOString();
 
     try {
+      // Find the active shift (with checkin, without checkout)
       const { data: existing } = await supabase
         .from('motorista_presenca')
         .select('id')
         .eq('motorista_id', motoristaId)
         .eq('evento_id', eventoId)
         .eq('data', today)
-        .single();
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (existing) {
-        await supabase
-          .from('motorista_presenca')
-          .update({ checkout_at: now })
-          .eq('id', existing.id);
+      if (!existing) {
+        toast.error('Nenhum turno ativo encontrado para checkout');
+        return;
       }
 
-      // Update motorista status to indisponivel
-      await supabase
-        .from('motoristas')
-        .update({ status: 'indisponivel' })
-        .eq('id', motoristaId);
+      // Execute all updates in parallel to avoid cascading
+      await Promise.all([
+        supabase
+          .from('motorista_presenca')
+          .update({ checkout_at: now })
+          .eq('id', existing.id),
+        supabase
+          .from('motoristas')
+          .update({ status: 'indisponivel', veiculo_id: null })
+          .eq('id', motoristaId),
+        supabase
+          .from('veiculos')
+          .update({ motorista_id: null })
+          .eq('motorista_id', motoristaId),
+      ]);
 
       toast.success('Check-out realizado!');
       fetchEquipe();
