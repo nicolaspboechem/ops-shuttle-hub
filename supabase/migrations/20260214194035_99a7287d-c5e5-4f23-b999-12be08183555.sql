@@ -1,0 +1,1 @@
+ALTER TABLE public.viagens DROP CONSTRAINT viagens_criado_por_fkey;
