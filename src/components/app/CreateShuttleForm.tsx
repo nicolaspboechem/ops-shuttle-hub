@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
+import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -22,6 +23,7 @@ interface CreateShuttleFormProps {
 export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: CreateShuttleFormProps) {
   const { userId } = useCurrentUser();
   const { pontosAtivos } = usePontosEmbarque(eventoId);
+  const { getAgoraSync } = useServerTime();
 
   const [pontoEmbarqueId, setPontoEmbarqueId] = useState('');
   const [pontoDesembarqueId, setPontoDesembarqueId] = useState('');
@@ -60,7 +62,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
         motorista: 'Shuttle',
         status: 'em_andamento',
         h_pickup: horario,
-        h_inicio_real: new Date().toISOString(),
+        h_inicio_real: getAgoraSync().toISOString(),
         ponto_embarque: pontoEmbarqueNome,
         ponto_embarque_id: pontoEmbarqueId,
         ponto_desembarque: pontoDesembarqueNome,
