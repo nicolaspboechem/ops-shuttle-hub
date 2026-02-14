@@ -58,7 +58,7 @@ export default function AppMotorista() {
   const [evento, setEvento] = useState<any>(null);
   useEffect(() => {
     if (!eventoId) return;
-    supabase.from('eventos').select('id, nome_planilha, horario_virada_dia').eq('id', eventoId).single()
+    supabase.from('eventos').select('id, nome_planilha, horario_virada_dia, data_inicio, data_fim').eq('id', eventoId).single()
       .then(({ data }) => setEvento(data));
   }, [eventoId]);
   const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
@@ -530,6 +530,9 @@ export default function AppMotorista() {
             loadingCheckout={loadingPresenca}
             eventoId={eventoId}
             motoristaNome={nomeMotorista}
+            horarioVirada={evento?.horario_virada_dia || '04:00'}
+            dataInicio={evento?.data_inicio}
+            dataFim={evento?.data_fim}
           />
         );
 

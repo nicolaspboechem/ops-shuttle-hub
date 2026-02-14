@@ -1,11 +1,9 @@
+import { useMemo } from 'react';
 import { Viagem } from '@/lib/types/viagem';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle, 
   XCircle,
-  Bus, 
-  MapPin, 
   Users, 
   Clock,
   ClipboardList
@@ -20,21 +18,26 @@ export function OperadorHistoricoTab({ viagens }: OperadorHistoricoTabProps) {
     v.status === 'encerrado' || v.status === 'cancelado'
   );
 
-  // Ordenar por hora de chegada (mais recente primeiro)
-  const sortedViagens = [...viagensFinalizadas].sort((a, b) => {
-    const timeA = a.h_chegada || a.h_fim_real || '00:00';
-    const timeB = b.h_chegada || b.h_fim_real || '00:00';
-    return timeB.localeCompare(timeA);
-  });
-
-  const totalPax = sortedViagens
+  const encerradas = viagensFinalizadas.filter(v => v.status === 'encerrado').length;
+  const canceladas = viagensFinalizadas.filter(v => v.status === 'cancelado').length;
+  const totalPax = viagensFinalizadas
     .filter(v => v.status === 'encerrado')
     .reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
 
-  const encerradas = sortedViagens.filter(v => v.status === 'encerrado').length;
-  const canceladas = sortedViagens.filter(v => v.status === 'cancelado').length;
+  // Hora do primeiro e último shuttle
+  const horarios = useMemo(() => {
+    const encerradasList = viagensFinalizadas
+      .filter(v => v.status === 'encerrado' && v.h_pickup)
+      .map(v => v.h_pickup!)
+      .sort();
+    
+    return {
+      primeiro: encerradasList[0]?.slice(0, 5) || '--:--',
+      ultimo: encerradasList[encerradasList.length - 1]?.slice(0, 5) || '--:--',
+    };
+  }, [viagensFinalizadas]);
 
-  if (sortedViagens.length === 0) {
+  if (viagensFinalizadas.length === 0) {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <ClipboardList className="h-16 w-16 mx-auto mb-4 opacity-30" />
@@ -62,64 +65,22 @@ export function OperadorHistoricoTab({ viagens }: OperadorHistoricoTabProps) {
         </div>
       </div>
 
-      {/* Lista */}
-      <div className="space-y-3">
-        {sortedViagens.map(viagem => (
-          <Card 
-            key={viagem.id} 
-            className={viagem.status === 'cancelado' ? 'opacity-60' : ''}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  {viagem.status === 'encerrado' ? (
-                    <CheckCircle className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-destructive" />
-                  )}
-                  <span className="font-medium">{viagem.motorista}</span>
-                </div>
-                <Badge variant="secondary">
-                  {viagem.tipo_veiculo === 'Ônibus' ? '🚌' : '🚐'} {viagem.tipo_operacao}
-                </Badge>
-              </div>
-
-              <div className="flex flex-col gap-1 mb-2 text-sm text-muted-foreground">
-                {viagem.ponto_embarque && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3 w-3 text-green-600" />
-                    <span>{viagem.ponto_embarque}</span>
-                    {viagem.ponto_desembarque && (
-                      <>
-                        <span>→</span>
-                        <span>{viagem.ponto_desembarque}</span>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  <span>{viagem.qtd_pax || 0}</span>
-                </div>
-                {viagem.h_pickup && (
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>Início: {viagem.h_pickup.slice(0, 5)}</span>
-                  </div>
-                )}
-                {viagem.h_chegada && (
-                  <div className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    <span>Fim: {viagem.h_chegada.slice(0, 5)}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Horários */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="text-center p-3 rounded-lg bg-muted">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <p className="text-lg font-bold">{horarios.primeiro}</p>
+          <p className="text-[10px] text-muted-foreground">Primeira Corrida</p>
+        </div>
+        <div className="text-center p-3 rounded-lg bg-muted">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+          <p className="text-lg font-bold">{horarios.ultimo}</p>
+          <p className="text-[10px] text-muted-foreground">Última Corrida</p>
+        </div>
       </div>
     </div>
   );
