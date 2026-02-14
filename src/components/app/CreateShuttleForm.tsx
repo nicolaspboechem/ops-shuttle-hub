@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -20,7 +20,7 @@ interface CreateShuttleFormProps {
 }
 
 export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: CreateShuttleFormProps) {
-  const { user } = useAuth();
+  const { userId } = useCurrentUser();
   const { pontosAtivos } = usePontosEmbarque(eventoId);
 
   const [pontoEmbarqueId, setPontoEmbarqueId] = useState('');
@@ -67,7 +67,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
         ponto_desembarque_id: pontoDesembarqueId,
         qtd_pax: Number(qtdPax),
         observacao: observacao.trim() || null,
-        criado_por: user?.id,
+        criado_por: userId,
       });
 
       if (error) throw error;

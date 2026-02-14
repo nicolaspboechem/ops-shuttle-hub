@@ -1,7 +1,7 @@
-import { Bus, Users, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
+import { Bus, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type OperadorTabId = 'viagens' | 'motoristas' | 'nova' | 'historico' | 'mais';
+export type OperadorTabId = 'viagens' | 'nova' | 'historico' | 'mais';
 
 interface NavTab {
   id: OperadorTabId;
@@ -11,7 +11,6 @@ interface NavTab {
 
 const tabs: NavTab[] = [
   { id: 'viagens', label: 'Viagens', icon: Bus },
-  { id: 'motoristas', label: 'Motoristas', icon: Users },
   { id: 'nova', label: 'Nova', icon: Plus },
   { id: 'historico', label: 'Histórico', icon: ClipboardList },
   { id: 'mais', label: 'Mais', icon: MoreHorizontal },
@@ -30,7 +29,6 @@ export function OperadorBottomNav({ activeTab, onTabChange }: OperadorBottomNavP
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
           
-          // Botão central destacado para "Nova"
           if (tab.id === 'nova') {
             return (
               <button
