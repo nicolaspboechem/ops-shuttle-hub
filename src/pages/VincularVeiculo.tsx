@@ -12,11 +12,55 @@ import {
   AlertDialogHeader, 
   AlertDialogTitle 
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Search, User, Car, Unlink } from "lucide-react";
-import { VeiculoKanbanColumn } from "@/components/veiculos/VeiculoKanbanColumn";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Search, User, Car, Unlink, CheckCircle, AlertTriangle, Loader, Wrench, ChevronDown, Link2, Fuel, Bus } from "lucide-react";
+import { SwipeableCard } from "@/components/app/SwipeableCard";
 import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+
+const statusConfig = {
+  liberado: {
+    title: 'Liberados',
+    icon: CheckCircle,
+    dotColor: 'bg-emerald-500',
+    textColor: 'text-emerald-600 dark:text-emerald-400',
+    headerBg: 'bg-emerald-50 dark:bg-emerald-950/30',
+    borderColor: 'border-emerald-200 dark:border-emerald-800',
+  },
+  pendente: {
+    title: 'Pendentes',
+    icon: AlertTriangle,
+    dotColor: 'bg-amber-500',
+    textColor: 'text-amber-600 dark:text-amber-400',
+    headerBg: 'bg-amber-50 dark:bg-amber-950/30',
+    borderColor: 'border-amber-200 dark:border-amber-800',
+  },
+  em_inspecao: {
+    title: 'Em Inspeção',
+    icon: Loader,
+    dotColor: 'bg-blue-500',
+    textColor: 'text-blue-600 dark:text-blue-400',
+    headerBg: 'bg-blue-50 dark:bg-blue-950/30',
+    borderColor: 'border-blue-200 dark:border-blue-800',
+  },
+  manutencao: {
+    title: 'Manutenção',
+    icon: Wrench,
+    dotColor: 'bg-gray-500',
+    textColor: 'text-gray-600 dark:text-gray-400',
+    headerBg: 'bg-gray-50 dark:bg-gray-900/30',
+    borderColor: 'border-gray-200 dark:border-gray-700',
+  },
+} as const;
+
+const fuelLabels: Record<string, { label: string; color: string }> = {
+  cheio: { label: 'Cheio', color: 'text-emerald-600' },
+  '3/4': { label: '¾', color: 'text-emerald-500' },
+  '1/2': { label: '½', color: 'text-amber-500' },
+  '1/4': { label: '¼', color: 'text-orange-500' },
+  reserva: { label: 'Reserva', color: 'text-destructive' },
+};
 
 export default function VincularVeiculo() {
   const { eventoId, motoristaId } = useParams();
@@ -33,42 +77,36 @@ export default function VincularVeiculo() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Encontrar o motorista atual
   const motorista = motoristas.find(m => m.id === motoristaId);
   const currentVeiculoId = motorista?.veiculo_id;
   const currentVeiculo = veiculos.find(v => v.id === currentVeiculoId);
 
-  // Filtrar e agrupar veículos
   const filteredVeiculos = useMemo(() => {
     return veiculos.filter(v => {
-      const matchesSearch = deferredSearchTerm === "" || 
-        v.placa.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
-        v.fornecedor?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
-        v.tipo_veiculo?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
-      return matchesSearch;
+      if (deferredSearchTerm === "") return true;
+      const term = deferredSearchTerm.toLowerCase();
+      return (
+        v.nome?.toLowerCase().includes(term) ||
+        v.placa.toLowerCase().includes(term) ||
+        v.fornecedor?.toLowerCase().includes(term) ||
+        v.tipo_veiculo?.toLowerCase().includes(term)
+      );
     });
   }, [veiculos, deferredSearchTerm]);
 
-  // Adicionar nome do motorista vinculado a cada veículo
   const veiculosComMotorista = useMemo(() => {
     return filteredVeiculos.map(v => {
       const motoristaVinculado = motoristas.find(m => m.veiculo_id === v.id);
-      return {
-        ...v,
-        motorista_nome: motoristaVinculado?.nome || null
-      };
+      return { ...v, motorista_nome: motoristaVinculado?.nome || null };
     });
   }, [filteredVeiculos, motoristas]);
 
-  // Agrupar por status
-  const veiculosAgrupados = useMemo(() => {
-    return {
-      liberado: veiculosComMotorista.filter(v => v.status === 'liberado'),
-      pendente: veiculosComMotorista.filter(v => v.status === 'pendente'),
-      em_inspecao: veiculosComMotorista.filter(v => v.status === 'em_inspecao'),
-      manutencao: veiculosComMotorista.filter(v => v.status === 'manutencao' || !v.status),
-    };
-  }, [veiculosComMotorista]);
+  const veiculosAgrupados = useMemo(() => ({
+    liberado: veiculosComMotorista.filter(v => v.status === 'liberado'),
+    pendente: veiculosComMotorista.filter(v => v.status === 'pendente'),
+    em_inspecao: veiculosComMotorista.filter(v => v.status === 'em_inspecao'),
+    manutencao: veiculosComMotorista.filter(v => v.status === 'manutencao' || !v.status),
+  }), [veiculosComMotorista]);
 
   const selectedVeiculo = veiculos.find(v => v.id === selectedVeiculoId);
 
@@ -82,18 +120,13 @@ export default function VincularVeiculo() {
     
     setIsSubmitting(true);
     try {
-      // Se o motorista já tinha um veículo, desvincular
       if (currentVeiculoId) {
         await updateVeiculo(currentVeiculoId, { motorista_id: null });
       }
-
-      // Se o veículo selecionado já tem outro motorista, desvincular
       const outroMotorista = motoristas.find(m => m.veiculo_id === selectedVeiculoId && m.id !== motoristaId);
       if (outroMotorista) {
         await updateMotorista(outroMotorista.id, { veiculo_id: null });
       }
-
-      // Vincular motorista ao novo veículo
       await updateMotorista(motoristaId!, { veiculo_id: selectedVeiculoId });
       await updateVeiculo(selectedVeiculoId, { motorista_id: motoristaId });
 
@@ -101,14 +134,9 @@ export default function VincularVeiculo() {
         title: "Veículo vinculado!",
         description: `${selectedVeiculo?.placa} vinculado a ${motorista.nome}`,
       });
-
       navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`);
     } catch (error) {
-      toast({
-        title: "Erro ao vincular",
-        description: "Não foi possível vincular o veículo.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao vincular", description: "Não foi possível vincular o veículo.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
       setShowConfirmDialog(false);
@@ -117,24 +145,17 @@ export default function VincularVeiculo() {
 
   const handleDesvincular = async () => {
     if (!motorista || !currentVeiculoId) return;
-    
     setIsSubmitting(true);
     try {
       await updateMotorista(motoristaId!, { veiculo_id: null });
       await updateVeiculo(currentVeiculoId, { motorista_id: null });
-
       toast({
         title: "Veículo desvinculado!",
         description: `${currentVeiculo?.placa} foi desvinculado de ${motorista.nome}`,
       });
-
       navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`);
     } catch (error) {
-      toast({
-        title: "Erro ao desvincular",
-        description: "Não foi possível desvincular o veículo.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao desvincular", description: "Não foi possível desvincular o veículo.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -148,42 +169,41 @@ export default function VincularVeiculo() {
     );
   }
 
+  const statusOrder = ['liberado', 'pendente', 'em_inspecao', 'manutencao'] as const;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b">
-        <div className="container max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="container max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 
-              size="sm"
+              size="icon"
+              className="shrink-0"
               onClick={() => navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`)}
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
+              <ArrowLeft className="h-5 w-5" />
             </Button>
             
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <User className="h-5 w-5 text-primary" />
-                <h1 className="text-xl font-bold">Vincular Veículo</h1>
+                <User className="h-4 w-4 text-primary shrink-0" />
+                <h1 className="text-lg font-bold truncate">Vincular Veículo</h1>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Motorista: <span className="font-medium text-foreground">{motorista.nome}</span>
+              <p className="text-sm text-muted-foreground truncate">
+                {motorista.nome}
               </p>
             </div>
 
-            {/* Veículo atual */}
             {currentVeiculo && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                <Car className="h-4 w-4 text-emerald-600" />
-                <span className="text-sm">
-                  Atual: <strong>{currentVeiculo.placa}</strong>
-                </span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg border border-emerald-200 dark:border-emerald-800 shrink-0">
+                <Car className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-xs font-medium">{currentVeiculo.nome || currentVeiculo.placa}</span>
                 <Button 
                   variant="ghost" 
-                  size="sm"
-                  className="h-6 px-2 text-destructive hover:text-destructive"
+                  size="icon"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
                   onClick={handleDesvincular}
                   disabled={isSubmitting}
                 >
@@ -193,11 +213,10 @@ export default function VincularVeiculo() {
             )}
           </div>
 
-          {/* Search */}
-          <div className="mt-4 relative max-w-md">
+          <div className="mt-3 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por placa, tipo ou fornecedor..."
+              placeholder="Buscar por nome do veículo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -206,70 +225,105 @@ export default function VincularVeiculo() {
         </div>
       </div>
 
-      {/* Kanban - Desktop */}
-      <div className="container max-w-7xl mx-auto px-4 py-6">
-        <div className="hidden md:flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 220px)' }}>
-          <VeiculoKanbanColumn
-            status="liberado"
-            veiculos={veiculosAgrupados.liberado}
-            onSelect={handleSelectVeiculo}
-            selectedId={selectedVeiculoId || undefined}
-            currentVeiculoId={currentVeiculoId || undefined}
-          />
-          <VeiculoKanbanColumn
-            status="pendente"
-            veiculos={veiculosAgrupados.pendente}
-            onSelect={handleSelectVeiculo}
-            selectedId={selectedVeiculoId || undefined}
-            currentVeiculoId={currentVeiculoId || undefined}
-          />
-          <VeiculoKanbanColumn
-            status="em_inspecao"
-            veiculos={veiculosAgrupados.em_inspecao}
-            onSelect={handleSelectVeiculo}
-            selectedId={selectedVeiculoId || undefined}
-            currentVeiculoId={currentVeiculoId || undefined}
-          />
-          <VeiculoKanbanColumn
-            status="manutencao"
-            veiculos={veiculosAgrupados.manutencao}
-            onSelect={handleSelectVeiculo}
-            selectedId={selectedVeiculoId || undefined}
-            currentVeiculoId={currentVeiculoId || undefined}
-          />
-        </div>
+      {/* Lista agrupada */}
+      <div className="container max-w-2xl mx-auto px-4 py-4 space-y-3">
+        {statusOrder.map((status) => {
+          const config = statusConfig[status];
+          const items = veiculosAgrupados[status];
+          if (items.length === 0) return null;
+          const Icon = config.icon;
 
-        {/* Kanban - Mobile (Tabs) */}
-        <div className="md:hidden">
-          <Tabs defaultValue="liberado" className="w-full">
-            <TabsList className="w-full grid grid-cols-4 mb-4">
-              <TabsTrigger value="liberado" className="text-xs px-1">
-                Liberados ({veiculosAgrupados.liberado.length})
-              </TabsTrigger>
-              <TabsTrigger value="pendente" className="text-xs px-1">
-                Pendentes ({veiculosAgrupados.pendente.length})
-              </TabsTrigger>
-              <TabsTrigger value="em_inspecao" className="text-xs px-1">
-                Inspeção ({veiculosAgrupados.em_inspecao.length})
-              </TabsTrigger>
-              <TabsTrigger value="manutencao" className="text-xs px-1">
-                Manutenção ({veiculosAgrupados.manutencao.length})
-              </TabsTrigger>
-            </TabsList>
+          return (
+            <Collapsible key={status} defaultOpen={status === 'liberado'}>
+              <CollapsibleTrigger className={cn(
+                "flex items-center gap-2 w-full px-4 py-2.5 rounded-lg border text-left",
+                config.headerBg,
+                config.borderColor
+              )}>
+                <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", config.dotColor)} />
+                <Icon className={cn("h-4 w-4 shrink-0", config.textColor)} />
+                <span className="font-semibold text-sm flex-1">{config.title}</span>
+                <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full bg-white/60 dark:bg-black/20", config.textColor)}>
+                  {items.length}
+                </span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-180" />
+              </CollapsibleTrigger>
 
-            {(['liberado', 'pendente', 'em_inspecao', 'manutencao'] as const).map((status) => (
-              <TabsContent key={status} value={status} className="mt-0">
-                <VeiculoKanbanColumn
-                  status={status}
-                  veiculos={veiculosAgrupados[status]}
-                  onSelect={handleSelectVeiculo}
-                  selectedId={selectedVeiculoId || undefined}
-                  currentVeiculoId={currentVeiculoId || undefined}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
-        </div>
+              <CollapsibleContent className="mt-2 space-y-1.5">
+                {items.map((veiculo) => {
+                  const isCurrent = veiculo.id === currentVeiculoId;
+                  const fuel = veiculo.nivel_combustivel ? fuelLabels[veiculo.nivel_combustivel] : null;
+
+                  return (
+                    <SwipeableCard
+                      key={veiculo.id}
+                      disabled={isCurrent}
+                      rightAction={{
+                        icon: <Link2 className="h-5 w-5" />,
+                        label: "Vincular",
+                        color: "text-white",
+                        bgColor: "bg-primary",
+                        action: () => handleSelectVeiculo(veiculo.id),
+                      }}
+                    >
+                      <div className={cn(
+                        "flex items-center gap-3 px-4 py-3 rounded-lg border bg-card",
+                        isCurrent && "ring-2 ring-emerald-500/50 border-emerald-300 dark:border-emerald-700"
+                      )}>
+                        <Bus className="h-5 w-5 text-muted-foreground shrink-0" />
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">
+                            {veiculo.nome || veiculo.placa}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {veiculo.nome && <span>{veiculo.placa}</span>}
+                            <span>{veiculo.tipo_veiculo}</span>
+                            {veiculo.capacidade && <span>• {veiculo.capacidade} lug</span>}
+                            {fuel && (
+                              <span className={cn("flex items-center gap-0.5", fuel.color)}>
+                                <Fuel className="h-3 w-3" />
+                                {fuel.label}
+                              </span>
+                            )}
+                          </div>
+                          {veiculo.motorista_nome && (
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
+                              👤 {veiculo.motorista_nome}
+                            </p>
+                          )}
+                        </div>
+
+                        {isCurrent ? (
+                          <span className="text-xs font-medium text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-1 rounded-md shrink-0">
+                            Atual
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 h-8 text-xs"
+                            onClick={() => handleSelectVeiculo(veiculo.id)}
+                          >
+                            <Link2 className="h-3.5 w-3.5 mr-1" />
+                            Vincular
+                          </Button>
+                        )}
+                      </div>
+                    </SwipeableCard>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
+
+        {veiculosComMotorista.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            <Car className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Nenhum veículo encontrado</p>
+          </div>
+        )}
       </div>
 
       {/* Dialog de confirmação */}
@@ -278,7 +332,7 @@ export default function VincularVeiculo() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar vinculação</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja vincular o veículo <strong>{selectedVeiculo?.placa}</strong> ({selectedVeiculo?.tipo_veiculo}) ao motorista <strong>{motorista.nome}</strong>?
+              Deseja vincular o veículo <strong>{selectedVeiculo?.nome || selectedVeiculo?.placa}</strong> ({selectedVeiculo?.placa}) ao motorista <strong>{motorista.nome}</strong>?
               {selectedVeiculo && motoristas.find(m => m.veiculo_id === selectedVeiculoId && m.id !== motoristaId) && (
                 <span className="block mt-2 text-amber-600">
                   ⚠️ Este veículo está vinculado a outro motorista e será desvinculado automaticamente.
