@@ -53,11 +53,12 @@ export default function AppOperador() {
   }, [evento?.horario_virada_dia, getAgoraSync]);
 
   const viagensOptions = useMemo(() => {
-    if (verTodosDias) return undefined;
-    return {
-      dataOperacional,
-      horarioVirada: evento?.horario_virada_dia || '04:00',
-    };
+    const opts: any = { tipoOperacao: 'shuttle' };
+    if (!verTodosDias) {
+      opts.dataOperacional = dataOperacional;
+      opts.horarioVirada = evento?.horario_virada_dia || '04:00';
+    }
+    return opts;
   }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
 
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
@@ -78,31 +79,29 @@ export default function AppOperador() {
     }
   }, [eventoId]);
 
-  const filteredViagens = viagens.filter(v => {
-    if (statusFilter !== 'todos' && v.status !== statusFilter) return false;
-    return true;
-  });
+  const filteredViagens = useMemo(() => 
+    viagens.filter(v => statusFilter === 'todos' || v.status === statusFilter),
+    [viagens, statusFilter]
+  );
 
-  const sortedViagens = [...filteredViagens].sort((a, b) => {
-    const statusOrder = { 
-      em_andamento: 0, 
-      aguardando_retorno: 1, 
-      agendado: 2, 
-      encerrado: 3, 
-      cancelado: 4 
+  const sortedViagens = useMemo(() => {
+    const statusOrder: Record<string, number> = { 
+      em_andamento: 0, aguardando_retorno: 1, agendado: 2, encerrado: 3, cancelado: 4 
     };
-    const orderA = statusOrder[a.status as keyof typeof statusOrder] ?? 5;
-    const orderB = statusOrder[b.status as keyof typeof statusOrder] ?? 5;
-    if (orderA !== orderB) return orderA - orderB;
-    return (a.h_pickup || '').localeCompare(b.h_pickup || '');
-  });
+    return [...filteredViagens].sort((a, b) => {
+      const orderA = statusOrder[a.status as string] ?? 5;
+      const orderB = statusOrder[b.status as string] ?? 5;
+      if (orderA !== orderB) return orderA - orderB;
+      return (a.h_pickup || '').localeCompare(b.h_pickup || '');
+    });
+  }, [filteredViagens]);
 
-  const counts = {
+  const counts = useMemo(() => ({
     agendado: viagens.filter(v => v.status === 'agendado').length,
     em_andamento: viagens.filter(v => v.status === 'em_andamento').length,
     aguardando_retorno: viagens.filter(v => v.status === 'aguardando_retorno').length,
     encerrado: viagens.filter(v => v.status === 'encerrado').length,
-  };
+  }), [viagens]);
 
   const handleLogout = useCallback(() => {
     signOut();
@@ -123,8 +122,13 @@ export default function AppOperador() {
     onLogout: handleLogout,
   }), [staffSession?.user_nome, evento?.nome_planilha, handleLogout]);
 
+  useEffect(() => {
+    if (!staffSession) {
+      navigate('/login/equipe');
+    }
+  }, [staffSession, navigate]);
+
   if (!staffSession) {
-    navigate('/login/equipe');
     return null;
   }
 

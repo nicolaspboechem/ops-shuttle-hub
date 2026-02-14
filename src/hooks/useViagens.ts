@@ -12,6 +12,7 @@ import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThr
 export interface UseViagensOptions {
   dataOperacional?: string;  // "YYYY-MM-DD"
   horarioVirada?: string;    // "HH:mm" (default: "04:00")
+  tipoOperacao?: string;     // "shuttle", "transfer", etc. - filtra no banco
 }
 
 export function useViagens(eventoId?: string, options?: UseViagensOptions) {
@@ -57,6 +58,11 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       query = query.eq('evento_id', eventoId);
     }
 
+    // Filtro por tipo de operação
+    if (options?.tipoOperacao) {
+      query = query.eq('tipo_operacao', options.tipoOperacao);
+    }
+
     // Filtro por dia operacional
     if (options?.dataOperacional) {
       const { inicio, fim } = getLimitesDiaOperacional(
@@ -82,7 +88,7 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
     setLoading(false);
     setRefreshing(false);
     setIsInitialLoad(false);
-  }, [eventoId, options?.dataOperacional, options?.horarioVirada]);
+  }, [eventoId, options?.dataOperacional, options?.horarioVirada, options?.tipoOperacao]);
 
   useEffect(() => {
     fetchViagens(true); // Carregamento inicial com loading
@@ -94,8 +100,14 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       eventoId.length >= 36 && 
       /^[0-9a-f-]{36}$/i.test(eventoId);
 
-    const channelConfig = isValidUUID
-      ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: `evento_id=eq.${eventoId}` }
+    // Build Realtime filter - combine evento_id and tipo_operacao when available
+    const filters: string[] = [];
+    if (isValidUUID) filters.push(`evento_id=eq.${eventoId}`);
+    if (options?.tipoOperacao) filters.push(`tipo_operacao=eq.${options.tipoOperacao}`);
+    const filterStr = filters.length > 0 ? filters.join(',') : undefined;
+
+    const channelConfig = filterStr
+      ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: filterStr }
       : { event: '*' as const, schema: 'public' as const, table: 'viagens' as const };
 
     // Global throttled refetch to prevent cascade
