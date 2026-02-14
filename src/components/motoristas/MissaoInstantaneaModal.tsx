@@ -49,6 +49,7 @@ export function MissaoInstantaneaModal({
   onSave,
 }: MissaoInstantaneaModalProps) {
   const [motoristaId, setMotoristaId] = useState('');
+  const [titulo, setTitulo] = useState('');
   const [pontoEmbarque, setPontoEmbarque] = useState('');
   const [pontoDesembarque, setPontoDesembarque] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,6 +58,7 @@ export function MissaoInstantaneaModal({
   useEffect(() => {
     if (open) {
       setMotoristaId('');
+      setTitulo('');
       setPontoEmbarque('');
       setPontoDesembarque('');
     }
@@ -64,7 +66,7 @@ export function MissaoInstantaneaModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!motoristaId || !pontoEmbarque || !pontoDesembarque) return;
+    if (!motoristaId || !pontoEmbarque || !pontoDesembarque || !titulo.trim()) return;
 
     const pontoOrigemData = activePontos.find(p => p.nome === pontoEmbarque);
     const pontoDestinoData = activePontos.find(p => p.nome === pontoDesembarque);
@@ -72,7 +74,7 @@ export function MissaoInstantaneaModal({
     setSaving(true);
     await onSave({
       motorista_id: motoristaId,
-      titulo: `Missão: ${pontoEmbarque} → ${pontoDesembarque}`,
+      titulo: titulo.trim(),
       ponto_embarque: pontoEmbarque,
       ponto_desembarque: pontoDesembarque,
       ponto_embarque_id: pontoOrigemData?.id || null,
@@ -96,6 +98,18 @@ export function MissaoInstantaneaModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Título da Missão */}
+          <div className="space-y-2">
+            <Label>Título da Missão *</Label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="Ex: Buscar equipe no hotel"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            />
+          </div>
+
           {/* Motorista */}
           <div className="space-y-2">
             <Label>Motorista *</Label>
@@ -192,7 +206,7 @@ export function MissaoInstantaneaModal({
             </Button>
             <Button
               type="submit"
-              disabled={saving || !motoristaId || !pontoEmbarque || !pontoDesembarque}
+              disabled={saving || !motoristaId || !pontoEmbarque || !pontoDesembarque || !titulo.trim()}
               className="flex-1"
             >
               {saving ? (
