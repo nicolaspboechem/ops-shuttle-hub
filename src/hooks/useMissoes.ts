@@ -272,11 +272,59 @@ export function useMissoes(eventoId: string | undefined) {
     return updateMissao(id, { status: 'em_andamento' });
   };
 
+  const syncMotoristaAoEncerrarMissao = async (missao: Missao) => {
+    const now = new Date().toISOString();
+
+    // 1. Encerrar viagem vinculada
+    if (missao.viagem_id) {
+      await supabase
+        .from('viagens')
+        .update({
+          status: 'encerrado',
+          h_fim_real: now,
+          encerrado: true,
+        })
+        .eq('id', missao.viagem_id);
+    }
+
+    // 2. Verificar se motorista tem outras viagens ativas
+    const { data: outrasViagens } = await supabase
+      .from('viagens')
+      .select('id')
+      .eq('motorista_id', missao.motorista_id)
+      .eq('evento_id', missao.evento_id)
+      .eq('encerrado', false)
+      .neq('id', missao.viagem_id || '');
+
+    if (!outrasViagens || outrasViagens.length === 0) {
+      // 3. Atualizar motorista: status + localização
+      const updateData: Record<string, any> = {
+        status: 'disponivel',
+      };
+      if (missao.ponto_desembarque) {
+        updateData.ultima_localizacao = missao.ponto_desembarque;
+        updateData.ultima_localizacao_at = now;
+      }
+      await supabase
+        .from('motoristas')
+        .update(updateData)
+        .eq('id', missao.motorista_id);
+    }
+  };
+
   const concluirMissao = async (id: string) => {
+    const missao = missoes.find(m => m.id === id);
+    if (missao) {
+      await syncMotoristaAoEncerrarMissao(missao);
+    }
     return updateMissao(id, { status: 'concluida' });
   };
 
   const cancelarMissao = async (id: string) => {
+    const missao = missoes.find(m => m.id === id);
+    if (missao && (missao.status === 'aceita' || missao.status === 'em_andamento')) {
+      await syncMotoristaAoEncerrarMissao(missao);
+    }
     return updateMissao(id, { status: 'cancelada' });
   };
 

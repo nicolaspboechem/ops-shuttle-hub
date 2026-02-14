@@ -2,7 +2,7 @@ import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, Loader2, CheckCircle, Play, Flag, Calendar } from 'lucide-react';
+import { MapPin, Clock, Loader2, CheckCircle, Play, Flag, Calendar, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
 import { NavigationLinks } from './NavigationLinks';
@@ -11,6 +11,8 @@ interface MissaoCardMobileProps {
   missao: Missao;
   loading?: boolean;
   disabled?: boolean;
+  /** Data operacional calculada pelo pai (YYYY-MM-DD) */
+  dataOperacional?: string;
   onAceitar?: () => void;
   onRecusar?: () => void;
   onIniciar?: () => void;
@@ -30,10 +32,28 @@ const statusLabels: Record<string, string> = {
   em_andamento: 'Em Andamento',
 };
 
-export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
-  const config = prioridadeConfig[missao.prioridade];
+/** Determina se a missão é instantânea ou agendada */
+function getMissaoTipo(missao: Missao, dataOperacional?: string) {
+  const hoje = dataOperacional || new Date().toISOString().slice(0, 10);
+  const isHoje = !missao.data_programada || missao.data_programada === hoje;
+  const temHorario = !!missao.horario_previsto;
 
-  // Swipe actions based on status (disabled blocks pendente swipe)
+  if (isHoje && !temHorario) {
+    return { tipo: 'instantanea' as const, label: 'Instantânea', icon: Zap, className: 'bg-amber-500/10 text-amber-600' };
+  }
+  if (!isHoje && missao.data_programada) {
+    const [, m, d] = missao.data_programada.split('-');
+    return { tipo: 'agendada' as const, label: `Agendada ${d}/${m}`, icon: Calendar, className: 'bg-blue-500/10 text-blue-600' };
+  }
+  return { tipo: 'agendada' as const, label: 'Agendada', icon: Calendar, className: 'bg-blue-500/10 text-blue-600' };
+}
+
+export function MissaoCardMobile({ missao, loading, disabled, dataOperacional, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
+  const config = prioridadeConfig[missao.prioridade];
+  const tipoInfo = getMissaoTipo(missao, dataOperacional);
+  const TipoIcon = tipoInfo.icon;
+
+  // Swipe actions based on status
   const getSwipeActions = () => {
     if (missao.status === 'pendente') {
       return {
@@ -46,7 +66,6 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
         } : undefined,
       };
     }
-    
     if (missao.status === 'aceita') {
       return {
         rightAction: onIniciar ? {
@@ -58,7 +77,6 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
         } : undefined,
       };
     }
-    
     if (missao.status === 'em_andamento') {
       return {
         rightAction: onFinalizar ? {
@@ -70,11 +88,11 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
         } : undefined,
       };
     }
-    
     return {};
   };
 
   const swipeActions = getSwipeActions();
+  const hoje = dataOperacional || new Date().toISOString().slice(0, 10);
 
   const cardContent = (
     <Card className={cn(
@@ -90,9 +108,15 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
       <CardContent className="p-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-2 mb-3">
-          <Badge variant="outline" className={config.className}>
-            {config.label}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={config.className}>
+              {config.label}
+            </Badge>
+            <Badge variant="outline" className={cn("text-xs gap-1", tipoInfo.className)}>
+              <TipoIcon className="h-3 w-3" />
+              {tipoInfo.label}
+            </Badge>
+          </div>
           <Badge variant="secondary" className="text-xs">
             {statusLabels[missao.status] || missao.status}
           </Badge>
@@ -127,7 +151,7 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               <span>
-                {missao.data_programada === new Date().toISOString().slice(0, 10)
+                {missao.data_programada === hoje
                   ? 'Hoje'
                   : missao.data_programada.split('-').reverse().slice(0, 2).join('/')}
               </span>
@@ -148,7 +172,7 @@ export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecus
           compact
         />
 
-        {/* Ações (botões como fallback/alternativa ao swipe) */}
+        {/* Ações */}
         <div className="flex gap-2">
           {missao.status === 'pendente' && (
             <Button

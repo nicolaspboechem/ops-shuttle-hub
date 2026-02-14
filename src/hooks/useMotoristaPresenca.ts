@@ -314,14 +314,20 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
       if (error) throw error;
 
-      // Unlink vehicle from driver
-      await supabase
-        .from('motoristas')
-        .update({ 
-          status: 'indisponivel',
-          veiculo_id: null 
-        })
-        .eq('id', motoristaId);
+      // Unlink vehicle from driver (bidirectional)
+      await Promise.all([
+        supabase
+          .from('motoristas')
+          .update({ 
+            status: 'indisponivel',
+            veiculo_id: null 
+          })
+          .eq('id', motoristaId),
+        supabase
+          .from('veiculos')
+          .update({ motorista_id: null })
+          .eq('motorista_id', motoristaId),
+      ]);
 
       setPresenca({ ...data, veiculo: presenca.veiculo });
       setVeiculoAtribuido(null);
