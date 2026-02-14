@@ -84,7 +84,7 @@ export default function PainelLocalizador() {
       const dataOp = getDataOperacional(new Date(Date.now() + offset), horarioVirada);
       supabase
         .from('missoes')
-        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto')
+        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at')
         .eq('evento_id', selectedEvento)
         .in('status', ['pendente', 'aceita', 'em_andamento'])
         .or(`data_programada.eq.${dataOp},data_programada.is.null`)

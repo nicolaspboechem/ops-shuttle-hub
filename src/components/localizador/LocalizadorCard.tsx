@@ -1,4 +1,4 @@
-import { Car, Bus, ArrowRight, Clock } from 'lucide-react';
+import { Car, Bus, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { formatDistanceToNow } from 'date-fns';
@@ -6,7 +6,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface LocalizadorCardProps {
   motorista: MotoristaComVeiculo;
-  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string; horario_previsto?: string | null } | null;
+  missao?: { status: string; ponto_embarque?: string; ponto_desembarque?: string } | null;
 }
 
 const statusConfig = {
@@ -84,12 +84,6 @@ export function LocalizadorCard({ motorista, missao }: LocalizadorCardProps) {
       {/* Route (from mission or trip) */}
       {showRoute && (
         <div className="flex items-center gap-1.5 text-sm text-blue-400 bg-blue-500/10 rounded px-2 py-1">
-          {missao.horario_previsto && (
-            <>
-              <Clock className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-semibold shrink-0">{missao.horario_previsto.substring(0, 5)}</span>
-            </>
-          )}
           <span className="truncate">{missao.ponto_embarque}</span>
           <ArrowRight className="w-3.5 h-3.5 shrink-0" />
           <span className="font-semibold truncate">{missao.ponto_desembarque}</span>
