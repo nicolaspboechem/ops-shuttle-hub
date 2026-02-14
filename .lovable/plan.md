@@ -1,27 +1,55 @@
 
 
-# Diferenciar Missao Aceita de Em Transito no Localizador
+# Corrigir Priorizacao de Missoes e Ajustes no Localizador
 
-## Problema
+## 1. Priorizacao por horario_previsto
 
-Os status "Missao Aceita" e "Em Transito" usam tons de azul quase identicos nos cards do Localizador, dificultando a distincao visual rapida - especialmente em TVs.
+**Problema atual:** O desempate entre missoes de mesmo status usa `created_at`, mas deveria usar `horario_previsto` (horario agendado). Somente missoes instantaneas (sem `horario_previsto`) devem usar `created_at` como fallback.
 
-## Solucao
+**Solucao:**
 
-Alterar a cor de "Missao Aceita" de azul para **roxo/violeta**, mantendo "Em Transito" em azul com pulse.
+### `src/pages/PainelLocalizador.tsx`
 
-| Status | Cor atual | Nova cor |
-|--------|-----------|----------|
-| Missao Aceita | Azul (bg-blue-500) | Roxo (bg-violet-500 / text-violet-400) |
-| Em Transito | Azul pulsante | Sem mudanca |
+**a) Adicionar `horario_previsto` na query** (linha 87):
+```
+.select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto')
+```
 
-## Alteracao
+**b) Alterar logica de desempate** (linha 156):
+Quando duas missoes tem o mesmo status, priorizar por `horario_previsto` (mais cedo primeiro). Se uma tem `horario_previsto` e outra nao, a agendada tem prioridade. Somente quando ambas nao tem `horario_previsto`, usar `created_at`.
 
-### `src/components/localizador/LocalizadorCard.tsx`
+Nova logica de comparacao:
+```typescript
+// Desempate: horario_previsto (mais cedo ganha), fallback created_at
+function compareMissoes(a, b) {
+  if (a.horario_previsto && b.horario_previsto) {
+    return a.horario_previsto < b.horario_previsto; // mais cedo ganha
+  }
+  if (a.horario_previsto && !b.horario_previsto) return true; // agendada ganha
+  if (!a.horario_previsto && b.horario_previsto) return false;
+  return a.created_at > b.created_at; // instantaneas: mais recente ganha
+}
+```
 
-Linha 15 do `statusConfig` - trocar cores de `missao_aceita`:
-- `color`: `'bg-blue-500'` para `'bg-violet-500'`
-- `textColor`: `'text-blue-400'` para `'text-violet-400'`
+Aplicar essa logica em todos os 3 pontos de priorizacao:
+- `missoesPorMotorista` (linha 146-162)
+- `missoesPendentes > perDriver` (linha ~188)
+- `missoesPendentesPorMotorista` (linha ~197)
 
-1 linha alterada, 1 arquivo.
+## 2. Corrigir texto do footer
+
+**Linha 494:** Trocar "a cada 30 segundos" para "a cada 60 segundos" (compativel com o intervalo real de 60000ms na linha 121).
+
+## 3. Atualizar versao do app
+
+### `src/lib/version.ts`
+- `APP_VERSION`: '1.8.0' para '1.8.1'
+- `APP_BUILD_DATE`: '2026-02-13' para '2026-02-14'
+
+## Resumo de arquivos
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/pages/PainelLocalizador.tsx` | Query + logica priorizacao + footer |
+| `src/lib/version.ts` | Versao e data |
 
