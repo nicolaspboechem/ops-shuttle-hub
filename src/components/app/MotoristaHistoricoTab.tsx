@@ -2,13 +2,11 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
   CheckCircle2, 
   XCircle, 
   Clock, 
   Users, 
-  MapPin,
   LogOut,
   TrendingUp,
   Car
@@ -18,6 +16,8 @@ import { ptBR } from 'date-fns/locale';
 import { Viagem } from '@/lib/types/viagem';
 import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { CheckoutModal } from './CheckoutModal';
+import { DiaSeletor } from './DiaSeletor';
+import { getDataOperacional, getLimitesDiaOperacional } from '@/lib/utils/diaOperacional';
 
 interface MotoristaHistoricoTabProps {
   viagensFinalizadas: Viagem[];
@@ -26,6 +26,9 @@ interface MotoristaHistoricoTabProps {
   loadingCheckout?: boolean;
   eventoId?: string;
   motoristaNome?: string;
+  horarioVirada?: string;
+  dataInicio?: string | null;
+  dataFim?: string | null;
 }
 
 export function MotoristaHistoricoTab({ 
@@ -34,18 +37,33 @@ export function MotoristaHistoricoTab({
   onCheckout,
   loadingCheckout,
   eventoId,
-  motoristaNome
+  motoristaNome,
+  horarioVirada = '04:00',
+  dataInicio,
+  dataFim,
 }: MotoristaHistoricoTabProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [dataSelecionada, setDataSelecionada] = useState(() => 
+    getDataOperacional(new Date(), horarioVirada)
+  );
 
   const hasCheckin = !!presenca?.checkin_at;
   const hasCheckout = !!presenca?.checkout_at;
   const canCheckout = hasCheckin && !hasCheckout;
 
+  // Filtrar viagens pela data selecionada
+  const viagensDoDia = useMemo(() => {
+    const limites = getLimitesDiaOperacional(dataSelecionada, horarioVirada);
+    return viagensFinalizadas.filter(v => {
+      const dataCriacao = new Date(v.data_criacao);
+      return dataCriacao >= limites.inicio && dataCriacao <= limites.fim;
+    });
+  }, [viagensFinalizadas, dataSelecionada, horarioVirada]);
+
   // Calcular estatísticas do dia
   const estatisticas = useMemo(() => {
-    const finalizadas = viagensFinalizadas.filter(v => v.status === 'encerrado');
-    const canceladas = viagensFinalizadas.filter(v => v.status === 'cancelado');
+    const finalizadas = viagensDoDia.filter(v => v.status === 'encerrado');
+    const canceladas = viagensDoDia.filter(v => v.status === 'cancelado');
     
     let totalPax = 0;
     let tempoTotalMinutos = 0;
@@ -73,11 +91,10 @@ export function MotoristaHistoricoTab({
       totalPax,
       tempoEmRota: tempoFormatado
     };
-  }, [viagensFinalizadas]);
+  }, [viagensDoDia]);
 
   const formatTime = (time: string | null) => {
     if (!time) return '--:--';
-    // Handle both time format (HH:mm:ss) and ISO format
     if (time.includes('T')) {
       return format(parseISO(time), 'HH:mm');
     }
@@ -95,6 +112,15 @@ export function MotoristaHistoricoTab({
 
   return (
     <div className="space-y-4">
+      {/* Seletor de Data */}
+      <DiaSeletor
+        dataOperacional={dataSelecionada}
+        onChange={setDataSelecionada}
+        dataInicio={dataInicio}
+        dataFim={dataFim}
+        showToggleAll={false}
+      />
+
       {/* Resumo do Dia */}
       <Card>
         <CardHeader className="pb-3">
@@ -127,14 +153,14 @@ export function MotoristaHistoricoTab({
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <Car className="h-4 w-4" />
-              Histórico de Hoje
+              Viagens do Dia
             </CardTitle>
-            <Badge variant="secondary">{viagensFinalizadas.length}</Badge>
+            <Badge variant="secondary">{viagensDoDia.length}</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {viagensFinalizadas.length > 0 ? (
-            viagensFinalizadas.map((viagem) => {
+          {viagensDoDia.length > 0 ? (
+            viagensDoDia.map((viagem) => {
               const isEncerrado = viagem.status === 'encerrado';
               const isCancelado = viagem.status === 'cancelado';
               
@@ -184,7 +210,7 @@ export function MotoristaHistoricoTab({
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Car className="h-10 w-10 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Nenhuma viagem finalizada hoje</p>
+              <p className="text-sm">Nenhuma viagem finalizada neste dia</p>
             </div>
           )}
         </CardContent>
