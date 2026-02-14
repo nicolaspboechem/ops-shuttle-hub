@@ -33,7 +33,7 @@ const missaoKanbanColumns = [
 ];
 
 export function MissoesPanel({ eventoId }: MissoesPanelProps) {
-  const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao } = useMissoes(eventoId);
+  const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao, aceitarMissao, iniciarMissao, concluirMissao, cancelarMissao } = useMissoes(eventoId);
   const { motoristas: motoristasCadastrados } = useMotoristas(eventoId);
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
 
@@ -146,7 +146,15 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     const missao = filteredMissoes.find(m => m.id === missaoId);
     if (!missao || missao.status === newStatus) return;
     
-    await updateMissao(missaoId, { status: newStatus as MissaoStatus });
+    await handleStatusChange(missaoId, newStatus);
+  };
+
+  const handleStatusChange = async (missaoId: string, newStatus: string) => {
+    if (newStatus === 'aceita') await aceitarMissao(missaoId);
+    else if (newStatus === 'em_andamento') await iniciarMissao(missaoId);
+    else if (newStatus === 'concluida') await concluirMissao(missaoId);
+    else if (newStatus === 'cancelada') await cancelarMissao(missaoId);
+    else await updateMissao(missaoId, { status: newStatus as MissaoStatus });
   };
 
   // Group missions by status for kanban
@@ -322,7 +330,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
                       motoristaNome={motorista?.nome}
                       onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
                       onDelete={() => handleDeleteMissao(missao.id)}
-                      onStatusChange={(status) => updateMissao(missao.id, { status: status as MissaoStatus })}
+                      onStatusChange={(status) => handleStatusChange(missao.id, status)}
                     />
                   );
                 })}
@@ -350,7 +358,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
                 motoristaNome={motorista?.nome || 'Motorista não encontrado'}
                 onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
                 onDelete={() => handleDeleteMissao(missao.id)}
-                onStatusChange={(status) => updateMissao(missao.id, { status: status as MissaoStatus })}
+                onStatusChange={(status) => handleStatusChange(missao.id, status)}
               />
             );
           })}
@@ -452,25 +460,25 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
                             Editar
                           </DropdownMenuItem>
                           {missao.status === 'pendente' && (
-                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'aceita' })}>
+                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'aceita')}>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Aceitar
                             </DropdownMenuItem>
                           )}
                           {missao.status === 'aceita' && (
-                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'em_andamento' })}>
+                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'em_andamento')}>
                               <Play className="w-4 h-4 mr-2" />
                               Iniciar
                             </DropdownMenuItem>
                           )}
                           {missao.status !== 'concluida' && (
-                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'concluida' })}>
+                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'concluida')}>
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Concluir
                             </DropdownMenuItem>
                           )}
                           {missao.status !== 'cancelada' && (
-                            <DropdownMenuItem onClick={() => updateMissao(missao.id, { status: 'cancelada' })} className="text-destructive">
+                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'cancelada')} className="text-destructive">
                               <XCircle className="w-4 h-4 mr-2" />
                               Cancelar
                             </DropdownMenuItem>

@@ -242,33 +242,47 @@ export function useMissoes(eventoId: string | undefined) {
 
   const aceitarMissao = async (id: string) => {
     const missao = missoes.find(m => m.id === id);
-    if (missao) {
-      const temAtiva = missoes.some(m =>
-        m.motorista_id === missao.motorista_id &&
-        (m.status === 'aceita' || m.status === 'em_andamento') &&
-        m.id !== id
-      );
-      if (temAtiva) {
-        toast.error('Este motorista já possui uma missão ativa. Finalize antes de aceitar outra.');
-        return null;
-      }
+    if (!missao) return null;
+
+    // Consulta ao banco (fonte da verdade) para evitar stale data
+    const { data: ativas } = await supabase
+      .from('missoes')
+      .select('id')
+      .eq('motorista_id', missao.motorista_id)
+      .eq('evento_id', eventoId!)
+      .in('status', ['aceita', 'em_andamento'])
+      .neq('id', id)
+      .limit(1);
+
+    if (ativas && ativas.length > 0) {
+      toast.error('Este motorista já possui uma missão ativa. Finalize antes de aceitar outra.');
+      fetchMissoes(); // Sincronizar estado local
+      return null;
     }
+
     return updateMissao(id, { status: 'aceita' });
   };
 
   const iniciarMissao = async (id: string) => {
     const missao = missoes.find(m => m.id === id);
-    if (missao) {
-      const temEmAndamento = missoes.some(m =>
-        m.motorista_id === missao.motorista_id &&
-        m.status === 'em_andamento' &&
-        m.id !== id
-      );
-      if (temEmAndamento) {
-        toast.error('Este motorista já possui uma missão em andamento.');
-        return null;
-      }
+    if (!missao) return null;
+
+    // Consulta ao banco (fonte da verdade)
+    const { data: emAndamento } = await supabase
+      .from('missoes')
+      .select('id')
+      .eq('motorista_id', missao.motorista_id)
+      .eq('evento_id', eventoId!)
+      .eq('status', 'em_andamento')
+      .neq('id', id)
+      .limit(1);
+
+    if (emAndamento && emAndamento.length > 0) {
+      toast.error('Este motorista já possui uma missão em andamento.');
+      fetchMissoes();
+      return null;
     }
+
     return updateMissao(id, { status: 'em_andamento' });
   };
 
