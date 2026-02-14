@@ -84,7 +84,7 @@ export default function PainelLocalizador() {
       const dataOp = getDataOperacional(new Date(Date.now() + offset), horarioVirada);
       supabase
         .from('missoes')
-        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at')
+        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto')
         .eq('evento_id', selectedEvento)
         .in('status', ['pendente', 'aceita', 'em_andamento'])
         .or(`data_programada.eq.${dataOp},data_programada.is.null`)
@@ -143,19 +143,27 @@ export default function PainelLocalizador() {
   // Map active missions per driver (only aceita/em_andamento for location display)
   const statusPriority: Record<string, number> = { em_andamento: 3, aceita: 2, pendente: 1 };
   
+  // Compare two missions: returns true if `a` should replace `existing`
+  const missaoTemPrioridade = (a: typeof missoesAtivas[number], existing: typeof missoesAtivas[number]) => {
+    const aPrio = statusPriority[a.status] || 0;
+    const ePrio = statusPriority[existing.status] || 0;
+    if (aPrio !== ePrio) return aPrio > ePrio;
+    // Same status: prioritize by horario_previsto (earlier wins), fallback created_at
+    if (a.horario_previsto && existing.horario_previsto) {
+      return a.horario_previsto < existing.horario_previsto;
+    }
+    if (a.horario_previsto && !existing.horario_previsto) return true;
+    if (!a.horario_previsto && existing.horario_previsto) return false;
+    return a.created_at > existing.created_at; // instant: most recent wins
+  };
+
   const missoesPorMotorista = useMemo(() => {
     const map = new Map<string, typeof missoesAtivas[number]>();
     missoesAtivas.forEach(m => {
-      if (m.status === 'pendente') return; // pendentes go to their own column
+      if (m.status === 'pendente') return;
       const existing = map.get(m.motorista_id);
-      if (!existing) {
+      if (!existing || missaoTemPrioridade(m, existing)) {
         map.set(m.motorista_id, m);
-      } else {
-        const newPrio = statusPriority[m.status] || 0;
-        const existPrio = statusPriority[existing.status] || 0;
-        if (newPrio > existPrio || (newPrio === existPrio && m.created_at > existing.created_at)) {
-          map.set(m.motorista_id, m);
-        }
       }
     });
     return map;
@@ -183,7 +191,7 @@ export default function PainelLocalizador() {
     const perDriver = new Map<string, typeof missoesAtivas[number]>();
     missoesPendentes.forEach(m => {
       const existing = perDriver.get(m.motorista_id);
-      if (!existing || m.created_at > existing.created_at) {
+      if (!existing || missaoTemPrioridade(m, existing)) {
         perDriver.set(m.motorista_id, m);
       }
     });
@@ -198,7 +206,7 @@ export default function PainelLocalizador() {
     const map = new Map<string, typeof missoesAtivas[number]>();
     missoesPendentes.forEach(m => {
       const existing = map.get(m.motorista_id);
-      if (!existing || m.created_at > existing.created_at) {
+      if (!existing || missaoTemPrioridade(m, existing)) {
         map.set(m.motorista_id, m);
       }
     });
@@ -491,7 +499,7 @@ export default function PainelLocalizador() {
       {/* Footer with last update */}
       <footer className="bg-card/50 border-t border-border px-6 py-2 text-center">
         <span className="text-xs text-muted-foreground">
-          Atualização automática a cada 30 segundos • Última atualização: {format(currentTime, 'HH:mm:ss')}
+          Atualização automática a cada 60 segundos • Última atualização: {format(currentTime, 'HH:mm:ss')}
         </span>
       </footer>
     </div>
