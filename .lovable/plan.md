@@ -1,131 +1,120 @@
 
 
-# Correcao: Checkout do CCO Falhando + Bug de Multiplos Registros de Presenca
+# Correcao: Dessincronizacao entre Kanban de Missoes e Localizador
 
-## Diagnostico
+## Problema identificado
 
-### Bug encontrado: `.single()` com multiplos registros
+Existem **3 pontos criticos** onde a validacao de missao unica por motorista e burlada:
 
-O Evandro Mello tem **2 registros de presenca para hoje** (14/02):
-- Registro 1: checkin 10:32 / checkout 10:33 (encerrado)
-- Registro 2: checkin 10:36 / checkout NULL (ativo)
-
-Quando o CCO tenta fazer checkout, o `handleCheckout` em `useEquipe.ts` (linha 224-230) faz:
+### Bug 1: Drag-and-drop ignora validacao
+No `MissoesPanel.tsx` (linha 149), quando o operador arrasta uma missao para a coluna "Aceita" ou "Em Andamento", o sistema chama `updateMissao` diretamente -- sem verificar se o motorista ja tem outra missao ativa.
 
 ```text
-supabase.from('motorista_presenca')
-  .select('id')
-  .eq('motorista_id', motoristaId)
-  .eq('evento_id', eventoId)
-  .eq('data', today)
-  .single()   // <-- ERRO: retorna PGRST116 (multiple rows)
+// ATUAL (sem validacao):
+await updateMissao(missaoId, { status: newStatus });
+
+// O correto seria chamar aceitarMissao() ou iniciarMissao()
 ```
 
-O `.single()` **lanca erro silencioso** quando ha mais de 1 registro para o mesmo dia (turnos multiplos). O checkout nunca e executado.
+### Bug 2: Dropdown menu ignora validacao
+No `MissoesPanel.tsx` (linha 325), o `onStatusChange` do card/kanban tambem chama `updateMissao` direto, sem passar pela validacao.
 
-### Mesmo bug no `handleCheckin`
+### Bug 3: Validacao usa estado local (stale data)
+Mesmo quando `aceitarMissao`/`iniciarMissao` sao chamados (no hook `useMissoes.ts`), a verificacao e feita contra `missoes` (estado React local), que pode estar desatualizado. Se dois operadores aceitam missoes simultaneamente, ambos passam pela validacao porque o estado local de cada um ainda nao reflete a mudanca do outro.
 
-O `handleCheckin` (linha 176-182) tambem usa `.single()` com a mesma query, falhando igualmente quando ha multiplos turnos.
+## Solucao
 
-### Bug no `fetchEquipe` - `presencas.find()` pega registro errado
+### 1. Centralizar validacao com consulta ao banco (useMissoes.ts)
 
-Na linha 134 de `useEquipe.ts`, `presencas.find(p => p.motorista_id === m.id)` retorna o **primeiro** registro encontrado. Se o primeiro e o que tem checkout, o motorista aparece como "Expediente Encerrado" mesmo tendo um turno ativo depois.
-
-## Correcoes
-
-### 1. Dados: Encerrar expediente do Evandro Mello
-
-Fechar a presenca aberta e atualizar status do motorista + desvincular veiculo.
+Substituir a validacao local por uma **query ao banco de dados** antes de aceitar ou iniciar:
 
 ```text
-UPDATE motorista_presenca SET checkout_at = NOW(), observacao_checkout = 'Checkout manual CCO'
-WHERE id = '9e9da108-9323-4d97-81e0-88b888f660ba';
+const aceitarMissao = async (id: string) => {
+  const missao = missoes.find(m => m.id === id);
+  if (!missao) return null;
 
-UPDATE motorista_presenca SET checkout_at = '2026-02-12T06:00:00Z', observacao_checkout = 'Checkout retroativo - registro orfao'
-WHERE id = '52b159de-eba2-4c73-a5ac-9a96f1ac4d93';
+  // Consulta ao banco (fonte da verdade)
+  const { data: ativas } = await supabase
+    .from('missoes')
+    .select('id')
+    .eq('motorista_id', missao.motorista_id)
+    .eq('evento_id', eventoId)
+    .in('status', ['aceita', 'em_andamento'])
+    .neq('id', id)
+    .limit(1);
 
-UPDATE motoristas SET status = 'indisponivel', veiculo_id = NULL
-WHERE id = 'f87526b3-7dcd-4aba-9658-ae437d586b33';
+  if (ativas && ativas.length > 0) {
+    toast.error('Este motorista ja possui uma missao ativa.');
+    fetchMissoes(); // Sincronizar estado local
+    return null;
+  }
 
-UPDATE veiculos SET motorista_id = NULL
-WHERE motorista_id = 'f87526b3-7dcd-4aba-9658-ae437d586b33';
+  return updateMissao(id, { status: 'aceita' });
+};
 ```
 
-### 2. Corrigir `handleCheckout` em `useEquipe.ts`
+Mesma logica para `iniciarMissao`, verificando se ja existe missao `em_andamento`.
 
-Substituir `.single()` por query que busca o **registro ativo** (com checkin e sem checkout), ordenado pelo mais recente:
+### 2. Rotear drag-and-drop pela validacao (MissoesPanel.tsx)
+
+No `handleMissaoDragEnd`, ao invés de chamar `updateMissao` diretamente, rotear para a funcao correta conforme o status de destino:
 
 ```text
-const { data: existing } = await supabase
-  .from('motorista_presenca')
-  .select('id')
-  .eq('motorista_id', motoristaId)
-  .eq('evento_id', eventoId)
-  .eq('data', today)
-  .not('checkin_at', 'is', null)
-  .is('checkout_at', null)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
+const handleMissaoDragEnd = async (event) => {
+  // ... validacoes basicas ...
+
+  if (newStatus === 'aceita') {
+    await aceitarMissao(missaoId);
+  } else if (newStatus === 'em_andamento') {
+    await iniciarMissao(missaoId);
+  } else if (newStatus === 'concluida') {
+    await concluirMissao(missaoId);
+  } else if (newStatus === 'cancelada') {
+    await cancelarMissao(missaoId);
+  } else {
+    await updateMissao(missaoId, { status: newStatus });
+  }
+};
 ```
 
-Isso garante que:
-- Pega apenas o turno ativo (sem checkout)
-- Funciona com multiplos turnos no mesmo dia
-- Nao lanca erro se nao encontrar nada
+### 3. Rotear dropdown pela validacao (MissoesPanel.tsx)
 
-### 3. Corrigir `handleCheckin` em `useEquipe.ts`
-
-Mesma correcao: substituir `.single()` por `.maybeSingle()` e buscar o registro mais recente. Alem disso, quando ha multiplos turnos, o checkin deve criar um novo INSERT em vez de reutilizar registro antigo:
+O `onStatusChange` nos cards (kanban, card e lista) tambem passara pelas funcoes validadas:
 
 ```text
-const { data: existing } = await supabase
-  .from('motorista_presenca')
-  .select('id, checkout_at')
-  .eq('motorista_id', motoristaId)
-  .eq('evento_id', eventoId)
-  .eq('data', today)
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle();
-
-if (existing && !existing.checkout_at) {
-  // Ja tem checkin ativo, nao faz nada
-  return;
-}
-// Sempre INSERT para novo turno
-await supabase.from('motorista_presenca').insert({ ... });
+const handleStatusChange = async (missaoId: string, newStatus: string) => {
+  if (newStatus === 'aceita') await aceitarMissao(missaoId);
+  else if (newStatus === 'em_andamento') await iniciarMissao(missaoId);
+  else if (newStatus === 'concluida') await concluirMissao(missaoId);
+  else if (newStatus === 'cancelada') await cancelarMissao(missaoId);
+  else await updateMissao(missaoId, { status: newStatus as MissaoStatus });
+};
 ```
 
-### 4. Corrigir `fetchEquipe` - selecionar presenca correta
+Substituir todas as 3 ocorrencias de `onStatusChange={(status) => updateMissao(...)}`  por `onStatusChange={(status) => handleStatusChange(missao.id, status)}`.
 
-Na busca de presencas (linha 134), trocar `presencas.find()` por logica que prioriza o **turno ativo** (sem checkout). Se nao houver turno ativo, pega o mais recente:
+### 4. Expor funcoes validadas do hook
+
+O `MissoesPanel` atualmente importa apenas `updateMissao` e `deleteMissao`. Passar a importar tambem `aceitarMissao`, `iniciarMissao`, `concluirMissao` e `cancelarMissao`:
 
 ```text
-const presencasDoMotorista = presencas
-  .filter(p => p.motorista_id === m.id)
-  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-const presenca = presencasDoMotorista.find(p => p.checkin_at && !p.checkout_at)
-  || presencasDoMotorista[0];
+const { 
+  missoes, loading, createMissao, updateMissao, deleteMissao,
+  aceitarMissao, iniciarMissao, concluirMissao, cancelarMissao
+} = useMissoes(eventoId);
 ```
 
-### 5. Desvincular veiculo no checkout do CCO
-
-Atualmente o `handleCheckout` so atualiza o status do motorista para `indisponivel`, mas **nao desvincula o veiculo**. Adicionar a mesma logica bidirecional que existe no app do motorista:
-
-```text
-await Promise.all([
-  supabase.from('motoristas').update({ status: 'indisponivel', veiculo_id: null }).eq('id', motoristaId),
-  supabase.from('veiculos').update({ motorista_id: null }).eq('motorista_id', motoristaId),
-  // ... update presenca
-]);
-```
-
-## Arquivos Modificados
+## Arquivos modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/hooks/useEquipe.ts` | Corrigir handleCheckout e handleCheckin (`.single()` -> `.maybeSingle()` com filtro de turno ativo) + corrigir selecao de presenca no fetchEquipe + desvincular veiculo no checkout |
-| SQL (dados) | Encerrar presencas abertas do Evandro Mello + desvincular veiculo |
+| `src/hooks/useMissoes.ts` | `aceitarMissao` e `iniciarMissao`: substituir validacao local por query ao banco + refetch em caso de conflito |
+| `src/components/motoristas/MissoesPanel.tsx` | Drag-and-drop e dropdown: rotear por `aceitarMissao`/`iniciarMissao`/`concluirMissao`/`cancelarMissao` em vez de `updateMissao` direto |
+
+## Impacto
+
+- Elimina a possibilidade de aceitar duas missoes para o mesmo motorista (CCO)
+- Elimina a possibilidade de iniciar missao quando outra esta em andamento (CCO)
+- Garante sincronizacao entre o Kanban de missoes e o Localizador (mesma fonte de dados)
+- Funciona mesmo com multiplos operadores atuando simultaneamente
 
