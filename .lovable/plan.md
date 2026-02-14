@@ -1,92 +1,63 @@
 
 
-# Simplificar App Operador Shuttle -- Apenas Contabilizar PAX
+# Correcoes de Sincronia e Otimizacao de Missoes
 
-## Contexto
+## Resumo das mudancas vs plano anterior
 
-O shuttle do operador nao precisa rastrear tempo de viagem, pontos de embarque/desembarque, ciclo de vida (iniciar, chegada, retorno, encerrar). O objetivo e apenas **contabilizar** quantos shuttles foram feitos e quantos PAX transportados.
+O Kanban mantem TODAS as 5 colunas (Pendente, Aceita, Em Andamento, Concluida, Cancelada). A coluna Concluida e util para o CCO movimentar missoes via drag-and-drop. A unica mudanca no Kanban e corrigir a query que hoje exclui concluidas e canceladas.
 
-## Novo Fluxo
+---
 
-```text
-Operador toca "+" --> Digita quantidade de PAX --> Toca "Registrar" --> Viagem criada como ENCERRADA --> Aparece na lista
-```
+## 1. Migracao SQL: Encerrar viagens orfas de dias anteriores
 
-Sem estados intermediarios. Sem swipe. Sem lifecycle.
-
-## Alteracoes
-
-### 1. Simplificar `CreateShuttleForm`
-
-**Arquivo:** `src/components/app/CreateShuttleForm.tsx`
-
-- Remover: Selects de ponto embarque/desembarque, campo de horario
-- Manter: Campo PAX (obrigatorio), Observacao (opcional)
-- Insert: Gravar com `status: 'encerrado'`, `encerrado: true`, `h_inicio_real` e `h_fim_real` iguais (instantaneo)
-- Remover: import de `usePontosEmbarque`, `Select` components, estados de pontoEmbarqueId/pontoDesembarqueId/horario
-- `canSave` passa a ser apenas `qtdPax && Number(qtdPax) > 0`
-
-### 2. Simplificar `AppOperador` (tela principal)
-
-**Arquivo:** `src/pages/app/AppOperador.tsx`
-
-- Remover: Grid de 4 status cards (agendado, em_andamento, aguardando_retorno, encerrado)
-- Remover: `statusFilter` state e logica de filtragem por status
-- Remover: `useViagemOperacaoStaff` (nao ha mais lifecycle)
-- Remover: import de `ViagemCardOperador` (card complexo com swipe)
-- Adicionar: Card simples de resumo no topo (Total Shuttles, Total PAX)
-- Adicionar: Lista simples de shuttles registrados -- cada item mostra PAX, horario, observacao, quem criou
-- Manter: DiaSeletor, PullToRefresh, tabs (viagens, historico, mais)
-
-### 3. Criar card simples para shuttle registrado
-
-**Arquivo:** Novo componente inline no AppOperador ou componente separado `ShuttleRegistroCard`
-
-Cada shuttle aparece como um card compacto:
-```text
-+-------------------------------------------+
-| 12 PAX          14:32    por João Silva    |
-| Obs: Saída do hotel principal              |
-+-------------------------------------------+
-```
-
-Sem botoes de acao. Sem swipe. Apenas informacao.
-
-### 4. Atualizar `ShuttleMetrics` (dashboard CCO)
-
-**Arquivo:** `src/components/shuttle/ShuttleMetrics.tsx`
-
-- Remover: Card "Tempo Medio Ciclo" (nao ha mais tracking de tempo)
-- Remover: Card "Frota" (shuttle nao tem veiculo vinculado)
-- Manter: Card "Total Shuttles" e Card "Passageiros"
-- Ajustar: "em andamento" deixa de existir para shuttle simplificado
-
-### 5. Atualizar `ShuttleTable` (dashboard CCO)
-
-**Arquivo:** `src/components/shuttle/ShuttleTable.tsx`
-
-- Remover colunas: Motorista, Veiculo, Pickup, Chegada, Retorno, Tempo Ciclo
-- Manter/adicionar: Horario registro, PAX, Observacao, Criado por
-- Simplificar Badge de situacao (tudo sera "Registrado")
-
-## Arquivos Alterados
-
-| Arquivo | Tipo |
-|---------|------|
-| `src/components/app/CreateShuttleForm.tsx` | Simplificar (remover pontos, horario) |
-| `src/pages/app/AppOperador.tsx` | Simplificar (remover lifecycle, status cards) |
-| `src/components/shuttle/ShuttleMetrics.tsx` | Remover cards irrelevantes |
-| `src/components/shuttle/ShuttleTable.tsx` | Simplificar colunas |
-
-## Impacto no Banco
-
-Nenhuma alteracao de schema. Os campos `ponto_embarque`, `ponto_desembarque`, `h_pickup`, etc. simplesmente nao serao preenchidos para shuttles criados pelo operador. Os dados existentes permanecem intactos.
-
-## Dados gravados por shuttle
+27 viagens abertas de dias anteriores serao corrigidas automaticamente:
 
 ```text
-evento_id, tipo_operacao='shuttle', motorista='Shuttle',
-status='encerrado', encerrado=true,
-qtd_pax, observacao, criado_por,
-h_inicio_real=agora, h_fim_real=agora
+UPDATE viagens
+SET status = 'encerrado', encerrado = true, h_fim_real = now(),
+    observacao = COALESCE(observacao || ' | ', '') || 'Encerrada automaticamente - dia anterior'
+WHERE encerrado = false
+  AND status IN ('agendado', 'em_andamento')
+  AND data_criacao::date < CURRENT_DATE
 ```
+
+---
+
+## 2. Corrigir edge function `close-open-trips`
+
+**Arquivo:** `supabase/functions/close-open-trips/index.ts`
+
+- Corrigir update para incluir `status: 'encerrado'` e `h_fim_real` (hoje faz apenas `encerrado: true`)
+- Adicionar bloco que fecha viagens de dias anteriores automaticamente (baseado em `data_criacao` no timezone SP < data atual SP)
+- Adicionar `observacao: 'Encerrada automaticamente - dia anterior'`
+
+---
+
+## 3. Corrigir query do `useMissoes` para incluir todos os status
+
+**Arquivo:** `src/hooks/useMissoes.ts`
+
+Problema atual: linha 87 filtra `.in('status', ['pendente', 'aceita', 'em_andamento'])`, fazendo com que as colunas Concluida e Cancelada do Kanban fiquem sempre vazias.
+
+Correcao: remover o filtro `.in('status', ...)` para buscar todas as missoes do evento. A separacao por status ja e feita no cliente pelo Kanban.
+
+Adicionar exports derivados:
+- `missoesConcluidas` -- `missoes.filter(m => m.status === 'concluida')`
+- `missoesCanceladas` -- `missoes.filter(m => m.status === 'cancelada')`
+
+---
+
+## Arquivos alterados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| Migracao SQL | Encerrar viagens orfas de dias anteriores |
+| `supabase/functions/close-open-trips/index.ts` | Corrigir update + cleanup dias anteriores |
+| `src/hooks/useMissoes.ts` | Remover filtro de status, buscar todas as missoes do evento |
+
+## O que NAO muda
+
+- Kanban mantem 5 colunas: Pendente, Aceita, Em Andamento, Concluida, Cancelada
+- `MissoesPanel.tsx` nao precisa de alteracao
+- Nenhum componente novo necessario
+
