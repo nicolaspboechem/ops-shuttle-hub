@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { User, Phone, Check, ChevronRight, ChevronLeft, KeyRound, Copy, Eye, EyeOff, Radio, ClipboardCheck } from "lucide-react";
+import { User, Phone, Check, ChevronRight, ChevronLeft, KeyRound, Copy, Eye, EyeOff, Radio, ClipboardCheck, Binoculars } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ interface CreatedCredentials {
   password: string;
 }
 
-type StaffType = 'operador' | 'supervisor';
+type StaffType = 'operador' | 'supervisor' | 'cliente';
 
 export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddStaffWizardProps) {
   const [step, setStep] = useState(1);
@@ -108,7 +108,8 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
         password: senha.trim(),
       });
       setShowCredentialsModal(true);
-      toast.success(`${staffType === 'operador' ? 'Operador' : 'Supervisor'} criado com sucesso!`);
+      const roleLabel = staffType === 'operador' ? 'Operador' : staffType === 'supervisor' ? 'Supervisor' : 'Cliente';
+      toast.success(`${roleLabel} criado com sucesso!`);
     } catch (err: any) {
       console.error("Erro ao criar staff:", err);
       toast.error("Erro de conexão — Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.");
@@ -306,6 +307,34 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
                       {staffType === 'supervisor' && <Check className="h-5 w-5 text-primary" />}
                     </div>
                   </CardContent>
+              </Card>
+
+                <Card
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-md",
+                    staffType === 'cliente'
+                      ? "ring-2 ring-primary bg-primary/5"
+                      : "hover:bg-accent/50"
+                  )}
+                  onClick={() => setStaffType('cliente')}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "h-12 w-12 rounded-full flex items-center justify-center",
+                        staffType === 'cliente' ? "bg-primary text-primary-foreground" : "bg-muted"
+                      )}>
+                        <Binoculars className="h-6 w-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold">Cliente</p>
+                        <p className="text-sm text-muted-foreground">
+                          Visualiza métricas estratégicas e localização (somente leitura)
+                        </p>
+                      </div>
+                      {staffType === 'cliente' && <Check className="h-5 w-5 text-primary" />}
+                    </div>
+                  </CardContent>
                 </Card>
               </div>
 
@@ -402,8 +431,10 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                       {staffType === 'operador' ? (
                         <Radio className="h-6 w-6 text-primary" />
-                      ) : (
+                      ) : staffType === 'supervisor' ? (
                         <ClipboardCheck className="h-6 w-6 text-primary" />
+                      ) : (
+                        <Binoculars className="h-6 w-6 text-primary" />
                       )}
                     </div>
                     <div>
@@ -425,7 +456,9 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
 
                   <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3">
                     <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                      ✓ Acesso ao app de {staffType === 'operador' ? 'operações' : 'supervisão'}
+                      ✓ {staffType === 'cliente' 
+                        ? 'Acesso ao dashboard estratégico (somente leitura)' 
+                        : `Acesso ao app de ${staffType === 'operador' ? 'operações' : 'supervisão'}`}
                     </p>
                   </div>
                 </CardContent>
