@@ -84,7 +84,6 @@ export function useMissoes(eventoId: string | undefined) {
           motorista:motoristas(nome, veiculos!motoristas_veiculo_id_fkey(nome, placa))
         `)
         .eq('evento_id', eventoId)
-        .in('status', ['pendente', 'aceita', 'em_andamento'])
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -285,6 +284,8 @@ export function useMissoes(eventoId: string | undefined) {
   const missoesPendentes = missoes.filter(m => m.status === 'pendente');
   const missoesAceitas = missoes.filter(m => m.status === 'aceita');
   const missoesEmAndamento = missoes.filter(m => m.status === 'em_andamento');
+  const missoesConcluidas = missoes.filter(m => m.status === 'concluida');
+  const missoesCanceladas = missoes.filter(m => m.status === 'cancelada');
   const missoesAtivas = missoes.filter(m => ['pendente', 'aceita', 'em_andamento'].includes(m.status));
 
   return {
@@ -292,6 +293,8 @@ export function useMissoes(eventoId: string | undefined) {
     missoesPendentes,
     missoesAceitas,
     missoesEmAndamento,
+    missoesConcluidas,
+    missoesCanceladas,
     missoesAtivas,
     loading,
     refetch: fetchMissoes,
