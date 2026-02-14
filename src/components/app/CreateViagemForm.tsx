@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
@@ -75,6 +75,7 @@ export function CreateViagemForm({
   const [tipoOperacao, setTipoOperacao] = useState('transfer');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
   const [showQuickMotorista, setShowQuickMotorista] = useState(false);
 
   const activePontos = pontos.filter(p => p.ativo);
@@ -122,8 +123,13 @@ export function CreateViagemForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Proteção anti-duplicata (ref é síncrono, state pode ter delay)
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    
     if (!motorista || !pontoEmbarque) {
       toast.error('Preencha os campos obrigatórios');
+      submittingRef.current = false;
       return;
     }
 
@@ -207,6 +213,7 @@ export function CreateViagemForm({
       toast.error('Erro ao criar viagem');
     } finally {
       setSaving(false);
+      submittingRef.current = false;
     }
   };
 
