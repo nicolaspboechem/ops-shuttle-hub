@@ -22,9 +22,45 @@ Deno.serve(async (req) => {
       console.warn('[close-open-trips] Erro ao obter hora do servidor:', timeError)
     }
     const serverTime = serverTimeData ? new Date(serverTimeData) : new Date()
-    console.log(`[close-open-trips] Executando às ${serverTime.toISOString()} (SP)`)
+    const serverTimeISO = serverTime.toISOString()
+    console.log(`[close-open-trips] Executando às ${serverTimeISO} (SP)`)
 
-    // Get all open trips
+    // Extrair data atual SP (YYYY-MM-DD) do serverTime
+    const spDateStr = serverTimeData
+      ? serverTimeData.substring(0, 10)
+      : serverTime.toISOString().substring(0, 10)
+
+    // ======== BLOCO 1: Fechar viagens de dias anteriores ========
+    const { data: oldTrips, error: oldError } = await supabase
+      .from('viagens')
+      .select('id')
+      .eq('encerrado', false)
+      .lt('data_criacao', `${spDateStr}T00:00:00-03:00`)
+
+    if (oldError) {
+      console.error('[close-open-trips] Erro ao buscar viagens antigas:', oldError)
+    } else if (oldTrips && oldTrips.length > 0) {
+      const oldIds = oldTrips.map(t => t.id)
+      console.log(`[close-open-trips] Fechando ${oldIds.length} viagens de dias anteriores`)
+
+      const { error: oldUpdateError } = await supabase
+        .from('viagens')
+        .update({
+          encerrado: true,
+          status: 'encerrado',
+          h_fim_real: serverTimeISO,
+          observacao: 'Encerrada automaticamente - dia anterior',
+        })
+        .in('id', oldIds)
+
+      if (oldUpdateError) {
+        console.error('[close-open-trips] Erro ao fechar viagens antigas:', oldUpdateError)
+      } else {
+        console.log(`[close-open-trips] ${oldIds.length} viagens de dias anteriores encerradas`)
+      }
+    }
+
+    // ======== BLOCO 2: Lógica original - fechar viagens duplicadas do mesmo motorista ========
     const { data: openTrips, error: openError } = await supabase
       .from('viagens')
       .select('id, motorista, h_pickup, h_chegada, evento_id')
@@ -52,14 +88,12 @@ Deno.serve(async (req) => {
     // For each driver, if they have multiple open trips, close all but the last one
     for (const [key, trips] of tripsByDriver) {
       if (trips.length > 1) {
-        // Sort by h_pickup
         trips.sort((a, b) => {
           const timeA = a.h_pickup || '00:00:00'
           const timeB = b.h_pickup || '00:00:00'
           return timeA.localeCompare(timeB)
         })
         
-        // Close all but the last trip
         for (let i = 0; i < trips.length - 1; i++) {
           tripsToClose.push(trips[i].id)
           closedDetails.push({
@@ -70,8 +104,6 @@ Deno.serve(async (req) => {
         }
       }
     }
-
-    console.log(`Closing ${tripsToClose.length} trips`)
 
     // Also check for trips where driver has a later closed trip
     const { data: allTrips, error: allError } = await supabase
@@ -92,14 +124,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // For each open trip, check if driver has a later closed trip
       for (const trip of openTrips || []) {
         if (tripsToClose.includes(trip.id)) continue
         
         const key = `${trip.evento_id}|${trip.motorista}`
         const closedTrips = closedTripsByDriver.get(key) || []
         
-        // Check if any closed trip has a later h_pickup
         const hasLaterClosedTrip = closedTrips.some(ct => {
           const openTime = trip.h_pickup || '00:00:00'
           const closedTime = ct.h_pickup || '00:00:00'
@@ -117,11 +147,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Close all identified trips
+    console.log(`Closing ${tripsToClose.length} trips`)
+
+    // Close all identified trips with full status update
     if (tripsToClose.length > 0) {
       const { error: updateError } = await supabase
         .from('viagens')
-        .update({ encerrado: true })
+        .update({
+          encerrado: true,
+          status: 'encerrado',
+          h_fim_real: serverTimeISO,
+        })
         .in('id', tripsToClose)
 
       if (updateError) {
@@ -135,7 +171,8 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       closed: tripsToClose.length,
-      details: closedDetails.slice(0, 50) // Limit details to first 50
+      oldTrips: oldTrips?.length || 0,
+      details: closedDetails.slice(0, 50)
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
