@@ -1,55 +1,43 @@
 
 
-# Corrigir Priorizacao de Missoes e Ajustes no Localizador
+# Corrigir Coluna "Retornando para Base" no Localizador
 
-## 1. Priorizacao por horario_previsto
+## Problema
 
-**Problema atual:** O desempate entre missoes de mesmo status usa `created_at`, mas deveria usar `horario_previsto` (horario agendado). Somente missoes instantaneas (sem `horario_previsto`) devem usar `created_at` como fallback.
+Atualmente, motoristas com missao **aceita** ou **pendente** cujo destino e a Base ja aparecem na coluna "Retornando para Base". Isso esta errado: o motorista so esta efetivamente retornando quando a missao foi **iniciada** (`em_andamento`).
 
-**Solucao:**
+Com missao apenas aceita, o motorista ainda esta no ponto onde se encontra fisicamente.
+
+## Solucao
 
 ### `src/pages/PainelLocalizador.tsx`
 
-**a) Adicionar `horario_previsto` na query** (linha 87):
-```
-.select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto')
-```
+**Linha 220** - Alterar o filtro de `retornandoBaseIds` para considerar apenas `em_andamento`:
 
-**b) Alterar logica de desempate** (linha 156):
-Quando duas missoes tem o mesmo status, priorizar por `horario_previsto` (mais cedo primeiro). Se uma tem `horario_previsto` e outra nao, a agendada tem prioridade. Somente quando ambas nao tem `horario_previsto`, usar `created_at`.
-
-Nova logica de comparacao:
+De:
 ```typescript
-// Desempate: horario_previsto (mais cedo ganha), fallback created_at
-function compareMissoes(a, b) {
-  if (a.horario_previsto && b.horario_previsto) {
-    return a.horario_previsto < b.horario_previsto; // mais cedo ganha
-  }
-  if (a.horario_previsto && !b.horario_previsto) return true; // agendada ganha
-  if (!a.horario_previsto && b.horario_previsto) return false;
-  return a.created_at > b.created_at; // instantaneas: mais recente ganha
-}
+if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
 ```
 
-Aplicar essa logica em todos os 3 pontos de priorizacao:
-- `missoesPorMotorista` (linha 146-162)
-- `missoesPendentes > perDriver` (linha ~188)
-- `missoesPendentesPorMotorista` (linha ~197)
+Para:
+```typescript
+if (missao.ponto_desembarque === baseNome && missao.status === 'em_andamento') {
+```
 
-## 2. Corrigir texto do footer
+Isso garante que:
+- **Missao aceita com destino Base**: motorista fica na coluna da sua localizacao atual
+- **Missao em_andamento com destino Base**: motorista aparece na coluna "Retornando para Base"
+- **Missao pendente**: continua no fluxo separado de "Missoes Pendentes"
 
-**Linha 494:** Trocar "a cada 30 segundos" para "a cada 60 segundos" (compativel com o intervalo real de 60000ms na linha 121).
+## Sobre aceitacao de missoes em qualquer ordem
 
-## 3. Atualizar versao do app
+Esse comportamento ja esta implementado. O sistema permite que o motorista aceite qualquer missao disponivel, independente do horario. A unica restricao e ter apenas uma missao ativa por vez (`aceita` ou `em_andamento`). A priorizacao por `horario_previsto` que implementamos e apenas para exibicao nos cards do Localizador, nao afeta a ordem de aceitacao no app do motorista.
 
-### `src/lib/version.ts`
-- `APP_VERSION`: '1.8.0' para '1.8.1'
-- `APP_BUILD_DATE`: '2026-02-13' para '2026-02-14'
-
-## Resumo de arquivos
+## Resumo
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/PainelLocalizador.tsx` | Query + logica priorizacao + footer |
-| `src/lib/version.ts` | Versao e data |
+| `src/pages/PainelLocalizador.tsx` | Linha 220: filtrar retornandoBaseIds apenas por `em_andamento` |
+
+1 linha alterada, 1 arquivo.
 
