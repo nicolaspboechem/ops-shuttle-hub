@@ -8,7 +8,7 @@
  * 
  * Atualizar este arquivo a cada nova versão!
  */
-export const APP_VERSION = '1.8.1';
+export const APP_VERSION = '1.9.0';
 
 // Informações adicionais
 export const APP_BUILD_DATE = '2026-02-14';
