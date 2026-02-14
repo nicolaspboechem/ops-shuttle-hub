@@ -1,27 +1,24 @@
 
+# Exibir Horario da Missao na Rota do Localizador
 
-# Diferenciar Missao Aceita de Em Transito no Localizador
+## Mudanca
 
-## Problema
+Adicionar o campo `horario_previsto` da missao ao lado da rota nos cards do Localizador, exibindo algo como "10:30 Jockey -> GIG".
 
-Os status "Missao Aceita" e "Em Transito" usam tons de azul quase identicos nos cards do Localizador, dificultando a distincao visual rapida - especialmente em TVs.
+## Alteracoes
 
-## Solucao
+### 1. `src/pages/PainelLocalizador.tsx`
+- Na query `fetchMissoes` (linha 87), adicionar `horario_previsto` ao SELECT:
+  `'id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at, horario_previsto'`
 
-Alterar a cor de "Missao Aceita" de azul para **roxo/violeta**, mantendo "Em Transito" em azul com pulse.
+### 2. `src/components/localizador/LocalizadorCard.tsx`
+- Expandir a interface da prop `missao` para incluir `horario_previsto?: string | null`
+- No bloco da rota (linha 85-90), exibir o horario formatado (HH:mm) antes da rota quando disponivel
+- Usar um icone `Clock` pequeno ao lado do horario para clareza visual
 
-| Status | Cor atual | Nova cor |
-|--------|-----------|----------|
-| Missao Aceita | Azul (bg-blue-500) | Roxo (bg-violet-500 / text-violet-400) |
-| Em Transito | Azul pulsante | Sem mudanca |
+Visual resultante no card:
+```
+[Clock] 10:30  Jockey -> GIG
+```
 
-## Alteracao
-
-### `src/components/localizador/LocalizadorCard.tsx`
-
-Linha 15 do `statusConfig` - trocar cores de `missao_aceita`:
-- `color`: `'bg-blue-500'` para `'bg-violet-500'`
-- `textColor`: `'text-blue-400'` para `'text-violet-400'`
-
-1 linha alterada, 1 arquivo.
-
+2 arquivos alterados, mudancas minimas.
