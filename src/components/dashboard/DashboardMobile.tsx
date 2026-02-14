@@ -112,7 +112,7 @@ export function DashboardMobile() {
     }
   };
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
 
   // Filtrar viagens por tipo de operação
   const viagensFiltradas = useMemo(() => {

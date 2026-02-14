@@ -43,7 +43,7 @@ export default function ViagensAtivas() {
   const { viagens, loading, updateViagem } = useViagens(eventoId, viagensOptions);
   const { kpis, viagensAtivas } = useCalculos(viagens);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
