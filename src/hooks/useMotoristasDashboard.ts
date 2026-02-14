@@ -12,7 +12,8 @@ interface MotoristasDashboardData {
 export function useMotoristasDashboard(
   eventoId: string | undefined,
   dataOperacional: string,
-  motoristasEmViagem: Set<string> // motorista_ids com viagem ativa
+  motoristasEmViagem: Set<string>,
+  missoesExternas?: { motorista_id: string; status: string }[] // Optional: reuse from useMissoes
 ): MotoristasDashboardData {
   const [presencaIds, setPresencaIds] = useState<string[]>([]);
   const [missoesAtivas, setMissoesAtivas] = useState<{ motorista_id: string; status: string }[]>([]);
@@ -25,29 +26,39 @@ export function useMotoristasDashboard(
     }
 
     try {
-      const [presencaRes, missoesRes] = await Promise.all([
-        supabase
-          .from('motorista_presenca')
-          .select('motorista_id')
-          .eq('evento_id', eventoId)
-          .eq('data', dataOperacional)
-          .not('checkin_at', 'is', null)
-          .is('checkout_at', null),
-        supabase
-          .from('missoes')
-          .select('motorista_id, status')
-          .eq('evento_id', eventoId)
-          .in('status', ['pendente', 'aceita', 'em_andamento']),
-      ]);
+      // Always fetch presença; only fetch missões if not provided externally
+      const presencaPromise = supabase
+        .from('motorista_presenca')
+        .select('motorista_id')
+        .eq('evento_id', eventoId)
+        .eq('data', dataOperacional)
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null);
 
-      setPresencaIds((presencaRes.data || []).map(p => p.motorista_id));
-      setMissoesAtivas(missoesRes.data || []);
+      if (missoesExternas) {
+        // Use external data, only fetch presença
+        const presencaRes = await presencaPromise;
+        setPresencaIds((presencaRes.data || []).map(p => p.motorista_id));
+        setMissoesAtivas(missoesExternas);
+      } else {
+        // Fetch both
+        const [presencaRes, missoesRes] = await Promise.all([
+          presencaPromise,
+          supabase
+            .from('missoes')
+            .select('motorista_id, status')
+            .eq('evento_id', eventoId)
+            .in('status', ['pendente', 'aceita', 'em_andamento']),
+        ]);
+        setPresencaIds((presencaRes.data || []).map(p => p.motorista_id));
+        setMissoesAtivas(missoesRes.data || []);
+      }
     } catch (err) {
       console.error('[useMotoristasDashboard] Erro:', err);
     } finally {
       setLoading(false);
     }
-  }, [eventoId, dataOperacional]);
+  }, [eventoId, dataOperacional, missoesExternas]);
 
   useEffect(() => {
     fetchData();
