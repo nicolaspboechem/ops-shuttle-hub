@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
@@ -70,6 +70,7 @@ export function CreateViagemMotoristaForm({
   const [tipoOperacao, setTipoOperacao] = useState('transfer');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
 
   const activePontos = pontos.filter(p => p.ativo);
 
@@ -95,6 +96,10 @@ export function CreateViagemMotoristaForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Proteção anti-duplicata (ref é síncrono, state pode ter delay)
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    
     // Log de diagnóstico
     console.log('[CreateViagemMotoristaForm] Tentando criar viagem:', {
       eventoId,
@@ -111,20 +116,24 @@ export function CreateViagemMotoristaForm({
     if (!driverSession?.motorista_id) {
       toast.error('Sessão expirada. Faça login novamente.');
       console.error('[CreateViagemMotoristaForm] Sessão inválida:', driverSession);
+      submittingRef.current = false;
       return;
     }
     
     // Validações obrigatórias para motorista
     if (!pontoEmbarque) {
       toast.error('Selecione o ponto de embarque');
+      submittingRef.current = false;
       return;
     }
     if (!pontoDesembarque) {
       toast.error('Selecione o ponto de desembarque');
+      submittingRef.current = false;
       return;
     }
     if (!qtdPax || parseInt(qtdPax) <= 0) {
       toast.error('Informe a quantidade de passageiros');
+      submittingRef.current = false;
       return;
     }
 
@@ -216,6 +225,7 @@ export function CreateViagemMotoristaForm({
       toast.error('Erro ao criar viagem');
     } finally {
       setSaving(false);
+      submittingRef.current = false;
     }
   };
 
