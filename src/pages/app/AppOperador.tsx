@@ -4,12 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
+import { useUserNames } from '@/hooks/useUserNames';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
-import { Evento } from '@/lib/types/viagem';
+import { Evento, Viagem } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
-import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { CreateShuttleForm } from '@/components/app/CreateShuttleForm';
-import { useViagemOperacaoStaff } from '@/hooks/useViagemOperacaoStaff';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
@@ -19,16 +18,46 @@ import {
   ArrowLeft, 
   Loader2,
   Bus,
-  Clock,
-  CheckCircle,
+  Users,
   RefreshCw
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
-
-type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
+import { format } from 'date-fns';
 
 const MemoizedHistoricoTab = memo(OperadorHistoricoTab);
 const MemoizedMaisTab = memo(OperadorMaisTab);
+
+// Card simples para shuttle registrado
+function ShuttleRegistroCard({ viagem, getName }: { viagem: Viagem; getName: (id: string) => string }) {
+  const horario = viagem.h_inicio_real 
+    ? format(new Date(viagem.h_inicio_real), 'HH:mm')
+    : '--:--';
+  const criador = viagem.criado_por ? getName(viagem.criado_por) : '';
+
+  return (
+    <div className="bg-card border rounded-lg px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="bg-primary/10 rounded-full p-1.5">
+            <Users className="h-4 w-4 text-primary" />
+          </div>
+          <span className="text-lg font-bold">{viagem.qtd_pax || 0} PAX</span>
+        </div>
+        <div className="text-right">
+          <span className="text-sm font-mono text-muted-foreground">{horario}</span>
+          {criador && (
+            <p className="text-xs text-muted-foreground truncate max-w-[120px]">{criador}</p>
+          )}
+        </div>
+      </div>
+      {viagem.observacao && (
+        <p className="text-xs text-muted-foreground mt-1.5 truncate">
+          {viagem.observacao}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -38,7 +67,6 @@ export default function AppOperador() {
   
   const [evento, setEvento] = useState<Evento | null>(null);
   const [showShuttleForm, setShowShuttleForm] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
@@ -62,7 +90,27 @@ export default function AppOperador() {
   }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
 
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
-  const staffOperacoes = useViagemOperacaoStaff();
+
+  // Get creator names
+  const creatorIds = useMemo(() => 
+    viagens.map(v => v.criado_por).filter(Boolean) as string[], 
+    [viagens]
+  );
+  const { getName } = useUserNames(creatorIds);
+
+  // Summary metrics
+  const summary = useMemo(() => ({
+    total: viagens.length,
+    totalPax: viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
+  }), [viagens]);
+
+  // Sort by most recent first
+  const sortedViagens = useMemo(() => 
+    [...viagens].sort((a, b) => 
+      new Date(b.data_criacao).getTime() - new Date(a.data_criacao).getTime()
+    ),
+    [viagens]
+  );
 
   const handleRefresh = async () => {
     await refetch();
@@ -78,30 +126,6 @@ export default function AppOperador() {
         .then(({ data }) => setEvento(data));
     }
   }, [eventoId]);
-
-  const filteredViagens = useMemo(() => 
-    viagens.filter(v => statusFilter === 'todos' || v.status === statusFilter),
-    [viagens, statusFilter]
-  );
-
-  const sortedViagens = useMemo(() => {
-    const statusOrder: Record<string, number> = { 
-      em_andamento: 0, aguardando_retorno: 1, agendado: 2, encerrado: 3, cancelado: 4 
-    };
-    return [...filteredViagens].sort((a, b) => {
-      const orderA = statusOrder[a.status as string] ?? 5;
-      const orderB = statusOrder[b.status as string] ?? 5;
-      if (orderA !== orderB) return orderA - orderB;
-      return (a.h_pickup || '').localeCompare(b.h_pickup || '');
-    });
-  }, [filteredViagens]);
-
-  const counts = useMemo(() => ({
-    agendado: viagens.filter(v => v.status === 'agendado').length,
-    em_andamento: viagens.filter(v => v.status === 'em_andamento').length,
-    aguardando_retorno: viagens.filter(v => v.status === 'aguardando_retorno').length,
-    encerrado: viagens.filter(v => v.status === 'encerrado').length,
-  }), [viagens]);
 
   const handleLogout = useCallback(() => {
     signOut();
@@ -155,59 +179,34 @@ export default function AppOperador() {
             onToggleTodosDias={setVerTodosDias}
           />
 
-          <div className="grid grid-cols-4 gap-2">
-            <div 
-              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
-              onClick={() => setStatusFilter(statusFilter === 'agendado' ? 'todos' : 'agendado')}
-            >
-              <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
-              <p className="text-xl font-bold">{counts.agendado}</p>
-              <p className="text-[10px] text-muted-foreground">Agendado</p>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border rounded-lg p-4 text-center">
+              <Bus className="h-5 w-5 mx-auto mb-1 text-primary" />
+              <p className="text-2xl font-bold">{summary.total}</p>
+              <p className="text-xs text-muted-foreground">Shuttles</p>
             </div>
-            <div 
-              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'em_andamento' ? 'ring-2 ring-primary' : 'bg-primary/10'}`}
-              onClick={() => setStatusFilter(statusFilter === 'em_andamento' ? 'todos' : 'em_andamento')}
-            >
-              <Bus className="h-4 w-4 mx-auto mb-1 text-primary" />
-              <p className="text-xl font-bold text-primary">{counts.em_andamento}</p>
-              <p className="text-[10px] text-muted-foreground">Andamento</p>
-            </div>
-            <div 
-              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'aguardando_retorno' ? 'ring-2 ring-primary' : 'bg-amber-500/10'}`}
-              onClick={() => setStatusFilter(statusFilter === 'aguardando_retorno' ? 'todos' : 'aguardando_retorno')}
-            >
-              <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
-              <p className="text-xl font-bold text-amber-600">{counts.aguardando_retorno}</p>
-              <p className="text-[10px] text-muted-foreground">Aguardando</p>
-            </div>
-            <div 
-              className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'encerrado' ? 'ring-2 ring-primary' : 'bg-emerald-500/10'}`}
-              onClick={() => setStatusFilter(statusFilter === 'encerrado' ? 'todos' : 'encerrado')}
-            >
-              <CheckCircle className="h-4 w-4 mx-auto mb-1 text-emerald-600" />
-              <p className="text-xl font-bold text-emerald-600">{counts.encerrado}</p>
-              <p className="text-[10px] text-muted-foreground">Encerrado</p>
+            <div className="bg-card border rounded-lg p-4 text-center">
+              <Users className="h-5 w-5 mx-auto mb-1 text-primary" />
+              <p className="text-2xl font-bold">{summary.totalPax}</p>
+              <p className="text-xs text-muted-foreground">Passageiros</p>
             </div>
           </div>
 
-          <div className="space-y-3">
+          {/* List */}
+          <div className="space-y-2">
             {sortedViagens.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">Nenhuma viagem</p>
-                <p className="text-sm mb-4">
-                  {statusFilter !== 'todos' 
-                    ? 'Nenhuma viagem com este status'
-                    : 'Toque em + para registrar um shuttle'}
-                </p>
+                <p className="text-lg font-medium">Nenhum shuttle</p>
+                <p className="text-sm mb-4">Toque em + para registrar</p>
               </div>
             ) : (
               sortedViagens.map(viagem => (
-                <ViagemCardOperador 
+                <ShuttleRegistroCard 
                   key={viagem.id} 
-                  viagem={viagem} 
-                  onUpdate={refetch}
-                  operacoes={staffOperacoes}
+                  viagem={viagem}
+                  getName={getName}
                 />
               ))
             )}
@@ -229,7 +228,7 @@ export default function AppOperador() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
-      {/* Header simplificado */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
