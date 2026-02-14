@@ -1,77 +1,70 @@
 
 
-# Correcao de Dados Inconsistentes e Protecao Anti-Duplicata
+# Filtro por Data no Historico + Limpeza Shuttle no Operador
 
-## Parte 1: Correcao de dados (SQL direto)
+## Resumo
 
-Tres motoristas com dados inconsistentes serao corrigidos:
+Duas alteracoes principais:
 
-### 1. Cacia Lima "Hellen"
-- **Problema**: Viagem `a798c8b2` em `em_andamento` / `encerrado = false` (missao foi concluida via CCO antes do fix de sync)
-- **Correcao**: Encerrar a viagem e resetar status da motorista para `disponivel`
+1. **App Motorista - Historico com filtro por data**: O historico atual carrega todas as viagens finalizadas de todos os dias, o que fica confuso. Sera adicionado o componente `DiaSeletor` para filtrar por data operacional.
 
-### 2. Luis Claudio
-- **Problema**: Duas viagens duplicadas criadas com 1 segundo de diferenca (double-click), ambas `em_andamento`
-  - `1e9bd87d` (16:53:55)
-  - `e44bb3e1` (16:53:57)
-- **Correcao**: Encerrar ambas as viagens e resetar status do motorista para `disponivel`
-
-### 3. Alexandre Lima
-- **Problema**: Status `em_viagem` sem nenhuma viagem ativa (orfao puro)
-- **Correcao**: Resetar status para `disponivel`
-
-### Comandos SQL
-
-```sql
--- 1. Encerrar viagem orfa da Cacia
-UPDATE viagens SET status = 'encerrado', encerrado = true,
-  h_fim_real = NOW(), observacao = COALESCE(observacao || ' | ', '') || 'Encerrado manualmente - viagem orfa'
-WHERE id = 'a798c8b2-aed4-417a-8263-9c77add10b0c';
-
--- Resetar status da Cacia
-UPDATE motoristas SET status = 'disponivel'
-WHERE id = '65105abb-7e7a-463c-933a-13bae018c155';
-
--- 2. Encerrar viagens duplicadas do Luis Claudio
-UPDATE viagens SET status = 'encerrado', encerrado = true,
-  h_fim_real = NOW(), observacao = COALESCE(observacao || ' | ', '') || 'Encerrado manualmente - viagem duplicada'
-WHERE id IN ('1e9bd87d-4729-41fb-8fc5-7df49c352f1e', 'e44bb3e1-8fe3-4c00-bc45-45a61f407806');
-
--- Resetar status do Luis Claudio
-UPDATE motoristas SET status = 'disponivel'
-WHERE id = '249f1852-2843-4d6a-b014-8e15124da14a';
-
--- 3. Resetar status do Alexandre Lima
-UPDATE motoristas SET status = 'disponivel'
-WHERE id = '519d9895-192d-44d0-8e35-d776f4afe1e0';
-```
+2. **App Operador - Remover lista de shuttles do historico**: A aba "Historico" do operador lista todas as corridas shuttle individualmente, o que polui a interface. Sera transformada em um dashboard visual apenas com metricas (total shuttles, PAX, etc.) sem listar cada corrida. O historico detalhado de shuttle ja existe no CCO via `ShuttleTable` na `EventoTabs`.
 
 ---
 
-## Parte 2: Protecao contra double-click
+## Detalhes Tecnicos
 
-Adicionar debounce nos dois formularios de criacao de viagem para impedir que dois cliques rapidos criem registros duplicados.
+### 1. MotoristaHistoricoTab - Filtro por Data
 
-### Arquivos modificados
+**Arquivo:** `src/components/app/MotoristaHistoricoTab.tsx`
 
-**`src/components/app/CreateViagemMotoristaForm.tsx`**
-- Adicionar `useRef` para rastrear submissao em andamento
-- No inicio do `handleSubmit`, verificar se ja esta salvando (`if (saving) return`)
-- Usar ref como trava instantanea (state pode ter delay por ser assincrono)
+- Adicionar props `dataOperacional` e `onDataChange` ao componente
+- Adicionar props `dataInicio` e `dataFim` do evento para limitar o seletor
+- Importar e renderizar o componente `DiaSeletor` no topo da aba
+- Filtrar `viagensFinalizadas` pela `dataOperacional` selecionada (comparando `data_criacao` com a data operacional)
 
-**`src/components/app/CreateViagemForm.tsx`**
-- Mesma protecao: ref de submissao + early return se ja salvando
+**Arquivo:** `src/pages/app/AppMotorista.tsx`
 
-### Logica da protecao
+- Passar `dataOperacional`, `setDataOperacional`, `evento?.data_inicio`, `evento?.data_fim` como props para `MotoristaHistoricoTab`
+- O filtro de `minhasViagensFinalizadas` permanece como esta (filtra por status), mas agora tambem filtrara por data operacional
+- Mover o filtro de data para dentro do `MotoristaHistoricoTab` ou filtrar antes de passar as viagens
 
+**Abordagem escolhida:** Filtrar no proprio `MotoristaHistoricoTab` usando a data operacional. O componente recebera todas as viagens finalizadas e filtrara internamente pela data selecionada, usando `getDataOperacional` para comparar corretamente com o horario de virada do dia.
+
+Novas props:
 ```text
-handleSubmit:
-  1. if (submittingRef.current) return  // trava instantanea
-  2. submittingRef.current = true
-  3. setSaving(true)
-  4. ... executar insert ...
-  5. finally: setSaving(false); submittingRef.current = false
++ horarioVirada?: string
++ dataInicio?: string
++ dataFim?: string
 ```
 
-Isso garante que mesmo que o React ainda nao tenha atualizado o state `saving`, o ref ja bloqueia a segunda chamada.
+O componente tera um estado interno `dataSelecionada` com default = data operacional atual, e usara `DiaSeletor` para navegar entre datas.
+
+### 2. OperadorHistoricoTab - Dashboard Visual (sem lista)
+
+**Arquivo:** `src/components/app/OperadorHistoricoTab.tsx`
+
+- Remover toda a lista de cards de viagens individuais
+- Manter apenas o bloco de resumo (grid com Encerradas, Canceladas, PAX Total)
+- Adicionar mais metricas visuais se aplicavel (ex: hora do primeiro e ultimo shuttle)
+- Resultado: dashboard limpo com apenas numeros agregados
+
+**Arquivo:** `src/pages/app/AppOperador.tsx`
+
+- A aba "Viagens" ja mostra a lista de shuttles com ShuttleRegistroCard - isso permanece
+- A aba "Historico" passa a mostrar apenas o dashboard visual de metricas
+
+### Sem alteracoes no CCO
+
+O CCO ja possui visualizacao de historico de shuttle via `ShuttleTable` dentro de `EventoTabs.tsx` (aba "Shuttle"). Nenhuma alteracao necessaria no CCO.
+
+---
+
+## Arquivos Modificados
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/app/MotoristaHistoricoTab.tsx` | Adicionar DiaSeletor com estado interno de data, filtrar viagens pela data selecionada |
+| `src/pages/app/AppMotorista.tsx` | Passar props de evento (horarioVirada, dataInicio, dataFim) para MotoristaHistoricoTab |
+| `src/components/app/OperadorHistoricoTab.tsx` | Remover lista de cards individuais, manter apenas dashboard de metricas |
 
