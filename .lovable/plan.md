@@ -1,76 +1,107 @@
 
 
-# Plano Consolidado: Sidebar CCO + Ordenacao de Veiculos + Status Pendente
+# Analise de Inconsistencias e Melhorias: Localizacao, Missoes, Check-in/Check-out
 
-## 1. Correcao da Sidebar CCO (flickering ao passar o mouse)
+## Inconsistencias Identificadas
 
-**Arquivo:** `src/components/layout/MainLayout.tsx`
+### 1. Localizacao do motorista nao atualiza ao finalizar missao via CCO
 
-**Causa:** Todos os itens de navegacao estao envolvidos em `Tooltip` + `TooltipTrigger asChild` (linhas 67-81), mesmo quando a sidebar esta expandida. Com `delayDuration={0}` (linha 42), o Radix intercepta eventos de ponteiro imediatamente, causando re-renders e atrasando cliques.
+**Onde:** `useMissoes.ts` -- funcoes `concluirMissao` e `cancelarMissao` (linhas 275-281)
 
-**Correcao:**
-- Envolver em `Tooltip` apenas quando `collapsed === true`
-- Quando expandido, renderizar o `NavLink` diretamente sem wrapper de Tooltip
-- Aumentar `delayDuration` de `0` para `300` para evitar flicker entre itens
+Quando o CCO conclui ou cancela uma missao manualmente (via Kanban drag-drop), apenas o campo `status` da missao e atualizado. **Nao ha atualizacao de:**
+- `motoristas.status` (deveria voltar para `disponivel`)
+- `motoristas.ultima_localizacao` (deveria ir para o ponto de desembarque)
+- `viagens` vinculada (deveria ser encerrada)
 
-```text
-Antes:
-  <Tooltip key={item.name}>
-    <TooltipTrigger asChild>
-      <NavLink .../>
-    </TooltipTrigger>
-    {collapsed && <TooltipContent .../>}
-  </Tooltip>
+No app do motorista (`AppMotorista.tsx` linhas 314-365), a acao `finalizar` trata tudo corretamente: encerra viagem, atualiza status, atualiza localizacao. Mas no CCO, `concluirMissao` faz apenas `updateMissao(id, { status: 'concluida' })`.
 
-Depois:
-  Se collapsed:
-    <Tooltip key={item.name}>
-      <TooltipTrigger asChild><NavLink .../></TooltipTrigger>
-      <TooltipContent side="right">{item.name}</TooltipContent>
-    </Tooltip>
-  Se expandido:
-    <NavLink key={item.name} .../> (sem wrapper)
+**Impacto:** Motorista fica "fantasma" no Localizador -- aparece como `em_viagem` indefinidamente ate que outro evento (check-out, nova viagem) atualize o status.
+
+### 2. Localizador nao considera missoes para agrupar motoristas por localizacao
+
+**Onde:** `useLocalizadorMotoristas.ts` (linhas 92-100)
+
+O hook do Localizador busca `viagens` com status `em_andamento` para determinar rotas, mas **nao busca missoes**. O agrupamento depende de `motoristas.ultima_localizacao` (campo de texto) e `motoristas.status`.
+
+A pagina `PainelLocalizador.tsx` resolve isso parcialmente fazendo uma query separada de `missoes` e cruzando com `missoesPorMotorista`, mas o hook base nao tem essa informacao, causando:
+- Cards no Localizador sem rota quando a rota esta na missao e nao na viagem
+- Transicao visual dessinc: motorista em missao `aceita` ainda aparece na coluna `Base` ate que inicie a viagem
+
+### 3. Check-out nao desvincula veiculo no proprio motorista
+
+**Onde:** `useMotoristaPresenca.ts` -- `realizarCheckout` (linhas 298-343)
+
+O checkout desvincula o veiculo do motorista (`motoristas.veiculo_id = null`), mas **nao limpa `veiculos.motorista_id`** no lado do veiculo. Isso cria uma inconsistencia bidirecional:
+- `motoristas.veiculo_id` = null (correto)
+- `veiculos.motorista_id` = motoristaId anterior (incorreto -- veiculo ainda "pensa" que esta vinculado)
+
+A Edge Function `auto-checkout` faz a desvinculacao bidirecional corretamente, mas o checkout manual nao.
+
+### 4. Missoes no app do motorista nao diferenciam visualmente Instantanea vs Agendada
+
+**Onde:** `MissaoCardMobile.tsx`
+
+O card mobile mostra `data_programada` e `horario_previsto` quando disponivel, mas nao ha badge ou indicador visual claro de tipo. Missoes instantaneas (sem data/horario) e agendadas (com data futura) parecem identicas exceto pela presenca/ausencia do horario.
+
+### 5. Filtro de missoes no motorista usa `new Date()` direto em vez de `getAgoraSync()`
+
+**Onde:** `MissaoCardMobile.tsx` (linha 130)
+
+```typescript
+missao.data_programada === new Date().toISOString().slice(0, 10)
 ```
+
+Usa `new Date()` local do dispositivo em vez do horario sincronizado do servidor (`getAgoraSync()`), potencialmente mostrando "Hoje" erroneamente em dispositivos com relogio desajustado.
 
 ---
 
-## 2. Ordenacao de veiculos por nome na vinculacao
+## Plano de Correcoes
 
-**Arquivo:** `src/pages/VincularVeiculo.tsx`
+### Correcao 1: Sincronizar status do motorista ao concluir/cancelar missao via CCO
 
-**Correcao:** Adicionar `.sort()` no `useMemo` de `veiculosComMotorista` (linha 97) para ordenar por nome/placa usando `localeCompare` com `numeric: true` (garante que "Veiculo 2" vem antes de "Veiculo 10").
+**Arquivo:** `src/hooks/useMissoes.ts`
 
+Reescrever `concluirMissao` e `cancelarMissao` para incluir:
+- Encerrar a viagem vinculada (`viagens.status = 'encerrado'`, `encerrado = true`)
+- Atualizar `motoristas.status = 'disponivel'` (verificando se nao tem outras viagens ativas)
+- Atualizar `motoristas.ultima_localizacao` para o ponto_desembarque da missao
+- Manter o `updateMissao` existente para o status da missao
+
+### Correcao 2: Checkout bidirecional do veiculo
+
+**Arquivo:** `src/hooks/useMotoristaPresenca.ts`
+
+Na funcao `realizarCheckout`, adicionar a limpeza de `veiculos.motorista_id`:
 ```text
-.sort((a, b) => {
-  const nomeA = (a.nome || a.placa).toLowerCase();
-  const nomeB = (b.nome || b.placa).toLowerCase();
-  return nomeA.localeCompare(nomeB, 'pt-BR', { numeric: true });
-})
+// Apos: motoristas.update({ veiculo_id: null })
+// Adicionar: veiculos.update({ motorista_id: null }).eq('motorista_id', motoristaId)
 ```
 
----
+### Correcao 3: Badge visual de tipo de missao no app do motorista
 
-## 3. Correcao do status "Pendente" no Wizard e Filtro
+**Arquivo:** `src/components/app/MissaoCardMobile.tsx`
 
-**Diagnostico:** O codigo-fonte ja possui o status `pendente` definido em todos os componentes relevantes (VistoriaVeiculoWizard, VeiculoCardSupervisor, SupervisorFrotaTab, VincularVeiculo). A funcao de submit do wizard (linha 215) grava `status: statusFinal` corretamente. A query ao banco mostra que todos os 41 veiculos estao como `liberado` -- nenhum esta `pendente`.
+Adicionar badge contextual no header do card:
+- Sem `data_programada` ou `data_programada === hoje` e sem `horario_previsto`: exibir badge "Instantanea" com icone de raio (Zap) em amarelo
+- Com `horario_previsto`: exibir badge "Agendada" com icone de calendario em azul
+- Com `data_programada` futura: exibir "Agendada para DD/MM" de forma destacada
 
-**Possiveis causas de falha identificadas:**
+### Correcao 4: Usar hora sincronizada no MissaoCardMobile
 
-1. **VistoriaVeiculoWizard.tsx**: Ao editar (re-vistoria), se o wizard nao encontra o motorista via `motorista_presenca` (o que e normal se nao houver presenca registrada), a query `maybeSingle()` retorna null sem erro -- isso nao deveria bloquear. Porem, se houver **erro na query de presenca** que nao esta sendo tratado, o `try/catch` engolira o erro e mostrara "Erro ao criar veiculo" generico.
+**Arquivo:** `src/components/app/MissaoCardMobile.tsx`
 
-2. **Erro silencioso**: O `catch` (linhas 281-283) mostra `toast.error('Erro ao salvar vistoria')` sem detalhar qual erro ocorreu, dificultando o diagnostico.
+O componente precisa receber `dataOperacional` como prop (ja calculado no pai `AppMotorista.tsx`) para comparar datas corretamente, em vez de usar `new Date()`.
 
-**Correcoes:**
-- **Adicionar log de erro** no catch do wizard para exibir a mensagem real do erro no toast (ex: `toast.error('Erro: ' + error.message)`)
-- **Adicionar tratamento explicito** para o campo `status` no update do wizard, garantindo que o valor `pendente` esta sendo enviado sem transformacao
-- **Testar a gravacao** diretamente: se o status `pendente` salva corretamente via `handleStatusChange` do supervisor (swipe esquerda no card), o problema esta isolado no wizard
+Alternativamente, passar `serverDate` como prop string `YYYY-MM-DD` do pai.
 
-**Arquivo:** `src/components/app/VistoriaVeiculoWizard.tsx`
-- Melhorar mensagem de erro no catch (linhas 280-283)
-- Adicionar `console.error` para debugging
+### Correcao 5: Melhoria no filtro/organizacao de missoes no app motorista
 
-**Arquivo:** `src/components/app/SupervisorFrotaTab.tsx`
-- Nenhuma alteracao necessaria (status pendente ja esta mapeado corretamente nos filtros e agrupamentos)
+**Arquivo:** `src/pages/app/AppMotorista.tsx`
+
+Reorganizar a lista de missoes `minhasMissoes` para:
+1. Ordenar por prioridade de acao: `em_andamento` primeiro (acao de finalizar), depois `aceita` (acao de iniciar), depois `pendente` (acao de aceitar)
+2. Dentro de cada grupo, ordenar por `horario_previsto` (mais cedo primeiro), fallback por `created_at`
+3. Missoes sem horario (instantaneas) ficam antes das agendadas dentro do mesmo status
 
 ---
 
@@ -78,7 +109,8 @@ Depois:
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/layout/MainLayout.tsx` | Condicionar Tooltip ao estado collapsed, delayDuration 300 |
-| `src/pages/VincularVeiculo.tsx` | Ordenar veiculos por nome com localeCompare numeric |
-| `src/components/app/VistoriaVeiculoWizard.tsx` | Melhorar tratamento de erro no catch para diagnosticar falha do status pendente |
+| `src/hooks/useMissoes.ts` | Sincronizar motorista/viagem ao concluir/cancelar missao no CCO |
+| `src/hooks/useMotoristaPresenca.ts` | Desvinculacao bidirecional de veiculo no checkout |
+| `src/components/app/MissaoCardMobile.tsx` | Badge tipo missao (Instantanea/Agendada), hora sincronizada |
+| `src/pages/app/AppMotorista.tsx` | Ordenacao inteligente de missoes, passar dataOperacional |
 
