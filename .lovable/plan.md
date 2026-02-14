@@ -1,52 +1,80 @@
 
 
-# Correcao: Motorista aparecendo em "Retornando para Base" antes de iniciar viagem
+# Sincronizar Mapa de Servico com Painel Localizador
 
 ## Problema
 
-No `MapaServico.tsx` (linha 134), o filtro `retornandoBaseIds` inclui missoes com status `pendente` e `aceita`:
+O Mapa de Servico (aba Localizacao) e o Painel Localizador usam logicas diferentes para agrupar motoristas nas colunas. O Localizador e o padrao correto. As diferencas encontradas:
+
+| Aspecto | Localizador (correto) | Mapa de Servico (incorreto) |
+|---------|----------------------|---------------------------|
+| Missoes no mapa | Exclui `pendente` do mapa de missoes por motorista | Inclui `pendente` no mapa |
+| Filtro por dia operacional | Filtra missoes por `data_programada` do dia operacional | Nao filtra por dia -- usa TODAS as missoes ativas |
+| Coluna "Outros" | So move se missao `aceita` ou `em_andamento` | Move tambem se missao `pendente` |
+| Em Transito por missao | Motorista com missao `em_andamento` vai para Em Transito | Ignora missao, usa apenas `m.status === 'em_viagem'` |
+| Coluna Missoes Pendentes | Existe como coluna fixa | Nao existe |
+
+Essas diferencas fazem com que um motorista como Marlon apareca em colunas diferentes nos dois paineis.
+
+## Solucao
+
+Reescrever a logica de agrupamento do `MapaServico.tsx` para replicar exatamente a do `PainelLocalizador.tsx`:
+
+### 1. Buscar missoes com filtro de dia operacional
+
+Atualmente o MapaServico usa `useMissoes(eventoId).missoesAtivas` que traz TODAS as missoes ativas sem filtrar por dia. Substituir por uma busca propria (como o Localizador faz) que filtra por `data_programada`:
 
 ```text
-['pendente', 'aceita', 'em_andamento'].includes(missao.status)
+// Buscar missoes filtradas pelo dia operacional
+const dataOp = getDataOperacional(new Date(), horarioVirada);
+supabase.from('missoes')
+  .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, ...')
+  .eq('evento_id', eventoId)
+  .in('status', ['pendente', 'aceita', 'em_andamento'])
+  .or(`data_programada.eq.${dataOp},data_programada.is.null`)
 ```
 
-Isso faz com que o motorista (Leonardo) seja movido para a coluna "Retornando para Base" assim que a missao e criada ou aceita, mesmo sem ter iniciado a viagem.
+### 2. Excluir `pendente` do mapa de missoes por motorista
 
-O `PainelLocalizador.tsx` (linha 220) ja esta correto, filtrando apenas por `em_andamento`.
-
-## Correcao
-
-Alterar a linha 134 de `MapaServico.tsx` para usar apenas `em_andamento`, alinhando com o comportamento do Painel Localizador:
+No `missoesPorMotorista`, pular missoes com status `pendente` (igual ao Localizador linha 163):
 
 ```text
-// ANTES (bug):
-if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status))
-
-// DEPOIS (correto):
-if (missao.ponto_desembarque === baseNome && missao.status === 'em_andamento')
+missoesAtivas.forEach(m => {
+  if (m.status === 'pendente') return;  // ADICIONAR
+  ...
+});
 ```
 
-Tambem remover o bloco secundario (linhas 138-144) que move motoristas para "Retornando" baseado no `retornandoPontoNome` da localizacao. Esse bloco duplica motoristas na coluna mesmo quando nao estao em transito:
+### 3. Ajustar logica de "Outros" para excluir `pendente`
+
+Mudar de `['pendente', 'aceita', 'em_andamento']` para `['aceita', 'em_andamento']`.
+
+### 4. Adicionar logica de "Em Transito por missao"
+
+Motorista com missao `em_andamento` (que nao seja retorno a base) deve ir para "Em Viagem", igual ao Localizador:
 
 ```text
-// REMOVER:
-if (retornandoPontoNome) {
-  motoristas.forEach(m => {
-    if (m.ultima_localizacao === retornandoPontoNome && m.status !== 'em_viagem') {
-      ids.add(m.id);
-    }
-  });
+const emTransitoPorMissao = missao?.status === 'em_andamento';
+// ...
+} else if (emTransitoPorMissao && loc !== 'em_transito') {
+  emViagem.push(m);
 }
 ```
 
-## Resultado
+### 5. Adicionar coluna "Missoes Pendentes"
 
-- Motorista com missao `pendente` ou `aceita` permanece na sua coluna de localizacao atual
-- Motorista so aparece em "Retornando para Base" quando a missao esta `em_andamento` (viagem iniciada)
-- Comportamento alinhado com o Painel Localizador
+Criar a mesma logica de `motoristasPendentes` e `missoesPendentesPorMotorista` do Localizador e renderizar como coluna fixa no lado direito.
 
-## Arquivo modificado
+## Arquivos modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/MapaServico.tsx` | `retornandoBaseIds`: filtrar apenas `em_andamento` + remover bloco duplicado de `retornandoPontoNome` |
+| `src/pages/MapaServico.tsx` | Reescrever logica de missoes e agrupamento para espelhar PainelLocalizador; adicionar busca com filtro de dia operacional; adicionar coluna de Missoes Pendentes |
+
+## Resultado
+
+- Ambos os paineis exibirao os mesmos motoristas nas mesmas colunas
+- Motorista com missao `pendente` (sem iniciar) permanece na sua coluna de localizacao atual
+- Motorista so muda de coluna quando a missao esta `aceita` ou `em_andamento`
+- Coluna de Missoes Pendentes aparece no Mapa de Servico para visibilidade
+
