@@ -75,6 +75,8 @@ export default function AppMotorista() {
   
   // Estado para modal de aviso de veículo não vinculado
   const [showVeiculoAlert, setShowVeiculoAlert] = useState(false);
+  const [missaoParaIniciar, setMissaoParaIniciar] = useState<string | null>(null);
+  const missaoActionRef = useRef(false);
 
   // Tutorial system
   const tutorial = useTutorial('motorista', motoristaSteps);
@@ -216,8 +218,12 @@ export default function AppMotorista() {
   };
 
   const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar' | 'finalizar') => {
+    // Guard anti-duplicata síncrono
+    if (missaoActionRef.current) return;
+    missaoActionRef.current = true;
+
     const missao = missoes.find(m => m.id === missaoId);
-    if (!missao) return;
+    if (!missao) { missaoActionRef.current = false; return; }
 
     setOperando(missaoId);
     try {
@@ -248,6 +254,18 @@ export default function AppMotorista() {
         // Verificar se tem veículo vinculado
         if (!motoristaData?.veiculo_id) {
           setShowVeiculoAlert(true);
+          return;
+        }
+        // Verificar se missão já tem viagem ativa (anti-duplicata)
+        const { data: viagemExistente } = await supabase
+          .from('viagens')
+          .select('id')
+          .eq('origem_missao_id', missaoId)
+          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno'])
+          .limit(1);
+
+        if (viagemExistente && viagemExistente.length > 0) {
+          toast.info('Missão já possui viagem ativa');
           return;
         }
         // Criar viagem ao iniciar a missão
@@ -385,6 +403,7 @@ export default function AppMotorista() {
       refetchMissoes();
     } finally {
       setOperando(null);
+      missaoActionRef.current = false;
     }
   };
 
@@ -472,7 +491,7 @@ export default function AppMotorista() {
                       disabled={missao.status === 'pendente' && temOutraAtiva}
                       dataOperacional={dataOperacional}
                       onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
-                      onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
+                      onIniciar={() => setMissaoParaIniciar(missao.id)}
                       onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
                       onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
                     />
@@ -734,6 +753,41 @@ export default function AppMotorista() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction className="w-full">Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Alert: Confirmação para iniciar missão */}
+      <AlertDialog open={!!missaoParaIniciar} onOpenChange={(open) => { if (!open) setMissaoParaIniciar(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-2">
+              <ClipboardList className="h-10 w-10 text-primary" />
+            </div>
+            <AlertDialogTitle className="text-center">Iniciar Missão?</AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              Uma viagem será criada e iniciada automaticamente. Confirme para prosseguir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setMissaoParaIniciar(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={() => {
+                if (missaoParaIniciar) {
+                  handleMissaoAction(missaoParaIniciar, 'iniciar');
+                  setMissaoParaIniciar(null);
+                }
+              }}
+            >
+              Confirmar Início
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
