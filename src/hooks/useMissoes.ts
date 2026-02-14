@@ -283,7 +283,17 @@ export function useMissoes(eventoId: string | undefined) {
       return null;
     }
 
-    return updateMissao(id, { status: 'em_andamento' });
+    const result = await updateMissao(id, { status: 'em_andamento' });
+
+    // Atualizar status do motorista para em_viagem ao iniciar missão
+    if (result && missao) {
+      await supabase
+        .from('motoristas')
+        .update({ status: 'em_viagem' })
+        .eq('id', missao.motorista_id);
+    }
+
+    return result;
   };
 
   const syncMotoristaAoEncerrarMissao = async (missao: Missao) => {
