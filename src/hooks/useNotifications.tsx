@@ -195,7 +195,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     const newNotifications: Notification[] = [];
 
-    viagemLogs.forEach((log) => {
+    // Filter out shuttle trips from notifications
+    viagemLogs.filter(log => log.viagem?.motorista !== 'Shuttle').forEach((log) => {
       const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
       const motoristaNome = log.viagem?.motorista || 'Motorista';
       const placaVeiculo = log.viagem?.placa || '';

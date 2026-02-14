@@ -9,6 +9,7 @@ import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { CreateShuttleForm } from '@/components/app/CreateShuttleForm';
+import { useViagemOperacaoStaff } from '@/hooks/useViagemOperacaoStaff';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
@@ -60,6 +61,7 @@ export default function AppOperador() {
   }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
 
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
+  const staffOperacoes = useViagemOperacaoStaff();
 
   const handleRefresh = async () => {
     await refetch();
@@ -201,6 +203,7 @@ export default function AppOperador() {
                   key={viagem.id} 
                   viagem={viagem} 
                   onUpdate={refetch}
+                  operacoes={staffOperacoes}
                 />
               ))
             )}

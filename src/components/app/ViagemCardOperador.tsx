@@ -40,10 +40,19 @@ import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
 import { NavigationLinks } from './NavigationLinks';
 
+interface ViagemOperacoes {
+  iniciarViagem: (viagem: Viagem) => Promise<boolean>;
+  registrarChegada: (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean) => Promise<boolean>;
+  encerrarViagem: (viagem: Viagem) => Promise<boolean>;
+  cancelarViagem: (viagem: Viagem, motivo?: string) => Promise<boolean>;
+  iniciarRetorno: (viagem: Viagem) => Promise<any>;
+}
+
 interface ViagemCardOperadorProps {
   viagem: Viagem & { veiculo?: { nome: string | null; placa: string; tipo_veiculo: string } | null };
   onUpdate: () => void;
   onTripStarted?: (origem?: string | null, destino?: string | null) => void;
+  operacoes?: ViagemOperacoes;
 }
 
 const statusConfig: Record<StatusViagemOperacao, { label: string; className: string; icon: React.ElementType }> = {
@@ -74,8 +83,9 @@ const statusConfig: Record<StatusViagemOperacao, { label: string; className: str
   }
 };
 
-export function ViagemCardOperador({ viagem, onUpdate, onTripStarted }: ViagemCardOperadorProps) {
-  const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem } = useViagemOperacao();
+export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes }: ViagemCardOperadorProps) {
+  const defaultOps = useViagemOperacao();
+  const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem } = operacoes || defaultOps;
   
   const [loading, setLoading] = useState(false);
   const [showPaxDialog, setShowPaxDialog] = useState(false);
