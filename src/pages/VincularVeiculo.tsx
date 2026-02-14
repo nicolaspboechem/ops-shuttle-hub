@@ -95,10 +95,16 @@ export default function VincularVeiculo() {
   }, [veiculos, deferredSearchTerm]);
 
   const veiculosComMotorista = useMemo(() => {
-    return filteredVeiculos.map(v => {
-      const motoristaVinculado = motoristas.find(m => m.veiculo_id === v.id);
-      return { ...v, motorista_nome: motoristaVinculado?.nome || null };
-    });
+    return filteredVeiculos
+      .map(v => {
+        const motoristaVinculado = motoristas.find(m => m.veiculo_id === v.id);
+        return { ...v, motorista_nome: motoristaVinculado?.nome || null };
+      })
+      .sort((a, b) => {
+        const nomeA = (a.nome || a.placa).toLowerCase();
+        const nomeB = (b.nome || b.placa).toLowerCase();
+        return nomeA.localeCompare(nomeB, 'pt-BR', { numeric: true });
+      });
   }, [filteredVeiculos, motoristas]);
 
   const veiculosAgrupados = useMemo(() => ({
