@@ -1,4 +1,4 @@
-import { useState, useMemo, useDeferredValue } from "react";
+import { useState, useMemo, useDeferredValue, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,12 @@ import {
   AlertDialogTitle 
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Search, User, Car, Unlink, CheckCircle, AlertTriangle, Loader, Wrench, ChevronDown, Link2, Fuel, Bus } from "lucide-react";
+import { ArrowLeft, Search, User, Car, Unlink, CheckCircle, AlertTriangle, Loader, Wrench, ChevronDown, Link2, Fuel, Bus, RefreshCw } from "lucide-react";
 import { SwipeableCard } from "@/components/app/SwipeableCard";
 import { useMotoristas, useVeiculos } from "@/hooks/useCadastros";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const statusConfig = {
   liberado: {
@@ -76,7 +77,7 @@ export default function VincularVeiculo() {
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const submittingRef = useRef(false);
   const motorista = motoristas.find(m => m.id === motoristaId);
   const currentVeiculoId = motorista?.veiculo_id;
   const currentVeiculo = veiculos.find(v => v.id === currentVeiculoId);
@@ -122,22 +123,65 @@ export default function VincularVeiculo() {
   };
 
   const handleConfirmVinculacao = async () => {
-    if (!motorista || !selectedVeiculoId) return;
+    if (!motorista || !selectedVeiculoId || !eventoId) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     
     setIsSubmitting(true);
     try {
+      // Batch all updates in parallel to avoid cascading realtime triggers
+      const updates: PromiseLike<any>[] = [];
+      const historyInserts: any[] = [];
+
+      // 1. Desvincular veículo anterior do motorista
       if (currentVeiculoId) {
-        await updateVeiculo(currentVeiculoId, { motorista_id: null });
+        updates.push(supabase.from('veiculos').update({ motorista_id: null }).eq('id', currentVeiculoId).then());
+        historyInserts.push({
+          veiculo_id: currentVeiculoId,
+          evento_id: eventoId,
+          tipo_vistoria: 'desvinculacao',
+          status_anterior: currentVeiculo?.status || 'liberado',
+          status_novo: currentVeiculo?.status || 'liberado',
+          motorista_id: motoristaId,
+          motorista_nome: motorista.nome,
+          possui_avarias: false,
+          observacoes: `Veículo desvinculado - motorista trocou para ${selectedVeiculo?.placa || 'outro'}`,
+        });
       }
+
+      // 2. Desvincular outro motorista que tinha esse veículo
       const outroMotorista = motoristas.find(m => m.veiculo_id === selectedVeiculoId && m.id !== motoristaId);
       if (outroMotorista) {
-        await updateMotorista(outroMotorista.id, { veiculo_id: null });
+        updates.push(supabase.from('motoristas').update({ veiculo_id: null }).eq('id', outroMotorista.id).then());
       }
-      await updateMotorista(motoristaId!, { veiculo_id: selectedVeiculoId });
-      await updateVeiculo(selectedVeiculoId, { motorista_id: motoristaId });
+
+      // 3. Vincular novo veículo (bidirecional)
+      updates.push(supabase.from('motoristas').update({ veiculo_id: selectedVeiculoId }).eq('id', motoristaId!).then());
+      updates.push(supabase.from('veiculos').update({ motorista_id: motoristaId }).eq('id', selectedVeiculoId).then());
+
+      // 4. Histórico da nova vinculação
+      historyInserts.push({
+        veiculo_id: selectedVeiculoId,
+        evento_id: eventoId,
+        tipo_vistoria: 'vinculacao',
+        status_anterior: selectedVeiculo?.status || 'liberado',
+        status_novo: selectedVeiculo?.status || 'liberado',
+        motorista_id: motoristaId,
+        motorista_nome: motorista.nome,
+        possui_avarias: false,
+        observacoes: currentVeiculoId 
+          ? `Troca de veículo - anterior: ${currentVeiculo?.placa || 'N/A'}`
+          : `Veículo vinculado ao motorista ${motorista.nome}`,
+      });
+
+      // Execute all updates + history in parallel (single batch)
+      if (historyInserts.length > 0) {
+        updates.push(supabase.from('veiculo_vistoria_historico').insert(historyInserts).then());
+      }
+      await Promise.all(updates);
 
       toast({
-        title: "Veículo vinculado!",
+        title: currentVeiculoId ? "Veículo trocado!" : "Veículo vinculado!",
         description: `${selectedVeiculo?.placa} vinculado a ${motorista.nome}`,
       });
       navigate(isAppContext ? `/app/${eventoId}/supervisor` : `/evento/${eventoId}/motoristas`);
@@ -146,15 +190,34 @@ export default function VincularVeiculo() {
     } finally {
       setIsSubmitting(false);
       setShowConfirmDialog(false);
+      submittingRef.current = false;
     }
   };
 
   const handleDesvincular = async () => {
-    if (!motorista || !currentVeiculoId) return;
+    if (!motorista || !currentVeiculoId || !eventoId) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     setIsSubmitting(true);
     try {
-      await updateMotorista(motoristaId!, { veiculo_id: null });
-      await updateVeiculo(currentVeiculoId, { motorista_id: null });
+      // Batch: desvincular bidirecional + registrar histórico em paralelo
+      await Promise.all([
+        supabase.from('motoristas').update({ veiculo_id: null }).eq('id', motoristaId!).then(),
+        supabase.from('veiculos').update({ motorista_id: null }).eq('id', currentVeiculoId).then(),
+        supabase.from('veiculo_vistoria_historico').insert({
+          veiculo_id: currentVeiculoId,
+          evento_id: eventoId,
+          tipo_vistoria: 'desvinculacao',
+          status_anterior: currentVeiculo?.status || 'liberado',
+          status_novo: currentVeiculo?.status || 'liberado',
+          motorista_id: motoristaId,
+          motorista_nome: motorista.nome,
+          possui_avarias: false,
+          observacoes: 'Veículo desvinculado manualmente',
+        }).then(),
+      ]);
+
       toast({
         title: "Veículo desvinculado!",
         description: `${currentVeiculo?.placa} foi desvinculado de ${motorista.nome}`,
@@ -164,6 +227,7 @@ export default function VincularVeiculo() {
       toast({ title: "Erro ao desvincular", description: "Não foi possível desvincular o veículo.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
@@ -336,9 +400,13 @@ export default function VincularVeiculo() {
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar vinculação</AlertDialogTitle>
+            <AlertDialogTitle>{currentVeiculoId ? 'Confirmar troca de veículo' : 'Confirmar vinculação'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja vincular o veículo <strong>{selectedVeiculo?.nome || selectedVeiculo?.placa}</strong> ({selectedVeiculo?.placa}) ao motorista <strong>{motorista.nome}</strong>?
+              {currentVeiculoId ? (
+                <>Deseja trocar o veículo atual <strong>{currentVeiculo?.nome || currentVeiculo?.placa}</strong> pelo veículo <strong>{selectedVeiculo?.nome || selectedVeiculo?.placa}</strong> ({selectedVeiculo?.placa}) para o motorista <strong>{motorista.nome}</strong>?</>
+              ) : (
+                <>Deseja vincular o veículo <strong>{selectedVeiculo?.nome || selectedVeiculo?.placa}</strong> ({selectedVeiculo?.placa}) ao motorista <strong>{motorista.nome}</strong>?</>
+              )}
               {selectedVeiculo && motoristas.find(m => m.veiculo_id === selectedVeiculoId && m.id !== motoristaId) && (
                 <span className="block mt-2 text-amber-600">
                   ⚠️ Este veículo está vinculado a outro motorista e será desvinculado automaticamente.
@@ -349,7 +417,7 @@ export default function VincularVeiculo() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmVinculacao} disabled={isSubmitting}>
-              {isSubmitting ? "Vinculando..." : "Confirmar"}
+              {isSubmitting ? "Processando..." : currentVeiculoId ? "Confirmar Troca" : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

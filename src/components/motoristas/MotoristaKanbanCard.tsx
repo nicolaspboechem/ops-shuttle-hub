@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route, LogIn, LogOut, RotateCcw } from "lucide-react";
+import { Bus, Car, MoreVertical, Pencil, Trash2, Users, Clock, Phone, GripVertical, Eye, Link2, Plus, AlertTriangle, Truck, MessageCircle, CheckCircle, XCircle, UserX, MapPin, Route, LogIn, LogOut, RotateCcw, RefreshCw } from "lucide-react";
 import { formatarMinutos } from "@/lib/utils/calculadores";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
@@ -175,8 +175,17 @@ export function MotoristaKanbanCard({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={onVincularVeiculo}>
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Vincular Veículo
+                  {motorista.veiculo_id ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Trocar Veículo
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="w-4 h-4 mr-2" />
+                      Vincular Veículo
+                    </>
+                  )}
                 </DropdownMenuItem>
                 {onEdit && (
                   <>
