@@ -1,95 +1,105 @@
 
-# Corrigir Fluxo Operador Shuttle: Backend, Auth e Notificacoes
 
-## Problema Identificado
+# Estado Atual do Fluxo Operador + Otimizacoes Pendentes
 
-O hook `useViagemOperacao` usa `useAuth()` (Supabase Auth), mas o operador faz login via Custom JWT (`StaffAuthContext`). Isso faz com que `user` seja `null`, causando:
+## Como esta funcionando agora
 
-1. **Todas as acoes do operador falham** com "Voce precisa estar logado" -- iniciar viagem, registrar chegada, encerrar, cancelar e iniciar retorno nao funcionam
-2. **Nenhum log e gerado** em `viagem_logs`, pois `registrarLog` retorna silenciosamente quando `user` e null
-3. **Os campos de auditoria** (`iniciado_por`, `finalizado_por`, `atualizado_por`) ficam vazios
+O fluxo do operador esta bem estruturado e focado exclusivamente em shuttle:
 
-## Solucao
+1. **Login**: Operador acessa `/login/equipe`, recebe Custom JWT via `StaffAuthContext`
+2. **Tela principal** (`AppOperador`): Lista viagens do evento com filtros por status e dia operacional
+3. **Criar shuttle**: Botao "+" abre `CreateShuttleForm` (Drawer) com campos minimos (embarque, desembarque, PAX, horario)
+4. **Ciclo de vida**: `ViagemCardOperador` com swipe gestures -- Iniciar > Chegada > Retorno/Encerrar
+5. **Auth**: `useViagemOperacaoStaff` usa `useCurrentUser()` (compativel com Custom JWT), sem logs em `viagem_logs`
+6. **Notificacoes**: Filtro `motorista !== 'Shuttle'` impede shuttle de aparecer no painel CCO
 
-### 1. Criar `useViagemOperacaoStaff` (novo hook)
+## Problemas Identificados
 
-Criar `src/hooks/useViagemOperacaoStaff.ts` -- versao do `useViagemOperacao` que usa `useCurrentUser` em vez de `useAuth`. Este hook:
+### 1. Hook desnecessario instanciado (desperdicio de recursos)
 
-- Usa `useCurrentUser()` para obter `userId` e `userName` (funciona com qualquer contexto de auth)
-- Implementa as mesmas operacoes: `iniciarViagem`, `registrarChegada`, `encerrarViagem`, `cancelarViagem`, `iniciarRetorno`
-- **NAO registra logs em `viagem_logs`** para viagens shuttle (conforme solicitado -- shuttle nao gera notificacoes)
-- Simplifica a logica removendo atualizacao de status/localizacao de motorista (shuttle usa `motorista: 'Shuttle'`, nao tem motorista real)
+`ViagemCardOperador` (linha 87) **sempre** chama `useViagemOperacao()` mesmo quando recebe `operacoes` via prop:
 
-### 2. Atualizar `ViagemCardOperador`
+```
+const defaultOps = useViagemOperacao();
+const ops = operacoes || defaultOps;
+```
 
-Alterar `src/components/app/ViagemCardOperador.tsx` para aceitar uma prop opcional que determina qual hook de operacao usar:
+Isso significa que no AppOperador, cada card instancia `useViagemOperacao` (que usa `useAuth()` e retorna userId=null), desperdicando ciclos de render. Em React, hooks sao executados incondicionalmente -- nao ha como evitar a chamada.
 
-- Adicionar prop `useStaffAuth?: boolean`
-- Quando `true`, usar `useViagemOperacaoStaff` em vez de `useViagemOperacao`
+**Solucao**: Condicionar o import do hook default. Como hooks nao podem ser condicionais, a melhor abordagem e tornar `operacoes` obrigatoria e remover o fallback, OU criar `ViagemCardOperadorShuttle` sem o import do hook padrao.
 
-**Alternativa mais limpa**: Criar um wrapper `ViagemCardOperadorShuttle` que use o hook correto, ou fazer o `ViagemCardOperador` detectar o contexto automaticamente.
+### 2. useViagens carrega TODAS as viagens do evento
 
-A abordagem escolhida: modificar `ViagemCardOperador` para aceitar o hook de operacao como prop injetada a partir do `AppOperador`.
+O operador so trabalha com shuttle, mas `useViagens` carrega transfers, missoes e shuttles. Isso inclui dados desnecessarios e aumenta o payload.
 
-### 3. Filtrar Notificacoes Shuttle
+**Solucao**: Adicionar filtro `tipo_operacao=eq.shuttle` na query quando usado pelo operador. Pode ser via parametro opcional no hook.
 
-Alterar `src/hooks/useNotifications.tsx` para excluir viagens shuttle das notificacoes:
+### 3. Anti-pattern: navigate() dentro do render
 
-- Na query de `viagem_logs`, fazer JOIN com `viagens` e filtrar `tipo_operacao != 'shuttle'` (ja faz JOIN, basta adicionar filtro)
-- Ou filtrar no client-side apos receber os dados, removendo notificacoes onde `motorista === 'Shuttle'`
+Linha 126-128 do `AppOperador`:
+```
+if (!staffSession) {
+  navigate('/login/equipe');
+  return null;
+}
+```
 
-A abordagem mais robusta: filtrar no client-side verificando se `motoristaNome === 'Shuttle'` (simples e nao requer mudanca na query).
+Chamar `navigate()` durante o render e um anti-pattern do React que pode causar warnings. Deveria estar dentro de um `useEffect`.
 
-## Arquivos
+### 4. Calculo de counts/filteredViagens/sortedViagens sem memoizacao
+
+`counts`, `filteredViagens` e `sortedViagens` sao recalculados em cada render. Com dezenas de viagens, isso e negligivel, mas e uma boa pratica memoizar.
+
+### 5. Componente orfao: `OperadorMotoristasTab`
+
+O arquivo `src/components/app/OperadorMotoristasTab.tsx` nao e importado em nenhum lugar apos a limpeza. E codigo morto que pode ser deletado.
+
+### 6. CreateShuttleForm usa `new Date()` em vez de `getAgoraSync()`
+
+Linha 63: `h_inicio_real: new Date().toISOString()` -- deveria usar o horario sincronizado do servidor para consistencia com o resto do sistema.
+
+## Plano de Otimizacao
+
+### 1. Eliminar hook desperdicado no ViagemCardOperador
+
+Tornar `operacoes` obrigatoria no `ViagemCardOperador` e remover o import/instanciacao de `useViagemOperacao` do componente. Todos os consumidores (AppOperador, AppSupervisor, etc.) ja passam ou passarao o hook adequado.
+
+**Alternativa mais segura**: Manter o fallback, mas checar se `AppSupervisor` e outros consumidores ja passam `operacoes`. Se nao, atualiza-los antes.
+
+### 2. Filtrar viagens por tipo_operacao no hook
+
+Adicionar parametro opcional `tipoOperacao?: string` ao `useViagens` e ao Realtime filter. No `AppOperador`, passar `tipoOperacao: 'shuttle'`.
+
+### 3. Corrigir navigate anti-pattern
+
+Mover a verificacao de sessao para um `useEffect` com redirect, em vez de chamar navigate dentro do render.
+
+### 4. Memoizar calculos derivados
+
+Envolver `counts`, `filteredViagens` e `sortedViagens` em `useMemo`.
+
+### 5. Deletar componente orfao
+
+Remover `src/components/app/OperadorMotoristasTab.tsx`.
+
+### 6. Usar getAgoraSync no CreateShuttleForm
+
+Importar `useServerTime` e usar `getAgoraSync()` em vez de `new Date()`.
+
+## Arquivos alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/hooks/useViagemOperacaoStaff.ts` | **Novo** -- hook de operacao compativel com Staff JWT, sem logs |
-| `src/components/app/ViagemCardOperador.tsx` | Aceitar hook de operacao injetado ou detectar contexto |
-| `src/pages/app/AppOperador.tsx` | Passar configuracao para usar hook staff |
-| `src/hooks/useNotifications.tsx` | Filtrar notificacoes de viagens shuttle |
+| `src/components/app/ViagemCardOperador.tsx` | Tornar `operacoes` obrigatoria, remover fallback `useViagemOperacao` |
+| `src/hooks/useViagens.ts` | Adicionar filtro opcional `tipoOperacao` na query e no Realtime |
+| `src/pages/app/AppOperador.tsx` | Passar `tipoOperacao: 'shuttle'`, memoizar counts/sorted, corrigir navigate |
+| `src/components/app/CreateShuttleForm.tsx` | Usar `getAgoraSync()` em vez de `new Date()` |
+| `src/components/app/OperadorMotoristasTab.tsx` | **Deletar** (codigo morto) |
 
-## Detalhes Tecnicos
+## Impacto
 
-### useViagemOperacaoStaff
+- **Rede**: Payload do operador reduzido (so shuttle em vez de todas as viagens)
+- **CPU**: Menos hooks instanciados por card, calculos memoizados
+- **Consistencia**: Horarios sempre sincronizados com servidor
+- **Codigo**: Menos arquivo orfao, menos anti-patterns
 
-```text
-useCurrentUser() -> { userId, userName }
-
-iniciarViagem(viagem):
-  - update viagens set status='em_andamento', iniciado_por=userId, h_inicio_real=now
-  - SEM registrarLog (shuttle nao notifica)
-
-registrarChegada(viagem, qtdPax, aguardarRetorno):
-  - update viagens set status, h_chegada, finalizado_por, encerrado, qtd_pax
-  - SEM atualizarStatusMotorista (shuttle nao tem motorista real)
-
-encerrarViagem(viagem):
-  - update viagens set status='encerrado', encerrado=true, finalizado_por=userId
-
-cancelarViagem(viagem):
-  - update viagens set status='cancelado', encerrado=true
-
-iniciarRetorno(viagemOriginal):
-  - insert nova viagem com origem/destino invertidos
-  - update viagem original para encerrado
-```
-
-### Filtro de Notificacoes
-
-Na funcao `fetchNotifications`, ao processar `viagemLogs`, adicionar filtro:
-
-```text
-viagemLogs
-  .filter(log => log.viagem?.motorista !== 'Shuttle')
-  .forEach(...)
-```
-
-Isso garante que mesmo que logs de shuttle existam no banco (criados por outro contexto), eles nao aparecem no painel de notificacoes.
-
-## Resultado Esperado
-
-- Operador consegue criar shuttle (ja funciona) E gerenciar o ciclo de vida (iniciar, chegada, encerrar, retorno, cancelar)
-- Viagens shuttle aparecem corretamente no dashboard CCO na aba Shuttle
-- Notificacoes de shuttle NAO aparecem no painel de notificacoes
-- Campos de auditoria (`criado_por`, `iniciado_por`, `finalizado_por`) preenchidos com o user_id do staff
