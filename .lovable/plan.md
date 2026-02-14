@@ -1,101 +1,95 @@
 
+# Corrigir Fluxo Operador Shuttle: Backend, Auth e Notificacoes
 
-# Operador Exclusivo Shuttle + Limpeza e Otimizacao
+## Problema Identificado
 
-## Resumo
+O hook `useViagemOperacao` usa `useAuth()` (Supabase Auth), mas o operador faz login via Custom JWT (`StaffAuthContext`). Isso faz com que `user` seja `null`, causando:
 
-O operador de campo passa a ter funcao exclusiva: registrar viagens shuttle. Todo o fluxo antigo (CreateViagemForm, NewActionModal, MissaoInstantanea, cadastro de motorista/veiculo) sera removido do AppOperador. O botao "+" abre diretamente o CreateShuttleForm. Hooks desnecessarios (useMotoristas, useVeiculos, useMissoes) serao removidos para reduzir queries no dispositivo do operador.
+1. **Todas as acoes do operador falham** com "Voce precisa estar logado" -- iniciar viagem, registrar chegada, encerrar, cancelar e iniciar retorno nao funcionam
+2. **Nenhum log e gerado** em `viagem_logs`, pois `registrarLog` retorna silenciosamente quando `user` e null
+3. **Os campos de auditoria** (`iniciado_por`, `finalizado_por`, `atualizado_por`) ficam vazios
 
-## Alteracoes
+## Solucao
 
-### 1. AppOperador (`src/pages/app/AppOperador.tsx`) -- Reescrita significativa
+### 1. Criar `useViagemOperacaoStaff` (novo hook)
 
-**Remover imports e componentes:**
-- `CreateViagemForm` -- nao cria mais viagens genericas
-- `NewActionModal` -- nao precisa escolher tipo, so faz shuttle
-- `MissaoInstantaneaModal` -- operador nao cria missoes
-- `CreateMotoristaWizard` -- operador nao cadastra motoristas
-- `CreateVeiculoWizard` -- operador nao cadastra veiculos
-- `VeiculoKmModal` -- operador nao registra KM
-- `useMotoristas`, `useVeiculos`, `useMissoes`, `usePontosEmbarque` (usado pelo CreateShuttleForm internamente)
-- `useTutorial`, `TutorialPopover` -- tutorial do fluxo antigo
-- `NavigationModal` -- operador shuttle nao precisa de navegacao GPS
+Criar `src/hooks/useViagemOperacaoStaff.ts` -- versao do `useViagemOperacao` que usa `useCurrentUser` em vez de `useAuth`. Este hook:
 
-**Remover estados:**
-- `showForm`, `showMotoristaForm`, `showVeiculoForm`, `showKmModal`, `showActionModal`, `showMissaoInstantanea`, `preselectedTipo`
-- `navModalOpen`, `navModalData`
+- Usa `useCurrentUser()` para obter `userId` e `userName` (funciona com qualquer contexto de auth)
+- Implementa as mesmas operacoes: `iniciarViagem`, `registrarChegada`, `encerrarViagem`, `cancelarViagem`, `iniciarRetorno`
+- **NAO registra logs em `viagem_logs`** para viagens shuttle (conforme solicitado -- shuttle nao gera notificacoes)
+- Simplifica a logica removendo atualizacao de status/localizacao de motorista (shuttle usa `motorista: 'Shuttle'`, nao tem motorista real)
 
-**Manter:**
-- `showShuttleForm` -- unico formulario
-- `useViagens` -- listar viagens shuttle do dia
-- `ViagemCardOperador` -- exibir cards das viagens
-- `OperadorHistoricoTab` -- historico de viagens
-- Tabs: viagens, historico, mais (remover "motoristas")
+### 2. Atualizar `ViagemCardOperador`
 
-**Botao "+":**
-- Em vez de abrir `NewActionModal`, abre diretamente `setShowShuttleForm(true)`
+Alterar `src/components/app/ViagemCardOperador.tsx` para aceitar uma prop opcional que determina qual hook de operacao usar:
 
-### 2. OperadorBottomNav (`src/components/app/OperadorBottomNav.tsx`)
+- Adicionar prop `useStaffAuth?: boolean`
+- Quando `true`, usar `useViagemOperacaoStaff` em vez de `useViagemOperacao`
 
-Remover a tab "motoristas". Ficam 4 tabs: **Viagens | Nova (+) | Historico | Mais**
+**Alternativa mais limpa**: Criar um wrapper `ViagemCardOperadorShuttle` que use o hook correto, ou fazer o `ViagemCardOperador` detectar o contexto automaticamente.
 
-Layout passa de 5 para 4 botoes.
+A abordagem escolhida: modificar `ViagemCardOperador` para aceitar o hook de operacao como prop injetada a partir do `AppOperador`.
 
-### 3. OperadorMaisTab (`src/components/app/OperadorMaisTab.tsx`)
+### 3. Filtrar Notificacoes Shuttle
 
-Remover botoes:
-- "Cadastrar Motorista" (onCadastrarMotorista)
-- "Cadastrar Veiculo" (onCadastrarVeiculo)
-- "Registrar KM" (onRegistrarKm)
-- Card de navegacao (onOpenNavigation)
+Alterar `src/hooks/useNotifications.tsx` para excluir viagens shuttle das notificacoes:
 
-Manter: Perfil, Suporte, Logout, versao.
+- Na query de `viagem_logs`, fazer JOIN com `viagens` e filtrar `tipo_operacao != 'shuttle'` (ja faz JOIN, basta adicionar filtro)
+- Ou filtrar no client-side apos receber os dados, removendo notificacoes onde `motorista === 'Shuttle'`
 
-Simplificar props removendo callbacks desnecessarios.
+A abordagem mais robusta: filtrar no client-side verificando se `motoristaNome === 'Shuttle'` (simples e nao requer mudanca na query).
 
-### 4. AddStaffWizard (`src/components/equipe/AddStaffWizard.tsx`)
-
-Atualizar descricao do Operador de:
-- "Gerencia viagens, motoristas e veiculos no CCO"
-- Para: "Registra viagens shuttle no campo"
-
-### 5. NewActionModal (`src/components/app/NewActionModal.tsx`)
-
-Nenhuma alteracao necessaria -- o componente continua existindo para uso no AppSupervisor. Apenas nao sera mais importado no AppOperador.
-
-### 6. CreateShuttleForm (`src/components/app/CreateShuttleForm.tsx`)
-
-Trocar `useAuth` por `useCurrentUser` para funcionar com o Custom JWT do staff (StaffAuthContext). O operador faz login via /login/equipe, entao `useAuth().user` pode ser null. Usar `useCurrentUser().userId` que ja resolve qualquer contexto de auth.
-
-### 7. Limpeza de codigo morto
-
-- Verificar se `OperadorMotoristasTab` e importado em outro lugar. Se nao, pode ser deletado futuramente (nao bloqueia este PR).
-
-## Arquivos alterados
+## Arquivos
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/app/AppOperador.tsx` | Remover fluxo antigo, manter so shuttle |
-| `src/components/app/OperadorBottomNav.tsx` | Remover tab motoristas (5 -> 4 tabs) |
-| `src/components/app/OperadorMaisTab.tsx` | Remover acoes de cadastro |
-| `src/components/app/CreateShuttleForm.tsx` | Trocar useAuth por useCurrentUser |
-| `src/components/equipe/AddStaffWizard.tsx` | Atualizar descricao do papel operador |
+| `src/hooks/useViagemOperacaoStaff.ts` | **Novo** -- hook de operacao compativel com Staff JWT, sem logs |
+| `src/components/app/ViagemCardOperador.tsx` | Aceitar hook de operacao injetado ou detectar contexto |
+| `src/pages/app/AppOperador.tsx` | Passar configuracao para usar hook staff |
+| `src/hooks/useNotifications.tsx` | Filtrar notificacoes de viagens shuttle |
 
-## Impacto nas queries por dispositivo
+## Detalhes Tecnicos
 
-**Antes (operador carregava):**
-- useViagens (viagens)
-- useMotoristas (motoristas)
-- useVeiculos (veiculos)
-- useMissoes (missoes)
-- usePontosEmbarque (pontos)
-- useLocalizadorMotoristas (via OperadorMotoristasTab)
-= 6 subscricoes Realtime + 6 queries iniciais
+### useViagemOperacaoStaff
 
-**Depois (operador carrega):**
-- useViagens (viagens)
-- usePontosEmbarque (dentro do CreateShuttleForm, so quando abre o drawer)
-= 1 subscricao Realtime + 1 query inicial (+ 1 sob demanda)
+```text
+useCurrentUser() -> { userId, userName }
 
-Reducao de ~80% na carga de rede do dispositivo do operador.
+iniciarViagem(viagem):
+  - update viagens set status='em_andamento', iniciado_por=userId, h_inicio_real=now
+  - SEM registrarLog (shuttle nao notifica)
 
+registrarChegada(viagem, qtdPax, aguardarRetorno):
+  - update viagens set status, h_chegada, finalizado_por, encerrado, qtd_pax
+  - SEM atualizarStatusMotorista (shuttle nao tem motorista real)
+
+encerrarViagem(viagem):
+  - update viagens set status='encerrado', encerrado=true, finalizado_por=userId
+
+cancelarViagem(viagem):
+  - update viagens set status='cancelado', encerrado=true
+
+iniciarRetorno(viagemOriginal):
+  - insert nova viagem com origem/destino invertidos
+  - update viagem original para encerrado
+```
+
+### Filtro de Notificacoes
+
+Na funcao `fetchNotifications`, ao processar `viagemLogs`, adicionar filtro:
+
+```text
+viagemLogs
+  .filter(log => log.viagem?.motorista !== 'Shuttle')
+  .forEach(...)
+```
+
+Isso garante que mesmo que logs de shuttle existam no banco (criados por outro contexto), eles nao aparecem no painel de notificacoes.
+
+## Resultado Esperado
+
+- Operador consegue criar shuttle (ja funciona) E gerenciar o ciclo de vida (iniciar, chegada, encerrar, retorno, cancelar)
+- Viagens shuttle aparecem corretamente no dashboard CCO na aba Shuttle
+- Notificacoes de shuttle NAO aparecem no painel de notificacoes
+- Campos de auditoria (`criado_por`, `iniciado_por`, `finalizado_por`) preenchidos com o user_id do staff
