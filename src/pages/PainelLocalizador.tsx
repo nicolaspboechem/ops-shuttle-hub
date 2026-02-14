@@ -217,7 +217,7 @@ export default function PainelLocalizador() {
   const retornandoBaseIds = useMemo(() => {
     const ids = new Set<string>();
     missoesPorMotorista.forEach((missao, motoristaId) => {
-      if (missao.ponto_desembarque === baseNome && ['pendente', 'aceita', 'em_andamento'].includes(missao.status)) {
+      if (missao.ponto_desembarque === baseNome && missao.status === 'em_andamento') {
         ids.add(motoristaId);
       }
     });
