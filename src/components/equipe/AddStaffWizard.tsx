@@ -272,9 +272,9 @@ export function AddStaffWizard({ open, onOpenChange, eventoId, onSuccess }: AddS
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold">Operador</p>
-                        <p className="text-sm text-muted-foreground">
-                          Gerencia viagens, motoristas e veículos no CCO
-                        </p>
+                         <p className="text-sm text-muted-foreground">
+                           Registra viagens shuttle no campo
+                         </p>
                       </div>
                       {staffType === 'operador' && <Check className="h-5 w-5 text-primary" />}
                     </div>

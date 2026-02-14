@@ -2,29 +2,16 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
-import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
-import { useTutorial, operadorSteps } from '@/hooks/useTutorial';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Evento } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
-import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
-import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
-import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
-import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
 import { CreateShuttleForm } from '@/components/app/CreateShuttleForm';
-import { useMissoes } from '@/hooks/useMissoes';
-
-import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
-import { CreateVeiculoWizard } from '@/components/veiculos/CreateVeiculoWizard';
-import { VeiculoKmModal } from '@/components/app/VeiculoKmModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
-import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
-import { OperadorMotoristasTab } from '@/components/app/OperadorMotoristasTab';
 import { OperadorHistoricoTab } from '@/components/app/OperadorHistoricoTab';
 import { OperadorMaisTab } from '@/components/app/OperadorMaisTab';
 import { 
@@ -36,47 +23,34 @@ import {
   RefreshCw
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
-import { NavigationModal } from '@/components/app/NavigationModal';
 
 type StatusFilter = 'todos' | 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado';
 
-// Memoized tab components to prevent unnecessary re-renders
-const MemoizedMotoristasTab = memo(OperadorMotoristasTab);
 const MemoizedHistoricoTab = memo(OperadorHistoricoTab);
 const MemoizedMaisTab = memo(OperadorMaisTab);
 
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { staffSession, signOut } = useStaffAuth();
   const { getAgoraSync } = useServerTime();
   
   const [evento, setEvento] = useState<Evento | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [showMotoristaForm, setShowMotoristaForm] = useState(false);
-  const [showVeiculoForm, setShowVeiculoForm] = useState(false);
-  const [showKmModal, setShowKmModal] = useState(false);
-  const [showActionModal, setShowActionModal] = useState(false);
-  const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showShuttleForm, setShowShuttleForm] = useState(false);
-  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   
-  // Dia operacional (padrão: hoje)
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
     getDataOperacional(new Date(), '04:00')
   );
   const [verTodosDias, setVerTodosDias] = useState(false);
   
-  // Atualizar data operacional quando evento carregar com horário de virada customizado
   useEffect(() => {
     if (evento?.horario_virada_dia) {
       setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
     }
   }, [evento?.horario_virada_dia, getAgoraSync]);
 
-  // Buscar viagens com filtro de data
   const viagensOptions = useMemo(() => {
     if (verTodosDias) return undefined;
     return {
@@ -86,18 +60,6 @@ export default function AppOperador() {
   }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
 
   const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
-  
-  const { motoristas: motoristasCadastrados, refetch: refetchMotoristas } = useMotoristas(eventoId);
-  const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
-  const { createMissao } = useMissoes(eventoId);
-  const { pontos } = usePontosEmbarque(eventoId);
-  
-  // Estado para modal de navegação
-  const [navModalOpen, setNavModalOpen] = useState(false);
-  const [navModalData, setNavModalData] = useState<{origem?: string | null; destino?: string | null} | null>(null);
-  
-  // Tutorial system
-  const tutorial = useTutorial('operador', operadorSteps);
 
   const handleRefresh = async () => {
     await refetch();
@@ -140,55 +102,27 @@ export default function AppOperador() {
     encerrado: viagens.filter(v => v.status === 'encerrado').length,
   };
 
-  const handleLogout = useCallback(async () => {
-    await signOut();
-    navigate('/auth');
+  const handleLogout = useCallback(() => {
+    signOut();
+    navigate('/login/equipe');
   }, [signOut, navigate]);
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
-      setShowActionModal(true);
+      setShowShuttleForm(true);
     } else {
       setActiveTab(tab);
     }
   };
 
-  const handleActionSelect = (tipo: ActionType) => {
-    if (tipo === 'missao') {
-      setShowMissaoInstantanea(true);
-    } else if (tipo === 'shuttle') {
-      setShowShuttleForm(true);
-    } else {
-      setPreselectedTipo(tipo);
-      setShowForm(true);
-    }
-  };
-
-  // Memoized values - must be before early returns
-  const viagemAtivaNav = useMemo(() => 
-    viagens.find(v => v.status === 'em_andamento'), 
-    [viagens]
-  );
-
-  const handleOpenNavigation = useCallback((origem?: string | null, destino?: string | null) => {
-    setNavModalData({ origem, destino });
-    setNavModalOpen(true);
-  }, []);
-
   const maisTabProps = useMemo(() => ({
-    userName: user?.email,
+    userName: staffSession?.user_nome,
     eventoNome: evento?.nome_planilha,
-    viagemAtiva: viagemAtivaNav,
-    onCadastrarMotorista: () => setShowMotoristaForm(true),
-    onCadastrarVeiculo: () => setShowVeiculoForm(true),
-    onRegistrarKm: () => setShowKmModal(true),
-    onOpenNavigation: handleOpenNavigation,
     onLogout: handleLogout,
-  }), [user?.email, evento?.nome_planilha, viagemAtivaNav, handleOpenNavigation, handleLogout]);
+  }), [staffSession?.user_nome, evento?.nome_planilha, handleLogout]);
 
-  // Early returns after all hooks
-  if (!user) {
-    navigate('/auth');
+  if (!staffSession) {
+    navigate('/login/equipe');
     return null;
   }
 
@@ -200,13 +134,11 @@ export default function AppOperador() {
     );
   }
 
-  // Keep all tabs mounted but hidden for instant switching
   const renderAllTabs = () => (
     <>
       {/* Tab: Viagens */}
       <div className={activeTab === 'viagens' ? 'block' : 'hidden'}>
         <div className="space-y-4">
-          {/* Seletor de Dia */}
           <DiaSeletor
             dataOperacional={dataOperacional}
             onChange={setDataOperacional}
@@ -217,7 +149,6 @@ export default function AppOperador() {
             onToggleTodosDias={setVerTodosDias}
           />
 
-          {/* Status Cards */}
           <div className="grid grid-cols-4 gap-2">
             <div 
               className={`text-center p-3 rounded-lg cursor-pointer transition-all ${statusFilter === 'agendado' ? 'ring-2 ring-primary' : 'bg-muted/50'}`}
@@ -253,7 +184,6 @@ export default function AppOperador() {
             </div>
           </div>
 
-          {/* Lista de viagens */}
           <div className="space-y-3">
             {sortedViagens.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
@@ -262,7 +192,7 @@ export default function AppOperador() {
                 <p className="text-sm mb-4">
                   {statusFilter !== 'todos' 
                     ? 'Nenhuma viagem com este status'
-                    : 'Toque em + para criar uma viagem'}
+                    : 'Toque em + para registrar um shuttle'}
                 </p>
               </div>
             ) : (
@@ -271,10 +201,6 @@ export default function AppOperador() {
                   key={viagem.id} 
                   viagem={viagem} 
                   onUpdate={refetch}
-                  onTripStarted={(origem, destino) => {
-                    setNavModalData({ origem, destino });
-                    setNavModalOpen(true);
-                  }}
                 />
               ))
             )}
@@ -282,17 +208,12 @@ export default function AppOperador() {
         </div>
       </div>
 
-      {/* Tab: Motoristas - stays mounted */}
-      <div className={activeTab === 'motoristas' ? 'block' : 'hidden'}>
-        <MemoizedMotoristasTab eventoId={eventoId!} />
-      </div>
-
-      {/* Tab: Histórico - stays mounted */}
+      {/* Tab: Histórico */}
       <div className={activeTab === 'historico' ? 'block' : 'hidden'}>
         <MemoizedHistoricoTab viagens={viagens} />
       </div>
 
-      {/* Tab: Mais - stays mounted */}
+      {/* Tab: Mais */}
       <div className={activeTab === 'mais' ? 'block' : 'hidden'}>
         <MemoizedMaisTab {...maisTabProps} />
       </div>
@@ -301,18 +222,6 @@ export default function AppOperador() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
-      {/* Tutorial Popover */}
-      {tutorial.isActive && tutorial.currentStep && (
-        <TutorialPopover
-          step={tutorial.currentStep}
-          currentIndex={tutorial.currentIndex}
-          totalSteps={tutorial.totalSteps}
-          onNext={tutorial.next}
-          onSkip={tutorial.skip}
-          onComplete={tutorial.complete}
-        />
-      )}
-
       {/* Header simplificado */}
       <header className="sticky top-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-3">
@@ -334,7 +243,6 @@ export default function AppOperador() {
               </div>
             </div>
 
-            {/* Botão de refresh */}
             <Button 
               variant="ghost" 
               size="icon"
@@ -348,41 +256,17 @@ export default function AppOperador() {
         </div>
       </header>
 
-      {/* Main content com Pull-to-Refresh */}
       <PullToRefresh onRefresh={handleRefresh}>
         <main className="container mx-auto px-4 py-4 pb-24">
           {renderAllTabs()}
         </main>
       </PullToRefresh>
 
-      {/* Barra de navegação inferior */}
       <OperadorBottomNav 
         activeTab={activeTab} 
         onTabChange={handleTabChange} 
       />
 
-      {/* Action Type Modal */}
-      <NewActionModal
-        open={showActionModal}
-        onOpenChange={setShowActionModal}
-        onSelect={handleActionSelect}
-      />
-
-      {/* Form de criação de viagem (Drawer) */}
-      <CreateViagemForm
-        open={showForm}
-        onOpenChange={setShowForm}
-        eventoId={eventoId!}
-        defaultTipoOperacao={preselectedTipo}
-        onCreated={() => {
-          refetch();
-          setActiveTab('viagens');
-        }}
-      />
-
-      {/* Missão Instantânea */}
-
-      {/* Shuttle simplificado */}
       <CreateShuttleForm
         open={showShuttleForm}
         onOpenChange={setShowShuttleForm}
@@ -391,66 +275,6 @@ export default function AppOperador() {
           refetch();
           setActiveTab('viagens');
         }}
-      />
-
-      <MissaoInstantaneaModal
-        open={showMissaoInstantanea}
-        onOpenChange={setShowMissaoInstantanea}
-        motoristas={motoristasCadastrados}
-        pontos={pontos}
-        onSave={async (data) => {
-          await createMissao(data);
-        }}
-      />
-
-      {/* Wizard completo de cadastro de motorista */}
-      <CreateMotoristaWizard
-        open={showMotoristaForm}
-        onOpenChange={setShowMotoristaForm}
-        veiculos={veiculos}
-        eventoId={eventoId!}
-        onSubmit={async (data) => {
-          const { data: motorista, error } = await supabase
-            .from('motoristas')
-            .insert([{
-              nome: data.nome,
-              telefone: data.telefone,
-              veiculo_id: data.veiculo_id,
-              evento_id: eventoId,
-              ativo: true,
-            }])
-            .select('id')
-            .single();
-          
-          if (error) throw error;
-          
-          await refetchMotoristas();
-          return motorista.id;
-        }}
-      />
-
-      {/* Wizard completo de cadastro de veículo */}
-      <CreateVeiculoWizard
-        open={showVeiculoForm}
-        onOpenChange={setShowVeiculoForm}
-        eventoId={eventoId!}
-        onCreated={() => refetchVeiculos()}
-      />
-
-      {/* Modal de registro de KM */}
-      <VeiculoKmModal
-        open={showKmModal}
-        onOpenChange={setShowKmModal}
-        eventoId={eventoId!}
-        onUpdated={() => refetchVeiculos()}
-      />
-
-      {/* Modal de Navegação */}
-      <NavigationModal
-        open={navModalOpen}
-        onOpenChange={setNavModalOpen}
-        origem={navModalData?.origem}
-        destino={navModalData?.destino}
       />
     </div>
   );
