@@ -100,14 +100,10 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       eventoId.length >= 36 && 
       /^[0-9a-f-]{36}$/i.test(eventoId);
 
-    // Build Realtime filter - combine evento_id and tipo_operacao when available
-    const filters: string[] = [];
-    if (isValidUUID) filters.push(`evento_id=eq.${eventoId}`);
-    if (options?.tipoOperacao) filters.push(`tipo_operacao=eq.${options.tipoOperacao}`);
-    const filterStr = filters.length > 0 ? filters.join(',') : undefined;
-
-    const channelConfig = filterStr
-      ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: filterStr }
+    // Supabase Realtime only supports ONE filter per subscription
+    // Use evento_id as the primary filter (most selective), then filter tipo_operacao client-side via throttled refetch
+    const channelConfig = isValidUUID
+      ? { event: '*' as const, schema: 'public' as const, table: 'viagens' as const, filter: `evento_id=eq.${eventoId}` }
       : { event: '*' as const, schema: 'public' as const, table: 'viagens' as const };
 
     // Global throttled refetch to prevent cascade
