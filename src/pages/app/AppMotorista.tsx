@@ -142,15 +142,34 @@ export default function AppMotorista() {
   }, [veiculoAtribuido]);
 
   // Filter missions for this driver (only active)
+  const dataOperacional = useMemo(() => {
+    return getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00');
+  }, [getAgoraSync, evento?.horario_virada_dia]);
+
   const minhasMissoes = useMemo(() => {
     if (!motoristaData) return [];
-    const hoje = getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00');
-    return missoes.filter(m => 
-      m.motorista_id === motoristaData.id && 
-      ['pendente', 'aceita', 'em_andamento'].includes(m.status) &&
-      (!m.data_programada || m.data_programada === hoje)
-    );
-  }, [missoes, motoristaData, evento?.horario_virada_dia]);
+    const statusOrder: Record<string, number> = { em_andamento: 0, aceita: 1, pendente: 2 };
+    return missoes
+      .filter(m => 
+        m.motorista_id === motoristaData.id && 
+        ['pendente', 'aceita', 'em_andamento'].includes(m.status) &&
+        (!m.data_programada || m.data_programada === dataOperacional)
+      )
+      .sort((a, b) => {
+        // 1. Ordenar por status (em_andamento > aceita > pendente)
+        const sa = statusOrder[a.status] ?? 9;
+        const sb = statusOrder[b.status] ?? 9;
+        if (sa !== sb) return sa - sb;
+        // 2. Instantâneas antes de agendadas
+        const aInst = !a.horario_previsto ? 0 : 1;
+        const bInst = !b.horario_previsto ? 0 : 1;
+        if (aInst !== bInst) return aInst - bInst;
+        // 3. Por horário previsto (mais cedo primeiro)
+        if (a.horario_previsto && b.horario_previsto) return a.horario_previsto.localeCompare(b.horario_previsto);
+        // 4. Fallback por created_at
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
+  }, [missoes, motoristaData, dataOperacional]);
 
   // Filter trips - only ACTIVE (no completed/cancelled)
   const minhasViagensAtivas = useMemo(() => {
@@ -451,6 +470,7 @@ export default function AppMotorista() {
                       missao={missao}
                       loading={operando === missao.id}
                       disabled={missao.status === 'pendente' && temOutraAtiva}
+                      dataOperacional={dataOperacional}
                       onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
                       onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
                       onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
