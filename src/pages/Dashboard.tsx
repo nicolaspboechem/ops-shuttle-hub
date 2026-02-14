@@ -82,7 +82,7 @@ export default function Dashboard() {
     }
   };
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
   const [showHelp, setShowHelp] = useState(false);
   
@@ -97,10 +97,10 @@ export default function Dashboard() {
 
   // Filtrar viagens por tipo de operação e rota
   const viagensFiltradas = useMemo(() => {
-    let filtered = viagens;
-    if (tipoOperacao !== 'todos') {
-      filtered = filtered.filter(v => v.tipo_operacao === tipoOperacao);
-    }
+    let filtered = viagens.filter(v => {
+      if (tipoOperacao === 'missao') return !!v.origem_missao_id;
+      return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
+    });
     if (rotaFiltro !== 'todas') {
       filtered = filtered.filter(v => v.ponto_embarque === rotaFiltro);
     }
@@ -145,7 +145,6 @@ export default function Dashboard() {
   }, [viagensAtivas]);
 
   const contadores = useMemo(() => ({
-    todos: viagens.length,
     transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagens.filter(v => v.origem_missao_id).length,

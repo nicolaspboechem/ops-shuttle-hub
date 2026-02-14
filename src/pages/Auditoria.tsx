@@ -22,11 +22,11 @@ export default function Auditoria() {
   const { motoristas } = useMotoristas(eventoId);
   const { kpis, metricasPorHora, viagensFinalizadas } = useCalculos(viagens);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
 
   const viagensFiltradas = useMemo(() => {
-    if (tipoOperacao === 'todos') return viagens;
-    return viagens.filter(v => v.tipo_operacao === tipoOperacao);
+    if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);
+    return viagens.filter(v => v.tipo_operacao === tipoOperacao && !v.origem_missao_id);
   }, [viagens, tipoOperacao]);
 
   // Stats consolidados
@@ -104,7 +104,6 @@ export default function Auditoria() {
   }, [viagensFiltradas]);
 
   const contadores = useMemo(() => ({
-    todos: viagens.length,
     transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagens.filter(v => v.origem_missao_id).length,

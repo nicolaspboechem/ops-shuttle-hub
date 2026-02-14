@@ -43,18 +43,20 @@ export default function ViagensFinalizadas() {
   const { viagens, loading, updateViagem } = useViagens(eventoId, viagensOptions);
   const { viagensFinalizadas } = useCalculos(viagens);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
-    todos: viagensFinalizadas.length,
     transfer: viagensFinalizadas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagensFinalizadas.filter(v => v.origem_missao_id).length,
   }), [viagensFinalizadas]);
 
   const motoristas = useMemo(() => {
-    const vf = tipoOperacao === 'todos' ? viagens : viagens.filter(v => v.tipo_operacao === tipoOperacao);
+    const vf = viagens.filter(v => {
+      if (tipoOperacao === 'missao') return !!v.origem_missao_id;
+      return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
+    });
     return [...new Set(vf.map(v => v.motorista))].sort();
   }, [viagens, tipoOperacao]);
 
@@ -63,7 +65,7 @@ export default function ViagensFinalizadas() {
       // Filtro por tipo de operação ou missão
       if (tipoOperacao === 'missao') {
         if (!v.origem_missao_id) return false;
-      } else if (tipoOperacao !== 'todos') {
+      } else {
         if (v.tipo_operacao !== tipoOperacao || v.origem_missao_id) return false;
       }
       if (filtros.tipoVeiculo !== 'todos' && v.tipo_veiculo !== filtros.tipoVeiculo) return false;

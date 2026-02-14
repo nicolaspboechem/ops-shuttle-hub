@@ -1,14 +1,13 @@
-import { Car, Bus, LayoutGrid, Target } from 'lucide-react';
+import { Car, Bus, Target } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
-export type TipoOperacaoFiltro = 'todos' | 'transfer' | 'shuttle' | 'missao';
+export type TipoOperacaoFiltro = 'transfer' | 'shuttle' | 'missao';
 
 interface OperationTabsProps {
   value: TipoOperacaoFiltro;
   onChange: (value: TipoOperacaoFiltro) => void;
   contadores: {
-    todos: number;
     transfer: number;
     shuttle: number;
     missao: number;
@@ -19,17 +18,7 @@ interface OperationTabsProps {
 export function OperationTabs({ value, onChange, contadores, className }: OperationTabsProps) {
   return (
     <Tabs value={value} onValueChange={(v) => onChange(v as TipoOperacaoFiltro)} className={className}>
-      <TabsList className="grid grid-cols-4 h-auto p-1">
-        <TabsTrigger 
-          value="todos" 
-          className={cn(
-            "gap-1.5 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          )}
-        >
-          <LayoutGrid className="w-4 h-4" />
-          <span className="hidden sm:inline">Todos</span>
-          <span className="text-xs opacity-75">({contadores.todos})</span>
-        </TabsTrigger>
+      <TabsList className="grid grid-cols-3 h-auto p-1">
         <TabsTrigger 
           value="transfer" 
           className={cn(

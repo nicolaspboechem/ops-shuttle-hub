@@ -112,12 +112,12 @@ export function DashboardMobile() {
     }
   };
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
 
   // Filtrar viagens por tipo de operação
   const viagensFiltradas = useMemo(() => {
-    if (tipoOperacao === 'todos') return viagens;
-    return viagens.filter(v => v.tipo_operacao === tipoOperacao);
+    if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);
+    return viagens.filter(v => v.tipo_operacao === tipoOperacao && !v.origem_missao_id);
   }, [viagens, tipoOperacao]);
 
   // Total de PAX nas viagens ativas
@@ -155,7 +155,6 @@ export function DashboardMobile() {
   }, [viagensAtivas]);
 
   const contadores = useMemo(() => ({
-    todos: viagens.length,
     transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagens.filter(v => v.origem_missao_id).length,
