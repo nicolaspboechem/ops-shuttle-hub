@@ -1,32 +1,30 @@
 
-
-# Corrigir Localizador: Filtrar por Data Operacional + Coluna de Missoes Pendentes
-
-## Status: ✅ IMPLEMENTADO
+# Diferenciar Missao Aceita de Em Transito no Localizador
 
 ## Problema
 
-1. O Painel Localizador busca missoes ativas **sem filtrar por data operacional**, causando missoes antigas (de dias anteriores) aparecendo no painel e gerando inconsistencias de rota.
-2. Missoes pendentes nao tem visibilidade propria - ficam misturadas nos cards dos motoristas, dificultando a operacao.
+Os status "Missao Aceita" e "Em Transito" usam tons de azul quase identicos nos cards do Localizador, dificultando a distincao visual rapida - especialmente em TVs.
 
-## Solucao Implementada
+## Solucao
 
-### 1. Filtro por data operacional
-- Query de missoes agora filtra por `data_programada` = dia operacional atual OU null (imediatas)
-- Busca `horario_virada_dia` do evento para calculo correto
-- Prioridade: `em_andamento` > `aceita`, desempate por `created_at` mais recente
+Alterar a cor de "Missao Aceita" de azul para **roxo/violeta**, mantendo "Em Transito" em azul com pulse. Isso cria contraste claro entre os dois estados.
 
-### 2. Coluna "Missoes Pendentes"
-- Coluna fixa amarela com icone Clock exibe motoristas com missao pendente (sem missao ativa)
-- Stat no header mostra contagem de pendentes
-- Cards reutilizam LocalizadorCard com missao pendente
+Cores atuais vs novas:
 
-### 3. Tipo `pendente` no LocalizadorColumn
-- Cor yellow-500, icone Clock
+| Status | Cor atual | Nova cor |
+|--------|-----------|----------|
+| Disponivel | Verde | Verde (sem mudanca) |
+| Missao Pendente | Amber | Amber (sem mudanca) |
+| **Missao Aceita** | **Azul (bg-blue-500)** | **Roxo (bg-violet-500 / text-violet-400)** |
+| Em Transito | Azul pulsante (bg-blue-600) | Azul pulsante (sem mudanca) |
+| Indisponivel | Vermelho | Vermelho (sem mudanca) |
 
-### Arquivos modificados
+## Alteracao
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/pages/PainelLocalizador.tsx` | Filtro por data operacional + coluna de pendentes + stat pendentes |
-| `src/components/localizador/LocalizadorColumn.tsx` | Novo tipo `pendente` no columnConfig |
+### `src/components/localizador/LocalizadorCard.tsx`
+
+Linha 15 - trocar:
+- `color: 'bg-blue-500'` para `'bg-violet-500'`
+- `textColor: 'text-blue-400'` para `'text-violet-400'`
+
+Apenas 1 linha alterada em 1 arquivo.
