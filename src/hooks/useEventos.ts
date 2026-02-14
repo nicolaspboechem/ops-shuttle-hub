@@ -39,29 +39,12 @@ export function useEventos() {
   useEffect(() => {
     fetchEventos(true); // Carregamento inicial com loading
 
-    // Debounce realtime updates
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchEventos(false), 2000);
-    };
-
-    // Realtime subscription - atualização em segundo plano
-    const channel = supabase
-      .channel('eventos-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'eventos' },
-        debouncedFetch
-      )
-      .subscribe();
-
-    // Polling fallback every 5 minutes - silencioso
+    // Polling only every 5 minutes - silencioso
+    // Realtime removido: trigger update_evento_stats dispara UPDATE em eventos
+    // a cada insert/update de viagem, causando refetch desnecessário em cascata
     const interval = setInterval(() => fetchEventos(false), 300000);
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, [fetchEventos]);

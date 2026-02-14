@@ -68,10 +68,21 @@ export interface Motorista {
   status?: string | null; // 'disponivel' | 'em_viagem' | 'indisponivel' | 'inativo'
 }
 
+// Cache timestamp to avoid redundant fetches on page navigation
+const motoristasCache = new Map<string, { data: Motorista[]; fetchedAt: number }>();
+const veiculosCache = new Map<string, { data: Veiculo[]; fetchedAt: number }>();
+const STALE_TIME_MS = 60000; // 60 seconds
+
 export function useMotoristas(eventoId?: string) {
   const { user } = useAuth();
-  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [motoristas, setMotoristas] = useState<Motorista[]>(() => {
+    const cached = motoristasCache.get(eventoId || '__all__');
+    return cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS) ? cached.data : [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = motoristasCache.get(eventoId || '__all__');
+    return !(cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS));
+  });
 
   const fetchMotoristas = useCallback(async (showLoading = false) => {
     // Validar se eventoId é um UUID válido antes de fazer a query
@@ -109,13 +120,20 @@ export function useMotoristas(eventoId?: string) {
       return;
     }
 
-    setMotoristas(data || []);
+    const result = data || [];
+    setMotoristas(result);
+    motoristasCache.set(eventoId || '__all__', { data: result, fetchedAt: Date.now() });
     setLoading(false);
   }, [eventoId]);
 
   useEffect(() => {
+    const cached = motoristasCache.get(eventoId || '__all__');
+    if (cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS)) {
+      // Data is fresh, skip fetch
+      return;
+    }
     fetchMotoristas(true); // Carregamento inicial com loading
-  }, [fetchMotoristas]);
+  }, [fetchMotoristas, eventoId]);
 
   const createMotorista = async (motorista: Omit<Motorista, 'id' | 'data_criacao' | 'data_atualizacao' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
     const { data, error } = await supabase
@@ -191,8 +209,14 @@ export function useMotoristas(eventoId?: string) {
 
 export function useVeiculos(eventoId?: string) {
   const { user } = useAuth();
-  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [veiculos, setVeiculos] = useState<Veiculo[]>(() => {
+    const cached = veiculosCache.get(eventoId || '__all__');
+    return cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS) ? cached.data : [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = veiculosCache.get(eventoId || '__all__');
+    return !(cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS));
+  });
 
   const fetchVeiculos = useCallback(async (showLoading = false) => {
     // Validar se eventoId é um UUID válido antes de fazer a query
@@ -262,12 +286,17 @@ export function useVeiculos(eventoId?: string) {
     })) as Veiculo[];
 
     setVeiculos(veiculosNormalizados);
+    veiculosCache.set(eventoId || '__all__', { data: veiculosNormalizados, fetchedAt: Date.now() });
     setLoading(false);
   }, [eventoId]);
 
   useEffect(() => {
-    fetchVeiculos(true); // Carregamento inicial com loading
-  }, [fetchVeiculos]);
+    const cached = veiculosCache.get(eventoId || '__all__');
+    if (cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS)) {
+      return;
+    }
+    fetchVeiculos(true);
+  }, [fetchVeiculos, eventoId]);
 
   const createVeiculo = async (veiculo: Omit<Veiculo, 'id' | 'data_criacao' | 'data_atualizacao' | 'motorista' | 'evento_id' | 'criado_por' | 'atualizado_por'> & { evento_id?: string }) => {
     const { data, error } = await supabase

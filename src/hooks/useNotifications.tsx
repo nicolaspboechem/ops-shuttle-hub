@@ -155,7 +155,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           viagem:viagens!viagem_id(motorista, placa, evento_id, evento:eventos!evento_id(nome_planilha))
         `)
         .order('created_at', { ascending: false })
-        .limit(30),
+        .limit(20),
       supabase
         .from('motorista_presenca')
         .select(`
@@ -349,13 +349,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchNotifications();
 
-    // THROTTLE: Prevent fetchNotifications from firing more than once per 5 seconds
+    // THROTTLE: Prevent fetchNotifications from firing more than once per 10 seconds
+    // Notifications are informational, not operational - higher throttle is fine
     let lastFetch = Date.now();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
     const throttledFetch = () => {
       const now = Date.now();
       const elapsed = now - lastFetch;
-      if (elapsed >= 5000) {
+      if (elapsed >= 10000) {
         lastFetch = now;
         fetchNotifications();
       } else if (!throttleTimer) {
@@ -363,7 +364,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           throttleTimer = null;
           lastFetch = Date.now();
           fetchNotifications();
-        }, 5000 - elapsed);
+        }, 10000 - elapsed);
       }
     };
 
