@@ -1,70 +1,79 @@
 
 
-# Filtro por Data no Historico + Limpeza Shuttle no Operador
+# Coluna "Outros" para Missoes com Origem ou Destino "Outros" + Filtros de Missoes
 
-## Resumo
+## Problema
 
-Duas alteracoes principais:
+Quando um motorista tem uma missao em andamento com origem OU destino "Outros", ele aparece na coluna "Em Transito" em vez de "Outros". A regra correta e: **se a missao ativa envolve "Outros" em qualquer ponta (embarque ou desembarque), o motorista deve aparecer na coluna "Outros"**.
 
-1. **App Motorista - Historico com filtro por data**: O historico atual carrega todas as viagens finalizadas de todos os dias, o que fica confuso. Sera adicionado o componente `DiaSeletor` para filtrar por data operacional.
+## Alteracoes
 
-2. **App Operador - Remover lista de shuttles do historico**: A aba "Historico" do operador lista todas as corridas shuttle individualmente, o que polui a interface. Sera transformada em um dashboard visual apenas com metricas (total shuttles, PAX, etc.) sem listar cada corrida. O historico detalhado de shuttle ja existe no CCO via `ShuttleTable` na `EventoTabs`.
+### 1. MapaServico.tsx - Roteamento para "Outros"
 
----
+Na logica de agrupamento (linhas 155-168), antes de colocar o motorista em `emViagem`, verificar se a missao ativa tem `ponto_embarque` ou `ponto_desembarque` igual a `outrosNome`. Se sim, colocar na coluna `outros`.
 
-## Detalhes Tecnicos
-
-### 1. MotoristaHistoricoTab - Filtro por Data
-
-**Arquivo:** `src/components/app/MotoristaHistoricoTab.tsx`
-
-- Adicionar props `dataOperacional` e `onDataChange` ao componente
-- Adicionar props `dataInicio` e `dataFim` do evento para limitar o seletor
-- Importar e renderizar o componente `DiaSeletor` no topo da aba
-- Filtrar `viagensFinalizadas` pela `dataOperacional` selecionada (comparando `data_criacao` com a data operacional)
-
-**Arquivo:** `src/pages/app/AppMotorista.tsx`
-
-- Passar `dataOperacional`, `setDataOperacional`, `evento?.data_inicio`, `evento?.data_fim` como props para `MotoristaHistoricoTab`
-- O filtro de `minhasViagensFinalizadas` permanece como esta (filtra por status), mas agora tambem filtrara por data operacional
-- Mover o filtro de data para dentro do `MotoristaHistoricoTab` ou filtrar antes de passar as viagens
-
-**Abordagem escolhida:** Filtrar no proprio `MotoristaHistoricoTab` usando a data operacional. O componente recebera todas as viagens finalizadas e filtrara internamente pela data selecionada, usando `getDataOperacional` para comparar corretamente com o horario de virada do dia.
-
-Novas props:
+Logica atual:
 ```text
-+ horarioVirada?: string
-+ dataInicio?: string
-+ dataFim?: string
+if (em_viagem) -> emViagem
+else if (retornando) -> retornando
+else if (localizacao === outrosNome) -> outros
 ```
 
-O componente tera um estado interno `dataSelecionada` com default = data operacional atual, e usara `DiaSeletor` para navegar entre datas.
+Logica corrigida:
+```text
+if (retornando) -> retornando
+else if (missao envolve outrosNome no embarque OU desembarque) -> outros
+else if (em_viagem) -> emViagem
+else if (localizacao === outrosNome) -> outros
+```
 
-### 2. OperadorHistoricoTab - Dashboard Visual (sem lista)
+### 2. PainelLocalizador.tsx - Mesma correcao
 
-**Arquivo:** `src/components/app/OperadorHistoricoTab.tsx`
+Na logica de agrupamento (linhas 233-252), aplicar a mesma verificacao: antes de mover para `em_transito` por causa de missao `em_andamento`, checar se `ponto_embarque` ou `ponto_desembarque` e "Outros". Se for, colocar na coluna `outros`.
 
-- Remover toda a lista de cards de viagens individuais
-- Manter apenas o bloco de resumo (grid com Encerradas, Canceladas, PAX Total)
-- Adicionar mais metricas visuais se aplicavel (ex: hora do primeiro e ultimo shuttle)
-- Resultado: dashboard limpo com apenas numeros agregados
+Logica atual:
+```text
+if (retornando) -> retornando
+else if (emTransitoPorMissao) -> em_transito
+else if (localizacao === outrosNome) -> outros
+```
 
-**Arquivo:** `src/pages/app/AppOperador.tsx`
+Logica corrigida:
+```text
+if (retornando) -> retornando
+else if (missao envolve outrosNome no embarque OU desembarque) -> outros
+else if (emTransitoPorMissao) -> em_transito
+else if (localizacao === outrosNome) -> outros
+```
 
-- A aba "Viagens" ja mostra a lista de shuttles com ShuttleRegistroCard - isso permanece
-- A aba "Historico" passa a mostrar apenas o dashboard visual de metricas
+### 3. MissoesPanel.tsx - Filtros por Ponto A e Ponto B
 
-### Sem alteracoes no CCO
+Adicionar dois novos filtros Select ao painel de missoes:
 
-O CCO ja possui visualizacao de historico de shuttle via `ShuttleTable` dentro de `EventoTabs.tsx` (aba "Shuttle"). Nenhuma alteracao necessaria no CCO.
+- **Ponto A (Embarque)**: dropdown com valores unicos de `ponto_embarque` extraidos dos pontos de embarque cadastrados
+- **Ponto B (Desembarque)**: dropdown com valores unicos de `ponto_desembarque` extraidos dos pontos de embarque cadastrados
 
----
+Novos estados:
+```text
+const [missaoPontoAFilter, setMissaoPontoAFilter] = useState('all');
+const [missaoPontoBFilter, setMissaoPontoBFilter] = useState('all');
+```
+
+Filtro aplicado no `filteredMissoes`:
+```text
+if (missaoPontoAFilter !== 'all')
+  filtered = filtered.filter(m => m.ponto_embarque === missaoPontoAFilter);
+if (missaoPontoBFilter !== 'all')
+  filtered = filtered.filter(m => m.ponto_desembarque === missaoPontoBFilter);
+```
+
+As opcoes virao de `pontosEmbarque` (ja carregado via `usePontosEmbarque`), garantindo que os nomes sejam consistentes.
 
 ## Arquivos Modificados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/app/MotoristaHistoricoTab.tsx` | Adicionar DiaSeletor com estado interno de data, filtrar viagens pela data selecionada |
-| `src/pages/app/AppMotorista.tsx` | Passar props de evento (horarioVirada, dataInicio, dataFim) para MotoristaHistoricoTab |
-| `src/components/app/OperadorHistoricoTab.tsx` | Remover lista de cards individuais, manter apenas dashboard de metricas |
+| `src/pages/MapaServico.tsx` | Priorizar coluna "Outros" quando missao envolve outrosNome (embarque ou desembarque) |
+| `src/pages/PainelLocalizador.tsx` | Mesma correcao de roteamento |
+| `src/components/motoristas/MissoesPanel.tsx` | Adicionar filtros Select por Ponto A e Ponto B |
 
