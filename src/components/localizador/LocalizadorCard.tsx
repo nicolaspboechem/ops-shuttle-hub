@@ -12,7 +12,7 @@ interface LocalizadorCardProps {
 const statusConfig = {
   disponivel: { label: 'Disponível', color: 'bg-green-500', textColor: 'text-green-400' },
   missao_pendente: { label: 'Missão Pendente', color: 'bg-amber-500', textColor: 'text-amber-400' },
-  missao_aceita: { label: 'Missão Aceita', color: 'bg-blue-500', textColor: 'text-blue-400' },
+  missao_aceita: { label: 'Missão Aceita', color: 'bg-violet-500', textColor: 'text-violet-400' },
   em_transito: { label: 'Em Trânsito', color: 'bg-blue-600 animate-pulse', textColor: 'text-blue-400' },
   indisponivel: { label: 'Indisponível', color: 'bg-red-500', textColor: 'text-red-400' },
 };
