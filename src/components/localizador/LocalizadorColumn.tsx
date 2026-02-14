@@ -1,4 +1,4 @@
-import { MapPin, Navigation, MapPinOff, Home } from 'lucide-react';
+import { MapPin, Navigation, MapPinOff, Home, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LocalizadorCard } from './LocalizadorCard';
 import { MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 interface LocalizadorColumnProps {
   titulo: string;
   motoristas: MotoristaComVeiculo[];
-  tipo: 'local' | 'em_transito' | 'sem_local' | 'retornando_base' | 'outros';
+  tipo: 'local' | 'em_transito' | 'sem_local' | 'retornando_base' | 'outros' | 'pendente';
   isFixed?: boolean;
   missoesPorMotorista?: Map<string, { status: string; ponto_embarque?: string; ponto_desembarque?: string }>;
 }
@@ -42,6 +42,12 @@ const columnConfig = {
     headerClass: 'bg-purple-500/20 border-purple-500/30',
     iconClass: 'text-purple-500',
     badgeClass: 'bg-purple-500 text-white',
+  },
+  pendente: {
+    icon: Clock,
+    headerClass: 'bg-yellow-500/20 border-yellow-500/30',
+    iconClass: 'text-yellow-500',
+    badgeClass: 'bg-yellow-500 text-white',
   },
 };
 
