@@ -477,8 +477,17 @@ export default function Motoristas() {
             <DropdownMenuItem 
               onSelect={() => navigate(`/evento/${eventoId}/vincular-veiculo/${motoristaCadastrado.id}`)}
             >
-              <Link2 className="w-4 h-4 mr-2" />
-              Vincular Veículo
+              {motoristaCadastrado.veiculo_id ? (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Trocar Veículo
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4 mr-2" />
+                  Vincular Veículo
+                </>
+              )}
             </DropdownMenuItem>
             <MotoristaModal 
               motorista={motoristaCadastrado}
