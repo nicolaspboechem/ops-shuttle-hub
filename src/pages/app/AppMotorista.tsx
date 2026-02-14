@@ -202,7 +202,17 @@ export default function AppMotorista() {
 
     setOperando(missaoId);
     try {
+      // Validação: apenas uma missão ativa por vez
+      const temMissaoAtiva = minhasMissoes.some(m =>
+        (m.status === 'aceita' || m.status === 'em_andamento') &&
+        m.id !== missaoId
+      );
+
       if (action === 'aceitar') {
+        if (temMissaoAtiva) {
+          toast.warning('Finalize a missão atual antes de aceitar outra');
+          return;
+        }
         // Verificar se tem veículo vinculado
         if (!motoristaData?.veiculo_id) {
           setShowVeiculoAlert(true);
@@ -212,6 +222,10 @@ export default function AppMotorista() {
       } else if (action === 'recusar') {
         await supabase.from('missoes').update({ status: 'cancelada' }).eq('id', missaoId);
       } else if (action === 'iniciar') {
+        if (temMissaoAtiva && missao.status !== 'aceita') {
+          toast.warning('Finalize a missão atual antes de iniciar outra');
+          return;
+        }
         // Verificar se tem veículo vinculado
         if (!motoristaData?.veiculo_id) {
           setShowVeiculoAlert(true);
@@ -426,17 +440,24 @@ export default function AppMotorista() {
                   <ClipboardList className="h-4 w-4 text-primary" />
                   <span>Missões Designadas ({minhasMissoes.length})</span>
                 </div>
-                {minhasMissoes.map(missao => (
-                  <MissaoCardMobile
-                    key={missao.id}
-                    missao={missao}
-                    loading={operando === missao.id}
-                    onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
-                    onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
-                    onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
-                    onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
-                  />
-                ))}
+                {minhasMissoes.map(missao => {
+                  const temOutraAtiva = minhasMissoes.some(m =>
+                    (m.status === 'aceita' || m.status === 'em_andamento') &&
+                    m.id !== missao.id
+                  );
+                  return (
+                    <MissaoCardMobile
+                      key={missao.id}
+                      missao={missao}
+                      loading={operando === missao.id}
+                      disabled={missao.status === 'pendente' && temOutraAtiva}
+                      onAceitar={() => handleMissaoAction(missao.id, 'aceitar')}
+                      onIniciar={() => handleMissaoAction(missao.id, 'iniciar')}
+                      onRecusar={() => handleMissaoAction(missao.id, 'recusar')}
+                      onFinalizar={() => handleMissaoAction(missao.id, 'finalizar')}
+                    />
+                  );
+                })}
               </div>
             )}
 

@@ -10,6 +10,7 @@ import { NavigationLinks } from './NavigationLinks';
 interface MissaoCardMobileProps {
   missao: Missao;
   loading?: boolean;
+  disabled?: boolean;
   onAceitar?: () => void;
   onRecusar?: () => void;
   onIniciar?: () => void;
@@ -29,14 +30,14 @@ const statusLabels: Record<string, string> = {
   em_andamento: 'Em Andamento',
 };
 
-export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
+export function MissaoCardMobile({ missao, loading, disabled, onAceitar, onRecusar, onIniciar, onFinalizar }: MissaoCardMobileProps) {
   const config = prioridadeConfig[missao.prioridade];
 
-  // Swipe actions based on status
+  // Swipe actions based on status (disabled blocks pendente swipe)
   const getSwipeActions = () => {
     if (missao.status === 'pendente') {
       return {
-        rightAction: onAceitar ? {
+        rightAction: onAceitar && !disabled ? {
           icon: <CheckCircle className="h-6 w-6" />,
           label: 'Aceitar',
           color: 'text-white',
@@ -79,7 +80,8 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
     <Card className={cn(
       "transition-all interactive-card",
       config.cardBorder,
-      missao.status === 'pendente' && "border-primary/30 shadow-sm",
+      disabled && "opacity-60",
+      missao.status === 'pendente' && !disabled && "border-primary/30 shadow-sm",
       missao.status === 'aceita' && "border-blue-500/30 bg-blue-500/5",
       missao.status === 'em_andamento' && "border-amber-500/30 bg-amber-500/5",
     )}
@@ -152,10 +154,13 @@ export function MissaoCardMobile({ missao, loading, onAceitar, onRecusar, onInic
             <Button
               className="flex-1"
               onClick={onAceitar}
-              disabled={loading}
+              disabled={loading || disabled}
+              variant={disabled ? "secondary" : "default"}
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : disabled ? (
+                <span className="text-xs">Finalize a missão atual</span>
               ) : (
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
