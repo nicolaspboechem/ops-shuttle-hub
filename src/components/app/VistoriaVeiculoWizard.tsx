@@ -316,9 +316,10 @@ export function VistoriaVeiculoWizard({
 
       onComplete();
       handleClose();
-    } catch (err) {
-      console.error('Erro:', err);
-      toast.error('Erro ao salvar veículo');
+    } catch (err: any) {
+      console.error('Erro ao salvar vistoria:', err);
+      const msg = err?.message || 'Erro desconhecido';
+      toast.error(`Erro ao salvar veículo: ${msg}`);
     } finally {
       setSaving(false);
     }

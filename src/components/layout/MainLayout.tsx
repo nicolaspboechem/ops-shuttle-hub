@@ -39,7 +39,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={300}>
       <div className="min-h-screen flex w-full bg-background">
         <aside className={cn(
           "flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border h-screen fixed left-0 top-0 transition-all duration-300 z-50",
@@ -63,23 +63,27 @@ export function MainLayout({ children }: MainLayoutProps) {
           </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {filteredNav.map((item) => (
-            <Tooltip key={item.name}>
-              <TooltipTrigger asChild>
-                <NavLink to={item.href}
-                  className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent", collapsed && "justify-center px-2")}
-                  activeClassName="bg-sidebar-primary text-sidebar-primary-foreground">
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && item.name}
-                </NavLink>
-              </TooltipTrigger>
-              {collapsed && (
-                <TooltipContent side="right">
-                  {item.name}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          ))}
+          {filteredNav.map((item) => {
+            const link = (
+              <NavLink key={item.name} to={item.href}
+                className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent", collapsed && "justify-center px-2")}
+                activeClassName="bg-sidebar-primary text-sidebar-primary-foreground">
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && item.name}
+              </NavLink>
+            );
+
+            if (collapsed) {
+              return (
+                <Tooltip key={item.name}>
+                  <TooltipTrigger asChild>{link}</TooltipTrigger>
+                  <TooltipContent side="right">{item.name}</TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            return link;
+          })}
         </nav>
 
         {/* User section */}
