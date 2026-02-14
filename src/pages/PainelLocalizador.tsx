@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation, Home } from 'lucide-react';
+import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation, Home, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { useEventosMissoes } from '@/hooks/useEventosMissoes';
 import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
 import { EventosGrid } from '@/components/public/EventosGrid';
 import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
@@ -22,6 +23,7 @@ export default function PainelLocalizador() {
   const [eventoNome, setEventoNome] = useState('');
   const [baseNome, setBaseNome] = useState('Base');
   const [outrosNome, setOutrosNome] = useState<string | null>(null);
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
   const [missoesAtivas, setMissoesAtivas] = useState<any[]>([]);
   
   const { offset, getAgoraSync } = useServerTime();
@@ -43,17 +45,20 @@ export default function PainelLocalizador() {
     }
   }, [paramEventoId]);
 
-  // Fetch event name
+  // Fetch event name and horario_virada_dia
   useEffect(() => {
     if (!selectedEvento) return;
     
     supabase
       .from('eventos')
-      .select('nome_planilha')
+      .select('nome_planilha, horario_virada_dia')
       .eq('id', selectedEvento)
       .single()
       .then(({ data }) => {
         setEventoNome(data?.nome_planilha || '');
+        if (data?.horario_virada_dia) {
+          setHorarioVirada(data.horario_virada_dia.substring(0, 5)); // "HH:mm"
+        }
       });
   }, [selectedEvento]);
 
@@ -74,13 +79,15 @@ export default function PainelLocalizador() {
         if (outros) setOutrosNome(outros.nome);
       });
 
-    // Fetch active missions
+    // Fetch active missions filtered by operational day
     const fetchMissoes = () => {
+      const dataOp = getDataOperacional(new Date(Date.now() + offset), horarioVirada);
       supabase
         .from('missoes')
-        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status')
+        .select('id, motorista_id, ponto_embarque, ponto_desembarque, status, created_at')
         .eq('evento_id', selectedEvento)
         .in('status', ['pendente', 'aceita', 'em_andamento'])
+        .or(`data_programada.eq.${dataOp},data_programada.is.null`)
         .then(({ data }) => {
           setMissoesAtivas(data || []);
         });
@@ -94,7 +101,7 @@ export default function PainelLocalizador() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedEvento]);
+  }, [selectedEvento, horarioVirada, offset]);
 
   // Update clock every second using synced time
   useEffect(() => {
@@ -133,17 +140,70 @@ export default function PainelLocalizador() {
     evento.descricao?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Map active missions per driver
+  // Map active missions per driver (only aceita/em_andamento for location display)
+  const statusPriority: Record<string, number> = { em_andamento: 3, aceita: 2, pendente: 1 };
+  
   const missoesPorMotorista = useMemo(() => {
     const map = new Map<string, typeof missoesAtivas[number]>();
     missoesAtivas.forEach(m => {
+      if (m.status === 'pendente') return; // pendentes go to their own column
       const existing = map.get(m.motorista_id);
-      if (!existing || m.status === 'em_andamento' || (m.status === 'aceita' && existing.status === 'pendente')) {
+      if (!existing) {
         map.set(m.motorista_id, m);
+      } else {
+        const newPrio = statusPriority[m.status] || 0;
+        const existPrio = statusPriority[existing.status] || 0;
+        if (newPrio > existPrio || (newPrio === existPrio && m.created_at > existing.created_at)) {
+          map.set(m.motorista_id, m);
+        }
       }
     });
     return map;
   }, [missoesAtivas]);
+
+  // Pending missions: drivers with pendente and NO active (aceita/em_andamento) mission
+  const missoesPendentes = useMemo(() => {
+    const motoristasComAtiva = new Set<string>();
+    missoesAtivas.forEach(m => {
+      if (m.status === 'aceita' || m.status === 'em_andamento') {
+        motoristasComAtiva.add(m.motorista_id);
+      }
+    });
+    return missoesAtivas.filter(m => 
+      m.status === 'pendente' && !motoristasComAtiva.has(m.motorista_id)
+    );
+  }, [missoesAtivas]);
+
+  // Build fake MotoristaComVeiculo entries for pending missions column
+  const motoristasPendentes = useMemo(() => {
+    const allMotoristas = Object.values(motoristasPorLocalizacao).flat();
+    const motoristasMap = new Map(allMotoristas.map(m => [m.id, m]));
+    
+    // Deduplicate: one entry per driver (most recent pending)
+    const perDriver = new Map<string, typeof missoesAtivas[number]>();
+    missoesPendentes.forEach(m => {
+      const existing = perDriver.get(m.motorista_id);
+      if (!existing || m.created_at > existing.created_at) {
+        perDriver.set(m.motorista_id, m);
+      }
+    });
+
+    return Array.from(perDriver.values())
+      .map(m => motoristasMap.get(m.motorista_id))
+      .filter(Boolean) as MotoristaComVeiculo[];
+  }, [missoesPendentes, motoristasPorLocalizacao]);
+
+  // Map pending missions for the pendentes column cards
+  const missoesPendentesPorMotorista = useMemo(() => {
+    const map = new Map<string, typeof missoesAtivas[number]>();
+    missoesPendentes.forEach(m => {
+      const existing = map.get(m.motorista_id);
+      if (!existing || m.created_at > existing.created_at) {
+        map.set(m.motorista_id, m);
+      }
+    });
+    return map;
+  }, [missoesPendentes]);
 
   // Identify drivers returning to base
   const retornandoBaseIds = useMemo(() => {
@@ -203,8 +263,8 @@ export default function PainelLocalizador() {
       .flatMap(([, arr]) => arr)
       .filter(m => m.status === 'disponivel').length;
 
-    return { total: totalMotoristas, emTransito, disponiveis, retornando };
-  }, [motoristasPorLocalizacao, retornandoBaseMotoristas]);
+    return { total: totalMotoristas, emTransito, disponiveis, retornando, pendentes: motoristasPendentes.length };
+  }, [motoristasPorLocalizacao, retornandoBaseMotoristas, motoristasPendentes]);
 
   // EVENT SELECTION VIEW
   if (!selectedEvento) {
@@ -337,6 +397,15 @@ export default function PainelLocalizador() {
                 </div>
               </div>
             )}
+            {stats.pendentes > 0 && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-yellow-400" />
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-400">{stats.pendentes}</div>
+                  <div className="text-xs text-white/60 uppercase">Pendentes</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Clock */}
@@ -390,6 +459,15 @@ export default function PainelLocalizador() {
 
           {/* Fixed columns - always visible */}
           <div className="flex gap-4 shrink-0">
+            {motoristasPendentes.length > 0 && (
+              <LocalizadorColumn
+                titulo="Missões Pendentes"
+                motoristas={motoristasPendentes}
+                tipo="pendente"
+                isFixed
+                missoesPorMotorista={missoesPendentesPorMotorista}
+              />
+            )}
             <LocalizadorColumn
               titulo={`Retornando pra ${baseNome}`}
               motoristas={retornandoBaseMotoristas}
