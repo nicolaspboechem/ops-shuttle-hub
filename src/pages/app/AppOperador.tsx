@@ -14,6 +14,7 @@ import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
+import { CreateShuttleForm } from '@/components/app/CreateShuttleForm';
 import { useMissoes } from '@/hooks/useMissoes';
 
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
@@ -57,6 +58,7 @@ export default function AppOperador() {
   const [showKmModal, setShowKmModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
+  const [showShuttleForm, setShowShuttleForm] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
@@ -154,6 +156,8 @@ export default function AppOperador() {
   const handleActionSelect = (tipo: ActionType) => {
     if (tipo === 'missao') {
       setShowMissaoInstantanea(true);
+    } else if (tipo === 'shuttle') {
+      setShowShuttleForm(true);
     } else {
       setPreselectedTipo(tipo);
       setShowForm(true);
@@ -377,6 +381,18 @@ export default function AppOperador() {
       />
 
       {/* Missão Instantânea */}
+
+      {/* Shuttle simplificado */}
+      <CreateShuttleForm
+        open={showShuttleForm}
+        onOpenChange={setShowShuttleForm}
+        eventoId={eventoId!}
+        onCreated={() => {
+          refetch();
+          setActiveTab('viagens');
+        }}
+      />
+
       <MissaoInstantaneaModal
         open={showMissaoInstantanea}
         onOpenChange={setShowMissaoInstantanea}

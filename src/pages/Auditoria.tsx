@@ -22,7 +22,7 @@ export default function Auditoria() {
   const { motoristas } = useMotoristas(eventoId);
   const { kpis, metricasPorHora, viagensFinalizadas } = useCalculos(viagens);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
 
   const viagensFiltradas = useMemo(() => {
     if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);

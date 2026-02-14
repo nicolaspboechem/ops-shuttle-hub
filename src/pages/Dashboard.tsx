@@ -82,7 +82,7 @@ export default function Dashboard() {
     }
   };
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('transfer');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
   const [showHelp, setShowHelp] = useState(false);
   

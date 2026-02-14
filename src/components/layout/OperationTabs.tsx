@@ -20,6 +20,17 @@ export function OperationTabs({ value, onChange, contadores, className }: Operat
     <Tabs value={value} onValueChange={(v) => onChange(v as TipoOperacaoFiltro)} className={className}>
       <TabsList className="grid grid-cols-3 h-auto p-1">
         <TabsTrigger 
+          value="missao" 
+          className={cn(
+            "gap-1.5 py-2.5",
+            "data-[state=active]:bg-purple-500 data-[state=active]:text-purple-950"
+          )}
+        >
+          <Target className="w-4 h-4" />
+          <span className="hidden sm:inline">Missão</span>
+          <span className="text-xs opacity-75">({contadores.missao})</span>
+        </TabsTrigger>
+        <TabsTrigger 
           value="transfer" 
           className={cn(
             "gap-1.5 py-2.5",
@@ -40,17 +51,6 @@ export function OperationTabs({ value, onChange, contadores, className }: Operat
           <Bus className="w-4 h-4" />
           <span className="hidden sm:inline">Shuttle</span>
           <span className="text-xs opacity-75">({contadores.shuttle})</span>
-        </TabsTrigger>
-        <TabsTrigger 
-          value="missao" 
-          className={cn(
-            "gap-1.5 py-2.5",
-            "data-[state=active]:bg-purple-500 data-[state=active]:text-purple-950"
-          )}
-        >
-          <Target className="w-4 h-4" />
-          <span className="hidden sm:inline">Missão</span>
-          <span className="text-xs opacity-75">({contadores.missao})</span>
         </TabsTrigger>
       </TabsList>
     </Tabs>
