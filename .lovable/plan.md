@@ -1,59 +1,82 @@
 
 
-# Correcao: Missoes Fantasma + Criacao de Viagem pelo CCO
+# Virada Operacional Completa: Fechar Tudo ao Encerrar o Dia
 
-## Resumo
+## Problema Atual
 
-Duas correcoes no arquivo `src/hooks/useMissoes.ts`:
+Existem duas edge functions separadas que cobrem partes do processo, mas com lacunas:
 
-1. **Auto-limpeza de missoes fantasma**: Ao carregar missoes, cancelar automaticamente missoes de dias anteriores que ainda estejam `aceita` ou `em_andamento`
-2. **Criar viagem ao iniciar missao pelo CCO**: Replicar a logica do `AppMotorista.tsx` dentro de `iniciarMissao`, criando um registro na tabela `viagens` para que o motorista veja a viagem no app
+| Funcao | O que faz | Lacuna |
+|--------|-----------|--------|
+| `auto-checkout` | Checkout de motoristas + desvinculacao de veiculos | So processa eventos com `habilitar_missoes = true`. Nao fecha viagens. |
+| `close-open-trips` | Fecha viagens abertas de dias anteriores | Usa meia-noite fixa como corte, ignora `horario_virada_dia` de cada evento. Nao faz checkout. |
 
----
+## Solucao: Unificar em uma unica Edge Function
+
+Consolidar toda a logica de virada operacional na edge function `auto-checkout`, tornando-a a unica responsavel pela virada completa. A `close-open-trips` sera mantida como fallback de seguranca (apenas para viagens orfas de dias muito antigos).
+
+### Nova logica do `auto-checkout`
+
+Para cada evento ativo (removendo filtro `habilitar_missoes = true`):
+
+```text
+1. Calcular se estamos na janela de virada (0-15 min apos horario_virada_dia)
+2. Calcular a data operacional que acabou de encerrar (dataOntem)
+3. ETAPA A - Fechar viagens abertas do dia operacional encerrado:
+   - Buscar viagens com encerrado = false
+   - Filtrar por data_criacao dentro dos limites do dia operacional (dataOntem)
+   - Atualizar para encerrado = true, status = 'encerrado'
+4. ETAPA B - Cancelar missoes ativas do dia anterior:
+   - Buscar missoes com status aceita/em_andamento e data_programada = dataOntem
+   - Atualizar para status = 'cancelada'
+5. ETAPA C - Checkout automatico (logica existente):
+   - Buscar presencas abertas do dia operacional encerrado
+   - Registrar checkout_at
+   - Definir motorista.status = 'indisponivel'
+   - Desvinculacao bidirecional de veiculos (motorista.veiculo_id = null, veiculo.motorista_id = null)
+```
+
+### Alteracoes na `close-open-trips`
+
+Ajustar para respeitar o `horario_virada_dia` de cada evento em vez de usar meia-noite fixa. Ela servira como rede de seguranca para viagens que possam ter escapado.
 
 ## Detalhes Tecnicos
 
-### Alteracao 1: Auto-limpeza no `fetchMissoes`
+### Arquivo: `supabase/functions/auto-checkout/index.ts`
 
-Apos buscar as missoes do banco, identificar missoes fantasma (status `aceita` ou `em_andamento` com `data_programada` anterior ao dia operacional atual) e cancela-las automaticamente:
+Alteracoes:
+- Remover filtro `.eq("habilitar_missoes", true)` -- processar TODOS os eventos ativos
+- Adicionar ETAPA A: fechar viagens abertas cujo `data_criacao` esta dentro do dia operacional encerrado (usando limites calculados com `horario_virada_dia`)
+- Adicionar ETAPA B: cancelar missoes fantasma do dia encerrado
+- Manter ETAPA C (checkout + desvinculacao bidirecional) como esta
 
-- Importar `useServerTime` e `getDataOperacional` no hook `useMissoes`
-- Dentro de `fetchMissoes`, apos receber os dados, filtrar missoes fantasma
-- Executar um UPDATE em batch para `status = 'cancelada'`
-- Para missoes `em_andamento`, tambem chamar `syncMotoristaAoEncerrarMissao` para liberar o motorista
-- Buscar `horario_virada_dia` do evento para calcular o dia operacional correto
-
-### Alteracao 2: Criar viagem no `iniciarMissao`
-
-Expandir a query de fetch dentro de `iniciarMissao` para incluir dados do motorista e veiculo. Apos atualizar o status da missao, criar um registro em `viagens` replicando a mesma estrutura que `AppMotorista.tsx` usa (linhas 283-334):
+Calculo dos limites do dia operacional encerrado:
 
 ```text
-iniciarMissao:
-  1. Buscar missao com campos expandidos (ponto_embarque_id, ponto_desembarque_id)
-  2. Buscar motorista (nome, veiculo_id) e veiculo (placa, tipo_veiculo)
-  3. Validar que nao ha outra missao em_andamento
-  4. Verificar se ja existe viagem com origem_missao_id = id (evitar duplicata)
-  5. Atualizar missao para em_andamento
-  6. Criar registro em viagens com:
-     - evento_id, motorista_id, veiculo_id
-     - ponto_embarque, ponto_desembarque (texto e FK)
-     - motorista (nome texto), placa, tipo_veiculo
-     - tipo_operacao: 'transfer'
-     - status: 'em_andamento'
-     - h_inicio_real: getAgoraSync().toISOString()
-     - origem_missao_id: missao.id
-  7. Criar log em viagem_logs (acao: 'inicio', via: 'cco_missao')
-  8. Atualizar missao.viagem_id com o ID da viagem criada
-  9. Atualizar motorista.status para 'em_viagem'
+// dataOntem = data operacional que acabou
+// virada = horario_virada_dia do evento (ex: "03:00")
+// Limites do dia operacional "dataOntem":
+//   inicio = dataOntem + virada (ex: 2025-02-14T03:00:00-03:00)
+//   fim    = dataOntem+1dia + virada - 1ms (ex: 2025-02-15T02:59:59.999-03:00)
+
+// Fechar viagens onde data_criacao >= inicio AND data_criacao <= fim AND encerrado = false
 ```
 
-### Arquivo modificado
+### Arquivo: `supabase/functions/close-open-trips/index.ts`
 
-| Arquivo | Alteracoes |
-|---------|-----------|
-| `src/hooks/useMissoes.ts` | Importar `useServerTime` e `getDataOperacional`. Adicionar auto-limpeza no `fetchMissoes`. Expandir `iniciarMissao` para criar viagem e log. |
+Alteracao: tornar event-aware, iterando por cada evento ativo e usando `horario_virada_dia` para calcular os limites corretos em vez de meia-noite fixa. Manter como fallback que roda no mesmo cron de 15 minutos.
 
-### Seguranca contra duplicatas
+### Nenhuma alteracao de cron necessaria
 
-A funcao `iniciarMissao` verificara se ja existe uma viagem com `origem_missao_id = id` antes de criar uma nova, evitando viagens duplicadas caso o operador clique duas vezes ou o Realtime dispare um refetch.
+Ambas as functions ja rodam a cada 15 minutos. A logica de janela de 15 minutos no `auto-checkout` garante que so executa uma vez por virada.
+
+## Resultado
+
+- Na virada do dia operacional (definida por `horario_virada_dia` de cada evento):
+  - Todas as viagens abertas daquele dia sao encerradas automaticamente
+  - Todas as missoes ativas (aceita/em_andamento) daquele dia sao canceladas
+  - Todos os motoristas com presenca aberta recebem checkout automatico
+  - Todos os veiculos vinculados sao desvinculados bidirecionalmente
+- Funciona para TODOS os eventos ativos, independente de `habilitar_missoes`
+- Cada evento pode ter seu proprio horario de virada
 
