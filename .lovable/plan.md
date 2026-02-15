@@ -1,110 +1,81 @@
 
-# Escala de Motoristas - Kanban com Colunas Colapsaveis e Edicao
+
+# Mover Escala para Mapa de Servico + Mostrar Veiculo nos Cards
 
 ## Resumo
 
-Substituir o layout atual de dois paineis (split-pane com Select) por um layout Kanban horizontal onde **todas as escalas aparecem como colunas lado a lado**, cada uma podendo ser recolhida lateralmente. Adicionar botao de editar em cada coluna que reabre o wizard com os dados preenchidos.
+Duas alteracoes:
+1. Remover a aba "Escala" da sidebar de Motoristas e adicionar na sidebar de Mapa de Servico
+2. No card de motorista dentro da escala, mostrar o nome do veiculo vinculado (ao lado do badge "Ativo" ou abaixo do nome)
 
 ---
 
 ## Alteracoes
 
-### 1. Reescrever `MotoristasEscala.tsx`
+### 1. Remover "Escala" de Motoristas.tsx
 
-Remover o layout de `ResizablePanelGroup` com dois paineis e Select. Substituir por:
+- Linha 44: remover `{ id: 'escala', label: 'Escala', icon: Calendar }` do array `sections`
+- Remover import do `Calendar` icon e do `MotoristasEscala`
+- Remover o bloco de render condicional `activeSection === 'escala'` (linhas 1095-1101)
 
-- Container horizontal com scroll (`flex overflow-x-auto gap-3`)
-- Cada escala renderizada como uma **coluna Kanban** (componente `EscalaKanbanColumn`)
-- Cada coluna tem:
-  - Header com nome da escala, horario, contagem de motoristas e ativos
-  - Botao de recolher (ChevronLeft) que colapsa a coluna para uma barra vertical estreita (48px) - mesmo padrao do `MapaServicoColumn`
-  - Botao de editar (Pencil) que abre o wizard em modo edicao
-  - Botao de excluir (Trash2) com confirmacao
-  - Botao de remover motorista (UserMinus) em cada card, visivel no hover
-- Estado `collapsedIds` (Set) controla quais colunas estao recolhidas
-- Coluna recolhida mostra: seta para expandir, nome vertical, badge com contagem
+### 2. Adicionar "Escala" no MapaServico.tsx
 
-### 2. Adicionar modo edicao ao `CreateEscalaWizard.tsx`
+- Adicionar `Calendar` ao import de lucide-react
+- Adicionar import de `MotoristasEscala` e hooks necessarios (`useMotoristas` de `useCadastros`, `useEquipe`)
+- Adicionar `{ id: 'escala', label: 'Escala', icon: Calendar }` ao array `sections` (linha 24-27)
+- Instanciar `useMotoristas(eventoId)` e `useEquipe(eventoId)` no componente
+- Criar funcao `getPresenca` igual a de Motoristas.tsx (buscar membro por tipo === 'motorista')
+- Adicionar bloco de render para `activeSection === 'escala'` junto aos existentes (linhas 558-563)
 
-- Aceitar prop opcional `escalaParaEditar?: Escala`
-- Quando presente, pre-preencher nome, horario_inicio, horario_fim e motoristas selecionados
-- Titulo muda para "Editar Escala" em vez de "Nova Escala"
-- Botao muda para "Salvar" em vez de "Criar Escala"
-- Aceitar callback `onEdit` alem do `onSubmit`
+### 3. Mostrar veiculo no MotoristaEscalaCard
 
-### 3. Adicionar `updateEscala` ao hook `useEscalas.ts`
-
-Nova funcao que:
-- Atualiza nome, horario_inicio, horario_fim na tabela `escalas`
-- Sincroniza motoristas: remove os que foram desmarcados, adiciona os novos
-- Expor no return do hook
-
-### 4. Coluna colapsada (padrao MapaServicoColumn)
-
-Quando colapsada:
-```text
-+------+
-| [>]  |   <- chevron para expandir
-|  3   |   <- badge com contagem
-|  T   |
-|  u   |   <- nome vertical (writing-mode: vertical-lr, rotate 180)
-|  r   |
-|  n   |
-|  o   |
-|  A   |
-+------+
-```
-Largura: 48px. Clicar expande de volta.
+No componente `MotoristaEscalaCard` dentro de `MotoristasEscala.tsx`:
+- O tipo `Motorista` ja possui `veiculo?: Veiculo` com `nome` e `placa`
+- Abaixo do nome do motorista, quando houver veiculo vinculado, mostrar uma linha com o nome/placa do veiculo em texto menor e cor mais suave
+- Quando o status for "Ativo", mostrar o veiculo ao lado do badge
 
 ---
 
 ## Detalhes Tecnicos
 
-### MotoristasEscala.tsx - Nova estrutura
+### MapaServico.tsx - novos imports e dados
 
 ```text
-<div className="flex flex-col h-full">
-  {/* Top bar com titulo + botao Nova Escala */}
+import { useMotoristas } from '@/hooks/useCadastros';
+import { useEquipe } from '@/hooks/useEquipe';
+import { MotoristasEscala } from '@/components/motoristas/MotoristasEscala';
+import { Calendar } from 'lucide-react';
 
-  <div className="flex-1 overflow-x-auto">
-    <div className="flex gap-3 h-full p-1">
-      {escalas.map(escala => (
-        <EscalaKanbanColumn
-          key={escala.id}
-          escala={escala}
-          motoristas={...}
-          getPresenca={getPresenca}
-          collapsed={collapsedIds.has(escala.id)}
-          onToggleCollapse={() => toggle(escala.id)}
-          onEdit={() => openEditWizard(escala)}
-          onDelete={() => handleDelete(escala.id)}
-          onRemoveMotorista={(mid) => removeMotoristaFromEscala(escala.id, mid)}
-        />
-      ))}
-    </div>
-  </div>
+// No array sections:
+{ id: 'escala', label: 'Escala', icon: Calendar }
+
+// Dentro do componente:
+const { motoristas: motoristasCadastrados } = useMotoristas(eventoId);
+const { membros: equipeMembros } = useEquipe(eventoId);
+
+const getPresenca = (motoristaId: string) => {
+  const membro = equipeMembros.find(m => m.tipo === 'motorista' && m.id === motoristaId);
+  return membro ? { checkin_at: membro.checkin_at, checkout_at: membro.checkout_at } : null;
+};
+
+// Render:
+<div className={activeSection === 'escala' ? 'flex flex-col h-full p-4' : 'hidden'}>
+  <MotoristasEscala eventoId={eventoId || ''} motoristas={motoristasCadastrados} getPresenca={getPresenca} />
 </div>
 ```
 
-### useEscalas.ts - updateEscala
+### MotoristaEscalaCard - mostrar veiculo
 
 ```text
-const updateEscala = async (escalaId: string, data: CreateEscalaData) => {
-  // 1. Update escalas table (nome, horarios)
-  await supabase.from('escalas').update({...}).eq('id', escalaId);
-
-  // 2. Get current motorista_ids for this escala
-  // 3. Delete removed ones
-  // 4. Insert new ones
-  await fetchEscalas();
-};
+<div className="flex-1 min-w-0">
+  <p className="text-sm font-medium truncate">{motorista.nome}</p>
+  {motorista.veiculo && (
+    <p className="text-[10px] text-muted-foreground truncate">
+      {motorista.veiculo.nome || motorista.veiculo.placa}
+    </p>
+  )}
+</div>
 ```
-
-### CreateEscalaWizard - modo edicao
-
-- Nova prop: `escalaParaEditar?: Escala & { motorista_ids: string[] }`
-- `useEffect` que pre-preenche os campos quando `escalaParaEditar` muda
-- Submit chama `onEdit` em vez de `onSubmit` quando em modo edicao
 
 ---
 
@@ -112,6 +83,7 @@ const updateEscala = async (escalaId: string, data: CreateEscalaData) => {
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/motoristas/MotoristasEscala.tsx` | Reescrever: kanban horizontal com colunas colapsaveis |
-| `src/components/motoristas/CreateEscalaWizard.tsx` | Adicionar modo edicao (pre-preencher campos) |
-| `src/hooks/useEscalas.ts` | Adicionar funcao `updateEscala` |
+| `src/pages/Motoristas.tsx` | Remover secao "Escala" do sections, remover render e imports relacionados |
+| `src/pages/MapaServico.tsx` | Adicionar secao "Escala", hooks de dados, e render do MotoristasEscala |
+| `src/components/motoristas/MotoristasEscala.tsx` | Adicionar nome do veiculo no MotoristaEscalaCard |
+
