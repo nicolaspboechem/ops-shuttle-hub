@@ -83,7 +83,20 @@ export function DriverAuthProvider({ children }: { children: React.ReactNode }) 
     setDriverSession(null);
   }, []);
 
-  const isAuthenticated = !!driverSession && driverSession.expires_at > Date.now();
+  // isAuthenticated robusto: useState + verificação periódica (evita logout instantâneo por re-render)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      // Margem de tolerância: 1 hora após expiração para graceful degradation
+      const GRACE_PERIOD = 60 * 60 * 1000; // 1 hora em ms
+      const valid = !!driverSession && (driverSession.expires_at + GRACE_PERIOD) > Date.now();
+      setIsAuthenticated(valid);
+    };
+    check();
+    const interval = setInterval(check, 60000); // Verifica a cada 60s
+    return () => clearInterval(interval);
+  }, [driverSession]);
 
   return (
     <DriverAuthContext.Provider value={{

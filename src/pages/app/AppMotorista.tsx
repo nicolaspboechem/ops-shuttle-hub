@@ -63,7 +63,7 @@ export default function AppMotorista() {
   }, [eventoId]);
   const { iniciarViagem, registrarChegada } = useViagemOperacaoMotorista();
   const { missoes, loading: loadingMissoes, refetch: refetchMissoes } = useMissoesPorMotorista(eventoId, motoristaId);
-  const { getAgoraSync } = useServerTime();
+  const { getAgoraSync, loading: loadingServerTime } = useServerTime();
   
   const [operando, setOperando] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
@@ -145,8 +145,9 @@ export default function AppMotorista() {
 
   // Filter missions for this driver (only active)
   const dataOperacional = useMemo(() => {
+    if (loadingServerTime) return null;
     return getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00');
-  }, [getAgoraSync, evento?.horario_virada_dia]);
+  }, [getAgoraSync, evento?.horario_virada_dia, loadingServerTime]);
 
   const minhasMissoes = useMemo(() => {
     if (!motoristaData) return [];
