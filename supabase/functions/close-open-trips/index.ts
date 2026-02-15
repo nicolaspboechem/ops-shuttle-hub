@@ -16,169 +16,135 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Obter hora sincronizada do banco de dados (America/Sao_Paulo)
+    // Get synchronized server time (America/Sao_Paulo)
     const { data: serverTimeData, error: timeError } = await supabase.rpc('get_server_time')
     if (timeError) {
-      console.warn('[close-open-trips] Erro ao obter hora do servidor:', timeError)
+      console.warn('[close-open-trips] Error getting server time:', timeError)
     }
     const serverTime = serverTimeData ? new Date(serverTimeData) : new Date()
     const serverTimeISO = serverTime.toISOString()
-    console.log(`[close-open-trips] Executando às ${serverTimeISO} (SP)`)
+    console.log(`[close-open-trips] Running at ${serverTimeISO} (SP)`)
 
-    // Extrair data atual SP (YYYY-MM-DD) do serverTime
+    // Fetch all active events with their virada time
+    const { data: eventos, error: eventosError } = await supabase
+      .from('eventos')
+      .select('id, horario_virada_dia, nome_planilha')
+      .eq('status', 'ativo')
+
+    if (eventosError) {
+      console.error('[close-open-trips] Error fetching events:', eventosError)
+      throw eventosError
+    }
+
+    let totalClosed = 0
+    const details: { evento: string; closed: number }[] = []
+
+    // ======== BLOCO 1: Event-aware - fechar viagens de dias operacionais anteriores ========
+    for (const evento of (eventos || [])) {
+      const virada = evento.horario_virada_dia || '04:00:00'
+      const viradaHHMM = virada.substring(0, 5)
+
+      // Calculate current operational date for this event
+      const [horaVirada, minVirada] = virada.split(':').map(Number)
+      const viradaMinutos = horaVirada * 60 + (minVirada || 0)
+      const horaAtual = serverTime.getHours()
+      const minAtual = serverTime.getMinutes()
+      const atualMinutos = horaAtual * 60 + minAtual
+
+      // Current operational date
+      let dataOpAtual: string
+      if (atualMinutos < viradaMinutos) {
+        const ontem = new Date(serverTime)
+        ontem.setDate(ontem.getDate() - 1)
+        dataOpAtual = ontem.toISOString().slice(0, 10)
+      } else {
+        dataOpAtual = serverTime.toISOString().slice(0, 10)
+      }
+
+      // The cutoff: anything before the START of the current operational day should be closed
+      // Current op day starts at: dataOpAtual + virada
+      const cutoffISO = `${dataOpAtual}T${viradaHHMM}:00-03:00`
+
+      // Find open trips for this event created before the current operational day
+      const { data: oldTrips, error: oldError } = await supabase
+        .from('viagens')
+        .select('id')
+        .eq('evento_id', evento.id)
+        .eq('encerrado', false)
+        .lt('data_criacao', cutoffISO)
+
+      if (oldError) {
+        console.error(`[close-open-trips] Error fetching trips for event ${evento.id}:`, oldError)
+        continue
+      }
+
+      if (oldTrips && oldTrips.length > 0) {
+        const oldIds = oldTrips.map(t => t.id)
+        const { error: updateError } = await supabase
+          .from('viagens')
+          .update({
+            encerrado: true,
+            status: 'encerrado',
+            h_fim_real: serverTimeISO,
+            observacao: 'Encerrada automaticamente - fallback close-open-trips',
+          })
+          .in('id', oldIds)
+
+        if (updateError) {
+          console.error(`[close-open-trips] Error closing trips for event ${evento.id}:`, updateError)
+        } else {
+          totalClosed += oldIds.length
+          details.push({ evento: evento.nome_planilha, closed: oldIds.length })
+          console.log(`[close-open-trips] Closed ${oldIds.length} orphan trips for event "${evento.nome_planilha}" (cutoff: ${cutoffISO})`)
+        }
+      }
+    }
+
+    // ======== BLOCO 2: Safety net - viagens sem evento_id (órfãs) ========
     const spDateStr = serverTimeData
       ? serverTimeData.substring(0, 10)
       : serverTime.toISOString().substring(0, 10)
 
-    // ======== BLOCO 1: Fechar viagens de dias anteriores ========
-    const { data: oldTrips, error: oldError } = await supabase
+    const { data: orphanTrips, error: orphanError } = await supabase
       .from('viagens')
       .select('id')
       .eq('encerrado', false)
+      .is('evento_id', null)
       .lt('data_criacao', `${spDateStr}T00:00:00-03:00`)
 
-    if (oldError) {
-      console.error('[close-open-trips] Erro ao buscar viagens antigas:', oldError)
-    } else if (oldTrips && oldTrips.length > 0) {
-      const oldIds = oldTrips.map(t => t.id)
-      console.log(`[close-open-trips] Fechando ${oldIds.length} viagens de dias anteriores`)
-
-      const { error: oldUpdateError } = await supabase
+    if (orphanError) {
+      console.error('[close-open-trips] Error fetching orphan trips:', orphanError)
+    } else if (orphanTrips && orphanTrips.length > 0) {
+      const orphanIds = orphanTrips.map(t => t.id)
+      const { error: updateOrphanError } = await supabase
         .from('viagens')
         .update({
           encerrado: true,
           status: 'encerrado',
           h_fim_real: serverTimeISO,
-          observacao: 'Encerrada automaticamente - dia anterior',
+          observacao: 'Encerrada automaticamente - viagem órfã sem evento',
         })
-        .in('id', oldIds)
+        .in('id', orphanIds)
 
-      if (oldUpdateError) {
-        console.error('[close-open-trips] Erro ao fechar viagens antigas:', oldUpdateError)
-      } else {
-        console.log(`[close-open-trips] ${oldIds.length} viagens de dias anteriores encerradas`)
+      if (!updateOrphanError) {
+        totalClosed += orphanIds.length
+        details.push({ evento: '(sem evento)', closed: orphanIds.length })
+        console.log(`[close-open-trips] Closed ${orphanIds.length} orphan trips without evento_id`)
       }
     }
 
-    // ======== BLOCO 2: Lógica original - fechar viagens duplicadas do mesmo motorista ========
-    const { data: openTrips, error: openError } = await supabase
-      .from('viagens')
-      .select('id, motorista, h_pickup, h_chegada, evento_id')
-      .eq('encerrado', false)
-      .order('h_pickup', { ascending: true })
-
-    if (openError) throw openError
-
-    console.log(`Found ${openTrips?.length || 0} open trips`)
-
-    // Group by evento_id and motorista
-    const tripsByDriver = new Map<string, typeof openTrips>()
-    
-    for (const trip of openTrips || []) {
-      const key = `${trip.evento_id}|${trip.motorista}`
-      if (!tripsByDriver.has(key)) {
-        tripsByDriver.set(key, [])
-      }
-      tripsByDriver.get(key)!.push(trip)
-    }
-
-    const tripsToClose: string[] = []
-    const closedDetails: Array<{ id: string; motorista: string; h_pickup: string }> = []
-
-    // For each driver, if they have multiple open trips, close all but the last one
-    for (const [key, trips] of tripsByDriver) {
-      if (trips.length > 1) {
-        trips.sort((a, b) => {
-          const timeA = a.h_pickup || '00:00:00'
-          const timeB = b.h_pickup || '00:00:00'
-          return timeA.localeCompare(timeB)
-        })
-        
-        for (let i = 0; i < trips.length - 1; i++) {
-          tripsToClose.push(trips[i].id)
-          closedDetails.push({
-            id: trips[i].id,
-            motorista: trips[i].motorista,
-            h_pickup: trips[i].h_pickup
-          })
-        }
-      }
-    }
-
-    // Also check for trips where driver has a later closed trip
-    const { data: allTrips, error: allError } = await supabase
-      .from('viagens')
-      .select('id, motorista, h_pickup, encerrado, evento_id')
-      .order('h_pickup', { ascending: true })
-
-    if (!allError && allTrips) {
-      const closedTripsByDriver = new Map<string, typeof allTrips>()
-      
-      for (const trip of allTrips) {
-        if (trip.encerrado) {
-          const key = `${trip.evento_id}|${trip.motorista}`
-          if (!closedTripsByDriver.has(key)) {
-            closedTripsByDriver.set(key, [])
-          }
-          closedTripsByDriver.get(key)!.push(trip)
-        }
-      }
-
-      for (const trip of openTrips || []) {
-        if (tripsToClose.includes(trip.id)) continue
-        
-        const key = `${trip.evento_id}|${trip.motorista}`
-        const closedTrips = closedTripsByDriver.get(key) || []
-        
-        const hasLaterClosedTrip = closedTrips.some(ct => {
-          const openTime = trip.h_pickup || '00:00:00'
-          const closedTime = ct.h_pickup || '00:00:00'
-          return closedTime > openTime
-        })
-
-        if (hasLaterClosedTrip) {
-          tripsToClose.push(trip.id)
-          closedDetails.push({
-            id: trip.id,
-            motorista: trip.motorista,
-            h_pickup: trip.h_pickup
-          })
-        }
-      }
-    }
-
-    console.log(`Closing ${tripsToClose.length} trips`)
-
-    // Close all identified trips with full status update
-    if (tripsToClose.length > 0) {
-      const { error: updateError } = await supabase
-        .from('viagens')
-        .update({
-          encerrado: true,
-          status: 'encerrado',
-          h_fim_real: serverTimeISO,
-        })
-        .in('id', tripsToClose)
-
-      if (updateError) {
-        console.error('Error closing trips:', updateError)
-        throw updateError
-      }
-    }
-
-    console.log(`Successfully closed ${tripsToClose.length} trips`)
+    console.log(`[close-open-trips] Total closed: ${totalClosed}`)
 
     return new Response(JSON.stringify({ 
       success: true, 
-      closed: tripsToClose.length,
-      oldTrips: oldTrips?.length || 0,
-      details: closedDetails.slice(0, 50)
+      closed: totalClosed,
+      details,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error: unknown) {
-    console.error('Error:', error)
+    console.error('[close-open-trips] Error:', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
