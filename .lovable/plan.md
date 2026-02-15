@@ -1,115 +1,59 @@
 
-# Garantir Fuso Horario GMT-3 (Brasilia) em Todo o Sistema
 
-## Problema
+# Correcao: Missoes Fantasma + Criacao de Viagem pelo CCO
 
-O sistema ja possui um mecanismo de sincronizacao de horario (`useServerTime` / `getAgoraSync()`) que retorna a hora correta de Brasilia via RPC `get_server_time()`. Porem, **dezenas de arquivos** ainda usam `new Date()` diretamente, que depende do relogio local do dispositivo do usuario. Se o servidor ou o dispositivo estiver em fuso diferente, os dados ficam dessincronizados.
+## Resumo
 
-Existem dois tipos de problema:
+Duas correcoes no arquivo `src/hooks/useMissoes.ts`:
 
-1. **Timestamps gravados no banco** com `new Date().toISOString()` -- gravam hora UTC do cliente, que pode divergir do servidor
-2. **Calculos de dia operacional** com `getDataOperacional(new Date(), ...)` -- usam hora local do cliente em vez da hora sincronizada
+1. **Auto-limpeza de missoes fantasma**: Ao carregar missoes, cancelar automaticamente missoes de dias anteriores que ainda estejam `aceita` ou `em_andamento`
+2. **Criar viagem ao iniciar missao pelo CCO**: Replicar a logica do `AppMotorista.tsx` dentro de `iniciarMissao`, criando um registro na tabela `viagens` para que o motorista veja a viagem no app
 
-## Estrategia
-
-Criar uma funcao utilitaria `getServerNow()` que retorna um ISO string sincronizado com o servidor, e substituir TODOS os `new Date().toISOString()` e `new Date()` em contextos operacionais por chamadas sincronizadas.
-
-Para hooks que ja tem acesso ao `useServerTime`, usar `getAgoraSync().toISOString()`. Para funcoes que nao tem acesso a hooks (ex: helpers puros), receber o timestamp como parametro.
-
-## Arquivos a Modificar
-
-### Grupo 1: Hooks criticos (gravam timestamps no banco)
-
-| Arquivo | Problema | Correcao |
-|---------|----------|----------|
-| `src/hooks/useMissoes.ts` | `syncMotoristaAoEncerrarMissao` usa `new Date().toISOString()` (linha 309). `MissaoInstantaneaModal` e `MissaoModal` usam `new Date().toISOString().slice(0,10)` para `data_programada` | Importar e usar `useServerTime` + `getAgoraSync().toISOString()`. Passar `getAgoraSync` para `syncMotoristaAoEncerrarMissao`. Para `data_programada`, usar `getDataOperacional(getAgoraSync(), virada)` |
-| `src/hooks/useLocalizadorMotoristas.ts` | Linha 37: `getDataOperacional(new Date(), ...)` | Receber offset como parametro ou usar `useServerTime` e passar `getAgoraSync()` |
-
-### Grupo 2: Paginas que calculam dia operacional com hora local
-
-| Arquivo | Linha | Correcao |
-|---------|-------|----------|
-| `src/pages/Dashboard.tsx` | 44-45 | `getDataOperacional(getAgoraSync(), ...)` |
-| `src/pages/ViagensAtivas.tsx` | 22-23 | `getDataOperacional(getAgoraSync(), ...)` |
-| `src/pages/ViagensFinalizadas.tsx` | 22-23 | `getDataOperacional(getAgoraSync(), ...)` |
-| `src/pages/app/AppSupervisor.tsx` | 73-74 | `getDataOperacional(getAgoraSync(), ...)` |
-| `src/pages/app/AppOperador.tsx` | 72-73 | `getDataOperacional(getAgoraSync(), ...)` |
-| `src/components/app/MotoristaHistoricoTab.tsx` | 47 | `getDataOperacional(getAgoraSync(), ...)` |
-
-### Grupo 3: Componentes que gravam timestamps no banco
-
-| Arquivo | Uso | Correcao |
-|---------|-----|----------|
-| `src/pages/MapaServico.tsx` | `ultima_localizacao_at: new Date().toISOString()` (linhas 346, 405) | Usar `getAgoraSync().toISOString()` |
-| `src/components/app/SupervisorFrotaTab.tsx` | `liberado_em` e `ultima_localizacao_at` com `new Date().toISOString()` | Usar `getAgoraSync().toISOString()` |
-| `src/components/app/SupervisorLocalizadorTab.tsx` | `ultima_localizacao_at: new Date().toISOString()` | Usar `getAgoraSync().toISOString()` |
-| `src/components/app/VeiculoKmModal.tsx` | `km_inicial_data` / `km_final_data` | Usar `getAgoraSync().toISOString()` |
-| `src/components/veiculos/CreateVeiculoWizard.tsx` | `inspecao_data`, `liberado_em`, `km_inicial_data` | Usar `getAgoraSync().toISOString()` |
-| `src/components/app/VistoriaVeiculoWizard.tsx` | `inspecao_data`, `liberado_em`, `km_inicial_data` | Usar `getAgoraSync().toISOString()` |
-| `src/components/viagens/EditViagemModal.tsx` | `data_atualizacao` | Usar `getAgoraSync().toISOString()` |
-| `src/hooks/useAlertasFrota.ts` | `resolvido_em` | Usar `getAgoraSync().toISOString()` |
-
-### Grupo 4: Componentes que usam `new Date().toISOString().slice(0,10)` para data
-
-| Arquivo | Correcao |
-|---------|----------|
-| `src/components/motoristas/MissaoInstantaneaModal.tsx` | Usar dia operacional sincronizado |
-| `src/components/motoristas/MissaoModal.tsx` | Usar dia operacional sincronizado |
-| `src/components/motoristas/MissaoCard.tsx` | Comparar com dia operacional sincronizado |
-| `src/components/motoristas/MissoesPanel.tsx` | Filtro de data default sincronizado |
-
-### Grupo 5: Edge Functions (ja corretas)
-
-As edge functions (`close-open-trips`, `auto-checkout`, `sync-data`) ja usam `supabase.rpc('get_server_time')` como fonte de verdade. Nenhuma alteracao necessaria.
+---
 
 ## Detalhes Tecnicos
 
-### Padrao para hooks (tem acesso a React)
+### Alteracao 1: Auto-limpeza no `fetchMissoes`
+
+Apos buscar as missoes do banco, identificar missoes fantasma (status `aceita` ou `em_andamento` com `data_programada` anterior ao dia operacional atual) e cancela-las automaticamente:
+
+- Importar `useServerTime` e `getDataOperacional` no hook `useMissoes`
+- Dentro de `fetchMissoes`, apos receber os dados, filtrar missoes fantasma
+- Executar um UPDATE em batch para `status = 'cancelada'`
+- Para missoes `em_andamento`, tambem chamar `syncMotoristaAoEncerrarMissao` para liberar o motorista
+- Buscar `horario_virada_dia` do evento para calcular o dia operacional correto
+
+### Alteracao 2: Criar viagem no `iniciarMissao`
+
+Expandir a query de fetch dentro de `iniciarMissao` para incluir dados do motorista e veiculo. Apos atualizar o status da missao, criar um registro em `viagens` replicando a mesma estrutura que `AppMotorista.tsx` usa (linhas 283-334):
 
 ```text
-// Dentro do hook ou componente:
-const { getAgoraSync } = useServerTime();
-
-// Gravar timestamp:
-const now = getAgoraSync().toISOString();
-
-// Calcular dia operacional:
-const dataOp = getDataOperacional(getAgoraSync(), horarioVirada);
+iniciarMissao:
+  1. Buscar missao com campos expandidos (ponto_embarque_id, ponto_desembarque_id)
+  2. Buscar motorista (nome, veiculo_id) e veiculo (placa, tipo_veiculo)
+  3. Validar que nao ha outra missao em_andamento
+  4. Verificar se ja existe viagem com origem_missao_id = id (evitar duplicata)
+  5. Atualizar missao para em_andamento
+  6. Criar registro em viagens com:
+     - evento_id, motorista_id, veiculo_id
+     - ponto_embarque, ponto_desembarque (texto e FK)
+     - motorista (nome texto), placa, tipo_veiculo
+     - tipo_operacao: 'transfer'
+     - status: 'em_andamento'
+     - h_inicio_real: getAgoraSync().toISOString()
+     - origem_missao_id: missao.id
+  7. Criar log em viagem_logs (acao: 'inicio', via: 'cco_missao')
+  8. Atualizar missao.viagem_id com o ID da viagem criada
+  9. Atualizar motorista.status para 'em_viagem'
 ```
 
-### Padrao para funcoes que recebem como parametro
+### Arquivo modificado
 
-```text
-// syncMotoristaAoEncerrarMissao recebe timestamp sincronizado
-const syncMotoristaAoEncerrarMissao = async (missao: Missao, nowISO: string) => {
-  // Usa nowISO em vez de new Date().toISOString()
-};
+| Arquivo | Alteracoes |
+|---------|-----------|
+| `src/hooks/useMissoes.ts` | Importar `useServerTime` e `getDataOperacional`. Adicionar auto-limpeza no `fetchMissoes`. Expandir `iniciarMissao` para criar viagem e log. |
 
-// Chamada:
-const now = getAgoraSync().toISOString();
-await syncMotoristaAoEncerrarMissao(missao, now);
-```
+### Seguranca contra duplicatas
 
-### Padrao para useState inicial
+A funcao `iniciarMissao` verificara se ja existe uma viagem com `origem_missao_id = id` antes de criar uma nova, evitando viagens duplicadas caso o operador clique duas vezes ou o Realtime dispare um refetch.
 
-Como `useServerTime` pode ainda estar carregando no primeiro render, usar `new Date()` como fallback inicial e atualizar via `useEffect` quando o offset estiver pronto:
-
-```text
-const { getAgoraSync, loading: timeLoading } = useServerTime();
-const [dataOperacional, setDataOperacional] = useState<string>(() => 
-  getDataOperacional(new Date(), '04:00') // fallback inicial
-);
-
-useEffect(() => {
-  if (!timeLoading && evento?.horario_virada_dia) {
-    setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
-  }
-}, [timeLoading, evento?.horario_virada_dia, getAgoraSync]);
-```
-
-## Resultado
-
-- TODOS os timestamps gravados no banco usarao hora sincronizada de Brasilia
-- TODOS os calculos de dia operacional usarao hora sincronizada
-- Edge functions continuam usando `get_server_time()` do banco (ja corretas)
-- Dispositivos em fusos diferentes (ex: servidor em UTC, celular em GMT+1) produzirao dados consistentes com America/Sao_Paulo
