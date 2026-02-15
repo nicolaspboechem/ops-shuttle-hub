@@ -6,6 +6,8 @@ import { TransferTable } from '@/components/transfer/TransferTable';
 import { TransferMetrics } from '@/components/transfer/TransferMetrics';
 import { ShuttleTable } from '@/components/shuttle/ShuttleTable';
 import { ShuttleMetrics } from '@/components/shuttle/ShuttleMetrics';
+import { ShuttlePaxChart } from '@/components/shuttle/ShuttlePaxChart';
+import { ShuttleViagensDiaChart } from '@/components/shuttle/ShuttleViagensDiaChart';
 import { AlertsPanel } from '@/components/dashboard/AlertsPanel';
 import { VehiclesChart } from '@/components/dashboard/VehiclesChart';
 import { PassengersChart } from '@/components/dashboard/PassengersChart';
@@ -240,6 +242,10 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpda
 
       <TabsContent value="shuttle" className="space-y-6 mt-0">
         <ShuttleMetrics viagens={viagensShuttle} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ShuttlePaxChart viagens={viagensShuttle} />
+          <ShuttleViagensDiaChart viagens={viagensShuttle} />
+        </div>
         <ShuttleTable viagens={viagensShuttle} onUpdate={onUpdate} />
       </TabsContent>
     </Tabs>
