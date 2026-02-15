@@ -104,7 +104,7 @@ export function useMotoristas(eventoId?: string) {
     
     let query = supabase
       .from('motoristas')
-      .select('*')
+      .select('*, veiculo:veiculos!motoristas_veiculo_id_fkey(*)')
       .order('nome', { ascending: true });
 
     // Filtrar por evento se fornecido
