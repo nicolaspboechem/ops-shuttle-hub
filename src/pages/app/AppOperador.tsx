@@ -21,7 +21,9 @@ import {
   Loader2,
   Bus,
   Users,
-  RefreshCw
+  RefreshCw,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { format } from 'date-fns';
@@ -120,12 +122,17 @@ export default function AppOperador() {
   const { getName } = useUserNames(creatorIds);
 
   // Summary metrics
-  const summary = useMemo(() => ({
-    ativas: viagensAtivas.length,
-    encerradas: viagensEncerradas.length,
-    totalPaxIda: viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
-    totalPaxVolta: viagensEncerradas.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0),
-  }), [viagens, viagensAtivas, viagensEncerradas]);
+  const summary = useMemo(() => {
+    const totalPaxIda = viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
+    const totalPaxVolta = viagens.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0);
+    return {
+      total: viagens.length,
+      ativas: viagensAtivas.length,
+      totalPaxIda,
+      totalPaxVolta,
+      totalPax: totalPaxIda + totalPaxVolta,
+    };
+  }, [viagens, viagensAtivas]);
 
   // Sort by most recent first
   const sortedAtivas = useMemo(() => 
@@ -211,13 +218,23 @@ export default function AppOperador() {
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-card border rounded-lg p-4 text-center">
               <Bus className="h-5 w-5 mx-auto mb-1 text-primary" />
-              <p className="text-2xl font-bold">{summary.ativas}</p>
-              <p className="text-xs text-muted-foreground">Ativas</p>
+              <p className="text-2xl font-bold">{summary.total}</p>
+              <p className="text-xs text-muted-foreground">{summary.ativas > 0 ? `${summary.ativas} ativas` : 'Viagens'}</p>
             </div>
             <div className="bg-card border rounded-lg p-4 text-center">
               <Users className="h-5 w-5 mx-auto mb-1 text-primary" />
-              <p className="text-2xl font-bold">{summary.totalPaxIda}</p>
+              <p className="text-2xl font-bold">{summary.totalPax}</p>
               <p className="text-xs text-muted-foreground">PAX Total</p>
+            </div>
+            <div className="bg-card border rounded-lg p-4 text-center">
+              <ArrowUp className="h-5 w-5 mx-auto mb-1 text-emerald-500" />
+              <p className="text-2xl font-bold">{summary.totalPaxIda}</p>
+              <p className="text-xs text-muted-foreground">PAX Ida</p>
+            </div>
+            <div className="bg-card border rounded-lg p-4 text-center">
+              <ArrowDown className="h-5 w-5 mx-auto mb-1 text-sky-500" />
+              <p className="text-2xl font-bold">{summary.totalPaxVolta}</p>
+              <p className="text-xs text-muted-foreground">PAX Volta</p>
             </div>
           </div>
 

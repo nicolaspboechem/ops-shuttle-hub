@@ -1,41 +1,71 @@
 import { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bus, Users } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Bus, Users, ArrowUp, ArrowDown } from 'lucide-react';
 import { Viagem } from '@/lib/types/viagem';
 
 interface ShuttleMetricsProps {
   viagens: Viagem[];
 }
 
+function KpiCard({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: React.ReactNode }) {
+  return (
+    <Card className="border-emerald-500/20">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <p className="text-3xl font-bold tracking-tight">{value}</p>
+            {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+          </div>
+          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            {icon}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ShuttleMetrics({ viagens }: ShuttleMetricsProps) {
-  const metrics = useMemo(() => ({
-    totalViagens: viagens.length,
-    totalPassageiros: viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
-  }), [viagens]);
+  const metrics = useMemo(() => {
+    const paxIda = viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
+    const paxVolta = viagens.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0);
+    const ativas = viagens.filter(v => !v.encerrado && v.status !== 'encerrado' && v.status !== 'cancelado').length;
+    return {
+      totalViagens: viagens.length,
+      paxIda,
+      paxVolta,
+      paxTotal: paxIda + paxVolta,
+      ativas,
+    };
+  }, [viagens]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Card className="border-emerald-500/20">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Shuttles</CardTitle>
-          <Bus className="h-4 w-4 text-emerald-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{metrics.totalViagens}</div>
-          <p className="text-xs text-muted-foreground">Registrados</p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-emerald-500/20">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Passageiros</CardTitle>
-          <Users className="h-4 w-4 text-emerald-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{metrics.totalPassageiros}</div>
-          <p className="text-xs text-muted-foreground">Total transportados</p>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <KpiCard
+        title="Passageiros Total"
+        value={metrics.paxTotal.toLocaleString('pt-BR')}
+        subtitle="Ida + Volta"
+        icon={<Users className="w-5 h-5" />}
+      />
+      <KpiCard
+        title="Total Viagens"
+        value={metrics.totalViagens}
+        subtitle={metrics.ativas > 0 ? `${metrics.ativas} ativas` : 'Registradas'}
+        icon={<Bus className="w-5 h-5" />}
+      />
+      <KpiCard
+        title="PAX Ida"
+        value={metrics.paxIda.toLocaleString('pt-BR')}
+        subtitle="Embarques"
+        icon={<ArrowUp className="w-5 h-5" />}
+      />
+      <KpiCard
+        title="PAX Volta"
+        value={metrics.paxVolta.toLocaleString('pt-BR')}
+        subtitle="Retornos"
+        icon={<ArrowDown className="w-5 h-5" />}
+      />
     </div>
   );
 }
