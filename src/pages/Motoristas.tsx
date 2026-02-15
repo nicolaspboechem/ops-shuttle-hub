@@ -25,6 +25,7 @@ import { MotoristaKanbanCard } from '@/components/motoristas/MotoristaKanbanCard
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
+import { EscalasAuditoria } from '@/components/motoristas/EscalasAuditoria';
 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,6 +43,7 @@ import { useEquipe } from '@/hooks/useEquipe';
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
+  { id: 'escalas', label: 'Escalas', icon: Clock },
 ];
 
 const MOTORISTA_STATUSES = ['disponivel', 'em_viagem', 'indisponivel', 'inativo', 'expediente_encerrado'] as const;
@@ -1088,6 +1090,9 @@ export default function Motoristas() {
           <div className="flex-1 p-6 overflow-auto min-h-0">
             <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
               <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
+            </div>
+            <div className={activeSection === 'escalas' ? 'block' : 'hidden'}>
+              <EscalasAuditoria eventoId={eventoId} evento={evento} motoristas={motoristasCadastrados} veiculos={veiculos} />
             </div>
             <div className={activeSection === 'cadastro' ? 'block' : 'hidden'}>
               {cadastroContent}
