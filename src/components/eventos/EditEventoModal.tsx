@@ -61,10 +61,10 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   useEffect(() => {
     // Parse dates from evento if they exist
     if (evento.data_inicio) {
-      setDataInicio(new Date(evento.data_inicio));
+      setDataInicio(new Date(evento.data_inicio + 'T12:00:00'));
     }
     if (evento.data_fim) {
-      setDataFim(new Date(evento.data_fim));
+      setDataFim(new Date(evento.data_fim + 'T12:00:00'));
     }
     if (evento.horario_virada_dia) {
       setHorarioVirada(evento.horario_virada_dia.substring(0, 5));
