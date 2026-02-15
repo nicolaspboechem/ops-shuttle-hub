@@ -56,7 +56,7 @@ export default function MapaServico() {
   const { motoristas, motoristasPorLocalizacao, localizacoes, loading, refetch } = useLocalizadorMotoristas(eventoId);
   const { createMissao } = useMissoes(eventoId);
   const { user } = useAuth();
-  const { offset } = useServerTime();
+  const { offset, getAgoraSync } = useServerTime();
 
   // --- InnerSidebar ---
   const [activeSection, setActiveSection] = useState<string>('localizacao');
@@ -363,6 +363,7 @@ export default function MapaServico() {
       ponto_embarque: chamarBaseMotorista.ultima_localizacao || 'Local atual',
       ponto_desembarque: baseNome,
       prioridade: 'normal',
+      data_programada: getDataOperacional(getAgoraSync(), horarioVirada),
     });
 
     // Criar viagem no histórico para rastreabilidade

@@ -69,8 +69,9 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     if (missaoDataFilter) {
       filtered = filtered.filter(m => {
         if (!m.data_programada) {
-          const createdDate = m.created_at ? m.created_at.slice(0, 10) : '';
-          return createdDate === missaoDataFilter;
+          if (!m.created_at) return false;
+          const createdOpDate = getDataOperacional(new Date(m.created_at), '04:00');
+          return createdOpDate === missaoDataFilter;
         }
         return m.data_programada === missaoDataFilter;
       });
