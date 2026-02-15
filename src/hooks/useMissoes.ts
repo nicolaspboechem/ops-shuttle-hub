@@ -241,10 +241,15 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const aceitarMissao = async (id: string) => {
-    const missao = missoes.find(m => m.id === id);
+    // Buscar do banco (fonte da verdade) em vez do estado local
+    const { data: missao } = await supabase
+      .from('missoes')
+      .select('id, motorista_id')
+      .eq('id', id)
+      .maybeSingle();
+
     if (!missao) return null;
 
-    // Consulta ao banco (fonte da verdade) para evitar stale data
     const { data: ativas } = await supabase
       .from('missoes')
       .select('id')
@@ -256,7 +261,7 @@ export function useMissoes(eventoId: string | undefined) {
 
     if (ativas && ativas.length > 0) {
       toast.error('Este motorista já possui uma missão ativa. Finalize antes de aceitar outra.');
-      fetchMissoes(); // Sincronizar estado local
+      fetchMissoes();
       return null;
     }
 
@@ -264,10 +269,15 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const iniciarMissao = async (id: string) => {
-    const missao = missoes.find(m => m.id === id);
+    // Buscar do banco (fonte da verdade) em vez do estado local
+    const { data: missao } = await supabase
+      .from('missoes')
+      .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status')
+      .eq('id', id)
+      .maybeSingle();
+
     if (!missao) return null;
 
-    // Consulta ao banco (fonte da verdade)
     const { data: emAndamento } = await supabase
       .from('missoes')
       .select('id')
@@ -285,8 +295,7 @@ export function useMissoes(eventoId: string | undefined) {
 
     const result = await updateMissao(id, { status: 'em_andamento' });
 
-    // Atualizar status do motorista para em_viagem ao iniciar missão
-    if (result && missao) {
+    if (result) {
       await supabase
         .from('motoristas')
         .update({ status: 'em_viagem' })
@@ -337,17 +346,29 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const concluirMissao = async (id: string) => {
-    const missao = missoes.find(m => m.id === id);
+    // Buscar do banco (fonte da verdade)
+    const { data: missao } = await supabase
+      .from('missoes')
+      .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status, viagem_id')
+      .eq('id', id)
+      .maybeSingle();
+
     if (missao) {
-      await syncMotoristaAoEncerrarMissao(missao);
+      await syncMotoristaAoEncerrarMissao(missao as any);
     }
     return updateMissao(id, { status: 'concluida' });
   };
 
   const cancelarMissao = async (id: string) => {
-    const missao = missoes.find(m => m.id === id);
+    // Buscar do banco (fonte da verdade)
+    const { data: missao } = await supabase
+      .from('missoes')
+      .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status, viagem_id')
+      .eq('id', id)
+      .maybeSingle();
+
     if (missao && (missao.status === 'aceita' || missao.status === 'em_andamento')) {
-      await syncMotoristaAoEncerrarMissao(missao);
+      await syncMotoristaAoEncerrarMissao(missao as any);
     }
     return updateMissao(id, { status: 'cancelada' });
   };
