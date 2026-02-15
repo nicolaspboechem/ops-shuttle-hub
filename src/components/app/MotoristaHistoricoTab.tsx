@@ -18,6 +18,7 @@ import { MotoristaPresencaComVeiculo } from '@/hooks/useMotoristaPresenca';
 import { CheckoutModal } from './CheckoutModal';
 import { DiaSeletor } from './DiaSeletor';
 import { getDataOperacional, getLimitesDiaOperacional } from '@/lib/utils/diaOperacional';
+import { useServerTime } from '@/hooks/useServerTime';
 
 interface MotoristaHistoricoTabProps {
   viagensFinalizadas: Viagem[];
@@ -42,9 +43,10 @@ export function MotoristaHistoricoTab({
   dataInicio,
   dataFim,
 }: MotoristaHistoricoTabProps) {
+  const { getAgoraSync } = useServerTime();
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [dataSelecionada, setDataSelecionada] = useState(() => 
-    getDataOperacional(new Date(), horarioVirada)
+    getDataOperacional(getAgoraSync(), horarioVirada)
   );
 
   const hasCheckin = !!presenca?.checkin_at;

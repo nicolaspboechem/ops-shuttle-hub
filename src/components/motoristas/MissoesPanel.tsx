@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +35,7 @@ const missaoKanbanColumns = [
 ];
 
 export function MissoesPanel({ eventoId }: MissoesPanelProps) {
+  const { getAgoraSync } = useServerTime();
   const { missoes, loading: loadingMissoes, createMissao, updateMissao, deleteMissao, aceitarMissao, iniciarMissao, concluirMissao, cancelarMissao } = useMissoes(eventoId);
   const { motoristas: motoristasCadastrados } = useMotoristas(eventoId);
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
@@ -44,7 +47,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const [missaoPontoBFilter, setMissaoPontoBFilter] = useState<string>('all');
   const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
-  const [missaoDataFilter, setMissaoDataFilter] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [missaoDataFilter, setMissaoDataFilter] = useState<string>(getDataOperacional(getAgoraSync(), '04:00'));
 
   // Modal states
   const [showMissaoModal, setShowMissaoModal] = useState(false);
@@ -122,10 +125,11 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     setMissaoPontoAFilter('all');
     setMissaoPontoBFilter('all');
     setMissaoSearchTerm('');
-    setMissaoDataFilter(new Date().toISOString().slice(0, 10));
+    setMissaoDataFilter(getDataOperacional(getAgoraSync(), '04:00'));
   };
 
-  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== new Date().toISOString().slice(0, 10);
+  const todayOp = getDataOperacional(getAgoraSync(), '04:00');
+  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== todayOp;
 
   const handleMissaoDragStart = (event: DragStartEvent) => {
     const missao = filteredMissoes.find(m => m.id === event.active.id);

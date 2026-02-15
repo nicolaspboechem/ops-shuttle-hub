@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Motorista, Veiculo } from '@/hooks/useCadastros';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
+import { useServerTime } from '@/hooks/useServerTime';
 
 export interface MotoristaComVeiculo extends Motorista {
   veiculo?: Veiculo | null;
@@ -18,6 +19,7 @@ export interface MotoristasPorLocalizacao {
 export function useLocalizadorMotoristas(eventoId: string | undefined) {
   const [motoristas, setMotoristas] = useState<MotoristaComVeiculo[]>([]);
   const [loading, setLoading] = useState(true);
+  const { getAgoraSync } = useServerTime();
 
   const fetchMotoristas = useCallback(async () => {
     if (!eventoId) {
@@ -34,7 +36,7 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
         .single();
       
       const horarioVirada = evento?.horario_virada_dia?.substring(0, 5) || '04:00';
-      const dataOperacional = getDataOperacional(new Date(), horarioVirada);
+      const dataOperacional = getDataOperacional(getAgoraSync(), horarioVirada);
 
       // 2. Buscar motoristas com JOINs + presenças + viagens em paralelo
       const [motoristasResult, presencasResult, viagensResult] = await Promise.all([
@@ -105,7 +107,7 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [eventoId]);
+  }, [eventoId, getAgoraSync]);
 
   // Initial fetch
   useEffect(() => {

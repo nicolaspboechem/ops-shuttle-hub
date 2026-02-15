@@ -343,7 +343,7 @@ export default function MapaServico() {
 
     const { error } = await supabase
       .from('motoristas')
-      .update({ ultima_localizacao: novaLocalizacao, ultima_localizacao_at: new Date().toISOString(), status: 'disponivel' })
+      .update({ ultima_localizacao: novaLocalizacao, ultima_localizacao_at: new Date(Date.now() + offset).toISOString(), status: 'disponivel' })
       .eq('id', motorista.id);
 
     if (error) {
@@ -367,7 +367,7 @@ export default function MapaServico() {
 
     // Criar viagem no histórico para rastreabilidade
     if (missao) {
-      const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+      const horaAtual = new Date(Date.now() + offset).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
       
       const { data: viagem } = await supabase
         .from('viagens')
@@ -402,7 +402,7 @@ export default function MapaServico() {
     if (retornandoPontoNome) {
       await supabase
         .from('motoristas')
-        .update({ ultima_localizacao: retornandoPontoNome, ultima_localizacao_at: new Date().toISOString() })
+        .update({ ultima_localizacao: retornandoPontoNome, ultima_localizacao_at: new Date(Date.now() + offset).toISOString() })
         .eq('id', chamarBaseMotorista.id);
     }
     setChamarBaseMotorista(null);

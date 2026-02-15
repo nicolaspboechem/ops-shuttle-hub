@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +61,7 @@ export function MissaoModal({
   pontos,
   onSave,
 }: MissaoModalProps) {
+  const { getAgoraSync } = useServerTime();
   const [motoristaId, setMotoristaId] = useState('');
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -67,7 +70,7 @@ export function MissaoModal({
   const [horarioPrevisto, setHorarioPrevisto] = useState('');
   const [prioridade, setPrioridade] = useState<MissaoPrioridade>('normal');
   const [qtdPax, setQtdPax] = useState<number>(0);
-  const [dataProgramada, setDataProgramada] = useState(new Date().toISOString().slice(0, 10));
+  const [dataProgramada, setDataProgramada] = useState(getDataOperacional(getAgoraSync(), '04:00'));
   const [saving, setSaving] = useState(false);
   const [motoristaOpen, setMotoristaOpen] = useState(false);
 
@@ -82,7 +85,7 @@ export function MissaoModal({
         setHorarioPrevisto(missao.horario_previsto?.slice(0, 5) || '');
         setPrioridade(missao.prioridade);
         setQtdPax(missao.qtd_pax || 0);
-        setDataProgramada(missao.data_programada || new Date().toISOString().slice(0, 10));
+        setDataProgramada(missao.data_programada || getDataOperacional(getAgoraSync(), '04:00'));
       } else {
         setMotoristaId('');
         setTitulo('');
@@ -92,7 +95,7 @@ export function MissaoModal({
         setHorarioPrevisto('');
         setPrioridade('normal');
         setQtdPax(0);
-        setDataProgramada(new Date().toISOString().slice(0, 10));
+        setDataProgramada(getDataOperacional(getAgoraSync(), '04:00'));
       }
     }
   }, [open, missao]);

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -48,6 +50,7 @@ export function MissaoInstantaneaModal({
   pontos,
   onSave,
 }: MissaoInstantaneaModalProps) {
+  const { getAgoraSync } = useServerTime();
   const [motoristaId, setMotoristaId] = useState('');
   const [titulo, setTitulo] = useState('');
   const [pontoEmbarque, setPontoEmbarque] = useState('');
@@ -81,7 +84,7 @@ export function MissaoInstantaneaModal({
       ponto_desembarque_id: pontoDestinoData?.id || null,
       prioridade: 'normal',
       qtd_pax: 0,
-      data_programada: new Date().toISOString().slice(0, 10),
+      data_programada: getDataOperacional(getAgoraSync(), '04:00'),
     });
     setSaving(false);
     onOpenChange(false);

@@ -305,8 +305,8 @@ export function useMissoes(eventoId: string | undefined) {
     return result;
   };
 
-  const syncMotoristaAoEncerrarMissao = async (missao: Missao) => {
-    const now = new Date().toISOString();
+  const syncMotoristaAoEncerrarMissao = async (missao: Missao, nowISO?: string) => {
+    const now = nowISO || new Date().toISOString();
 
     // 1. Encerrar viagem vinculada
     if (missao.viagem_id) {

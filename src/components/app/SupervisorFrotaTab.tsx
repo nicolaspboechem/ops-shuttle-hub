@@ -5,6 +5,7 @@ import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { Veiculo } from '@/hooks/useCadastros';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,6 +36,7 @@ type VeiculoFilterType = 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao' 
 export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
   const [subTab, setSubTab] = useState<'motoristas' | 'veiculos'>('motoristas');
   const [searchTerm, setSearchTerm] = useState('');
   const { pontos } = usePontosEmbarque(eventoId);
@@ -127,7 +129,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
       .update({
         status: newStatus,
         atualizado_por: user?.id,
-        liberado_em: newStatus === 'liberado' ? new Date().toISOString() : null,
+        liberado_em: newStatus === 'liberado' ? getAgoraSync().toISOString() : null,
         liberado_por: newStatus === 'liberado' ? user?.id : null,
       })
       .eq('id', veiculoId);
