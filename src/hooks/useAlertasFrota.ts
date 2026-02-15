@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThrottle';
+import { useServerTime } from '@/hooks/useServerTime';
 
 export interface AlertaFrota {
   id: string;
@@ -23,6 +24,7 @@ export interface AlertaFrota {
 export function useAlertasFrota(eventoId?: string) {
   const [alertas, setAlertas] = useState<AlertaFrota[]>([]);
   const [loading, setLoading] = useState(true);
+  const { getAgoraSync } = useServerTime();
 
   const fetchAlertas = useCallback(async () => {
     let query = supabase
@@ -76,7 +78,7 @@ export function useAlertasFrota(eventoId?: string) {
     const updates: Record<string, unknown> = { status: novoStatus };
     if (novoStatus === 'resolvido') {
       updates.resolvido_por = resolvidoPor || null;
-      updates.resolvido_em = new Date().toISOString();
+      updates.resolvido_em = getAgoraSync().toISOString();
     }
     const { error } = await supabase
       .from('alertas_frota')

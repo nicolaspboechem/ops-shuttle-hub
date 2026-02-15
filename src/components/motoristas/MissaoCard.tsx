@@ -1,4 +1,6 @@
 import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +37,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusChange }: MissaoCardProps) {
+  const { getAgoraSync } = useServerTime();
   const prioridade = prioridadeConfig[missao.prioridade];
   const status = statusConfig[missao.status];
   const displayNome = motoristaNome || missao.motorista_nome || 'Não atribuído';
@@ -147,7 +150,7 @@ export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusCh
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               <span>
-                {missao.data_programada === new Date().toISOString().slice(0, 10)
+                {missao.data_programada === getDataOperacional(getAgoraSync(), '04:00')
                   ? 'Hoje'
                   : missao.data_programada.split('-').reverse().slice(0, 2).join('/')}
               </span>

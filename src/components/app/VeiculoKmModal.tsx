@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ interface VeiculoKmModalProps {
 
 export function VeiculoKmModal({ open, onOpenChange, eventoId, onUpdated }: VeiculoKmModalProps) {
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string>('');
   const [kmType, setKmType] = useState<'inicial' | 'final'>('inicial');
@@ -106,15 +108,16 @@ export function VeiculoKmModal({ open, onOpenChange, eventoId, onUpdated }: Veic
 
     setLoading(true);
     try {
+      const now = getAgoraSync().toISOString();
       const updateData = kmType === 'inicial' 
         ? { 
             km_inicial: kmNum, 
-            km_inicial_data: new Date().toISOString(),
+            km_inicial_data: now,
             km_inicial_registrado_por: user.id 
           }
         : { 
             km_final: kmNum, 
-            km_final_data: new Date().toISOString(),
+            km_final_data: now,
             km_final_registrado_por: user.id 
           };
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,7 @@ export function CreateVeiculoWizard({
   onCreated
 }: CreateVeiculoWizardProps) {
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   
@@ -139,15 +141,15 @@ export function CreateVeiculoWizard({
           modelo: modelo.trim() || null,
           km_inicial: kmInicial ? parseInt(kmInicial) : null,
           km_inicial_registrado_por: user?.id || null,
-          km_inicial_data: new Date().toISOString(),
+          km_inicial_data: getAgoraSync().toISOString(),
           nivel_combustivel: nivelCombustivel,
           possui_avarias: possuiAvarias,
           inspecao_dados: inspecaoDados,
-          inspecao_data: new Date().toISOString(),
+          inspecao_data: getAgoraSync().toISOString(),
           inspecao_por: user?.id || null,
           observacoes_gerais: observacoesGerais.trim() || null,
           status: statusFinal,
-          liberado_em: statusFinal === 'liberado' ? new Date().toISOString() : null,
+          liberado_em: statusFinal === 'liberado' ? getAgoraSync().toISOString() : null,
           liberado_por: statusFinal === 'liberado' ? user?.id : null,
           ativo: true,
           criado_por: user?.id || null,

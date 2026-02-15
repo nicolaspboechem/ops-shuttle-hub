@@ -70,7 +70,7 @@ export default function AppOperador() {
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
-    getDataOperacional(new Date(), '04:00')
+    getDataOperacional(getAgoraSync(), '04:00')
   );
   const [verTodosDias, setVerTodosDias] = useState(false);
   

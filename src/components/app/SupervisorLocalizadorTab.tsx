@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { supabase } from '@/integrations/supabase/client';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -125,6 +126,7 @@ function LocationGroup({ title, icon: Icon, iconColor, motoristas, onCardClick, 
 export function SupervisorLocalizadorTab({ eventoId }: SupervisorLocalizadorTabProps) {
   const { motoristas, motoristasPorLocalizacao, localizacoes, loading, refetch } = useLocalizadorMotoristas(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
+  const { getAgoraSync } = useServerTime();
   const [editingMotorista, setEditingMotorista] = useState<MotoristaComVeiculo | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState<LocationFilterType>(null);
@@ -376,7 +378,7 @@ export function SupervisorLocalizadorTab({ eventoId }: SupervisorLocalizadorTabP
               .from('motoristas')
               .update({ 
                 ultima_localizacao: novaLocalizacao,
-                ultima_localizacao_at: new Date().toISOString()
+                ultima_localizacao_at: getAgoraSync().toISOString()
               })
               .eq('id', motoristaId);
             

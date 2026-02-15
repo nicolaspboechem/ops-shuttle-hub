@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Clock, Users, Bus, MapPin } from 'lucide-react';
 import {
   Dialog,
@@ -24,6 +25,7 @@ interface EditViagemModalProps {
 }
 
 export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemModalProps) {
+  const { getAgoraSync } = useServerTime();
   const [form, setForm] = useState({
     h_chegada: viagem.h_chegada || '',
     h_retorno: viagem.h_retorno || '',
@@ -49,7 +51,7 @@ export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemM
       h_retorno: form.h_retorno || null,
       qtd_pax_retorno: form.qtd_pax_retorno,
       encerrado: form.encerrado,
-      data_atualizacao: new Date().toISOString()
+      data_atualizacao: getAgoraSync().toISOString()
     };
 
     toast.success('Viagem atualizada com sucesso!');

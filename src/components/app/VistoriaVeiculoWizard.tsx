@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useServerTime } from '@/hooks/useServerTime';
 import { Veiculo } from '@/hooks/useCadastros';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ export function VistoriaVeiculoWizard({
   onComplete
 }: VistoriaVeiculoWizardProps) {
   const { userId, userName } = useCurrentUser();
+  const { getAgoraSync } = useServerTime();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   
@@ -209,11 +211,11 @@ export function VistoriaVeiculoWizard({
             nivel_combustivel: nivelCombustivel,
             possui_avarias: possuiAvarias,
             inspecao_dados: inspecaoDados,
-            inspecao_data: new Date().toISOString(),
+            inspecao_data: getAgoraSync().toISOString(),
             inspecao_por: realizadoPorId,
             observacoes_gerais: observacoesGerais.trim() || null,
             status: statusFinal,
-            liberado_em: statusFinal === 'liberado' ? new Date().toISOString() : null,
+            liberado_em: statusFinal === 'liberado' ? getAgoraSync().toISOString() : null,
             liberado_por: statusFinal === 'liberado' ? realizadoPorId : null,
             atualizado_por: realizadoPorId,
             ...(kmInicial && { km_inicial: parseInt(kmInicial) })
@@ -236,15 +238,15 @@ export function VistoriaVeiculoWizard({
             fornecedor: fornecedor.trim() || null,
             km_inicial: kmInicial ? parseInt(kmInicial) : null,
             km_inicial_registrado_por: realizadoPorId,
-            km_inicial_data: new Date().toISOString(),
+            km_inicial_data: getAgoraSync().toISOString(),
             nivel_combustivel: nivelCombustivel,
             possui_avarias: possuiAvarias,
             inspecao_dados: inspecaoDados,
-            inspecao_data: new Date().toISOString(),
+            inspecao_data: getAgoraSync().toISOString(),
             inspecao_por: realizadoPorId,
             observacoes_gerais: observacoesGerais.trim() || null,
             status: statusFinal,
-            liberado_em: statusFinal === 'liberado' ? new Date().toISOString() : null,
+            liberado_em: statusFinal === 'liberado' ? getAgoraSync().toISOString() : null,
             liberado_por: statusFinal === 'liberado' ? realizadoPorId : null,
             ativo: true,
             criado_por: realizadoPorId,

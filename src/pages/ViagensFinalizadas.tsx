@@ -20,7 +20,7 @@ export default function ViagensFinalizadas() {
   
   // Dia operacional
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
-    getDataOperacional(new Date(), '04:00')
+    getDataOperacional(getAgoraSync(), '04:00')
   );
   const [verTodosDias, setVerTodosDias] = useState(false);
 
