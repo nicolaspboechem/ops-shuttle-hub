@@ -36,6 +36,7 @@ interface VeiculoHistoricoItem {
   tipo_vistoria: string;
   created_at: string;
   veiculo_id: string;
+  realizado_por_nome: string | null;
   veiculos: {
     placa: string;
     nome: string | null;
@@ -50,6 +51,8 @@ interface VeiculoIntervalo {
   tipo: string;
   vinculadoEm: Date;
   desvinculadoEm: Date | null;
+  vinculadoPor: string | null;
+  desvinculadoPor: string | null;
 }
 
 function formatTime(time: string | null): string {
@@ -103,6 +106,8 @@ function buildIntervalos(historico: VeiculoHistoricoItem[]): VeiculoIntervalo[] 
           tipo: open.veiculos?.tipo_veiculo || item.veiculos?.tipo_veiculo || 'Van',
           vinculadoEm: new Date(open.created_at),
           desvinculadoEm: new Date(item.created_at),
+          vinculadoPor: open.realizado_por_nome || null,
+          desvinculadoPor: item.realizado_por_nome || null,
         });
         openMap.delete(item.veiculo_id);
       } else {
@@ -112,8 +117,10 @@ function buildIntervalos(historico: VeiculoHistoricoItem[]): VeiculoIntervalo[] 
           placa: item.veiculos?.placa || '?',
           nome: item.veiculos?.nome || null,
           tipo: item.veiculos?.tipo_veiculo || 'Van',
-          vinculadoEm: new Date(item.created_at), // approximation
+          vinculadoEm: new Date(item.created_at),
           desvinculadoEm: new Date(item.created_at),
+          vinculadoPor: null,
+          desvinculadoPor: item.realizado_por_nome || null,
         });
       }
     }
@@ -128,6 +135,8 @@ function buildIntervalos(historico: VeiculoHistoricoItem[]): VeiculoIntervalo[] 
       tipo: item.veiculos?.tipo_veiculo || 'Van',
       vinculadoEm: new Date(item.created_at),
       desvinculadoEm: null,
+      vinculadoPor: item.realizado_por_nome || null,
+      desvinculadoPor: null,
     });
   }
 
@@ -185,7 +194,7 @@ export function MotoristaViagensModal({ motorista, motoristaId, viagens, trigger
     setLoadingVeiculos(true);
     supabase
       .from('veiculo_vistoria_historico')
-      .select('id, tipo_vistoria, created_at, veiculo_id, veiculos(placa, nome, tipo_veiculo)')
+      .select('id, tipo_vistoria, created_at, veiculo_id, realizado_por_nome, veiculos(placa, nome, tipo_veiculo)')
       .eq('motorista_id', motoristaId)
       .in('tipo_vistoria', ['vinculacao', 'desvinculacao'])
       .order('created_at', { ascending: true })
@@ -393,6 +402,7 @@ export function MotoristaViagensModal({ motorista, motoristaId, viagens, trigger
                                 <Car className="w-3.5 h-3.5 text-muted-foreground" />
                                 <span className="font-mono text-xs">{iv.placa}</span>
                                 {iv.nome && <span className="text-xs text-muted-foreground">"{iv.nome}"</span>}
+                                {iv.vinculadoPor && <span className="text-xs text-muted-foreground">por {iv.vinculadoPor}</span>}
                                 <span className="text-xs text-muted-foreground ml-auto">
                                   {format(iv.vinculadoEm, 'HH:mm')} - {iv.desvinculadoEm ? format(iv.desvinculadoEm, 'HH:mm') : 'ativo'}
                                 </span>
@@ -435,10 +445,14 @@ export function MotoristaViagensModal({ motorista, motoristaId, viagens, trigger
                         <Badge variant="outline" className="text-xs ml-auto">{iv.tipo}</Badge>
                       </div>
                       <div className="pl-7 text-sm text-muted-foreground space-y-0.5">
-                        <p>Vinculado: {format(iv.vinculadoEm, 'dd/MM HH:mm')}</p>
+                        <p>
+                          {iv.vinculadoPor && <span className="font-medium text-foreground">{iv.vinculadoPor} </span>}
+                          vinculou: {format(iv.vinculadoEm, 'dd/MM HH:mm')}
+                        </p>
                         {iv.desvinculadoEm ? (
                           <p>
-                            Desvinculado: {format(iv.desvinculadoEm, 'dd/MM HH:mm')}
+                            {iv.desvinculadoPor && <span className="font-medium text-foreground">{iv.desvinculadoPor} </span>}
+                            desvinculou: {format(iv.desvinculadoEm, 'dd/MM HH:mm')}
                             <span className="ml-2 text-foreground font-medium">
                               ({calcDuracao(iv.vinculadoEm, iv.desvinculadoEm)} de uso)
                             </span>

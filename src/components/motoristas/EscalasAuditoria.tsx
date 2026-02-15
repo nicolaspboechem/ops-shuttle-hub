@@ -53,6 +53,7 @@ interface VeiculoHistorico {
   veiculo_id: string;
   tipo_vistoria: string;
   created_at: string;
+  realizado_por_nome?: string | null;
   veiculo_placa?: string;
   veiculo_nome?: string | null;
 }
@@ -116,7 +117,7 @@ export function EscalasAuditoria({ eventoId, evento, motoristas, veiculos }: Esc
     if (!validId) return;
     let query = supabase
       .from('veiculo_vistoria_historico')
-      .select('id, motorista_id, veiculo_id, tipo_vistoria, created_at')
+      .select('id, motorista_id, veiculo_id, tipo_vistoria, created_at, realizado_por_nome')
       .eq('evento_id', eventoId!)
       .in('tipo_vistoria', ['vinculacao', 'desvinculacao'])
       .order('created_at', { ascending: true });
@@ -442,8 +443,11 @@ export function EscalasAuditoria({ eventoId, evento, motoristas, veiculos }: Esc
                                   {vHistorico.map(vh => (
                                     <div key={vh.id} className="flex items-center gap-1 text-xs text-muted-foreground">
                                       <Car className="w-3 h-3" />
+                                      {vh.realizado_por_nome && (
+                                        <span className="font-medium text-foreground">{vh.realizado_por_nome}</span>
+                                      )}
                                       <span className={vh.tipo_vistoria === 'vinculacao' ? 'text-green-600' : 'text-red-500'}>
-                                        {vh.tipo_vistoria === 'vinculacao' ? 'Vinculou' : 'Desvinculou'}
+                                        {vh.tipo_vistoria === 'vinculacao' ? 'vinculou' : 'desvinculou'}
                                       </span>
                                       {vh.veiculo_placa}{vh.veiculo_nome ? ` "${vh.veiculo_nome}"` : ''}
                                       <span className="ml-1">
