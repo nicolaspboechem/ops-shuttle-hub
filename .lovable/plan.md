@@ -1,64 +1,120 @@
 
 
-# Reformular App Operador - Shuttle com Ida e Volta
+# Melhorar Dashboard de Shuttle e App Operador
 
-## Fluxo
+## Contexto
 
-1. Operador toca **+**, preenche **Nome da viagem** + **PAX de ida** -> viagem criada como ativa (`em_andamento`)
-2. Viagem aparece na lista de **ativas** na aba principal
-3. Quando shuttle volta, operador toca **Encerrar** -> abre modal pedindo **PAX de volta**
-4. Confirma -> viagem vai para historico com ida e volta registrados
+O `ShuttleMetrics` atual e muito basico (so mostra "Total Shuttles" e "Passageiros"). Precisa de KPIs mais completos e graficos relevantes. A aba de viagens do App Operador tambem precisa exibir PAX ida total e PAX volta total nos cards de resumo.
 
-## Arquivos alterados
+---
+
+## 1. Reformular `ShuttleMetrics` (Dashboard CCO)
+
+**Arquivo:** `src/components/shuttle/ShuttleMetrics.tsx`
+
+Substituir os 2 cards simples por 4 KPIs relevantes:
+
+| KPI | Calculo |
+|-----|---------|
+| **Passageiros Total** | `qtd_pax + qtd_pax_retorno` de todas as viagens |
+| **Total Viagens** | Contagem total (ativas + encerradas) |
+| **PAX Ida** | Soma de `qtd_pax` |
+| **PAX Volta** | Soma de `qtd_pax_retorno` |
+
+Layout: grid 4 colunas (desktop) / 2 colunas (mobile), estilo emerald consistente com o tema shuttle.
+
+## 2. Criar grafico de PAX por hora para Shuttle
+
+**Arquivo:** `src/components/shuttle/ShuttlePaxChart.tsx` (NOVO)
+
+Grafico de barras empilhadas (recharts - ja instalado) mostrando:
+- Eixo X: horas do dia (06h-23h)
+- Barras empilhadas: PAX Ida (cor primaria) + PAX Volta (cor secundaria)
+- Baseado nos dados de `h_inicio_real` (hora de criacao) e `h_fim_real` (hora de encerramento)
+
+## 3. Criar grafico de viagens por dia
+
+**Arquivo:** `src/components/shuttle/ShuttleViagensDiaChart.tsx` (NOVO)
+
+Grafico de barras mostrando volume de viagens por dia do evento:
+- Eixo X: datas (formato dd/MM)
+- Barras: quantidade de viagens naquele dia
+- Linha sobreposta: total de PAX por dia
+- So aparece quando `verTodosDias` ou quando ha dados de multiplos dias
+
+## 4. Integrar graficos na aba Shuttle do EventoTabs
+
+**Arquivo:** `src/components/eventos/EventoTabs.tsx`
+
+Na `TabsContent value="shuttle"`, apos `ShuttleMetrics` e antes de `ShuttleTable`, adicionar:
+- `ShuttlePaxChart` (PAX por hora)
+- `ShuttleViagensDiaChart` (viagens por dia, apenas quando ha dados de multiplos dias)
+
+## 5. Melhorar summary cards do App Operador
+
+**Arquivo:** `src/pages/app/AppOperador.tsx`
+
+Alterar o grid de resumo de 2 cards para 4 cards (grid 2x2):
+
+| Card atual | Card novo |
+|------------|-----------|
+| Ativas (Bus icon) | Viagens (total, com subtitle "X ativas") |
+| PAX Total | PAX Ida (ArrowUp) |
+| -- | PAX Volta (ArrowDown) |
+| -- | PAX Total (Users, soma ida+volta, highlight) |
+
+---
+
+## Detalhes Tecnicos
+
+### ShuttlePaxChart - logica de agrupamento por hora
+
+```text
+// Agrupar viagens por hora de inicio (h_inicio_real)
+// Para cada hora: somar qtd_pax (ida) e qtd_pax_retorno (volta)
+const dadosPorHora = viagens.reduce((acc, v) => {
+  const hora = v.h_inicio_real 
+    ? new Date(v.h_inicio_real).getHours() 
+    : null;
+  if (hora !== null) {
+    acc[hora].paxIda += v.qtd_pax || 0;
+    acc[hora].paxVolta += v.qtd_pax_retorno || 0;
+    acc[hora].viagens += 1;
+  }
+  return acc;
+}, inicializarHoras(6, 23));
+```
+
+### ShuttleViagensDiaChart - agrupamento por data
+
+```text
+// Agrupar por data_criacao (YYYY-MM-DD)
+// Para cada dia: contar viagens e somar PAX total
+```
+
+### App Operador - novo summary
+
+```text
+const summary = {
+  total: viagens.length,
+  ativas: viagensAtivas.length,
+  totalPaxIda: viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
+  totalPaxVolta: viagensEncerradas.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0),
+};
+// PAX Total = totalPaxIda + totalPaxVolta
+```
+
+---
+
+## Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/app/CreateShuttleForm.tsx` | Adicionar campo "Nome da viagem" (salvo em `coordenador`). Criar como `em_andamento` com `encerrado: false` |
-| `src/components/app/ShuttleCardOperador.tsx` | **NOVO** - Card de viagem ativa com nome, PAX ida, hora, botao "Encerrar" |
-| `src/components/app/ShuttleEncerrarModal.tsx` | **NOVO** - Drawer para encerrar: campo PAX de volta + confirmar |
-| `src/pages/app/AppOperador.tsx` | Separar viagens em ativas vs encerradas. Viagens ativas usam `ShuttleCardOperador`. Encerradas usam card simples existente. Mostrar nome da viagem nos cards |
-| `src/components/app/OperadorHistoricoTab.tsx` | Somar `qtd_pax_retorno` no resumo de PAX total |
+| `src/components/shuttle/ShuttleMetrics.tsx` | Reformular com 4 KPIs (Total PAX, Viagens, PAX Ida, PAX Volta) |
+| `src/components/shuttle/ShuttlePaxChart.tsx` | **NOVO** - Grafico barras empilhadas PAX por hora |
+| `src/components/shuttle/ShuttleViagensDiaChart.tsx` | **NOVO** - Grafico viagens/PAX por dia |
+| `src/components/eventos/EventoTabs.tsx` | Integrar novos graficos na aba shuttle |
+| `src/pages/app/AppOperador.tsx` | Grid 2x2 com PAX Ida, PAX Volta, Total, Viagens |
 
-## Detalhes tecnicos
-
-### CreateShuttleForm - novo insert
-
-```text
-{
-  evento_id, tipo_operacao: 'shuttle', motorista: 'Shuttle',
-  coordenador: nomeViagem,          // campo existente no banco
-  status: 'em_andamento',           // antes era 'encerrado'
-  encerrado: false,                 // antes era true
-  qtd_pax: Number(qtdPax),
-  h_inicio_real: agora,
-  criado_por: userId
-}
-```
-
-### ShuttleEncerrarModal - update direto
-
-```text
-supabase.from('viagens').update({
-  status: 'encerrado',
-  encerrado: true,
-  qtd_pax_retorno: paxRetorno,
-  h_fim_real: agora,
-  finalizado_por: userId
-}).eq('id', viagem.id)
-```
-
-### Separacao no AppOperador
-
-```text
-const viagensAtivas = viagens.filter(v => !v.encerrado && v.status !== 'cancelado');
-const viagensEncerradas = viagens.filter(v => v.encerrado || v.status === 'encerrado');
-```
-
-### Campos do banco utilizados (todos ja existem, sem migracao)
-
-- `coordenador` - nome/label da viagem
-- `qtd_pax` - PAX de ida
-- `qtd_pax_retorno` - PAX de volta (preenchido ao encerrar)
-- `status` - lifecycle
-- `h_inicio_real` / `h_fim_real` - timestamps
+Sem migracoes de banco necessarias. Usa recharts (ja instalado) e campos existentes.
 
