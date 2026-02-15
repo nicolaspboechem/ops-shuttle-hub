@@ -78,6 +78,86 @@ export type Database = {
           },
         ]
       }
+      escala_motoristas: {
+        Row: {
+          created_at: string | null
+          escala_id: string
+          id: string
+          motorista_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          escala_id: string
+          id?: string
+          motorista_id: string
+        }
+        Update: {
+          created_at?: string | null
+          escala_id?: string
+          id?: string
+          motorista_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escala_motoristas_escala_id_fkey"
+            columns: ["escala_id"]
+            isOneToOne: false
+            referencedRelation: "escalas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escala_motoristas_motorista_id_fkey"
+            columns: ["motorista_id"]
+            isOneToOne: false
+            referencedRelation: "motoristas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      escalas: {
+        Row: {
+          ativo: boolean | null
+          cor: string | null
+          created_at: string | null
+          criado_por: string | null
+          evento_id: string
+          horario_fim: string
+          horario_inicio: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          evento_id: string
+          horario_fim: string
+          horario_inicio: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          evento_id?: string
+          horario_fim?: string
+          horario_inicio?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escalas_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evento_usuarios: {
         Row: {
           created_at: string | null
