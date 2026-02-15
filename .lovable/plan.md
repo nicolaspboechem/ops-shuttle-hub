@@ -1,122 +1,117 @@
 
+# Escala de Motoristas - Kanban com Colunas Colapsaveis e Edicao
 
-# Escala de Motoristas - Nova Aba no CCO
+## Resumo
 
-## Objetivo
-
-Criar um sistema de escalas de turnos na aba "Motoristas" do CCO, permitindo organizar motoristas por horario de trabalho (ex: 06:00-18:00 e 18:00-06:00), com visualizacao lado a lado e drag-and-drop entre escalas.
-
----
-
-## Nova Tabela: `escalas`
-
-Armazena as escalas criadas por evento.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid PK | Identificador |
-| evento_id | uuid NOT NULL | FK para eventos |
-| nome | varchar NOT NULL | Ex: "Turno Diurno" |
-| horario_inicio | time NOT NULL | Ex: 06:00 |
-| horario_fim | time NOT NULL | Ex: 18:00 |
-| cor | varchar | Cor identificadora (opcional) |
-| ativo | boolean DEFAULT true | Se a escala esta ativa |
-| created_at | timestamptz DEFAULT now() | Criacao |
-| criado_por | uuid | Quem criou |
-
-## Nova Tabela: `escala_motoristas`
-
-Vincula motoristas a escalas.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid PK | Identificador |
-| escala_id | uuid NOT NULL | FK para escalas |
-| motorista_id | uuid NOT NULL | FK para motoristas |
-| created_at | timestamptz DEFAULT now() | Criacao |
-
-Constraint UNIQUE em (escala_id, motorista_id).
+Substituir o layout atual de dois paineis (split-pane com Select) por um layout Kanban horizontal onde **todas as escalas aparecem como colunas lado a lado**, cada uma podendo ser recolhida lateralmente. Adicionar botao de editar em cada coluna que reabre o wizard com os dados preenchidos.
 
 ---
 
-## Alteracoes na Interface
+## Alteracoes
 
-### 1. Nova secao na InnerSidebar
+### 1. Reescrever `MotoristasEscala.tsx`
 
-No arquivo `src/pages/Motoristas.tsx`, adicionar uma terceira secao:
+Remover o layout de `ResizablePanelGroup` com dois paineis e Select. Substituir por:
+
+- Container horizontal com scroll (`flex overflow-x-auto gap-3`)
+- Cada escala renderizada como uma **coluna Kanban** (componente `EscalaKanbanColumn`)
+- Cada coluna tem:
+  - Header com nome da escala, horario, contagem de motoristas e ativos
+  - Botao de recolher (ChevronLeft) que colapsa a coluna para uma barra vertical estreita (48px) - mesmo padrao do `MapaServicoColumn`
+  - Botao de editar (Pencil) que abre o wizard em modo edicao
+  - Botao de excluir (Trash2) com confirmacao
+  - Botao de remover motorista (UserMinus) em cada card, visivel no hover
+- Estado `collapsedIds` (Set) controla quais colunas estao recolhidas
+- Coluna recolhida mostra: seta para expandir, nome vertical, badge com contagem
+
+### 2. Adicionar modo edicao ao `CreateEscalaWizard.tsx`
+
+- Aceitar prop opcional `escalaParaEditar?: Escala`
+- Quando presente, pre-preencher nome, horario_inicio, horario_fim e motoristas selecionados
+- Titulo muda para "Editar Escala" em vez de "Nova Escala"
+- Botao muda para "Salvar" em vez de "Criar Escala"
+- Aceitar callback `onEdit` alem do `onSubmit`
+
+### 3. Adicionar `updateEscala` ao hook `useEscalas.ts`
+
+Nova funcao que:
+- Atualiza nome, horario_inicio, horario_fim na tabela `escalas`
+- Sincroniza motoristas: remove os que foram desmarcados, adiciona os novos
+- Expor no return do hook
+
+### 4. Coluna colapsada (padrao MapaServicoColumn)
+
+Quando colapsada:
+```text
++------+
+| [>]  |   <- chevron para expandir
+|  3   |   <- badge com contagem
+|  T   |
+|  u   |   <- nome vertical (writing-mode: vertical-lr, rotate 180)
+|  r   |
+|  n   |
+|  o   |
+|  A   |
++------+
+```
+Largura: 48px. Clicar expande de volta.
+
+---
+
+## Detalhes Tecnicos
+
+### MotoristasEscala.tsx - Nova estrutura
 
 ```text
-const sections = [
-  { id: 'cadastro', label: 'Motoristas', icon: Users },
-  { id: 'escala', label: 'Escala', icon: Calendar },
-  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
-];
+<div className="flex flex-col h-full">
+  {/* Top bar com titulo + botao Nova Escala */}
+
+  <div className="flex-1 overflow-x-auto">
+    <div className="flex gap-3 h-full p-1">
+      {escalas.map(escala => (
+        <EscalaKanbanColumn
+          key={escala.id}
+          escala={escala}
+          motoristas={...}
+          getPresenca={getPresenca}
+          collapsed={collapsedIds.has(escala.id)}
+          onToggleCollapse={() => toggle(escala.id)}
+          onEdit={() => openEditWizard(escala)}
+          onDelete={() => handleDelete(escala.id)}
+          onRemoveMotorista={(mid) => removeMotoristaFromEscala(escala.id, mid)}
+        />
+      ))}
+    </div>
+  </div>
+</div>
 ```
 
-### 2. Componente `MotoristasEscala` (novo arquivo)
+### useEscalas.ts - updateEscala
 
-`src/components/motoristas/MotoristasEscala.tsx`
+```text
+const updateEscala = async (escalaId: string, data: CreateEscalaData) => {
+  // 1. Update escalas table (nome, horarios)
+  await supabase.from('escalas').update({...}).eq('id', escalaId);
 
-Interface principal com:
+  // 2. Get current motorista_ids for this escala
+  // 3. Delete removed ones
+  // 4. Insert new ones
+  await fetchEscalas();
+};
+```
 
-- **Botao "Criar Escala"** no topo, que abre um wizard/dialog
-- **Layout de duas colunas** usando `ResizablePanelGroup` (horizontal) com `ResizableHandle` arrastavel
-  - Cada coluna mostra UMA escala selecionada (dropdown no topo de cada painel)
-  - Dentro de cada painel: lista dos motoristas vinculados, com badge de status de check-in (verde = check-in ativo, cinza = sem check-in, vermelho = checkout feito)
-- **Drag-and-drop** entre as duas colunas usando `@dnd-kit/core` (mesmo padrao do Kanban existente) para mover motoristas de uma escala para outra
+### CreateEscalaWizard - modo edicao
 
-### 3. Wizard "Criar Escala"
-
-`src/components/motoristas/CreateEscalaWizard.tsx`
-
-Dialog em 2 passos:
-
-**Passo 1 - Dados da Escala:**
-- Nome da escala (input texto)
-- Horario de inicio (input time)
-- Horario de fim (input time)
-
-**Passo 2 - Selecionar Motoristas:**
-- Lista de todos os motoristas do evento com checkboxes
-- Busca por nome
-- Badge indicando se o motorista ja pertence a outra escala
-- Botao "Criar Escala"
-
-### 4. Hook `useEscalas`
-
-`src/hooks/useEscalas.ts`
-
-Funcoes:
-- `escalas` - lista de escalas do evento
-- `escalaMotoristas` - motoristas por escala
-- `createEscala(data)` - cria escala + vincula motoristas
-- `updateEscala(id, data)` - atualiza
-- `deleteEscala(id)` - remove
-- `addMotoristaToEscala(escalaId, motoristaId)` - vincula
-- `removeMotoristaFromEscala(escalaId, motoristaId)` - desvincula
-- `moveMotorista(motoristaId, fromEscalaId, toEscalaId)` - move entre escalas (drag-and-drop)
-
-### 5. Integracao com presenca
-
-Cada card de motorista na escala mostra o status de check-in do dia atual, reutilizando a mesma logica de `getPresenca` ja existente na pagina de Motoristas.
+- Nova prop: `escalaParaEditar?: Escala & { motorista_ids: string[] }`
+- `useEffect` que pre-preenche os campos quando `escalaParaEditar` muda
+- Submit chama `onEdit` em vez de `onSubmit` quando em modo edicao
 
 ---
 
-## Resumo dos Arquivos
+## Arquivos alterados
 
 | Arquivo | Acao |
 |---------|------|
-| Migracao SQL | Criar tabelas `escalas` e `escala_motoristas` com RLS |
-| `src/hooks/useEscalas.ts` | Novo hook para CRUD de escalas |
-| `src/components/motoristas/MotoristasEscala.tsx` | Novo componente principal da aba |
-| `src/components/motoristas/CreateEscalaWizard.tsx` | Novo wizard de criacao |
-| `src/pages/Motoristas.tsx` | Adicionar secao "Escala" na sidebar e renderizar o componente |
-
-## Resultado
-
-- Operador cria quantas escalas precisar (ex: Turno A 06-18h, Turno B 18-06h)
-- Visualiza duas escalas lado a lado com divisor arrastavel
-- Arrasta motoristas entre escalas
-- Ve status de check-in de cada motorista por escala
-- Tudo sincronizado em tempo real via Supabase Realtime
-
+| `src/components/motoristas/MotoristasEscala.tsx` | Reescrever: kanban horizontal com colunas colapsaveis |
+| `src/components/motoristas/CreateEscalaWizard.tsx` | Adicionar modo edicao (pre-preencher campos) |
+| `src/hooks/useEscalas.ts` | Adicionar funcao `updateEscala` |
