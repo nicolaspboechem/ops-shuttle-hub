@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, Calendar, LogIn, LogOut, Play, RotateCcw } from 'lucide-react';
+import { Users, Clock, TrendingUp, Plus, Truck, Phone, LayoutGrid, List, Pencil, MoreVertical, Trash2, AlertTriangle, Search, Filter, X, Eye, MessageCircle, Download, UserCheck, FileBarChart, Link2, Columns, UserPlus, User, CheckCircle, XCircle, LogIn, LogOut, Play, RotateCcw } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { InnerSidebar, InnerSidebarSection } from '@/components/layout/InnerSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +25,7 @@ import { MotoristaKanbanCard } from '@/components/motoristas/MotoristaKanbanCard
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
-import { MotoristasEscala } from '@/components/motoristas/MotoristasEscala';
+
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,7 +41,6 @@ import { useEquipe } from '@/hooks/useEquipe';
 
 const sections: InnerSidebarSection[] = [
   { id: 'cadastro', label: 'Motoristas', icon: Users },
-  { id: 'escala', label: 'Escala', icon: Calendar },
   { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
 ];
 
@@ -1091,13 +1090,6 @@ export default function Motoristas() {
             </div>
             <div className={activeSection === 'cadastro' ? 'block' : 'hidden'}>
               {cadastroContent}
-            </div>
-            <div className={activeSection === 'escala' ? 'flex flex-col h-full' : 'hidden'}>
-              <MotoristasEscala
-                eventoId={eventoId || ''}
-                motoristas={motoristasCadastrados}
-                getPresenca={getPresenca}
-              />
             </div>
           </div>
         </div>

@@ -38,6 +38,11 @@ function MotoristaEscalaCard({
       <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', statusColor)} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{motorista.nome}</p>
+        {motorista.veiculo && (
+          <p className="text-[10px] text-muted-foreground truncate">
+            {motorista.veiculo.nome || motorista.veiculo.placa}
+          </p>
+        )}
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">
         {presenca?.checkout_at ? 'Saiu' : presenca?.checkin_at ? 'Ativo' : '—'}

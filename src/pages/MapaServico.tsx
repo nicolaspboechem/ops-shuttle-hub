@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useDeferredValue } from 'react';
 import { useParams } from 'react-router-dom';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { MapPin, ClipboardList } from 'lucide-react';
+import { MapPin, ClipboardList, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -19,11 +19,15 @@ import { MapaServicoHeader, FilterState } from '@/components/mapa-servico/MapaSe
 import { MapaServicoScrollContainer } from '@/components/mapa-servico/MapaServicoScrollContainer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MissoesPanel } from '@/components/motoristas/MissoesPanel';
+import { MotoristasEscala } from '@/components/motoristas/MotoristasEscala';
+import { useMotoristas } from '@/hooks/useCadastros';
+import { useEquipe } from '@/hooks/useEquipe';
 
 // --- Sidebar sections ---
 const sections: InnerSidebarSection[] = [
   { id: 'localizacao', label: 'Localização', icon: MapPin },
   { id: 'missoes', label: 'Missões', icon: ClipboardList },
+  { id: 'escala', label: 'Escala', icon: Calendar },
 ];
 
 // --- Filter helper ---
@@ -57,6 +61,13 @@ export default function MapaServico() {
   const { createMissao } = useMissoes(eventoId);
   const { user } = useAuth();
   const { offset, getAgoraSync } = useServerTime();
+  const { motoristas: motoristasCadastrados } = useMotoristas(eventoId);
+  const { membros: equipeMembros } = useEquipe(eventoId);
+
+  const getPresenca = (motoristaId: string) => {
+    const membro = equipeMembros.find(m => m.tipo === 'motorista' && m.id === motoristaId);
+    return membro ? { checkin_at: membro.checkin_at, checkout_at: membro.checkout_at } : null;
+  };
 
   // --- InnerSidebar ---
   const [activeSection, setActiveSection] = useState<string>('localizacao');
@@ -560,6 +571,13 @@ export default function MapaServico() {
           </div>
           <div className={activeSection === 'missoes' ? 'block' : 'hidden'}>
             <MissoesPanel eventoId={eventoId} />
+          </div>
+          <div className={activeSection === 'escala' ? 'flex flex-col h-full p-4' : 'hidden'}>
+            <MotoristasEscala
+              eventoId={eventoId || ''}
+              motoristas={motoristasCadastrados}
+              getPresenca={getPresenca}
+            />
           </div>
         </div>
       </div>
