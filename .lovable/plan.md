@@ -1,120 +1,122 @@
 
 
-# V2.0.0 - Sessao Robusta, Sincronizacao e Atualizacao de Versao
+# Escala de Motoristas - Nova Aba no CCO
 
-## Resumo
+## Objetivo
 
-Tres problemas resolvidos nesta versao:
-1. **App deslogando toda hora** - token expira em 24h sem renovacao
-2. **Data errada no celular** (ex: Simmy vendo dia 14) - app usa hora local antes da sincronizacao completar
-3. **Versao atualizada** para 2.0.0
+Criar um sistema de escalas de turnos na aba "Motoristas" do CCO, permitindo organizar motoristas por horario de trabalho (ex: 06:00-18:00 e 18:00-06:00), com visualizacao lado a lado e drag-and-drop entre escalas.
 
 ---
 
-## Alteracoes
+## Nova Tabela: `escalas`
 
-### 1. Token de 24h para 7 dias (Edge Functions)
+Armazena as escalas criadas por evento.
 
-**`supabase/functions/driver-login/index.ts`** (linha 152):
-- Mudar `getNumericDate(60 * 60 * 24)` para `getNumericDate(60 * 60 * 24 * 7)`
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid PK | Identificador |
+| evento_id | uuid NOT NULL | FK para eventos |
+| nome | varchar NOT NULL | Ex: "Turno Diurno" |
+| horario_inicio | time NOT NULL | Ex: 06:00 |
+| horario_fim | time NOT NULL | Ex: 18:00 |
+| cor | varchar | Cor identificadora (opcional) |
+| ativo | boolean DEFAULT true | Se a escala esta ativa |
+| created_at | timestamptz DEFAULT now() | Criacao |
+| criado_por | uuid | Quem criou |
 
-**`supabase/functions/staff-login/index.ts`** (linha 124):
-- Mesma alteracao
+## Nova Tabela: `escala_motoristas`
 
-### 2. Renovacao automatica silenciosa (Auth Contexts)
+Vincula motoristas a escalas.
 
-**`src/lib/auth/DriverAuthContext.tsx`**:
-- Adicionar `useEffect` que verifica a cada 30 minutos se faltam menos de 24h para expirar
-- Se sim, chama `driver-login` novamente com telefone/senha do token (nao temos senha armazenada, entao a renovacao sera feita estendendo o `expires_at` localmente baseado no tempo restante do JWT -- o token continua valido por 7 dias no servidor)
-- Na pratica: como o token agora dura 7 dias, a verificacao local de `expires_at` nao causara logouts frequentes. A renovacao real acontece no proximo login manual.
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid PK | Identificador |
+| escala_id | uuid NOT NULL | FK para escalas |
+| motorista_id | uuid NOT NULL | FK para motoristas |
+| created_at | timestamptz DEFAULT now() | Criacao |
 
-Abordagem simplificada: em vez de renovar o token (que exigiria armazenar credenciais), vamos:
-- Mudar `isAuthenticated` de calculo inline para `useState` + `useEffect` com verificacao a cada 60 segundos
-- Adicionar margem de tolerancia: se o token expirou ha menos de 1 hora, ainda considerar autenticado (graceful degradation)
-
-**`src/lib/auth/StaffAuthContext.tsx`**:
-- Mesmas alteracoes
-
-### 3. Re-sincronizacao ao voltar do background
-
-**`src/hooks/useServerTime.ts`**:
-- Adicionar listener `visibilitychange` no `useEffect`: quando o documento volta a ficar visivel, chamar `syncTime()` imediatamente
-- Isso garante que apos o celular ficar em segundo plano, o offset seja recalculado
-
-### 4. Aguardar sync antes de calcular dataOperacional
-
-**`src/pages/app/AppMotorista.tsx`** (linha 66):
-- Extrair `loading` do `useServerTime()`
-- No calculo de `dataOperacional` (linha 147-149): se `loading` for true, usar null
-- No render: enquanto `loading` do serverTime for true, mostrar spinner antes do conteudo principal (ou simplesmente nao renderizar o conteudo que depende de dataOperacional)
-
-### 5. Versao 2.0.0
-
-**`src/lib/version.ts`**:
-- `APP_VERSION = '2.0.0'`
-- `APP_BUILD_DATE = '2026-02-15'`
+Constraint UNIQUE em (escala_id, motorista_id).
 
 ---
 
-## Detalhes Tecnicos
+## Alteracoes na Interface
 
-### useServerTime.ts - visibilitychange
+### 1. Nova secao na InnerSidebar
 
-```text
-useEffect(() => {
-  const handleVisibility = () => {
-    if (document.visibilityState === 'visible') {
-      syncTime();
-    }
-  };
-  document.addEventListener('visibilitychange', handleVisibility);
-  return () => document.removeEventListener('visibilitychange', handleVisibility);
-}, [syncTime]);
-```
-
-### DriverAuthContext - isAuthenticated robusto
+No arquivo `src/pages/Motoristas.tsx`, adicionar uma terceira secao:
 
 ```text
-// Antes (recalcula a cada render, logout instantaneo):
-const isAuthenticated = !!driverSession && driverSession.expires_at > Date.now();
-
-// Depois (useState + verificacao periodica):
-const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-useEffect(() => {
-  const check = () => {
-    const valid = !!driverSession && driverSession.expires_at > Date.now();
-    setIsAuthenticated(valid);
-  };
-  check();
-  const interval = setInterval(check, 60000); // Verifica a cada 60s
-  return () => clearInterval(interval);
-}, [driverSession]);
+const sections = [
+  { id: 'cadastro', label: 'Motoristas', icon: Users },
+  { id: 'escala', label: 'Escala', icon: Calendar },
+  { id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
+];
 ```
 
-### AppMotorista - guardar contra loading
+### 2. Componente `MotoristasEscala` (novo arquivo)
 
-```text
-const { getAgoraSync, loading: loadingServerTime } = useServerTime();
+`src/components/motoristas/MotoristasEscala.tsx`
 
-// No dataOperacional:
-const dataOperacional = useMemo(() => {
-  if (loadingServerTime) return null;
-  return getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00');
-}, [getAgoraSync, evento?.horario_virada_dia, loadingServerTime]);
-```
+Interface principal com:
+
+- **Botao "Criar Escala"** no topo, que abre um wizard/dialog
+- **Layout de duas colunas** usando `ResizablePanelGroup` (horizontal) com `ResizableHandle` arrastavel
+  - Cada coluna mostra UMA escala selecionada (dropdown no topo de cada painel)
+  - Dentro de cada painel: lista dos motoristas vinculados, com badge de status de check-in (verde = check-in ativo, cinza = sem check-in, vermelho = checkout feito)
+- **Drag-and-drop** entre as duas colunas usando `@dnd-kit/core` (mesmo padrao do Kanban existente) para mover motoristas de uma escala para outra
+
+### 3. Wizard "Criar Escala"
+
+`src/components/motoristas/CreateEscalaWizard.tsx`
+
+Dialog em 2 passos:
+
+**Passo 1 - Dados da Escala:**
+- Nome da escala (input texto)
+- Horario de inicio (input time)
+- Horario de fim (input time)
+
+**Passo 2 - Selecionar Motoristas:**
+- Lista de todos os motoristas do evento com checkboxes
+- Busca por nome
+- Badge indicando se o motorista ja pertence a outra escala
+- Botao "Criar Escala"
+
+### 4. Hook `useEscalas`
+
+`src/hooks/useEscalas.ts`
+
+Funcoes:
+- `escalas` - lista de escalas do evento
+- `escalaMotoristas` - motoristas por escala
+- `createEscala(data)` - cria escala + vincula motoristas
+- `updateEscala(id, data)` - atualiza
+- `deleteEscala(id)` - remove
+- `addMotoristaToEscala(escalaId, motoristaId)` - vincula
+- `removeMotoristaFromEscala(escalaId, motoristaId)` - desvincula
+- `moveMotorista(motoristaId, fromEscalaId, toEscalaId)` - move entre escalas (drag-and-drop)
+
+### 5. Integracao com presenca
+
+Cada card de motorista na escala mostra o status de check-in do dia atual, reutilizando a mesma logica de `getPresenca` ja existente na pagina de Motoristas.
 
 ---
 
-## Arquivos alterados
+## Resumo dos Arquivos
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/functions/driver-login/index.ts` | Token 24h -> 7 dias |
-| `supabase/functions/staff-login/index.ts` | Token 24h -> 7 dias |
-| `src/lib/auth/DriverAuthContext.tsx` | isAuthenticated como useState + check periodico |
-| `src/lib/auth/StaffAuthContext.tsx` | Mesma alteracao |
-| `src/hooks/useServerTime.ts` | visibilitychange listener |
-| `src/pages/app/AppMotorista.tsx` | Aguardar sync antes de dataOperacional |
-| `src/lib/version.ts` | Versao 2.0.0, build date 2026-02-15 |
+| Arquivo | Acao |
+|---------|------|
+| Migracao SQL | Criar tabelas `escalas` e `escala_motoristas` com RLS |
+| `src/hooks/useEscalas.ts` | Novo hook para CRUD de escalas |
+| `src/components/motoristas/MotoristasEscala.tsx` | Novo componente principal da aba |
+| `src/components/motoristas/CreateEscalaWizard.tsx` | Novo wizard de criacao |
+| `src/pages/Motoristas.tsx` | Adicionar secao "Escala" na sidebar e renderizar o componente |
+
+## Resultado
+
+- Operador cria quantas escalas precisar (ex: Turno A 06-18h, Turno B 18-06h)
+- Visualiza duas escalas lado a lado com divisor arrastavel
+- Arrasta motoristas entre escalas
+- Ve status de check-in de cada motorista por escala
+- Tudo sincronizado em tempo real via Supabase Realtime
 
