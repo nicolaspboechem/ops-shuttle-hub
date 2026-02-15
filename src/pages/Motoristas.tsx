@@ -464,6 +464,7 @@ export default function Motoristas() {
       <DropdownMenuContent align="end" className="bg-popover z-50">
         <MotoristaViagensModal
           motorista={motoristaNome}
+          motoristaId={motoristaCadastrado?.id}
           viagens={viagens}
           trigger={
             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
