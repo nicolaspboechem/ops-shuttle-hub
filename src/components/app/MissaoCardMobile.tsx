@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Clock, Loader2, CheckCircle, Play, Flag, Calendar, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
-import { NavigationLinks } from './NavigationLinks';
+
 
 interface MissaoCardMobileProps {
   missao: Missao;
@@ -165,12 +165,6 @@ export function MissaoCardMobile({ missao, loading, disabled, dataOperacional, o
           )}
         </div>
 
-        {/* Links de Navegação */}
-        <NavigationLinks 
-          origem={missao.ponto_embarque}
-          destino={missao.ponto_desembarque}
-          compact
-        />
 
         {/* Ações */}
         <div className="flex gap-2">
