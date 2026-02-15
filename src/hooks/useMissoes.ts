@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { toast } from 'sonner';
 import { Database } from '@/integrations/supabase/types';
 
@@ -22,10 +24,8 @@ export interface Missao {
   motorista_nome?: string;
   titulo: string;
   descricao: string | null;
-  // Campos de texto (legacy)
   ponto_embarque: string | null;
   ponto_desembarque: string | null;
-  // Campos FK (normalizados)
   ponto_embarque_id?: string | null;
   ponto_desembarque_id?: string | null;
   horario_previsto: string | null;
@@ -37,9 +37,7 @@ export interface Missao {
   atualizado_por: string | null;
   created_at: string;
   data_atualizacao: string;
-  // Campo para vincular diretamente à viagem criada
   viagem_id: string | null;
-  // Veículo vinculado ao motorista
   veiculo_nome?: string;
   veiculo_placa?: string;
 }
@@ -60,11 +58,11 @@ export interface MissaoInput {
 
 export function useMissoes(eventoId: string | undefined) {
   const { user } = useAuth();
+  const { getAgoraSync } = useServerTime();
   const [missoes, setMissoes] = useState<Missao[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMissoes = useCallback(async () => {
-    // Validar se eventoId é um UUID válido antes de fazer a query
     const isValidUUID = eventoId && 
       eventoId !== ':eventoId' && 
       eventoId.length >= 36 && 
@@ -100,19 +98,60 @@ export function useMissoes(eventoId: string | undefined) {
           qtd_pax: (m as any).qtd_pax || 0,
           data_atualizacao: m.data_atualizacao || m.created_at || new Date().toISOString(),
         }));
-        setMissoes(missoesFormatadas as Missao[]);
+
+        // ── Auto-limpeza de missões fantasma ──
+        // Buscar horario_virada_dia do evento para calcular dia operacional
+        const { data: eventoData } = await supabase
+          .from('eventos')
+          .select('horario_virada_dia')
+          .eq('id', eventoId)
+          .maybeSingle();
+
+        const horarioVirada = eventoData?.horario_virada_dia || '04:00';
+        const dataOpAtual = getDataOperacional(getAgoraSync(), horarioVirada);
+
+        const fantasmas = missoesFormatadas.filter(m =>
+          m.data_programada &&
+          m.data_programada < dataOpAtual &&
+          ['aceita', 'em_andamento'].includes(m.status)
+        );
+
+        if (fantasmas.length > 0) {
+          console.log(`[useMissoes] Cancelando ${fantasmas.length} missões fantasma de dias anteriores`);
+
+          // Batch update para cancelar todas
+          const fantasmaIds = fantasmas.map(f => f.id);
+          await supabase
+            .from('missoes')
+            .update({ status: 'cancelada', atualizado_por: user?.id || null })
+            .in('id', fantasmaIds);
+
+          // Para missões em_andamento, liberar motorista e encerrar viagem
+          const emAndamentoFantasmas = fantasmas.filter(f => f.status === 'em_andamento');
+          for (const f of emAndamentoFantasmas) {
+            await syncMotoristaAoEncerrarMissao(f as any, getAgoraSync().toISOString());
+          }
+
+          // Atualizar lista local removendo fantasmas
+          const fantasmaIdSet = new Set(fantasmaIds);
+          const missoesLimpas = missoesFormatadas.map(m =>
+            fantasmaIdSet.has(m.id) ? { ...m, status: 'cancelada' as MissaoStatus } : m
+          );
+          setMissoes(missoesLimpas as Missao[]);
+        } else {
+          setMissoes(missoesFormatadas as Missao[]);
+        }
       }
     } catch (err) {
       console.error('Tabela missoes pode não existir:', err);
       setMissoes([]);
     }
     setLoading(false);
-  }, [eventoId]);
+  }, [eventoId, getAgoraSync, user?.id]);
 
   useEffect(() => {
     fetchMissoes();
 
-    // Realtime subscription - validar UUID
     const isValidUUID = eventoId && 
       eventoId !== ':eventoId' && 
       eventoId.length >= 36 && 
@@ -120,14 +159,12 @@ export function useMissoes(eventoId: string | undefined) {
     
     if (!isValidUUID) return;
 
-    // Debounce to prevent cascade refetches
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => fetchMissoes(), 2000);
     };
 
-    // Realtime filtrado por evento_id para evitar cross-talk entre eventos
     const channel = supabase
       .channel(`missoes-changes-${eventoId}`)
       .on(
@@ -159,10 +196,8 @@ export function useMissoes(eventoId: string | undefined) {
           motorista_id: input.motorista_id,
           titulo: input.titulo,
           descricao: input.descricao || null,
-          // Campos de texto
           ponto_embarque: input.ponto_embarque || null,
           ponto_desembarque: input.ponto_desembarque || null,
-          // Campos FK normalizados
           ponto_embarque_id: input.ponto_embarque_id || null,
           ponto_desembarque_id: input.ponto_desembarque_id || null,
           horario_previsto: input.horario_previsto || null,
@@ -241,7 +276,6 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const aceitarMissao = async (id: string) => {
-    // Buscar do banco (fonte da verdade) em vez do estado local
     const { data: missao } = await supabase
       .from('missoes')
       .select('id, motorista_id')
@@ -269,15 +303,16 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const iniciarMissao = async (id: string) => {
-    // Buscar do banco (fonte da verdade) em vez do estado local
+    // 1. Buscar missão com campos expandidos
     const { data: missao } = await supabase
       .from('missoes')
-      .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status')
+      .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, ponto_embarque_id, ponto_desembarque_id, status, qtd_pax, titulo')
       .eq('id', id)
       .maybeSingle();
 
     if (!missao) return null;
 
+    // 2. Validar que não há outra missão em_andamento
     const { data: emAndamento } = await supabase
       .from('missoes')
       .select('id')
@@ -293,22 +328,104 @@ export function useMissoes(eventoId: string | undefined) {
       return null;
     }
 
-    const result = await updateMissao(id, { status: 'em_andamento' });
+    // 3. Verificar se já existe viagem para esta missão (anti-duplicata)
+    const { data: viagemExistente } = await supabase
+      .from('viagens')
+      .select('id')
+      .eq('origem_missao_id', id)
+      .limit(1);
 
-    if (result) {
-      await supabase
-        .from('motoristas')
-        .update({ status: 'em_viagem' })
-        .eq('id', missao.motorista_id);
+    if (viagemExistente && viagemExistente.length > 0) {
+      // Viagem já existe, apenas atualizar status da missão
+      const result = await updateMissao(id, { status: 'em_andamento' });
+      if (result) {
+        await supabase.from('missoes').update({ viagem_id: viagemExistente[0].id }).eq('id', id);
+        await supabase.from('motoristas').update({ status: 'em_viagem' }).eq('id', missao.motorista_id);
+      }
+      return result;
     }
+
+    // 4. Buscar dados do motorista e veículo
+    const { data: motorista } = await supabase
+      .from('motoristas')
+      .select('nome, veiculo_id')
+      .eq('id', missao.motorista_id)
+      .maybeSingle();
+
+    let placa: string | null = null;
+    let tipoVeiculo: string | null = null;
+    let veiculoId: string | null = motorista?.veiculo_id || null;
+
+    if (veiculoId) {
+      const { data: veiculo } = await supabase
+        .from('veiculos')
+        .select('placa, tipo_veiculo')
+        .eq('id', veiculoId)
+        .maybeSingle();
+      placa = veiculo?.placa || null;
+      tipoVeiculo = veiculo?.tipo_veiculo || null;
+    }
+
+    // 5. Atualizar missão para em_andamento
+    const result = await updateMissao(id, { status: 'em_andamento' });
+    if (!result) return null;
+
+    const now = getAgoraSync().toISOString();
+
+    // 6. Criar viagem vinculada
+    const { data: novaViagem, error: viagemError } = await supabase
+      .from('viagens')
+      .insert({
+        evento_id: missao.evento_id,
+        motorista_id: missao.motorista_id,
+        motorista: motorista?.nome || 'Motorista',
+        veiculo_id: veiculoId,
+        placa: placa,
+        tipo_veiculo: tipoVeiculo,
+        ponto_embarque: missao.ponto_embarque,
+        ponto_desembarque: missao.ponto_desembarque,
+        ponto_embarque_id: missao.ponto_embarque_id,
+        ponto_desembarque_id: missao.ponto_desembarque_id,
+        tipo_operacao: 'transfer',
+        status: 'em_andamento',
+        h_inicio_real: now,
+        encerrado: false,
+        origem_missao_id: missao.id,
+        qtd_pax: missao.qtd_pax || 0,
+        criado_por: user?.id || missao.motorista_id,
+        iniciado_por: user?.id || missao.motorista_id,
+        observacao: `Missão: ${missao.titulo}`,
+      })
+      .select('id')
+      .single();
+
+    if (viagemError) {
+      console.error('Erro ao criar viagem para missão:', viagemError);
+    } else if (novaViagem) {
+      // 7. Criar log
+      await supabase.from('viagem_logs').insert({
+        viagem_id: novaViagem.id,
+        user_id: user?.id || missao.motorista_id,
+        acao: 'inicio',
+        detalhes: { via: 'cco_missao', missao_id: missao.id },
+      });
+
+      // 8. Vincular viagem à missão
+      await supabase.from('missoes').update({ viagem_id: novaViagem.id }).eq('id', id);
+    }
+
+    // 9. Atualizar status do motorista
+    await supabase
+      .from('motoristas')
+      .update({ status: 'em_viagem' })
+      .eq('id', missao.motorista_id);
 
     return result;
   };
 
   const syncMotoristaAoEncerrarMissao = async (missao: Missao, nowISO?: string) => {
-    const now = nowISO || new Date().toISOString();
+    const now = nowISO || getAgoraSync().toISOString();
 
-    // 1. Encerrar viagem vinculada
     if (missao.viagem_id) {
       await supabase
         .from('viagens')
@@ -320,7 +437,6 @@ export function useMissoes(eventoId: string | undefined) {
         .eq('id', missao.viagem_id);
     }
 
-    // 2. Verificar se motorista tem outras viagens ativas
     const { data: outrasViagens } = await supabase
       .from('viagens')
       .select('id')
@@ -330,7 +446,6 @@ export function useMissoes(eventoId: string | undefined) {
       .neq('id', missao.viagem_id || '');
 
     if (!outrasViagens || outrasViagens.length === 0) {
-      // 3. Atualizar motorista: status + localização
       const updateData: Record<string, any> = {
         status: 'disponivel',
       };
@@ -346,7 +461,6 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const concluirMissao = async (id: string) => {
-    // Buscar do banco (fonte da verdade)
     const { data: missao } = await supabase
       .from('missoes')
       .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status, viagem_id')
@@ -360,7 +474,6 @@ export function useMissoes(eventoId: string | undefined) {
   };
 
   const cancelarMissao = async (id: string) => {
-    // Buscar do banco (fonte da verdade)
     const { data: missao } = await supabase
       .from('missoes')
       .select('id, motorista_id, evento_id, ponto_embarque, ponto_desembarque, status, viagem_id')
@@ -373,7 +486,6 @@ export function useMissoes(eventoId: string | undefined) {
     return updateMissao(id, { status: 'cancelada' });
   };
 
-  // Filtrar missões por status
   const missoesPendentes = missoes.filter(m => m.status === 'pendente');
   const missoesAceitas = missoes.filter(m => m.status === 'aceita');
   const missoesEmAndamento = missoes.filter(m => m.status === 'em_andamento');
@@ -407,7 +519,6 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   const [loading, setLoading] = useState(true);
 
   const fetchMissoes = useCallback(async () => {
-    // Validar se eventoId e motoristaId são válidos
     const isValidEventoId = eventoId && 
       eventoId !== ':eventoId' && 
       eventoId.length >= 36 && 
@@ -454,7 +565,6 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
   useEffect(() => {
     fetchMissoes();
 
-    // Validar se eventoId e motoristaId são UUIDs válidos
     const isValidEventoId = eventoId && 
       eventoId !== ':eventoId' && 
       eventoId.length >= 36 && 
@@ -466,14 +576,12 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
     
     if (!isValidEventoId || !isValidMotoristaId) return;
 
-    // Debounce to prevent rapid refetches
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => fetchMissoes(), 1500);
     };
 
-    // Realtime filtrado por motorista_id - evita cascade em todos os motoristas
     const channel = supabase
       .channel(`missoes-motorista-${motoristaId}`)
       .on(
