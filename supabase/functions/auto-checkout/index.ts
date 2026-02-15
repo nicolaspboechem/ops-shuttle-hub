@@ -23,23 +23,24 @@ Deno.serve(async (req) => {
     const minAtual = serverTime.getMinutes();
     const atualMinutos = horaAtual * 60 + minAtual;
 
-    // Fetch active events with missions enabled
+    // Fetch ALL active events (removed habilitar_missoes filter)
     const { data: eventos, error: eventosError } = await supabase
       .from("eventos")
       .select("id, horario_virada_dia, nome_planilha")
-      .eq("status", "ativo")
-      .eq("habilitar_missoes", true);
+      .eq("status", "ativo");
 
     if (eventosError) throw eventosError;
     if (!eventos || eventos.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No active events with missions" }),
+        JSON.stringify({ message: "No active events" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     let totalCheckouts = 0;
-    const results: { evento: string; checkouts: number }[] = [];
+    let totalViagensFechadas = 0;
+    let totalMissoesCanceladas = 0;
+    const results: { evento: string; checkouts: number; viagensFechadas: number; missoesCanceladas: number }[] = [];
 
     for (const evento of eventos) {
       const virada = evento.horario_virada_dia || "04:00:00";
@@ -48,7 +49,6 @@ Deno.serve(async (req) => {
 
       // Only act within a 15-minute window after the turnover time
       const diffMinutos = atualMinutos - viradaMinutos;
-      // Handle midnight wrapping: if virada is 23:50 and now is 00:05, diff = -1425, adjust
       const adjustedDiff = diffMinutos < -720 ? diffMinutos + 1440 : diffMinutos;
 
       if (adjustedDiff < 0 || adjustedDiff >= 15) {
@@ -56,31 +56,81 @@ Deno.serve(async (req) => {
       }
 
       // Calculate yesterday's operational date
-      // If virada is at 02:30 and it's now 02:35, the operational day that just ended
-      // is the day before the current calendar date (because before virada = previous op day)
-      // But at virada time, we ARE past the virada, so "today" is the new op day
-      // We need to close the PREVIOUS op day
       const yesterday = new Date(serverTime);
       yesterday.setDate(yesterday.getDate() - 1);
-      // If virada is after midnight (e.g., 02:30) and current time is just past virada,
-      // yesterday's operational date is the previous calendar date
       const dataOntem = yesterday.toISOString().slice(0, 10);
 
-      // But if virada is e.g. 22:00, and it's 22:05, the previous op day started at 22:00 yesterday
-      // In that case, data_ontem should be today's date minus 1
-      // Actually, for the operational day system: 
-      // getDataOperacional(timestamp, virada) returns the date that "owns" that timestamp
-      // At virada time exactly, the NEW day starts
-      // So the day that just ended = if virada <= current time, the op day is "today" for timestamps before virada
-      // The records we want have data = date of yesterday's operational day
-      // For virada at 02:30 on Jan 12, the op day "Jan 11" runs from Jan 11 02:30 to Jan 12 02:29
-      // At 02:35 on Jan 12, we want to close records with data = "2025-01-11"
-      // dataOntem calculation: the current server date is Jan 12, so yesterday = Jan 11 ✓
-      // For virada at 22:00 on Jan 11: op day "Jan 11" runs from Jan 11 22:00 to Jan 12 21:59
-      // At 22:05 on Jan 11, we want to close records with data = "2025-01-10"
-      // But yesterday = Jan 10 ✓ ... wait, serverTime date is Jan 11, yesterday = Jan 10 ✓
+      // Calculate operational day boundaries for dataOntem
+      // Operational day "dataOntem" starts at: dataOntem + virada
+      // Operational day "dataOntem" ends at: dataOntem+1 + virada - 1ms
+      const inicioOpDay = `${dataOntem}T${virada.substring(0, 5)}:00-03:00`;
+      const nextDay = new Date(yesterday);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
+      const fimOpDay = `${nextDayStr}T${virada.substring(0, 5)}:00-03:00`;
 
-      // Find open presence records for yesterday's operational date
+      const now = serverTime.toISOString();
+      let eventoViagensFechadas = 0;
+      let eventoMissoesCanceladas = 0;
+      let eventoCheckouts = 0;
+
+      // ======== ETAPA A: Fechar viagens abertas do dia operacional encerrado ========
+      const { data: viagensAbertas, error: viagensError } = await supabase
+        .from("viagens")
+        .select("id")
+        .eq("evento_id", evento.id)
+        .eq("encerrado", false)
+        .gte("data_criacao", inicioOpDay)
+        .lt("data_criacao", fimOpDay);
+
+      if (viagensError) {
+        console.error(`[auto-checkout] Error fetching trips for event ${evento.id}:`, viagensError);
+      } else if (viagensAbertas && viagensAbertas.length > 0) {
+        const viagemIds = viagensAbertas.map((v) => v.id);
+        const { error: updateViagensError } = await supabase
+          .from("viagens")
+          .update({
+            encerrado: true,
+            status: "encerrado",
+            h_fim_real: now,
+            observacao: "Encerrada automaticamente - virada do dia operacional",
+          })
+          .in("id", viagemIds);
+
+        if (updateViagensError) {
+          console.error(`[auto-checkout] Error closing trips:`, updateViagensError);
+        } else {
+          eventoViagensFechadas = viagemIds.length;
+          console.log(`[auto-checkout] Closed ${viagemIds.length} trips for event "${evento.nome_planilha}" (opDay: ${dataOntem})`);
+        }
+      }
+
+      // ======== ETAPA B: Cancelar missões ativas do dia anterior ========
+      const { data: missoesAtivas, error: missoesError } = await supabase
+        .from("missoes")
+        .select("id")
+        .eq("evento_id", evento.id)
+        .eq("data_programada", dataOntem)
+        .in("status", ["aceita", "em_andamento", "pendente"]);
+
+      if (missoesError) {
+        console.error(`[auto-checkout] Error fetching missions for event ${evento.id}:`, missoesError);
+      } else if (missoesAtivas && missoesAtivas.length > 0) {
+        const missaoIds = missoesAtivas.map((m) => m.id);
+        const { error: updateMissoesError } = await supabase
+          .from("missoes")
+          .update({ status: "cancelada" })
+          .in("id", missaoIds);
+
+        if (updateMissoesError) {
+          console.error(`[auto-checkout] Error cancelling missions:`, updateMissoesError);
+        } else {
+          eventoMissoesCanceladas = missaoIds.length;
+          console.log(`[auto-checkout] Cancelled ${missaoIds.length} missions for event "${evento.nome_planilha}" (opDay: ${dataOntem})`);
+        }
+      }
+
+      // ======== ETAPA C: Checkout automático + desvinculação bidirecional ========
       const { data: presencasAbertas, error: presencaError } = await supabase
         .from("motorista_presenca")
         .select("id, motorista_id")
@@ -90,16 +140,16 @@ Deno.serve(async (req) => {
         .is("checkout_at", null);
 
       if (presencaError) {
-        console.error(`Error fetching presences for event ${evento.id}:`, presencaError);
+        console.error(`[auto-checkout] Error fetching presences for event ${evento.id}:`, presencaError);
+        results.push({ evento: evento.nome_planilha, checkouts: 0, viagensFechadas: eventoViagensFechadas, missoesCanceladas: eventoMissoesCanceladas });
         continue;
       }
 
       if (!presencasAbertas || presencasAbertas.length === 0) {
-        results.push({ evento: evento.nome_planilha, checkouts: 0 });
+        results.push({ evento: evento.nome_planilha, checkouts: 0, viagensFechadas: eventoViagensFechadas, missoesCanceladas: eventoMissoesCanceladas });
         continue;
       }
 
-      const now = serverTime.toISOString();
       const motoristaIds = presencasAbertas.map((p) => p.motorista_id);
       const presencaIds = presencasAbertas.map((p) => p.id);
 
@@ -113,11 +163,12 @@ Deno.serve(async (req) => {
         .in("id", presencaIds);
 
       if (updatePresencaError) {
-        console.error(`Error updating presences:`, updatePresencaError);
+        console.error(`[auto-checkout] Error updating presences:`, updatePresencaError);
+        results.push({ evento: evento.nome_planilha, checkouts: 0, viagensFechadas: eventoViagensFechadas, missoesCanceladas: eventoMissoesCanceladas });
         continue;
       }
 
-      // Update motorista status to indisponivel
+      // Update motorista status to indisponivel + clear veiculo_id
       const { error: updateMotoristaError } = await supabase
         .from("motoristas")
         .update({ status: "indisponivel", veiculo_id: null })
@@ -125,10 +176,10 @@ Deno.serve(async (req) => {
         .eq("evento_id", evento.id);
 
       if (updateMotoristaError) {
-        console.error(`Error updating motoristas:`, updateMotoristaError);
+        console.error(`[auto-checkout] Error updating motoristas:`, updateMotoristaError);
       }
 
-      // Clear motorista_id on vehicles (bidirectional unlink)
+      // Bidirectional: clear motorista_id on vehicles
       const { error: updateVeiculoError } = await supabase
         .from("veiculos")
         .update({ motorista_id: null })
@@ -136,17 +187,22 @@ Deno.serve(async (req) => {
         .eq("evento_id", evento.id);
 
       if (updateVeiculoError) {
-        console.error(`Error clearing vehicles:`, updateVeiculoError);
+        console.error(`[auto-checkout] Error clearing vehicles:`, updateVeiculoError);
       }
 
-      totalCheckouts += presencasAbertas.length;
+      eventoCheckouts = presencasAbertas.length;
+      totalCheckouts += eventoCheckouts;
+      totalViagensFechadas += eventoViagensFechadas;
+      totalMissoesCanceladas += eventoMissoesCanceladas;
       results.push({
         evento: evento.nome_planilha,
-        checkouts: presencasAbertas.length,
+        checkouts: eventoCheckouts,
+        viagensFechadas: eventoViagensFechadas,
+        missoesCanceladas: eventoMissoesCanceladas,
       });
 
       console.log(
-        `Auto-checkout: ${presencasAbertas.length} motoristas for event "${evento.nome_planilha}" (data: ${dataOntem})`
+        `[auto-checkout] Event "${evento.nome_planilha}" (opDay: ${dataOntem}): ${eventoCheckouts} checkouts, ${eventoViagensFechadas} trips closed, ${eventoMissoesCanceladas} missions cancelled`
       );
     }
 
@@ -154,13 +210,15 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         totalCheckouts,
+        totalViagensFechadas,
+        totalMissoesCanceladas,
         results,
         serverTime: serverTime.toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Auto-checkout error:", error);
+    console.error("[auto-checkout] Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
