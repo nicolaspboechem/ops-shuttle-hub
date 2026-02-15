@@ -1,132 +1,133 @@
 
 
-# Historico de Escalas com Veiculos e Historico de Veiculos Vinculados
+# Auditoria de Escalas com Filtro de Data
 
 ## Resumo
 
-Transformar o `MotoristaViagensModal` em um modal com 3 abas: **Viagens** (com filtro de data), **Escalas** (com veiculos vinculados durante cada escala) e **Veiculos** (historico completo de vinculacoes/desvinculacoes).
+Criar uma nova secao "Auditoria Escalas" na pagina de Motoristas (CCO) que mostra o historico de escalas organizadas por dia, com o mesmo componente `DiaSeletor` usado no dashboard para navegar entre datas ou ver todos os dias.
 
 ---
 
-## 1. Adicionar prop `motoristaId` ao MotoristaViagensModal
+## 1. Adicionar nova secao na sidebar de Motoristas
 
-O modal atualmente recebe apenas `motorista` (nome) e `viagens`. Precisa tambem do `motoristaId` para buscar escalas e historico de veiculos no banco.
+**Arquivo:** `src/pages/Motoristas.tsx`
 
-**Onde passar o ID:**
-- No `MotoristaDropdownActions` (linha ~465 de Motoristas.tsx) - ja tem acesso a `motoristaCadastrado?.id`
-- No kanban via `onVerViagens` callback - ja passa o objeto `Motorista` que tem `.id`
-
-## 2. Reformular MotoristaViagensModal com 3 abas
-
-**Arquivo:** `src/components/motoristas/MotoristaViagensModal.tsx`
-
-### Aba "Viagens"
-- Filtro de data (`<Input type="date" />`) no topo
-- KPIs recalculados com base no filtro
-- Tabela de viagens filtrada
-- Botao para limpar filtro
-
-### Aba "Escalas"
-- Buscar escalas do motorista via query:
+Adicionar um terceiro item na sidebar:
 
 ```text
-supabase
-  .from('escala_motoristas')
-  .select('id, created_at, escalas(id, nome, horario_inicio, horario_fim, cor, evento_id, created_at)')
-  .eq('motorista_id', motoristaId)
+{ id: 'cadastro', label: 'Motoristas', icon: Users },
+{ id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
+{ id: 'escalas', label: 'Escalas', icon: CalendarDays },  // NOVO
 ```
 
-- Para cada escala, cruzar com o historico de veiculos (`veiculo_vistoria_historico`) para mostrar qual veiculo estava vinculado durante aquele turno
-- Query de historico de veiculos:
+E renderizar o novo componente no conteudo quando `activeSection === 'escalas'`.
+
+## 2. Criar componente `EscalasAuditoria`
+
+**Arquivo:** `src/components/motoristas/EscalasAuditoria.tsx` (NOVO)
+
+### Interface
+
+- No topo: `DiaSeletor` com navegacao dia a dia e toggle "Todos os dias"
+- Abaixo: cards de cada escala ativa naquele dia, mostrando:
+  - Nome da escala, cor, horario (inicio-fim)
+  - Lista de motoristas vinculados (nome + status presenca)
+  - Veiculo de cada motorista (via JOIN `motoristas.veiculo_id -> veiculos`)
+  - Historico de vinculacao de veiculos durante a escala (via `veiculo_vistoria_historico`)
+
+### Dados
+
+O componente recebera como props:
+- `eventoId`
+- `evento` (para `data_inicio`, `data_fim`)
+
+E fara queries internas para:
+
+1. **Escalas do evento:** `escalas` filtradas por `evento_id` e `ativo = true`
+2. **Motoristas das escalas:** `escala_motoristas` com JOIN nas `escalas`
+3. **Presenca do dia selecionado:** `motorista_presenca` filtrada por `data = dataSelecionada`
+4. **Veiculos vinculados:** consulta `veiculo_vistoria_historico` para o dia selecionado (vinculacao/desvinculacao)
+
+### Filtragem por data
+
+A filtragem por data sera baseada no `created_at` do `escala_motoristas`:
+- Se `verTodosDias = false`: mostrar apenas motoristas cuja vinculacao (`created_at`) ocorreu no dia selecionado, mais escalas que ja existiam antes (permanentes)
+- A abordagem mais simples e util: como escalas sao definicoes fixas (turno A, turno B), mostrar sempre todas as escalas ativas e filtrar a **presenca** pelo dia selecionado. Assim o usuario ve "neste dia, quem fez check-in em cada turno e com qual veiculo"
+
+### Layout dos cards
 
 ```text
-supabase
-  .from('veiculo_vistoria_historico')
-  .select('id, tipo_vistoria, created_at, veiculo:veiculos!veiculo_id(placa, nome, tipo_veiculo)')
-  .eq('motorista_id', motoristaId)
-  .in('tipo_vistoria', ['vinculacao', 'desvinculacao'])
-  .order('created_at', { ascending: true })
+[DiaSeletor: < sex, 14 de fev >  | Todos]
+
++----------------------------------------+
+| [cor] Turno A  (06:00 - 14:00)         |
+| 3 motoristas                           |
+|                                        |
+| Joao Silva                             |
+|   Van TYJ0H74 | Check-in 06:15        |
+|   Check-out 14:05 (7h50)              |
+|                                        |
+| Maria Santos                           |
+|   Onibus ABC1234 | Check-in 06:30      |
+|   Sem check-out                        |
+|                                        |
+| Pedro Lima                             |
+|   Sem veiculo | Sem presenca           |
++----------------------------------------+
+
++----------------------------------------+
+| [cor] Turno B  (14:00 - 22:00)         |
+| 2 motoristas                           |
+| ...                                    |
++----------------------------------------+
 ```
 
-- Para cada escala, identificar os veiculos vinculados durante o periodo (created_at da escala vs timestamps de vinculacao/desvinculacao)
-- Se mais de um veiculo foi vinculado durante a escala, mostrar todos com seus respectivos horarios
+### KPIs no topo (por dia)
 
-**Layout de cada card de escala:**
+- Total de motoristas escalados
+- Motoristas com check-in
+- Motoristas com check-out completo
+- Horas totais trabalhadas
 
-```text
-[Cor] Turno A  (08:00 - 18:00)
-      Criado em: 14/02/2026
-      
-      Veiculos:
-      - Van TYJ0H74 "Apelido"  |  08:30 - 14:20
-      - Van TKB0J35 "Outro"    |  14:25 - 18:00
-```
+## 3. Exportar Excel
 
-### Aba "Veiculos"
-- Historico completo de todas as vinculacoes/desvinculacoes do motorista
-- Mesma query do `veiculo_vistoria_historico` acima
-- Agrupar em pares vinculacao/desvinculacao para mostrar duracao
-- Se so tem vinculacao sem desvinculacao, marcar como "Ativo" (ainda vinculado)
-
-**Layout:**
-
-```text
-[Car] Van TYJ0H74 "Apelido"
-      Vinculado: 15/02 08:30
-      Desvinculado: 15/02 18:00  (9h30 de uso)
-
-[Car] Van TKB0J35
-      Vinculado: 14/02 09:00
-      Desvinculado: 14/02 17:30  (8h30 de uso)
-```
-
-## 3. Atualizar chamadores em Motoristas.tsx
-
-Passar `motoristaId` nas duas chamadas:
-
-1. **MotoristaDropdownActions** (linha ~465): adicionar prop `motoristaId={motoristaCadastrado?.id}`
-2. **Kanban via onVerViagens**: o `selectedMotoristaForViagens` ja e um objeto `Motorista` com `.id`
+Botao para exportar a auditoria de escalas do dia selecionado (ou todos os dias) em formato Excel, incluindo:
+- Escala, Motorista, Veiculo, Check-in, Check-out, Duracao
 
 ---
 
 ## Detalhes Tecnicos
 
-### Arquivo alterado
+### Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/motoristas/MotoristaViagensModal.tsx` | Reformular com 3 abas (Viagens com filtro, Escalas com veiculos, Veiculos historico) |
-| `src/pages/Motoristas.tsx` | Passar `motoristaId` ao MotoristaViagensModal |
+| `src/components/motoristas/EscalasAuditoria.tsx` | **NOVO** - Componente de auditoria de escalas com DiaSeletor |
+| `src/pages/Motoristas.tsx` | Adicionar secao 'escalas' na sidebar e renderizar EscalasAuditoria |
 
-### Logica de cruzamento escala x veiculos
-
-Para determinar qual veiculo estava vinculado durante uma escala:
+### Query de presenca por dia
 
 ```text
-// Historico de veiculos ordenado por data
-// Para cada escala, filtrar vinculacoes cujo timestamp 
-// esta dentro do periodo (created_at da escala +/- horarios)
-// 
-// Approach: usar o created_at da escala_motoristas como referencia
-// e verificar quais vinculacoes existiam naquele periodo
-
-// Simplificacao pratica: 
-// - Buscar todos os registros de veiculo_vistoria_historico do motorista
-// - Construir intervalos [vinculacao_at, desvinculacao_at] para cada veiculo
-// - Para cada escala, verificar quais intervalos se sobrepoem
+supabase
+  .from('motorista_presenca')
+  .select('*')
+  .eq('evento_id', eventoId)
+  .eq('data', dataSelecionada)
 ```
 
-### Fetch de dados (dentro do modal, ao abrir)
+### Dados de veiculos
 
-Dois `useEffect` independentes executados quando o dialog abre:
-1. Buscar escalas via `escala_motoristas` + `escalas`
-2. Buscar historico de veiculos via `veiculo_vistoria_historico`
+Reutilizar a prop `veiculos` ja disponivel na pagina Motoristas, e cruzar com `motoristas.veiculo_id` para mostrar o veiculo atual de cada motorista. Para historico intraday, consultar `veiculo_vistoria_historico` filtrando por `created_at` no dia selecionado.
 
-Ambos usam `motoristaId` e so executam quando o dialog esta aberto.
+### Integracao com DiaSeletor
 
-### Sem migracoes de banco necessarias
+Usar o componente `DiaSeletor` existente com as props:
+- `dataOperacional`: data selecionada (default: hoje)
+- `dataInicio/dataFim`: do evento
+- `showToggleAll`: true
+- `verTodosDias/onToggleTodosDias`: para alternar entre dia unico e todos
 
-Todos os dados ja existem nas tabelas:
-- `escala_motoristas` + `escalas` - escalas do motorista
-- `veiculo_vistoria_historico` - historico de vinculacao/desvinculacao com `motorista_id`, `veiculo_id`, `tipo_vistoria`, `created_at`
+### Sem migracoes de banco
+
+Todos os dados necessarios ja existem nas tabelas `escalas`, `escala_motoristas`, `motorista_presenca`, `motoristas`, `veiculos` e `veiculo_vistoria_historico`.
 
