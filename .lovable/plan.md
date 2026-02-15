@@ -1,133 +1,86 @@
 
 
-# Auditoria de Escalas com Filtro de Data
+# Correcoes: Sidebar Fixa e Exibir Quem Vinculou o Veiculo
 
-## Resumo
+## Problema 1: Sidebar Interna Expandindo Verticalmente
 
-Criar uma nova secao "Auditoria Escalas" na pagina de Motoristas (CCO) que mostra o historico de escalas organizadas por dia, com o mesmo componente `DiaSeletor` usado no dashboard para navegar entre datas ou ver todos os dias.
+A `InnerSidebar` esta dentro de um `flex` container sem altura fixa, fazendo com que ela cresça junto com o conteudo da pagina. Deve ter altura fixa na viewport e ficar "sticky".
 
----
+### Correcao
 
-## 1. Adicionar nova secao na sidebar de Motoristas
+**Arquivo:** `src/components/layout/InnerSidebar.tsx`
 
-**Arquivo:** `src/pages/Motoristas.tsx`
+Adicionar `sticky top-0 h-screen` ao `<aside>`, para que fique fixa na tela independente do scroll do conteudo.
 
-Adicionar um terceiro item na sidebar:
+**Arquivo:** `src/pages/Motoristas.tsx` (linha 1083)
 
-```text
-{ id: 'cadastro', label: 'Motoristas', icon: Users },
-{ id: 'auditoria', label: 'Auditoria', icon: FileBarChart },
-{ id: 'escalas', label: 'Escalas', icon: CalendarDays },  // NOVO
-```
-
-E renderizar o novo componente no conteudo quando `activeSection === 'escalas'`.
-
-## 2. Criar componente `EscalasAuditoria`
-
-**Arquivo:** `src/components/motoristas/EscalasAuditoria.tsx` (NOVO)
-
-### Interface
-
-- No topo: `DiaSeletor` com navegacao dia a dia e toggle "Todos os dias"
-- Abaixo: cards de cada escala ativa naquele dia, mostrando:
-  - Nome da escala, cor, horario (inicio-fim)
-  - Lista de motoristas vinculados (nome + status presenca)
-  - Veiculo de cada motorista (via JOIN `motoristas.veiculo_id -> veiculos`)
-  - Historico de vinculacao de veiculos durante a escala (via `veiculo_vistoria_historico`)
-
-### Dados
-
-O componente recebera como props:
-- `eventoId`
-- `evento` (para `data_inicio`, `data_fim`)
-
-E fara queries internas para:
-
-1. **Escalas do evento:** `escalas` filtradas por `evento_id` e `ativo = true`
-2. **Motoristas das escalas:** `escala_motoristas` com JOIN nas `escalas`
-3. **Presenca do dia selecionado:** `motorista_presenca` filtrada por `data = dataSelecionada`
-4. **Veiculos vinculados:** consulta `veiculo_vistoria_historico` para o dia selecionado (vinculacao/desvinculacao)
-
-### Filtragem por data
-
-A filtragem por data sera baseada no `created_at` do `escala_motoristas`:
-- Se `verTodosDias = false`: mostrar apenas motoristas cuja vinculacao (`created_at`) ocorreu no dia selecionado, mais escalas que ja existiam antes (permanentes)
-- A abordagem mais simples e util: como escalas sao definicoes fixas (turno A, turno B), mostrar sempre todas as escalas ativas e filtrar a **presenca** pelo dia selecionado. Assim o usuario ve "neste dia, quem fez check-in em cada turno e com qual veiculo"
-
-### Layout dos cards
-
-```text
-[DiaSeletor: < sex, 14 de fev >  | Todos]
-
-+----------------------------------------+
-| [cor] Turno A  (06:00 - 14:00)         |
-| 3 motoristas                           |
-|                                        |
-| Joao Silva                             |
-|   Van TYJ0H74 | Check-in 06:15        |
-|   Check-out 14:05 (7h50)              |
-|                                        |
-| Maria Santos                           |
-|   Onibus ABC1234 | Check-in 06:30      |
-|   Sem check-out                        |
-|                                        |
-| Pedro Lima                             |
-|   Sem veiculo | Sem presenca           |
-+----------------------------------------+
-
-+----------------------------------------+
-| [cor] Turno B  (14:00 - 22:00)         |
-| 2 motoristas                           |
-| ...                                    |
-+----------------------------------------+
-```
-
-### KPIs no topo (por dia)
-
-- Total de motoristas escalados
-- Motoristas com check-in
-- Motoristas com check-out completo
-- Horas totais trabalhadas
-
-## 3. Exportar Excel
-
-Botao para exportar a auditoria de escalas do dia selecionado (ou todos os dias) em formato Excel, incluindo:
-- Escala, Motorista, Veiculo, Check-in, Check-out, Duracao
+O container `flex` que envolve InnerSidebar + conteudo nao precisa de mudanca, mas o conteudo ao lado precisa de `overflow-auto` (ja tem).
 
 ---
 
-## Detalhes Tecnicos
+## Problema 2: Mostrar Quem Vinculou o Veiculo
 
-### Arquivos
+Atualmente a exibicao do historico de vinculacao mostra apenas:
 
-| Arquivo | Acao |
-|---------|------|
-| `src/components/motoristas/EscalasAuditoria.tsx` | **NOVO** - Componente de auditoria de escalas com DiaSeletor |
-| `src/pages/Motoristas.tsx` | Adicionar secao 'escalas' na sidebar e renderizar EscalasAuditoria |
-
-### Query de presenca por dia
-
-```text
-supabase
-  .from('motorista_presenca')
-  .select('*')
-  .eq('evento_id', eventoId)
-  .eq('data', dataSelecionada)
+```
+Evandro Marin
+Vinculou TCG7I27 "22 - TRACKER PRETA" as 05:17
 ```
 
-### Dados de veiculos
+O nome exibido e o do **motorista**, mas falta o nome de **quem executou** a vinculacao. A tabela `veiculo_vistoria_historico` ja tem os campos `realizado_por` (UUID) e `realizado_por_nome` (varchar) que armazenam essa informacao.
 
-Reutilizar a prop `veiculos` ja disponivel na pagina Motoristas, e cruzar com `motoristas.veiculo_id` para mostrar o veiculo atual de cada motorista. Para historico intraday, consultar `veiculo_vistoria_historico` filtrando por `created_at` no dia selecionado.
+### Correcao em 3 locais:
 
-### Integracao com DiaSeletor
+**1. `EscalasAuditoria.tsx`** - Auditoria de Escalas
 
-Usar o componente `DiaSeletor` existente com as props:
-- `dataOperacional`: data selecionada (default: hoje)
-- `dataInicio/dataFim`: do evento
-- `showToggleAll`: true
-- `verTodosDias/onToggleTodosDias`: para alternar entre dia unico e todos
+Na query `fetchVeiculoHistorico`, adicionar `realizado_por_nome` ao SELECT:
+```
+.select('id, motorista_id, veiculo_id, tipo_vistoria, created_at, realizado_por_nome')
+```
 
-### Sem migracoes de banco
+Na exibicao (linhas 442-453), mudar de:
+```
+Vinculou TCG7I27 as 05:17
+```
+Para:
+```
+[Nome de quem vinculou] vinculou TCG7I27 as 05:17
+```
 
-Todos os dados necessarios ja existem nas tabelas `escalas`, `escala_motoristas`, `motorista_presenca`, `motoristas`, `veiculos` e `veiculo_vistoria_historico`.
+**2. `MotoristaViagensModal.tsx`** - Aba Veiculos (historico de vinculacao)
 
+Na query de `veiculo_vistoria_historico` (linha 187), adicionar `realizado_por_nome`:
+```
+.select('id, tipo_vistoria, created_at, veiculo_id, realizado_por_nome, veiculos(placa, nome, tipo_veiculo)')
+```
+
+Na interface `VeiculoHistoricoItem`, adicionar campo `realizado_por_nome`.
+
+Na interface `VeiculoIntervalo`, adicionar `vinculadoPor` e `desvinculadoPor`.
+
+Na funcao `buildIntervalos`, propagar o `realizado_por_nome` para os intervalos.
+
+Na aba Veiculos (linhas 437-448), exibir:
+```
+Vinculado por [nome]: dd/MM HH:mm
+Desvinculado por [nome]: dd/MM HH:mm
+```
+
+**3. `MotoristaViagensModal.tsx`** - Aba Escalas (veiculos durante escala)
+
+Na exibicao dos veiculos vinculados durante cada escala (linhas 391-399), incluir quem vinculou:
+```
+Van TYJ0H74 "Apelido" | por [nome] | 08:30 - 14:20
+```
+
+---
+
+## Arquivos Alterados
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/layout/InnerSidebar.tsx` | Adicionar `sticky top-0 h-screen` ao aside |
+| `src/components/motoristas/EscalasAuditoria.tsx` | Buscar e exibir `realizado_por_nome` no historico de vinculacao |
+| `src/components/motoristas/MotoristaViagensModal.tsx` | Buscar e exibir `realizado_por_nome` nas abas Escalas e Veiculos |
+
+Nenhuma migracao de banco necessaria - o campo `realizado_por_nome` ja existe na tabela.
