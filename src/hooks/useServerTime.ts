@@ -36,7 +36,18 @@ export function useServerTime() {
     // Ressincronizar a cada 5 minutos
     const interval = setInterval(syncTime, 5 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    // Re-sync ao voltar do background (celular em segundo plano)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncTime();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [syncTime]);
 
   // Retorna hora atual sincronizada com o servidor

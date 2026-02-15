@@ -149,7 +149,7 @@ serve(async (req) => {
     );
 
     const motorista = credencial.motoristas;
-    const expiresAt = getNumericDate(60 * 60 * 24); // 24 hours
+    const expiresAt = getNumericDate(60 * 60 * 24 * 7); // 7 days
 
     const token = await create(
       { alg: "HS256", typ: "JWT" },

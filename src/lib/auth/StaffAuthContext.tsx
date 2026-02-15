@@ -87,7 +87,19 @@ export function StaffAuthProvider({ children }: { children: React.ReactNode }) {
     setStaffSession(null);
   }, []);
 
-  const isAuthenticated = !!staffSession && staffSession.expires_at > Date.now();
+  // isAuthenticated robusto: useState + verificação periódica
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const GRACE_PERIOD = 60 * 60 * 1000; // 1 hora em ms
+      const valid = !!staffSession && (staffSession.expires_at + GRACE_PERIOD) > Date.now();
+      setIsAuthenticated(valid);
+    };
+    check();
+    const interval = setInterval(check, 60000);
+    return () => clearInterval(interval);
+  }, [staffSession]);
 
   return (
     <StaffAuthContext.Provider value={{
