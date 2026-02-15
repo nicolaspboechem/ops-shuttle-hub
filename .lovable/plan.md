@@ -1,36 +1,64 @@
 
 
-# Corrigir Bug de Timezone nas Datas do EditEventoModal
+# Reformular App Operador - Shuttle com Ida e Volta
 
-## Problema
+## Fluxo
 
-O banco de dados armazena as datas corretas (ex: `data_inicio = "2026-02-10"`, `data_fim = "2026-02-15"`), mas o modal de edicao exibe um dia a menos (09/02 e 14/02).
+1. Operador toca **+**, preenche **Nome da viagem** + **PAX de ida** -> viagem criada como ativa (`em_andamento`)
+2. Viagem aparece na lista de **ativas** na aba principal
+3. Quando shuttle volta, operador toca **Encerrar** -> abre modal pedindo **PAX de volta**
+4. Confirma -> viagem vai para historico com ida e volta registrados
 
-**Causa raiz**: `new Date("2026-02-10")` e interpretado pelo JavaScript como meia-noite UTC. No fuso de Brasilia (UTC-3), isso vira 21:00 do dia **9 de fevereiro**. Quando `format()` formata usando horario local, mostra o dia anterior.
-
-Se o usuario salvar sem alterar, o sistema grava a data errada (um dia antes), corrompendo os dados progressivamente.
-
-## Solucao
-
-Alterar o parse das datas para criar objetos Date no horario local, evitando a conversao UTC.
-
-**De:**
-```
-setDataInicio(new Date(evento.data_inicio));
-setDataFim(new Date(evento.data_fim));
-```
-
-**Para:**
-```
-setDataInicio(new Date(evento.data_inicio + 'T12:00:00'));
-setDataFim(new Date(evento.data_fim + 'T12:00:00'));
-```
-
-Adicionando `T12:00:00`, o JavaScript interpreta como horario local (meio-dia), eliminando qualquer risco de mudanca de dia por fuso horario.
-
-## Arquivo alterado
+## Arquivos alterados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/eventos/EditEventoModal.tsx` | Corrigir parse de `data_inicio` e `data_fim` (linhas 64 e 67) |
+| `src/components/app/CreateShuttleForm.tsx` | Adicionar campo "Nome da viagem" (salvo em `coordenador`). Criar como `em_andamento` com `encerrado: false` |
+| `src/components/app/ShuttleCardOperador.tsx` | **NOVO** - Card de viagem ativa com nome, PAX ida, hora, botao "Encerrar" |
+| `src/components/app/ShuttleEncerrarModal.tsx` | **NOVO** - Drawer para encerrar: campo PAX de volta + confirmar |
+| `src/pages/app/AppOperador.tsx` | Separar viagens em ativas vs encerradas. Viagens ativas usam `ShuttleCardOperador`. Encerradas usam card simples existente. Mostrar nome da viagem nos cards |
+| `src/components/app/OperadorHistoricoTab.tsx` | Somar `qtd_pax_retorno` no resumo de PAX total |
+
+## Detalhes tecnicos
+
+### CreateShuttleForm - novo insert
+
+```text
+{
+  evento_id, tipo_operacao: 'shuttle', motorista: 'Shuttle',
+  coordenador: nomeViagem,          // campo existente no banco
+  status: 'em_andamento',           // antes era 'encerrado'
+  encerrado: false,                 // antes era true
+  qtd_pax: Number(qtdPax),
+  h_inicio_real: agora,
+  criado_por: userId
+}
+```
+
+### ShuttleEncerrarModal - update direto
+
+```text
+supabase.from('viagens').update({
+  status: 'encerrado',
+  encerrado: true,
+  qtd_pax_retorno: paxRetorno,
+  h_fim_real: agora,
+  finalizado_por: userId
+}).eq('id', viagem.id)
+```
+
+### Separacao no AppOperador
+
+```text
+const viagensAtivas = viagens.filter(v => !v.encerrado && v.status !== 'cancelado');
+const viagensEncerradas = viagens.filter(v => v.encerrado || v.status === 'encerrado');
+```
+
+### Campos do banco utilizados (todos ja existem, sem migracao)
+
+- `coordenador` - nome/label da viagem
+- `qtd_pax` - PAX de ida
+- `qtd_pax_retorno` - PAX de volta (preenchido ao encerrar)
+- `status` - lifecycle
+- `h_inicio_real` / `h_fim_real` - timestamps
 
