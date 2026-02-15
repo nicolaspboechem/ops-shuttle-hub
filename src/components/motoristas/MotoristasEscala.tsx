@@ -1,10 +1,8 @@
-import { useState, useMemo } from 'react';
-import { Plus, GripVertical, Trash2, Clock, UserMinus } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Clock, UserMinus, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useEscalas, Escala } from '@/hooks/useEscalas';
 import { Motorista } from '@/hooks/useCadastros';
 import { CreateEscalaWizard } from './CreateEscalaWizard';
@@ -23,11 +21,11 @@ interface MotoristasEscalaProps {
 function MotoristaEscalaCard({
   motorista,
   presenca,
-  isDragging,
+  onRemove,
 }: {
   motorista: Motorista;
   presenca: { checkin_at?: string | null; checkout_at?: string | null } | null;
-  isDragging?: boolean;
+  onRemove: () => void;
 }) {
   const statusColor = presenca?.checkout_at
     ? 'bg-red-500'
@@ -36,142 +34,128 @@ function MotoristaEscalaCard({
     : 'bg-muted-foreground/40';
 
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border bg-card transition-shadow',
-        isDragging && 'shadow-lg ring-2 ring-primary/30 opacity-80'
-      )}
-    >
-      <GripVertical className="w-4 h-4 text-muted-foreground/50 shrink-0 cursor-grab" />
+    <div className="group flex items-center gap-3 p-2.5 rounded-lg border bg-card hover:shadow-sm transition-shadow">
       <div className={cn('w-2.5 h-2.5 rounded-full shrink-0', statusColor)} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{motorista.nome}</p>
-        {motorista.telefone && (
-          <p className="text-xs text-muted-foreground">{motorista.telefone}</p>
-        )}
       </div>
       <Badge variant="outline" className="text-[10px] shrink-0">
-        {presenca?.checkout_at ? 'Saiu' : presenca?.checkin_at ? 'Ativo' : 'Sem check-in'}
+        {presenca?.checkout_at ? 'Saiu' : presenca?.checkin_at ? 'Ativo' : '—'}
       </Badge>
+      <button
+        onClick={onRemove}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-destructive shrink-0"
+        title="Remover da escala"
+      >
+        <UserMinus className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }
 
-function EscalaPanel({
-  escalas,
-  selectedEscalaId,
-  onSelectEscala,
+function EscalaKanbanColumn({
+  escala,
   motoristas,
-  motoristaIds,
   getPresenca,
+  collapsed,
+  onToggleCollapse,
+  onEdit,
   onDelete,
   onRemoveMotorista,
-  panelLabel,
 }: {
-  escalas: Escala[];
-  selectedEscalaId: string | null;
-  onSelectEscala: (id: string) => void;
+  escala: Escala;
   motoristas: Motorista[];
-  motoristaIds: string[];
   getPresenca: MotoristasEscalaProps['getPresenca'];
-  onDelete: (id: string) => void;
-  onRemoveMotorista: (escalaId: string, motoristaId: string) => void;
-  panelLabel: string;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onRemoveMotorista: (motoristaId: string) => void;
 }) {
-  const selectedEscala = escalas.find(e => e.id === selectedEscalaId);
-  const panelMotoristas = motoristas.filter(m => motoristaIds.includes(m.id));
-
-  // Counts by status
-  const ativos = panelMotoristas.filter(m => {
+  const ativos = motoristas.filter(m => {
     const p = getPresenca(m.id);
     return p?.checkin_at && !p?.checkout_at;
   }).length;
 
+  if (collapsed) {
+    return (
+      <div
+        className="flex flex-col items-center w-12 shrink-0 bg-muted/30 rounded-xl border border-border/50 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={onToggleCollapse}
+      >
+        <ChevronRight className="w-4 h-4 text-muted-foreground mb-2" />
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 mb-2">
+          {motoristas.length}
+        </Badge>
+        <span
+          className="text-xs font-semibold text-muted-foreground"
+          style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
+        >
+          {escala.nome}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col bg-muted/30 rounded-xl border border-border/50 min-w-[280px] max-w-[320px] w-full shrink-0">
       {/* Header */}
-      <div className="p-3 border-b space-y-2">
+      <div className="px-3 py-2.5 border-b border-border/50 space-y-1">
         <div className="flex items-center gap-2">
-          <Select value={selectedEscalaId || ''} onValueChange={onSelectEscala}>
-            <SelectTrigger className="flex-1 h-9">
-              <SelectValue placeholder={`Selecionar escala (${panelLabel})`} />
-            </SelectTrigger>
-            <SelectContent>
-              {escalas.map(e => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.nome} ({e.horario_inicio?.slice(0, 5)} - {e.horario_fim?.slice(0, 5)})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedEscalaId && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-destructive">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Excluir escala?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    A escala "{selectedEscala?.nome}" será desativada.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDelete(selectedEscalaId)}>
-                    Excluir
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          <button onClick={onToggleCollapse} className="p-0.5 hover:bg-muted rounded">
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <span className="text-sm font-semibold text-foreground flex-1 truncate">{escala.nome}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+            {motoristas.length}
+          </Badge>
+          <button onClick={onEdit} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="p-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir escala?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A escala "{escala.nome}" será desativada.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={onDelete}>Excluir</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
-        {selectedEscala && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {selectedEscala.horario_inicio?.slice(0, 5)} - {selectedEscala.horario_fim?.slice(0, 5)}
-            </span>
-            <span>{panelMotoristas.length} motoristas</span>
-            <span className="text-green-600 font-medium">{ativos} ativos</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-6">
+          <Clock className="w-3 h-3" />
+          <span>{escala.horario_inicio?.slice(0, 5)} - {escala.horario_fim?.slice(0, 5)}</span>
+          <span className="text-green-600 font-medium ml-auto">{ativos} ativos</span>
+        </div>
       </div>
 
-      {/* Droppable area */}
-      <div
-        className="flex-1 overflow-auto p-3 space-y-2"
-        data-escala-id={selectedEscalaId || ''}
-      >
-        {!selectedEscalaId ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
-            <Clock className="w-8 h-8 opacity-30" />
-            <p>Selecione uma escala</p>
-          </div>
-        ) : panelMotoristas.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
-            <p>Nenhum motorista nesta escala</p>
-          </div>
-        ) : (
-          panelMotoristas.map(m => (
-            <div key={m.id} className="group relative" data-motorista-id={m.id} data-escala-source={selectedEscalaId}>
+      {/* Cards */}
+      <ScrollArea className="flex-1 max-h-[calc(100vh-16rem)]">
+        <div className="p-2 space-y-1.5 min-h-[60px]">
+          {motoristas.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Nenhum motorista</p>
+          ) : (
+            motoristas.map(m => (
               <MotoristaEscalaCard
+                key={m.id}
                 motorista={m}
                 presenca={getPresenca(m.id)}
+                onRemove={() => onRemoveMotorista(m.id)}
               />
-              <button
-                onClick={() => onRemoveMotorista(selectedEscalaId, m.id)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-destructive"
-                title="Remover da escala"
-              >
-                <UserMinus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -181,67 +165,35 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
     escalas,
     loading,
     createEscala,
+    updateEscala,
     deleteEscala,
-    moveMotorista,
     removeMotoristaFromEscala,
     getMotoristasByEscala,
     getEscalaByMotorista,
   } = useEscalas(eventoId);
 
   const [showWizard, setShowWizard] = useState(false);
-  const [leftEscalaId, setLeftEscalaId] = useState<string | null>(null);
-  const [rightEscalaId, setRightEscalaId] = useState<string | null>(null);
-  const [draggedMotoristaId, setDraggedMotoristaId] = useState<string | null>(null);
+  const [escalaParaEditar, setEscalaParaEditar] = useState<(Escala & { motorista_ids: string[] }) | null>(null);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
-  // Auto-select first two escalas
-  useMemo(() => {
-    if (escalas.length > 0 && !leftEscalaId) {
-      setLeftEscalaId(escalas[0]?.id || null);
-    }
-    if (escalas.length > 1 && !rightEscalaId) {
-      setRightEscalaId(escalas[1]?.id || null);
-    }
-  }, [escalas]);
-
-  const leftMotoristaIds = leftEscalaId ? getMotoristasByEscala(leftEscalaId).map(em => em.motorista_id) : [];
-  const rightMotoristaIds = rightEscalaId ? getMotoristasByEscala(rightEscalaId).map(em => em.motorista_id) : [];
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setDraggedMotoristaId(event.active.id as string);
+  const toggleCollapse = (id: string) => {
+    setCollapsedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setDraggedMotoristaId(null);
-
-    if (!over || !active) return;
-
-    const motoristaId = active.id as string;
-    const targetEscalaId = over.id as string;
-
-    // Find source escala
-    const sourceEscalaId = leftMotoristaIds.includes(motoristaId)
-      ? leftEscalaId
-      : rightMotoristaIds.includes(motoristaId)
-      ? rightEscalaId
-      : null;
-
-    if (!sourceEscalaId || sourceEscalaId === targetEscalaId) return;
-
-    await moveMotorista(motoristaId, sourceEscalaId, targetEscalaId);
+  const openEditWizard = (escala: Escala) => {
+    const mIds = getMotoristasByEscala(escala.id).map(em => em.motorista_id);
+    setEscalaParaEditar({ ...escala, motorista_ids: mIds });
+    setShowWizard(true);
   };
 
-  const handleDeleteEscala = async (escalaId: string) => {
-    await deleteEscala(escalaId);
-    if (leftEscalaId === escalaId) setLeftEscalaId(null);
-    if (rightEscalaId === escalaId) setRightEscalaId(null);
+  const handleWizardClose = (open: boolean) => {
+    setShowWizard(open);
+    if (!open) setEscalaParaEditar(null);
   };
-
-  const draggedMotorista = draggedMotoristaId ? motoristas.find(m => m.id === draggedMotoristaId) : null;
 
   if (loading) {
     return (
@@ -261,7 +213,7 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
             {escalas.length} escala{escalas.length !== 1 ? 's' : ''} cadastrada{escalas.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowWizard(true)} size="sm">
+        <Button onClick={() => { setEscalaParaEditar(null); setShowWizard(true); }} size="sm">
           <Plus className="w-4 h-4 mr-1" />
           Nova Escala
         </Button>
@@ -277,60 +229,39 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
           </Button>
         </div>
       ) : (
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex-1 min-h-0 border rounded-lg overflow-hidden">
-            <ResizablePanelGroup direction="horizontal">
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <EscalaPanel
-                  escalas={escalas}
-                  selectedEscalaId={leftEscalaId}
-                  onSelectEscala={setLeftEscalaId}
-                  motoristas={motoristas}
-                  motoristaIds={leftMotoristaIds}
-                  getPresenca={getPresenca}
-                  onDelete={handleDeleteEscala}
-                  onRemoveMotorista={removeMotoristaFromEscala}
-                  panelLabel="Esquerda"
-                />
-              </ResizablePanel>
+        <div className="flex-1 overflow-x-auto min-h-0">
+          <div className="flex gap-3 h-full p-1">
+            {escalas.map(escala => {
+              const mIds = getMotoristasByEscala(escala.id).map(em => em.motorista_id);
+              const escalaMotoristas = motoristas.filter(m => mIds.includes(m.id));
 
-              <ResizableHandle withHandle />
-
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <EscalaPanel
-                  escalas={escalas}
-                  selectedEscalaId={rightEscalaId}
-                  onSelectEscala={setRightEscalaId}
-                  motoristas={motoristas}
-                  motoristaIds={rightMotoristaIds}
+              return (
+                <EscalaKanbanColumn
+                  key={escala.id}
+                  escala={escala}
+                  motoristas={escalaMotoristas}
                   getPresenca={getPresenca}
-                  onDelete={handleDeleteEscala}
-                  onRemoveMotorista={removeMotoristaFromEscala}
-                  panelLabel="Direita"
+                  collapsed={collapsedIds.has(escala.id)}
+                  onToggleCollapse={() => toggleCollapse(escala.id)}
+                  onEdit={() => openEditWizard(escala)}
+                  onDelete={() => deleteEscala(escala.id)}
+                  onRemoveMotorista={(mid) => removeMotoristaFromEscala(escala.id, mid)}
                 />
-              </ResizablePanel>
-            </ResizablePanelGroup>
+              );
+            })}
           </div>
-
-          <DragOverlay>
-            {draggedMotorista && (
-              <MotoristaEscalaCard
-                motorista={draggedMotorista}
-                presenca={getPresenca(draggedMotorista.id)}
-                isDragging
-              />
-            )}
-          </DragOverlay>
-        </DndContext>
+        </div>
       )}
 
       <CreateEscalaWizard
         open={showWizard}
-        onOpenChange={setShowWizard}
+        onOpenChange={handleWizardClose}
         motoristas={motoristas}
         escalasExistentes={escalas}
         getEscalaByMotorista={getEscalaByMotorista}
         onSubmit={createEscala}
+        escalaParaEditar={escalaParaEditar}
+        onEdit={(id, data) => updateEscala(id, data)}
       />
     </div>
   );

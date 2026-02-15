@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,10 @@ import { Search, Clock, Users } from 'lucide-react';
 import { Motorista } from '@/hooks/useCadastros';
 import { Escala } from '@/hooks/useEscalas';
 
+interface EscalaParaEditar extends Escala {
+  motorista_ids: string[];
+}
+
 interface CreateEscalaWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -16,6 +20,8 @@ interface CreateEscalaWizardProps {
   escalasExistentes: Escala[];
   getEscalaByMotorista: (motoristaId: string) => Escala | undefined;
   onSubmit: (data: { nome: string; horario_inicio: string; horario_fim: string; motorista_ids: string[] }) => Promise<void>;
+  escalaParaEditar?: EscalaParaEditar | null;
+  onEdit?: (escalaId: string, data: { nome: string; horario_inicio: string; horario_fim: string; motorista_ids: string[] }) => Promise<void>;
 }
 
 export function CreateEscalaWizard({
@@ -25,6 +31,8 @@ export function CreateEscalaWizard({
   escalasExistentes,
   getEscalaByMotorista,
   onSubmit,
+  escalaParaEditar,
+  onEdit,
 }: CreateEscalaWizardProps) {
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState('');
@@ -33,6 +41,18 @@ export function CreateEscalaWizard({
   const [selectedMotoristas, setSelectedMotoristas] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const isEditing = !!escalaParaEditar;
+
+  useEffect(() => {
+    if (escalaParaEditar && open) {
+      setNome(escalaParaEditar.nome);
+      setHorarioInicio(escalaParaEditar.horario_inicio?.slice(0, 5) || '06:00');
+      setHorarioFim(escalaParaEditar.horario_fim?.slice(0, 5) || '18:00');
+      setSelectedMotoristas(escalaParaEditar.motorista_ids);
+      setStep(1);
+    }
+  }, [escalaParaEditar, open]);
 
   const reset = () => {
     setStep(1);
@@ -61,12 +81,17 @@ export function CreateEscalaWizard({
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await onSubmit({
+      const data = {
         nome,
         horario_inicio: horarioInicio,
         horario_fim: horarioFim,
         motorista_ids: selectedMotoristas,
-      });
+      };
+      if (isEditing && onEdit) {
+        await onEdit(escalaParaEditar.id, data);
+      } else {
+        await onSubmit(data);
+      }
       handleClose(false);
     } catch {
       // error handled in hook
@@ -81,7 +106,9 @@ export function CreateEscalaWizard({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {step === 1 ? <Clock className="w-5 h-5" /> : <Users className="w-5 h-5" />}
-            {step === 1 ? 'Nova Escala - Dados' : 'Nova Escala - Motoristas'}
+            {step === 1
+              ? (isEditing ? 'Editar Escala - Dados' : 'Nova Escala - Dados')
+              : (isEditing ? 'Editar Escala - Motoristas' : 'Nova Escala - Motoristas')}
           </DialogTitle>
           <DialogDescription>
             {step === 1 ? 'Defina o nome e horário da escala' : 'Selecione os motoristas desta escala'}
@@ -133,6 +160,7 @@ export function CreateEscalaWizard({
             <div className="flex-1 overflow-auto space-y-1 max-h-[40vh]">
               {filteredMotoristas.map(m => {
                 const escalaAtual = getEscalaByMotorista(m.id);
+                const isInCurrentEscala = isEditing && escalaAtual?.id === escalaParaEditar.id;
                 return (
                   <label
                     key={m.id}
@@ -143,7 +171,7 @@ export function CreateEscalaWizard({
                       onCheckedChange={() => toggleMotorista(m.id)}
                     />
                     <span className="flex-1 text-sm font-medium">{m.nome}</span>
-                    {escalaAtual && (
+                    {escalaAtual && !isInCurrentEscala && (
                       <Badge variant="outline" className="text-xs">
                         {escalaAtual.nome}
                       </Badge>
@@ -162,7 +190,7 @@ export function CreateEscalaWizard({
                   {selectedMotoristas.length} selecionados
                 </span>
                 <Button onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? 'Criando...' : 'Criar Escala'}
+                  {submitting ? 'Salvando...' : isEditing ? 'Salvar' : 'Criar Escala'}
                 </Button>
               </div>
             </div>
