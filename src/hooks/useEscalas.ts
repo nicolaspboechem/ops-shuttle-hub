@@ -202,6 +202,46 @@ export function useEscalas(eventoId: string | undefined) {
     await fetchEscalaMotoristas();
   };
 
+  const updateEscala = async (escalaId: string, data: CreateEscalaData) => {
+    const { error } = await supabase
+      .from('escalas')
+      .update({
+        nome: data.nome,
+        horario_inicio: data.horario_inicio,
+        horario_fim: data.horario_fim,
+        cor: data.cor || null,
+      } as any)
+      .eq('id', escalaId);
+
+    if (error) {
+      toast.error('Erro ao atualizar escala');
+      throw error;
+    }
+
+    // Sync motoristas
+    const currentLinks = escalaMotoristas.filter(em => em.escala_id === escalaId);
+    const currentIds = currentLinks.map(em => em.motorista_id);
+    const toRemove = currentIds.filter(id => !data.motorista_ids.includes(id));
+    const toAdd = data.motorista_ids.filter(id => !currentIds.includes(id));
+
+    if (toRemove.length > 0) {
+      await supabase
+        .from('escala_motoristas')
+        .delete()
+        .eq('escala_id', escalaId)
+        .in('motorista_id', toRemove);
+    }
+
+    if (toAdd.length > 0) {
+      await supabase
+        .from('escala_motoristas')
+        .insert(toAdd.map(mid => ({ escala_id: escalaId, motorista_id: mid })) as any);
+    }
+
+    toast.success('Escala atualizada!');
+    await fetchEscalas();
+  };
+
   const getMotoristasByEscala = (escalaId: string) => {
     return escalaMotoristas.filter(em => em.escala_id === escalaId);
   };
@@ -216,6 +256,7 @@ export function useEscalas(eventoId: string | undefined) {
     escalaMotoristas,
     loading,
     createEscala,
+    updateEscala,
     deleteEscala,
     moveMotorista,
     addMotoristaToEscala,
