@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Bus } from 'lucide-react';
 
 interface CreateShuttleFormProps {
   open: boolean;
@@ -21,6 +21,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
   const { userId } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
 
+  const [nomeViagem, setNomeViagem] = useState('');
   const [qtdPax, setQtdPax] = useState('');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,6 +29,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
   const canSave = qtdPax && Number(qtdPax) > 0;
 
   const resetForm = () => {
+    setNomeViagem('');
     setQtdPax('');
     setObservacao('');
   };
@@ -38,22 +40,25 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
 
     try {
       const agora = getAgoraSync().toISOString();
+      const horaAtual = getAgoraSync().toTimeString().slice(0, 5);
+
       const { error } = await supabase.from('viagens').insert({
         evento_id: eventoId,
         tipo_operacao: 'shuttle',
         motorista: 'Shuttle',
-        status: 'encerrado',
-        encerrado: true,
+        coordenador: nomeViagem.trim() || null,
+        status: 'em_andamento',
+        encerrado: false,
         qtd_pax: Number(qtdPax),
         observacao: observacao.trim() || null,
         criado_por: userId,
         h_inicio_real: agora,
-        h_fim_real: agora,
+        h_pickup: horaAtual,
       });
 
       if (error) throw error;
 
-      toast.success('Shuttle registrado!');
+      toast.success('Shuttle iniciado!');
       resetForm();
       onOpenChange(false);
       onCreated?.();
@@ -70,16 +75,27 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
       <DrawerContent className="max-h-[90vh]">
         <DrawerHeader className="pb-2">
           <DrawerTitle className="flex items-center gap-2 justify-center">
-            <Users className="h-5 w-5 text-primary" />
-            Novo Shuttle
+            <Bus className="h-5 w-5 text-primary" />
+            Nova Viagem Shuttle
           </DrawerTitle>
-          <DrawerDescription>Registre a quantidade de passageiros</DrawerDescription>
+          <DrawerDescription>Registre a ida do shuttle</DrawerDescription>
         </DrawerHeader>
 
         <div className="px-6 pb-8 pt-2 space-y-5">
-          {/* PAX - campo principal grande e claro */}
+          {/* Nome da viagem */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Passageiros (PAX)</Label>
+            <Label className="text-sm font-medium">Nome da viagem <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Input
+              value={nomeViagem}
+              onChange={e => setNomeViagem(e.target.value)}
+              placeholder="Ex: Hotel → Evento"
+              className="h-12 text-base"
+            />
+          </div>
+
+          {/* PAX de ida */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Passageiros (ida)</Label>
             <Input
               type="number"
               inputMode="numeric"
@@ -111,7 +127,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
             onClick={handleSave}
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-            Registrar Shuttle
+            Iniciar Shuttle
           </Button>
         </div>
       </DrawerContent>
