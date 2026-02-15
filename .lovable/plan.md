@@ -1,120 +1,132 @@
 
 
-# Melhorar Dashboard de Shuttle e App Operador
+# Historico de Escalas com Veiculos e Historico de Veiculos Vinculados
 
-## Contexto
+## Resumo
 
-O `ShuttleMetrics` atual e muito basico (so mostra "Total Shuttles" e "Passageiros"). Precisa de KPIs mais completos e graficos relevantes. A aba de viagens do App Operador tambem precisa exibir PAX ida total e PAX volta total nos cards de resumo.
+Transformar o `MotoristaViagensModal` em um modal com 3 abas: **Viagens** (com filtro de data), **Escalas** (com veiculos vinculados durante cada escala) e **Veiculos** (historico completo de vinculacoes/desvinculacoes).
 
 ---
 
-## 1. Reformular `ShuttleMetrics` (Dashboard CCO)
+## 1. Adicionar prop `motoristaId` ao MotoristaViagensModal
 
-**Arquivo:** `src/components/shuttle/ShuttleMetrics.tsx`
+O modal atualmente recebe apenas `motorista` (nome) e `viagens`. Precisa tambem do `motoristaId` para buscar escalas e historico de veiculos no banco.
 
-Substituir os 2 cards simples por 4 KPIs relevantes:
+**Onde passar o ID:**
+- No `MotoristaDropdownActions` (linha ~465 de Motoristas.tsx) - ja tem acesso a `motoristaCadastrado?.id`
+- No kanban via `onVerViagens` callback - ja passa o objeto `Motorista` que tem `.id`
 
-| KPI | Calculo |
-|-----|---------|
-| **Passageiros Total** | `qtd_pax + qtd_pax_retorno` de todas as viagens |
-| **Total Viagens** | Contagem total (ativas + encerradas) |
-| **PAX Ida** | Soma de `qtd_pax` |
-| **PAX Volta** | Soma de `qtd_pax_retorno` |
+## 2. Reformular MotoristaViagensModal com 3 abas
 
-Layout: grid 4 colunas (desktop) / 2 colunas (mobile), estilo emerald consistente com o tema shuttle.
+**Arquivo:** `src/components/motoristas/MotoristaViagensModal.tsx`
 
-## 2. Criar grafico de PAX por hora para Shuttle
+### Aba "Viagens"
+- Filtro de data (`<Input type="date" />`) no topo
+- KPIs recalculados com base no filtro
+- Tabela de viagens filtrada
+- Botao para limpar filtro
 
-**Arquivo:** `src/components/shuttle/ShuttlePaxChart.tsx` (NOVO)
+### Aba "Escalas"
+- Buscar escalas do motorista via query:
 
-Grafico de barras empilhadas (recharts - ja instalado) mostrando:
-- Eixo X: horas do dia (06h-23h)
-- Barras empilhadas: PAX Ida (cor primaria) + PAX Volta (cor secundaria)
-- Baseado nos dados de `h_inicio_real` (hora de criacao) e `h_fim_real` (hora de encerramento)
+```text
+supabase
+  .from('escala_motoristas')
+  .select('id, created_at, escalas(id, nome, horario_inicio, horario_fim, cor, evento_id, created_at)')
+  .eq('motorista_id', motoristaId)
+```
 
-## 3. Criar grafico de viagens por dia
+- Para cada escala, cruzar com o historico de veiculos (`veiculo_vistoria_historico`) para mostrar qual veiculo estava vinculado durante aquele turno
+- Query de historico de veiculos:
 
-**Arquivo:** `src/components/shuttle/ShuttleViagensDiaChart.tsx` (NOVO)
+```text
+supabase
+  .from('veiculo_vistoria_historico')
+  .select('id, tipo_vistoria, created_at, veiculo:veiculos!veiculo_id(placa, nome, tipo_veiculo)')
+  .eq('motorista_id', motoristaId)
+  .in('tipo_vistoria', ['vinculacao', 'desvinculacao'])
+  .order('created_at', { ascending: true })
+```
 
-Grafico de barras mostrando volume de viagens por dia do evento:
-- Eixo X: datas (formato dd/MM)
-- Barras: quantidade de viagens naquele dia
-- Linha sobreposta: total de PAX por dia
-- So aparece quando `verTodosDias` ou quando ha dados de multiplos dias
+- Para cada escala, identificar os veiculos vinculados durante o periodo (created_at da escala vs timestamps de vinculacao/desvinculacao)
+- Se mais de um veiculo foi vinculado durante a escala, mostrar todos com seus respectivos horarios
 
-## 4. Integrar graficos na aba Shuttle do EventoTabs
+**Layout de cada card de escala:**
 
-**Arquivo:** `src/components/eventos/EventoTabs.tsx`
+```text
+[Cor] Turno A  (08:00 - 18:00)
+      Criado em: 14/02/2026
+      
+      Veiculos:
+      - Van TYJ0H74 "Apelido"  |  08:30 - 14:20
+      - Van TKB0J35 "Outro"    |  14:25 - 18:00
+```
 
-Na `TabsContent value="shuttle"`, apos `ShuttleMetrics` e antes de `ShuttleTable`, adicionar:
-- `ShuttlePaxChart` (PAX por hora)
-- `ShuttleViagensDiaChart` (viagens por dia, apenas quando ha dados de multiplos dias)
+### Aba "Veiculos"
+- Historico completo de todas as vinculacoes/desvinculacoes do motorista
+- Mesma query do `veiculo_vistoria_historico` acima
+- Agrupar em pares vinculacao/desvinculacao para mostrar duracao
+- Se so tem vinculacao sem desvinculacao, marcar como "Ativo" (ainda vinculado)
 
-## 5. Melhorar summary cards do App Operador
+**Layout:**
 
-**Arquivo:** `src/pages/app/AppOperador.tsx`
+```text
+[Car] Van TYJ0H74 "Apelido"
+      Vinculado: 15/02 08:30
+      Desvinculado: 15/02 18:00  (9h30 de uso)
 
-Alterar o grid de resumo de 2 cards para 4 cards (grid 2x2):
+[Car] Van TKB0J35
+      Vinculado: 14/02 09:00
+      Desvinculado: 14/02 17:30  (8h30 de uso)
+```
 
-| Card atual | Card novo |
-|------------|-----------|
-| Ativas (Bus icon) | Viagens (total, com subtitle "X ativas") |
-| PAX Total | PAX Ida (ArrowUp) |
-| -- | PAX Volta (ArrowDown) |
-| -- | PAX Total (Users, soma ida+volta, highlight) |
+## 3. Atualizar chamadores em Motoristas.tsx
+
+Passar `motoristaId` nas duas chamadas:
+
+1. **MotoristaDropdownActions** (linha ~465): adicionar prop `motoristaId={motoristaCadastrado?.id}`
+2. **Kanban via onVerViagens**: o `selectedMotoristaForViagens` ja e um objeto `Motorista` com `.id`
 
 ---
 
 ## Detalhes Tecnicos
 
-### ShuttlePaxChart - logica de agrupamento por hora
-
-```text
-// Agrupar viagens por hora de inicio (h_inicio_real)
-// Para cada hora: somar qtd_pax (ida) e qtd_pax_retorno (volta)
-const dadosPorHora = viagens.reduce((acc, v) => {
-  const hora = v.h_inicio_real 
-    ? new Date(v.h_inicio_real).getHours() 
-    : null;
-  if (hora !== null) {
-    acc[hora].paxIda += v.qtd_pax || 0;
-    acc[hora].paxVolta += v.qtd_pax_retorno || 0;
-    acc[hora].viagens += 1;
-  }
-  return acc;
-}, inicializarHoras(6, 23));
-```
-
-### ShuttleViagensDiaChart - agrupamento por data
-
-```text
-// Agrupar por data_criacao (YYYY-MM-DD)
-// Para cada dia: contar viagens e somar PAX total
-```
-
-### App Operador - novo summary
-
-```text
-const summary = {
-  total: viagens.length,
-  ativas: viagensAtivas.length,
-  totalPaxIda: viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0),
-  totalPaxVolta: viagensEncerradas.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0),
-};
-// PAX Total = totalPaxIda + totalPaxVolta
-```
-
----
-
-## Arquivos
+### Arquivo alterado
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/shuttle/ShuttleMetrics.tsx` | Reformular com 4 KPIs (Total PAX, Viagens, PAX Ida, PAX Volta) |
-| `src/components/shuttle/ShuttlePaxChart.tsx` | **NOVO** - Grafico barras empilhadas PAX por hora |
-| `src/components/shuttle/ShuttleViagensDiaChart.tsx` | **NOVO** - Grafico viagens/PAX por dia |
-| `src/components/eventos/EventoTabs.tsx` | Integrar novos graficos na aba shuttle |
-| `src/pages/app/AppOperador.tsx` | Grid 2x2 com PAX Ida, PAX Volta, Total, Viagens |
+| `src/components/motoristas/MotoristaViagensModal.tsx` | Reformular com 3 abas (Viagens com filtro, Escalas com veiculos, Veiculos historico) |
+| `src/pages/Motoristas.tsx` | Passar `motoristaId` ao MotoristaViagensModal |
 
-Sem migracoes de banco necessarias. Usa recharts (ja instalado) e campos existentes.
+### Logica de cruzamento escala x veiculos
+
+Para determinar qual veiculo estava vinculado durante uma escala:
+
+```text
+// Historico de veiculos ordenado por data
+// Para cada escala, filtrar vinculacoes cujo timestamp 
+// esta dentro do periodo (created_at da escala +/- horarios)
+// 
+// Approach: usar o created_at da escala_motoristas como referencia
+// e verificar quais vinculacoes existiam naquele periodo
+
+// Simplificacao pratica: 
+// - Buscar todos os registros de veiculo_vistoria_historico do motorista
+// - Construir intervalos [vinculacao_at, desvinculacao_at] para cada veiculo
+// - Para cada escala, verificar quais intervalos se sobrepoem
+```
+
+### Fetch de dados (dentro do modal, ao abrir)
+
+Dois `useEffect` independentes executados quando o dialog abre:
+1. Buscar escalas via `escala_motoristas` + `escalas`
+2. Buscar historico de veiculos via `veiculo_vistoria_historico`
+
+Ambos usam `motoristaId` e so executam quando o dialog esta aberto.
+
+### Sem migracoes de banco necessarias
+
+Todos os dados ja existem nas tabelas:
+- `escala_motoristas` + `escalas` - escalas do motorista
+- `veiculo_vistoria_historico` - historico de vinculacao/desvinculacao com `motorista_id`, `veiculo_id`, `tipo_vistoria`, `created_at`
 
