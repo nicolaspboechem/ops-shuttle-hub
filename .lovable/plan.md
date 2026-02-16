@@ -1,86 +1,102 @@
 
 
-# Correcoes: Sidebar Fixa e Exibir Quem Vinculou o Veiculo
+# Categoria de Missao "Deslocamento"
 
-## Problema 1: Sidebar Interna Expandindo Verticalmente
+## Resumo
 
-A `InnerSidebar` esta dentro de um `flex` container sem altura fixa, fazendo com que ela cresça junto com o conteudo da pagina. Deve ter altura fixa na viewport e ficar "sticky".
-
-### Correcao
-
-**Arquivo:** `src/components/layout/InnerSidebar.tsx`
-
-Adicionar `sticky top-0 h-screen` ao `<aside>`, para que fique fixa na tela independente do scroll do conteudo.
-
-**Arquivo:** `src/pages/Motoristas.tsx` (linha 1083)
-
-O container `flex` que envolve InnerSidebar + conteudo nao precisa de mudanca, mas o conteudo ao lado precisa de `overflow-auto` (ja tem).
+Adicionar uma terceira opcao no modal de tipo de missao chamada **Deslocamento**, que cria missoes com titulo auto-gerado no formato `"Deslocamento: Ponto A -> Ponto B"`. O motorista ve no app com a mesma interface, mas com identificacao visual de deslocamento.
 
 ---
 
-## Problema 2: Mostrar Quem Vinculou o Veiculo
+## 1. Atualizar MissaoTipoModal com terceira opcao
 
-Atualmente a exibicao do historico de vinculacao mostra apenas:
+**Arquivo:** `src/components/motoristas/MissaoTipoModal.tsx`
 
-```
-Evandro Marin
-Vinculou TCG7I27 "22 - TRACKER PRETA" as 05:17
-```
+- Adicionar `'deslocamento'` ao type `MissaoTipo`
+- Adicionar terceiro botao com icone `Route` (lucide) e cor verde/teal:
 
-O nome exibido e o do **motorista**, mas falta o nome de **quem executou** a vinculacao. A tabela `veiculo_vistoria_historico` ja tem os campos `realizado_por` (UUID) e `realizado_por_nome` (varchar) que armazenam essa informacao.
+```text
+[Zap] Missao Instantanea
+      Rapida: motorista, A -> B
 
-### Correcao em 3 locais:
+[Calendar] Missao Agendada
+           Completa: data, horario, pax...
 
-**1. `EscalasAuditoria.tsx`** - Auditoria de Escalas
-
-Na query `fetchVeiculoHistorico`, adicionar `realizado_por_nome` ao SELECT:
-```
-.select('id, motorista_id, veiculo_id, tipo_vistoria, created_at, realizado_por_nome')
+[Route] Deslocamento               <-- NOVO
+        Motorista se desloca A -> B
 ```
 
-Na exibicao (linhas 442-453), mudar de:
-```
-Vinculou TCG7I27 as 05:17
-```
-Para:
-```
-[Nome de quem vinculou] vinculou TCG7I27 as 05:17
+## 2. Criar modal MissaoDeslocamentoModal
+
+**Arquivo:** `src/components/motoristas/MissaoDeslocamentoModal.tsx` (NOVO)
+
+Modal simplificado, similar ao `MissaoInstantaneaModal`, mas:
+- **Sem campo de titulo** - o titulo e gerado automaticamente como `"Deslocamento: {Origem} -> {Destino}"`
+- Campos: Motorista (combobox), Origem (select), Destino (select)
+- Ao submeter, chama `onSave` com o titulo auto-gerado e `prioridade: 'normal'`, `qtd_pax: 0`
+
+## 3. Integrar no MissoesPanel
+
+**Arquivo:** `src/components/motoristas/MissoesPanel.tsx`
+
+- Importar novo modal e atualizar o handler do `MissaoTipoModal`:
+
+```text
+onSelect -> 
+  'instantanea' -> abre MissaoInstantaneaModal
+  'agendada' -> abre MissaoModal (formulario completo)
+  'deslocamento' -> abre MissaoDeslocamentoModal   <-- NOVO
 ```
 
-**2. `MotoristaViagensModal.tsx`** - Aba Veiculos (historico de vinculacao)
+## 4. Identificacao visual no app do motorista
 
-Na query de `veiculo_vistoria_historico` (linha 187), adicionar `realizado_por_nome`:
+**Arquivo:** `src/components/app/MissaoCardMobile.tsx`
+
+Atualizar a funcao `getMissaoTipo` para detectar deslocamentos:
+- Se `missao.titulo` comeca com `"Deslocamento:"`, retornar tipo `'deslocamento'` com icone `Route` e cor verde/teal
+- Prioridade sobre as outras categorias (verificar antes de instantanea/agendada)
+
+## 5. Adicionar atalho no NewActionModal (apps mobile)
+
+**Arquivo:** `src/components/app/NewActionModal.tsx`
+
+Adicionar `'deslocamento'` ao `ActionType` e um quarto botao no modal:
+
+```text
+[Target] Missao
+[Route] Deslocamento          <-- NOVO
+[ArrowRightLeft] Transfer
+[Bus] Shuttle
 ```
-.select('id, tipo_vistoria, created_at, veiculo_id, realizado_por_nome, veiculos(placa, nome, tipo_veiculo)')
-```
 
-Na interface `VeiculoHistoricoItem`, adicionar campo `realizado_por_nome`.
+**Arquivo:** `src/pages/app/AppSupervisor.tsx` (e similares)
 
-Na interface `VeiculoIntervalo`, adicionar `vinculadoPor` e `desvinculadoPor`.
-
-Na funcao `buildIntervalos`, propagar o `realizado_por_nome` para os intervalos.
-
-Na aba Veiculos (linhas 437-448), exibir:
-```
-Vinculado por [nome]: dd/MM HH:mm
-Desvinculado por [nome]: dd/MM HH:mm
-```
-
-**3. `MotoristaViagensModal.tsx`** - Aba Escalas (veiculos durante escala)
-
-Na exibicao dos veiculos vinculados durante cada escala (linhas 391-399), incluir quem vinculou:
-```
-Van TYJ0H74 "Apelido" | por [nome] | 08:30 - 14:20
-```
+No handler do `NewActionModal`, quando `tipo === 'deslocamento'`, abrir o `MissaoDeslocamentoModal`.
 
 ---
 
-## Arquivos Alterados
+## Detalhes Tecnicos
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/components/layout/InnerSidebar.tsx` | Adicionar `sticky top-0 h-screen` ao aside |
-| `src/components/motoristas/EscalasAuditoria.tsx` | Buscar e exibir `realizado_por_nome` no historico de vinculacao |
-| `src/components/motoristas/MotoristaViagensModal.tsx` | Buscar e exibir `realizado_por_nome` nas abas Escalas e Veiculos |
+### Arquivos alterados
 
-Nenhuma migracao de banco necessaria - o campo `realizado_por_nome` ja existe na tabela.
+| Arquivo | Acao |
+|---------|------|
+| `src/components/motoristas/MissaoTipoModal.tsx` | Adicionar opcao 'deslocamento' |
+| `src/components/motoristas/MissaoDeslocamentoModal.tsx` | **NOVO** - Modal simplificado sem campo titulo |
+| `src/components/motoristas/MissoesPanel.tsx` | Integrar novo modal no fluxo |
+| `src/components/app/MissaoCardMobile.tsx` | Detectar e exibir categoria deslocamento |
+| `src/components/app/NewActionModal.tsx` | Adicionar botao Deslocamento |
+| `src/pages/app/AppSupervisor.tsx` | Handler para abrir modal deslocamento |
+
+### Sem migracoes de banco
+
+O deslocamento e apenas uma convencao de titulo (`"Deslocamento: X -> Y"`). Nao precisa de campo novo na tabela `missoes` - a deteccao e feita pelo prefixo do titulo.
+
+### Formato do titulo gerado
+
+```text
+Deslocamento: {nome_ponto_origem} → {nome_ponto_destino}
+```
+
+O caractere de seta e `→` (unicode) para ficar consistente com o resto do sistema.
+
