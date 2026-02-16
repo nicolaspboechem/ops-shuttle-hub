@@ -42,7 +42,7 @@ export function InnerSidebar({
         collapsed ? "w-14" : "w-48"
       )}>
         {/* Navigation */}
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 p-2 space-y-1 overflow-hidden">
           {sections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection === section.id;
