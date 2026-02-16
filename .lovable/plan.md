@@ -1,136 +1,80 @@
 
 
-# Correcao do Fuso Horario nas Edge Functions
+# Correcao: Data de Termino do Evento Sobrescrita pelo Trigger
 
 ## Problema Identificado
 
-As edge functions `auto-checkout` e `close-open-trips` usam `new Date(serverTimeStr).getHours()` para comparar com o horario de virada. Como o Deno roda em **UTC**, `getHours()` retorna horas UTC, nao Sao Paulo. 
+O trigger `update_evento_stats` e disparado a cada INSERT/UPDATE/DELETE na tabela `viagens`. Ele recalcula `data_inicio` e `data_fim` do evento usando:
 
-Exemplo real: Se sao 04:30 em SP (virada configurada), a funcao ve 07:30 (UTC) e nao reconhece a janela de virada. O checkout acaba ocorrendo 3 horas antes ou depois do esperado.
+```sql
+MIN(DATE(data_criacao))  -- data_inicio
+MAX(DATE(data_criacao))  -- data_fim
+```
 
-O mesmo problema afeta `toISOString().slice(0, 10)` que retorna a data UTC em vez da data de SP.
+Isso causa **dois problemas**:
+
+1. **Sobrescrita**: Se voce configura `data_fim = 24/02` manualmente, o trigger sobrescreve para a data da ultima viagem criada (16/02), ignorando a configuracao manual.
+
+2. **Fuso horario**: `DATE(data_criacao)` usa UTC (padrao do Supabase), nao Sao Paulo. Uma viagem criada as 23h de SP (02h UTC do dia seguinte) pode ser contada no dia errado.
 
 ## Solucao
 
-Extrair horas, minutos e data diretamente da string retornada por `get_server_time()`, que ja vem no formato `YYYY-MM-DDTHH:MM:SS.MS-03:00` (horario de SP). Nunca usar `getHours()`, `getMinutes()` ou `toISOString().slice()` para obter componentes de tempo local.
+Alterar o trigger para **nunca sobrescrever** `data_inicio` e `data_fim` -- esses campos passam a ser exclusivamente manuais, definidos pelo operador no modal de edicao do evento. O trigger continua atualizando apenas `total_viagens` e `data_ultima_sync`.
 
-### Funcao helper para ambas as edge functions
+## Mudanca no Banco de Dados
 
-```text
-function parseSPTime(serverTimeStr: string) {
-  // serverTimeStr = "2026-02-16T04:30:00.000-03:00"
-  // Extrair componentes diretamente da string (ja em SP)
-  const datePart = serverTimeStr.substring(0, 10);    // "2026-02-16"
-  const hours = parseInt(serverTimeStr.substring(11, 13), 10);  // 4
-  const minutes = parseInt(serverTimeStr.substring(14, 16), 10); // 30
-  return { datePart, hours, minutes, totalMinutos: hours * 60 + minutes };
-}
+Uma unica migracao SQL:
+
+```sql
+CREATE OR REPLACE FUNCTION public.update_evento_stats()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_evento_id UUID;
+  v_total INTEGER;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_evento_id := OLD.evento_id;
+  ELSE
+    v_evento_id := NEW.evento_id;
+  END IF;
+  
+  IF v_evento_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  
+  SELECT COUNT(*)
+  INTO v_total
+  FROM viagens
+  WHERE evento_id = v_evento_id;
+  
+  UPDATE eventos
+  SET 
+    total_viagens = COALESCE(v_total, 0),
+    data_ultima_sync = NOW()
+  WHERE id = v_evento_id;
+  
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
 ```
 
-Tambem para calcular "ontem" em SP, subtrair 1 dia da data extraida da string, em vez de usar `setDate()` + `toISOString()`.
+## Nenhuma mudanca no frontend
 
----
+O modal `EditEventoModal` ja salva `data_inicio` e `data_fim` corretamente com `format(date, 'yyyy-MM-dd')` e faz o parse seguro com `T12:00:00`. A unica mudanca e no trigger do banco.
 
-## Arquivos Alterados
+## Acao pos-migracao
 
-### 1. `supabase/functions/auto-checkout/index.ts`
+Depois de aplicar a migracao, sera necessario atualizar o evento manualmente no modal de edicao, configurando `data_fim = 24/02/2026` (ou a data correta de termino).
 
-**Linhas 21-24:** Substituir `getHours()`/`getMinutes()` por parse direto da string:
-- Antes: `serverTime.getHours()` (retorna UTC)
-- Depois: `parseInt(serverTimeStr.substring(11, 13), 10)` (retorna SP)
+## Resumo
 
-**Linhas 59-61:** Substituir `yesterday.toISOString().slice(0, 10)` por calculo de data baseado na string SP:
-- Usar a data extraida da string e subtrair 1 dia manualmente
-
-**Linhas 67-70:** Os timestamps `inicioOpDay`/`fimOpDay` ja usam `-03:00`, estao corretos -- so o calculo de `dataOntem` e `nextDayStr` precisa usar a data SP.
-
-### 2. `supabase/functions/close-open-trips/index.ts`
-
-**Linhas 50-52:** Mesma correcao -- substituir `serverTime.getHours()` por parse da string.
-
-**Linhas 57-62:** Substituir `toISOString().slice(0, 10)` por data extraida da string SP.
-
----
-
-## Detalhes Tecnicos
-
-### Helper compartilhado (inline em cada funcao)
-
-```text
-function parseSPComponents(spTimeStr: string) {
-  // "2026-02-16T04:30:00.000-03:00" -> componentes locais SP
-  const year = parseInt(spTimeStr.substring(0, 4), 10);
-  const month = parseInt(spTimeStr.substring(5, 7), 10);
-  const day = parseInt(spTimeStr.substring(8, 10), 10);
-  const hours = parseInt(spTimeStr.substring(11, 13), 10);
-  const minutes = parseInt(spTimeStr.substring(14, 16), 10);
-  const totalMinutos = hours * 60 + minutes;
-
-  // Data como string YYYY-MM-DD
-  const datePart = spTimeStr.substring(0, 10);
-
-  // Calcular "ontem" usando Date local mas formatando manualmente
-  const d = new Date(year, month - 1, day);
-  d.setDate(d.getDate() - 1);
-  const yesterdayStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-  // Calcular "amanha"
-  const d2 = new Date(year, month - 1, day);
-  d2.setDate(d2.getDate() + 1);
-  const tomorrowStr = `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
-
-  return { datePart, yesterdayStr, tomorrowStr, hours, minutes, totalMinutos };
-}
-```
-
-### Mudancas especificas no auto-checkout
-
-```text
-// ANTES (linhas 21-24):
-const serverTime = new Date(serverTimeStr);
-const horaAtual = serverTime.getHours();     // UTC!
-const minAtual = serverTime.getMinutes();     // UTC!
-const atualMinutos = horaAtual * 60 + minAtual;
-
-// DEPOIS:
-const serverTime = new Date(serverTimeStr);
-const sp = parseSPComponents(serverTimeStr);
-const atualMinutos = sp.totalMinutos;
-
-// ANTES (linha 61):
-const dataOntem = yesterday.toISOString().slice(0, 10);  // UTC!
-
-// DEPOIS:
-const dataOntem = sp.yesterdayStr;  // SP date - 1 day
-
-// ANTES (linha 69):
-const nextDayStr = nextDay.toISOString().slice(0, 10);  // UTC!
-
-// DEPOIS:
-const nextDayStr = sp.datePart;  // dia seguinte ao ontem = hoje SP
-```
-
-### Mudancas especificas no close-open-trips
-
-```text
-// ANTES (linhas 50-52):
-const horaAtual = serverTime.getHours()    // UTC!
-const minAtual = serverTime.getMinutes()   // UTC!
-
-// DEPOIS:
-const sp = parseSPComponents(serverTimeData)
-const atualMinutos = sp.totalMinutos
-
-// ANTES (linhas 59, 61):
-dataOpAtual = ontem.toISOString().slice(0, 10)   // UTC!
-dataOpAtual = serverTime.toISOString().slice(0, 10)  // UTC!
-
-// DEPOIS:
-dataOpAtual = sp.yesterdayStr
-dataOpAtual = sp.datePart
-```
-
-### Sem migracoes de banco
-
-Nenhuma alteracao de schema. A RPC `get_server_time()` ja retorna o formato correto com `-03:00`. O problema era exclusivamente no parse JavaScript dentro das edge functions.
+| Item | Mudanca |
+|------|---------|
+| Trigger `update_evento_stats` | Remover calculo de `data_inicio`/`data_fim`, manter apenas `total_viagens` e `data_ultima_sync` |
+| Frontend | Nenhuma alteracao |
+| Dados | Atualizar `data_fim` do evento manualmente apos a migracao |
 
