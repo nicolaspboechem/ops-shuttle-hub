@@ -1,17 +1,19 @@
 import { useState, useMemo } from 'react';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
-import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin, Route } from 'lucide-react';
+import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin, Route, Car, ChevronsUpDown, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
-
+import { cn } from '@/lib/utils';
 import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
@@ -46,9 +48,12 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
   const [missaoPontoAFilter, setMissaoPontoAFilter] = useState<string>('all');
   const [missaoPontoBFilter, setMissaoPontoBFilter] = useState<string>('all');
+  const [missaoVeiculoFilter, setMissaoVeiculoFilter] = useState<string>('all');
+  const [missaoPrioridadeFilter, setMissaoPrioridadeFilter] = useState<string>('all');
   const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
   const [missaoDataFilter, setMissaoDataFilter] = useState<string>(getDataOperacional(getAgoraSync(), '04:00'));
+  const [veiculoPopoverOpen, setVeiculoPopoverOpen] = useState(false);
 
   // Modal states
   const [showMissaoModal, setShowMissaoModal] = useState(false);
@@ -63,6 +68,47 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
+
+  // Unique vehicles from motoristas
+  const veiculosUnicos = useMemo(() => {
+    const veiculos: { id: string; label: string; placa: string }[] = [];
+    const seen = new Set<string>();
+    motoristasCadastrados.forEach(m => {
+      if (m.veiculo_id) {
+        const veiculo = (m as any).veiculos;
+        if (veiculo && !seen.has(m.veiculo_id)) {
+          seen.add(m.veiculo_id);
+          veiculos.push({
+            id: m.veiculo_id,
+            label: veiculo.nome ? `${veiculo.nome} - ${veiculo.placa}` : veiculo.placa,
+            placa: veiculo.placa,
+          });
+        }
+      }
+    });
+    // Also extract from missoes themselves
+    missoes.forEach(m => {
+      if (m.veiculo_placa && !seen.has(m.veiculo_placa)) {
+        seen.add(m.veiculo_placa);
+        veiculos.push({
+          id: m.veiculo_placa,
+          label: m.veiculo_nome ? `${m.veiculo_nome} - ${m.veiculo_placa}` : m.veiculo_placa,
+          placa: m.veiculo_placa,
+        });
+      }
+    });
+    return veiculos;
+  }, [motoristasCadastrados, missoes]);
+
+  // Sort helper
+  const sortByHorario = (arr: typeof missoes) => {
+    return arr.sort((a, b) => {
+      if (!a.horario_previsto && b.horario_previsto) return -1;
+      if (a.horario_previsto && !b.horario_previsto) return 1;
+      if (!a.horario_previsto && !b.horario_previsto) return 0;
+      return (a.horario_previsto || '').localeCompare(b.horario_previsto || '');
+    });
+  };
 
   // Filtered missions
   const filteredMissoes = useMemo(() => {
@@ -94,6 +140,14 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     if (missaoPontoBFilter !== 'all') {
       filtered = filtered.filter(m => m.ponto_desembarque === missaoPontoBFilter);
     }
+
+    if (missaoVeiculoFilter !== 'all') {
+      filtered = filtered.filter(m => m.veiculo_placa === missaoVeiculoFilter || m.veiculo_nome === missaoVeiculoFilter);
+    }
+
+    if (missaoPrioridadeFilter !== 'all') {
+      filtered = filtered.filter(m => m.prioridade === missaoPrioridadeFilter);
+    }
     
     if (missaoSearchTerm) {
       const term = missaoSearchTerm.toLowerCase();
@@ -105,8 +159,8 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
       );
     }
     
-    return filtered;
-  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoPontoAFilter, missaoPontoBFilter, missaoSearchTerm, missaoDataFilter]);
+    return sortByHorario(filtered);
+  }, [missoes, missaoFilter, missaoMotoristaFilter, missaoPontoAFilter, missaoPontoBFilter, missaoVeiculoFilter, missaoPrioridadeFilter, missaoSearchTerm, missaoDataFilter]);
 
   const handleSaveMissao = async (data: any) => {
     if (editingMissao) {
@@ -127,12 +181,14 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     setMissaoMotoristaFilter('all');
     setMissaoPontoAFilter('all');
     setMissaoPontoBFilter('all');
+    setMissaoVeiculoFilter('all');
+    setMissaoPrioridadeFilter('all');
     setMissaoSearchTerm('');
     setMissaoDataFilter(getDataOperacional(getAgoraSync(), '04:00'));
   };
 
   const todayOp = getDataOperacional(getAgoraSync(), '04:00');
-  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== todayOp;
+  const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoVeiculoFilter !== 'all' || missaoPrioridadeFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== todayOp;
 
   const handleMissaoDragStart = (event: DragStartEvent) => {
     const missao = filteredMissoes.find(m => m.id === event.active.id);
@@ -164,7 +220,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     else await updateMissao(missaoId, { status: newStatus as MissaoStatus });
   };
 
-  // Group missions by status for kanban
+  // Group missions by status for kanban (already sorted from filteredMissoes)
   const missoesByStatus = useMemo(() => {
     const grouped: Record<string, Missao[]> = {
       pendente: [],
@@ -227,6 +283,61 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
               <SelectItem value="em_andamento">Em Andamento</SelectItem>
               <SelectItem value="concluida">Concluídas</SelectItem>
               <SelectItem value="cancelada">Canceladas</SelectItem>
+            </SelectContent>
+          </Select>
+          {/* Vehicle filter with search */}
+          <Popover open={veiculoPopoverOpen} onOpenChange={setVeiculoPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" className="w-[180px] justify-between">
+                <Car className="w-4 h-4 mr-2 shrink-0" />
+                <span className="truncate">
+                  {missaoVeiculoFilter === 'all'
+                    ? 'Todos veículos'
+                    : veiculosUnicos.find(v => v.placa === missaoVeiculoFilter || v.id === missaoVeiculoFilter)?.label || missaoVeiculoFilter}
+                </span>
+                <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[220px] p-0 z-50">
+              <Command>
+                <CommandInput placeholder="Buscar veículo..." />
+                <CommandList>
+                  <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="all"
+                      onSelect={() => { setMissaoVeiculoFilter('all'); setVeiculoPopoverOpen(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", missaoVeiculoFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                      Todos veículos
+                    </CommandItem>
+                    {veiculosUnicos.map(v => (
+                      <CommandItem
+                        key={v.id}
+                        value={v.label}
+                        onSelect={() => { setMissaoVeiculoFilter(v.placa || v.id); setVeiculoPopoverOpen(false); }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", (missaoVeiculoFilter === v.placa || missaoVeiculoFilter === v.id) ? 'opacity-100' : 'opacity-0')} />
+                        {v.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          {/* Priority filter */}
+          <Select value={missaoPrioridadeFilter} onValueChange={setMissaoPrioridadeFilter}>
+            <SelectTrigger className="w-[150px]">
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Prioridade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas prioridades</SelectItem>
+              <SelectItem value="baixa">Baixa</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="alta">Alta</SelectItem>
+              <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
           </Select>
           <Select value={missaoMotoristaFilter} onValueChange={setMissaoMotoristaFilter}>
