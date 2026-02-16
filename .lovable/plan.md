@@ -1,70 +1,73 @@
 
 
-# Botao de Atalho para Deslocamento no Painel CCO
+# Filtros Avancados, Ordenacao e Correcao de Titulo nas Missoes
 
 ## Resumo
 
-Adicionar um botao amarelo "Deslocamento" ao lado do botao "Nova Missao" no header do painel de missoes do CCO. Remover a opcao de deslocamento do modal de selecao de tipo de missao. Ao criar um deslocamento, a missao sera criada ja no estado "em_andamento" (auto-iniciada), gerando automaticamente a viagem vinculada.
+Tres melhorias no painel de missoes do CCO:
+1. Adicionar filtros de **Veiculo** (com busca no dropdown), **Prioridade**
+2. Ordenar missoes por horario: instantaneas primeiro, agendadas em ordem crescente
+3. Corrigir titulo do card kanban para quebrar texto ao inves de truncar
 
-## Mudancas
+---
 
-### 1. `src/components/motoristas/MissoesPanel.tsx`
+## 1. Novos Filtros no MissoesPanel
 
-- Adicionar botao amarelo "Deslocamento" com icone Route ao lado do botao "Nova Missao" no header (linha ~191)
-- O botao abre diretamente o `MissaoDeslocamentoModal` sem passar pelo `MissaoTipoModal`
-- Alterar o `onSave` do `MissaoDeslocamentoModal` para, apos criar a missao com `createMissao`, chamar automaticamente `iniciarMissao` no ID retornado (sequencia: criar pendente, aceitar, iniciar -- tudo automatico)
+**Arquivo:** `src/components/motoristas/MissoesPanel.tsx`
 
-### 2. `src/components/motoristas/MissaoTipoModal.tsx`
+### Filtro de Veiculo (com busca)
+- Novo state `missaoVeiculoFilter`
+- Usar componente `Popover` + `Command` (cmdk) para criar um dropdown com barra de pesquisa
+- Listar veiculos unicos extraidos dos motoristas cadastrados (relacao `motorista.veiculos`)
+- Filtrar missoes pelo `veiculo_placa` ou `veiculo_nome`
 
-- Remover a opcao "Deslocamento" do modal de selecao de tipo
-- Manter apenas "Missao Instantanea" e "Missao Agendada"
+### Filtro de Prioridade
+- Novo state `missaoPrioridadeFilter`
+- Select simples com opcoes: Todas, Baixa, Normal, Alta, Urgente
+- Filtrar no `filteredMissoes` por `m.prioridade`
 
-### 3. `src/components/motoristas/MissaoDeslocamentoModal.tsx`
+### Atualizacoes
+- Adicionar ambos filtros ao `hasActiveMissaoFilters` e `clearMissaoFilters`
+- Incluir no `filteredMissoes` useMemo
 
-- Sem alteracoes visuais no modal em si
-- A logica de auto-iniciar sera tratada no componente pai (MissoesPanel e AppSupervisor)
+## 2. Ordenacao por Horario
 
-### 4. `src/pages/app/AppSupervisor.tsx`
+**Arquivo:** `src/components/motoristas/MissoesPanel.tsx`
 
-- Mesmo ajuste no `onSave` do `MissaoDeslocamentoModal`: apos criar, chamar `iniciarMissao` automaticamente
-- Manter o fluxo existente de abertura via `NewActionModal`
-
-### 5. `src/components/app/NewActionModal.tsx`
-
-- Nenhuma alteracao necessaria -- o deslocamento ja aparece como opcao separada no modal do supervisor
-
-## Fluxo Tecnico do Auto-Inicio
-
-```text
-1. Usuario clica "Deslocamento" (botao amarelo)
-2. Modal abre -> preenche motorista, origem, destino
-3. Clica "Criar Deslocamento"
-4. createMissao() cria com status 'pendente' -> retorna { id }
-5. aceitarMissao(id) atualiza para 'aceita'
-6. iniciarMissao(id) atualiza para 'em_andamento' + cria viagem vinculada + atualiza motorista para 'em_viagem'
-7. Modal fecha -> toast "Deslocamento iniciado"
-```
-
-A funcao `iniciarMissao` ja cuida de toda a logica de criar a viagem, vincular a missao e atualizar o status do motorista. O `aceitarMissao` e necessario antes pois `iniciarMissao` valida que a missao nao pode pular de 'pendente' para 'em_andamento' diretamente.
-
-## Detalhes Tecnicos
-
-No `MissoesPanel`, o botao ficara assim:
+Apos a filtragem no `filteredMissoes`, adicionar `.sort()`:
 
 ```text
-[Nova Missao]  [Deslocamento]  (amarelo com icone Route)
+Criterio:
+1. Missoes sem horario_previsto (instantaneas) vem primeiro
+2. Missoes com horario_previsto ordenadas em ordem crescente (08:00 antes de 14:00)
 ```
 
-O callback do deslocamento sera:
+A ordenacao sera aplicada dentro do `useMemo` do `filteredMissoes`, garantindo que afeta kanban, cards e lista.
 
-```typescript
-onSave={async (data) => {
-  const missao = await createMissao(data);
-  if (missao?.id) {
-    await aceitarMissao(missao.id);
-    await iniciarMissao(missao.id);
-  }
-}}
+Dentro do `missoesByStatus`, cada grupo tambem sera ordenado pelo mesmo criterio.
+
+## 3. Corrigir Titulo Truncado no Card Kanban
+
+**Arquivo:** `src/components/motoristas/MissaoKanbanCard.tsx`
+
+Linha atual:
+```
+<h4 className="font-semibold text-sm leading-tight truncate">
 ```
 
-O mesmo padrao sera aplicado no `AppSupervisor.tsx`.
+Alterar para:
+```
+<h4 className="font-semibold text-sm leading-tight break-words">
+```
+
+Remover `truncate` e adicionar `break-words` para que o titulo quebre em multiplas linhas dentro da largura do card.
+
+---
+
+## Arquivos Alterados
+
+| Arquivo | Acao |
+|---------|------|
+| `src/components/motoristas/MissoesPanel.tsx` | Filtros de veiculo (com busca) e prioridade + ordenacao |
+| `src/components/motoristas/MissaoKanbanCard.tsx` | Remover truncate do titulo |
+
