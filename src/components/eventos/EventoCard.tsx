@@ -101,10 +101,19 @@ export function EventoCard({ evento }: EventoCardProps) {
         </div>
 
         <div className="space-y-3 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="w-4 h-4 flex-shrink-0" />
-            <span>Criado: {formatDate(evento.data_criacao)}</span>
-          </div>
+          {/* Período do evento */}
+          {evento.data_inicio && evento.data_fim && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="w-4 h-4 flex-shrink-0" />
+              <span>
+                {new Date(evento.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                {(evento as any).horario_inicio_evento ? ` ${(evento as any).horario_inicio_evento.substring(0, 5)}` : ''}
+                {' - '}
+                {new Date(evento.data_fim + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                {(evento as any).horario_fim_evento ? ` ${(evento as any).horario_fim_evento.substring(0, 5)}` : ''}
+              </span>
+            </div>
+          )}
           
           <div className="flex items-center gap-2 text-muted-foreground">
             <RefreshCw className="w-4 h-4 flex-shrink-0" />

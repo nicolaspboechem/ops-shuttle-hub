@@ -35,6 +35,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [horarioVirada, setHorarioVirada] = useState('04:00');
+  const [horarioInicio, setHorarioInicio] = useState('08:00');
+  const [horarioFim, setHorarioFim] = useState('23:00');
   
   // Step 3 - Images
   const [imagemBanner, setImagemBanner] = useState<string | null>(null);
@@ -58,6 +60,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setDataInicio(undefined);
     setDataFim(undefined);
     setHorarioVirada('04:00');
+    setHorarioInicio('08:00');
+    setHorarioFim('23:00');
     setDescricao('');
     setImagemBanner(null);
     setImagemLogo(null);
@@ -127,6 +131,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
         horario_virada_dia: horarioVirada,
+        horario_inicio_evento: horarioInicio,
+        horario_fim_evento: horarioFim,
         descricao: descricao.trim() || null,
         imagem_banner: imagemBanner,
         imagem_logo: imagemLogo,
@@ -279,9 +285,10 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         {/* Step 2: Dates and Operational Day */}
         {step === 2 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Data de Início *</Label>
+            {/* Início */}
+            <div className="space-y-2">
+              <Label>Início do Evento *</Label>
+              <div className="grid grid-cols-[1fr_auto] gap-2">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -292,7 +299,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataInicio ? format(dataInicio, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
+                      {dataInicio ? format(dataInicio, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -304,10 +311,19 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                     />
                   </PopoverContent>
                 </Popover>
+                <Input
+                  type="time"
+                  value={horarioInicio}
+                  onChange={(e) => setHorarioInicio(e.target.value)}
+                  className="w-28"
+                />
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Data de Término *</Label>
+            {/* Término */}
+            <div className="space-y-2">
+              <Label>Término do Evento *</Label>
+              <div className="grid grid-cols-[1fr_auto] gap-2">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -318,7 +334,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataFim ? format(dataFim, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
+                      {dataFim ? format(dataFim, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -331,6 +347,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                     />
                   </PopoverContent>
                 </Popover>
+                <Input
+                  type="time"
+                  value={horarioFim}
+                  onChange={(e) => setHorarioFim(e.target.value)}
+                  className="w-28"
+                />
               </div>
             </div>
 
@@ -343,19 +365,20 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
             <div className="pt-4 border-t space-y-2">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <Label>Horário de Virada do Dia</Label>
+                <Label>Finalização Diária (Virada do Dia)</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Atividades após meia-noite e antes deste horário contam como o dia anterior.
-                <br />
-                Ex: Se 04:00, uma viagem às 02:00 do dia 14 será registrada como dia 13.
+                Neste horário, o sistema finaliza o dia: viagens encerradas, missões canceladas, checkout automático dos motoristas.
               </p>
               <Input
                 type="time"
                 value={horarioVirada}
                 onChange={(e) => setHorarioVirada(e.target.value)}
-                className="w-32"
+                className="w-28"
               />
+              <p className="text-xs text-muted-foreground">
+                Atividades após meia-noite e antes deste horário contam como o dia anterior.
+              </p>
             </div>
           </div>
         )}
@@ -569,7 +592,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Período:</span>
                 <span className="font-medium">
-                  {dataInicio && format(dataInicio, 'dd/MM/yyyy')} - {dataFim && format(dataFim, 'dd/MM/yyyy')}
+                  {dataInicio && format(dataInicio, 'dd/MM')} {horarioInicio} - {dataFim && format(dataFim, 'dd/MM')} {horarioFim}
                 </span>
               </div>
               <div className="flex justify-between">
