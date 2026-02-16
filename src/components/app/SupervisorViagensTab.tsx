@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useViagens } from '@/hooks/useViagens';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,6 +53,8 @@ export function SupervisorViagensTab({
   const filteredViagens = statusFilter 
     ? activeViagens.filter(v => v.status === statusFilter)
     : activeViagens;
+
+  const { visibleItems: viagensVisiveis, hasMore, loadMore, total: pTotal, pageSize: pSize, setPageSize: setPSize } = usePaginatedList(filteredViagens);
 
   // Stats
   const stats = {
@@ -144,9 +148,8 @@ export function SupervisorViagensTab({
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredViagens
+          {[...viagensVisiveis]
             .sort((a, b) => {
-              // Em andamento primeiro, depois standby, depois agendado
               const order = { em_andamento: 0, aguardando_retorno: 1, agendado: 2 };
               const orderA = order[a.status as keyof typeof order] ?? 3;
               const orderB = order[b.status as keyof typeof order] ?? 3;
@@ -158,7 +161,6 @@ export function SupervisorViagensTab({
                   viagem={viagem}
                   onUpdate={handleRefresh}
                 />
-                {/* Edit button overlay - exclusive to Supervisor */}
                 <Button
                   variant="secondary"
                   size="icon"
@@ -170,6 +172,14 @@ export function SupervisorViagensTab({
               </div>
             ))
           }
+          <LoadMoreFooter
+            total={pTotal}
+            visible={viagensVisiveis.length}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            pageSize={pSize}
+            onPageSizeChange={setPSize}
+          />
         </div>
       )}
 

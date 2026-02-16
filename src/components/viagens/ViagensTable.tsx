@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Bus, Users, Edit2 } from 'lucide-react';
 import {
   Table,
@@ -22,7 +24,7 @@ interface ViagensTableProps {
 
 export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) {
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
-
+  const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
   const getAlertaStatus = (viagemId: string) => {
     const alerta = alertas.find(a => a.viagemId === viagemId);
     return alerta?.status || 'ok';
@@ -48,7 +50,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {viagens.map((viagem) => {
+            {visibleItems.map((viagem) => {
               const status = getAlertaStatus(viagem.id);
               const tempoViagem = viagem.h_chegada 
                 ? calcularTempoViagem(viagem.h_pickup, viagem.h_chegada)
@@ -123,6 +125,14 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
           </TableBody>
         </Table>
       </div>
+      <LoadMoreFooter
+        total={total}
+        visible={visibleItems.length}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
 
       {editingViagem && (
         <EditViagemModal

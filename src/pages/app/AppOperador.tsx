@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
@@ -147,6 +149,8 @@ export default function AppOperador() {
     ), [viagensEncerradas]
   );
 
+  const { visibleItems: encerradasVisiveis, hasMore: hasMoreEnc, loadMore: loadMoreEnc, total: totalEnc, pageSize: pageSizeEnc, setPageSize: setPageSizeEnc } = usePaginatedList(sortedEncerradas);
+
   const handleRefresh = async () => {
     await refetch();
   };
@@ -269,13 +273,23 @@ export default function AppOperador() {
                 <p className="text-sm mb-4">Toque em + para registrar</p>
               </div>
             ) : (
-              sortedEncerradas.map(viagem => (
-                <ShuttleRegistroCard 
-                  key={viagem.id} 
-                  viagem={viagem}
-                  getName={getName}
+              <>
+                {encerradasVisiveis.map(viagem => (
+                  <ShuttleRegistroCard 
+                    key={viagem.id} 
+                    viagem={viagem}
+                    getName={getName}
+                  />
+                ))}
+                <LoadMoreFooter
+                  total={totalEnc}
+                  visible={encerradasVisiveis.length}
+                  hasMore={hasMoreEnc}
+                  onLoadMore={loadMoreEnc}
+                  pageSize={pageSizeEnc}
+                  onPageSizeChange={setPageSizeEnc}
                 />
-              ))
+              </>
             )}
           </div>
         </div>

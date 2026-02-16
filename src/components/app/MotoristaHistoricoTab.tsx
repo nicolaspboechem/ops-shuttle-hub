@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,6 +66,8 @@ export function MotoristaHistoricoTab({
       return dataCriacao >= limites.inicio && dataCriacao <= limites.fim;
     });
   }, [viagensFinalizadas, dataSelecionada, horarioVirada]);
+
+  const { visibleItems: viagensVisiveis, hasMore, loadMore, total: pTotal, pageSize: pSize, setPageSize: setPSize } = usePaginatedList(viagensDoDia);
 
   // Calcular estatísticas do dia
   const estatisticas = useMemo(() => {
@@ -174,64 +178,74 @@ export function MotoristaHistoricoTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {viagensDoDia.length > 0 ? (
-            viagensDoDia.map((viagem) => {
-              const isEncerrado = viagem.status === 'encerrado';
-              const isCancelado = viagem.status === 'cancelado';
-              
-              return (
-                <div 
-                  key={viagem.id}
-                  className={`p-3 rounded-lg border ${
-                    isCancelado 
-                      ? 'bg-destructive/5 border-destructive/20' 
-                      : 'bg-muted/50 border-border'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {isEncerrado ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                      )}
-                      <span className="font-medium text-sm">
-                        {viagem.ponto_embarque || 'Origem'} → {viagem.ponto_desembarque || 'Destino'}
-                      </span>
-                      {(() => {
-                        const tipoBadge = getViagemTipoBadge(viagem);
-                        const TipoIcon = tipoBadge.icon;
-                        return (
-                          <Badge variant="outline" className={`text-[10px] gap-0.5 px-1.5 py-0 ${tipoBadge.className}`}>
-                            <TipoIcon className="h-2.5 w-2.5" />
-                            {tipoBadge.label}
-                          </Badge>
-                        );
-                      })()}
+          {viagensVisiveis.length > 0 ? (
+            <>
+              {viagensVisiveis.map((viagem) => {
+                const isEncerrado = viagem.status === 'encerrado';
+                const isCancelado = viagem.status === 'cancelado';
+                
+                return (
+                  <div 
+                    key={viagem.id}
+                    className={`p-3 rounded-lg border ${
+                      isCancelado 
+                        ? 'bg-destructive/5 border-destructive/20' 
+                        : 'bg-muted/50 border-border'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isEncerrado ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                        )}
+                        <span className="font-medium text-sm">
+                          {viagem.ponto_embarque || 'Origem'} → {viagem.ponto_desembarque || 'Destino'}
+                        </span>
+                        {(() => {
+                          const tipoBadge = getViagemTipoBadge(viagem);
+                          const TipoIcon = tipoBadge.icon;
+                          return (
+                            <Badge variant="outline" className={`text-[10px] gap-0.5 px-1.5 py-0 ${tipoBadge.className}`}>
+                              <TipoIcon className="h-2.5 w-2.5" />
+                              {tipoBadge.label}
+                            </Badge>
+                          );
+                        })()}
+                      </div>
+                      <Badge variant={isEncerrado ? 'outline' : 'destructive'} className="text-xs shrink-0">
+                        {isEncerrado ? 'Finalizada' : 'Cancelada'}
+                      </Badge>
                     </div>
-                    <Badge variant={isEncerrado ? 'outline' : 'destructive'} className="text-xs shrink-0">
-                      {isEncerrado ? 'Finalizada' : 'Cancelada'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {formatTime(viagem.h_pickup)} - {formatTime(viagem.h_chegada)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {viagem.qtd_pax || 0} PAX
-                    </span>
-                    {isEncerrado && (
+                    
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        ⏱ {calcularDuracao(viagem)}
+                        <Clock className="h-3 w-3" />
+                        {formatTime(viagem.h_pickup)} - {formatTime(viagem.h_chegada)}
                       </span>
-                    )}
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {viagem.qtd_pax || 0} PAX
+                      </span>
+                      {isEncerrado && (
+                        <span className="flex items-center gap-1">
+                          ⏱ {calcularDuracao(viagem)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+              <LoadMoreFooter
+                total={pTotal}
+                visible={viagensVisiveis.length}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+                pageSize={pSize}
+                onPageSizeChange={setPSize}
+              />
+            </>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Car className="h-10 w-10 mx-auto mb-2 opacity-30" />
