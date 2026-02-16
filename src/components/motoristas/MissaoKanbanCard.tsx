@@ -111,7 +111,7 @@ export function MissaoKanbanCard({ missao, motoristaNome, onEdit, onDelete, onSt
       </div>
 
       {/* Title */}
-      <h4 className="font-semibold text-sm leading-tight truncate">{missao.titulo}</h4>
+      <h4 className="font-semibold text-sm leading-tight break-words">{missao.titulo}</h4>
 
       {/* Driver */}
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
