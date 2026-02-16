@@ -2,20 +2,19 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subDays } from 'date-fns';
 
-export type TipoRegistroUso = 'presenca' | 'vinculacao' | 'desvinculacao';
-
 export interface VeiculoUsoRegistro {
   id: string;
   data: string;
   motorista_id: string;
   motorista_nome: string;
   motorista_telefone: string | null;
-  checkin_at: string | null;
-  checkout_at: string | null;
+  vinculado_em: string;
+  desvinculado_em: string | null;
   duracao_minutos: number;
-  observacao_checkout: string | null;
-  tipo_registro: TipoRegistroUso;
-  realizado_por_nome: string | null;
+  observacoes: string | null;
+  vinculado_por: string | null;
+  desvinculado_por: string | null;
+  em_uso: boolean;
 }
 
 export interface VeiculoUsoHistorico {
@@ -29,13 +28,13 @@ export interface VeiculoUsoHistorico {
   tempoTotalUso: number; // em minutos
   usosComObservacao: number;
   motoristasUnicos: number;
+  ciclosEmUso: number;
 }
 
 export function useVeiculoPresencaHistorico(
   eventoId: string | undefined,
   diasHistorico: number = 7
 ) {
-  const [presencas, setPresencas] = useState<any[]>([]);
   const [vinculacoes, setVinculacoes] = useState<any[]>([]);
   const [motoristas, setMotoristas] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
@@ -50,21 +49,14 @@ export function useVeiculoPresencaHistorico(
     }
 
     try {
-      const [presencasRes, vinculacoesRes, motoristasRes, veiculosRes] = await Promise.all([
-        supabase
-          .from('motorista_presenca')
-          .select('*')
-          .eq('evento_id', eventoId)
-          .gte('data', dataInicio)
-          .not('veiculo_id', 'is', null)
-          .order('data', { ascending: false }),
+      const [vinculacoesRes, motoristasRes, veiculosRes] = await Promise.all([
         supabase
           .from('veiculo_vistoria_historico')
           .select('*')
           .eq('evento_id', eventoId)
           .in('tipo_vistoria', ['vinculacao', 'desvinculacao'])
           .gte('created_at', `${dataInicio}T00:00:00`)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: true }),
         supabase
           .from('motoristas')
           .select('id, nome, telefone')
@@ -75,12 +67,10 @@ export function useVeiculoPresencaHistorico(
           .eq('evento_id', eventoId)
       ]);
 
-      if (presencasRes.error) throw presencasRes.error;
       if (vinculacoesRes.error) throw vinculacoesRes.error;
       if (motoristasRes.error) throw motoristasRes.error;
       if (veiculosRes.error) throw veiculosRes.error;
 
-      setPresencas(presencasRes.data || []);
       setVinculacoes(vinculacoesRes.data || []);
       setMotoristas(motoristasRes.data || []);
       setVeiculos(veiculosRes.data || []);
@@ -95,73 +85,101 @@ export function useVeiculoPresencaHistorico(
     fetchData();
   }, [fetchData]);
 
-  // Agregar dados por veículo
+  // Parear vinculação/desvinculação por veículo
   const veiculosAgregados = useMemo((): VeiculoUsoHistorico[] => {
     const motoristasMap = new Map(motoristas.map(m => [m.id, m]));
 
-    // Agrupar presenças por veículo
-    const veiculoUsosMap = new Map<string, VeiculoUsoRegistro[]>();
-
-    // Add presença records
-    presencas.forEach(p => {
-      if (p.veiculo_id) {
-        const motorista = motoristasMap.get(p.motorista_id);
-        let duracao = 0;
-        if (p.checkin_at && p.checkout_at) {
-          const checkin = new Date(p.checkin_at);
-          const checkout = new Date(p.checkout_at);
-          duracao = Math.round((checkout.getTime() - checkin.getTime()) / (1000 * 60));
-        }
-        const existing = veiculoUsosMap.get(p.veiculo_id) || [];
-        existing.push({
-          id: p.id,
-          data: p.data,
-          motorista_id: p.motorista_id,
-          motorista_nome: motorista?.nome || 'Desconhecido',
-          motorista_telefone: motorista?.telefone || null,
-          checkin_at: p.checkin_at,
-          checkout_at: p.checkout_at,
-          duracao_minutos: duracao,
-          observacao_checkout: p.observacao_checkout,
-          tipo_registro: 'presenca',
-          realizado_por_nome: null,
-        });
-        veiculoUsosMap.set(p.veiculo_id, existing);
-      }
-    });
-
-    // Add vinculacao/desvinculacao records
+    // Agrupar registros por veiculo_id
+    const porVeiculo = new Map<string, any[]>();
     vinculacoes.forEach(v => {
-      const motorista = v.motorista_id ? motoristasMap.get(v.motorista_id) : null;
-      const dataStr = v.created_at ? format(new Date(v.created_at), 'yyyy-MM-dd') : '';
-      const existing = veiculoUsosMap.get(v.veiculo_id) || [];
-      existing.push({
-        id: v.id,
-        data: dataStr,
-        motorista_id: v.motorista_id || '',
-        motorista_nome: v.motorista_nome || motorista?.nome || 'Desconhecido',
-        motorista_telefone: motorista?.telefone || null,
-        checkin_at: v.tipo_vistoria === 'vinculacao' ? v.created_at : null,
-        checkout_at: v.tipo_vistoria === 'desvinculacao' ? v.created_at : null,
-        duracao_minutos: 0,
-        observacao_checkout: v.observacoes || null,
-        tipo_registro: v.tipo_vistoria as TipoRegistroUso,
-        realizado_por_nome: v.realizado_por_nome || null,
-      });
-      veiculoUsosMap.set(v.veiculo_id, existing);
+      const arr = porVeiculo.get(v.veiculo_id) || [];
+      arr.push(v);
+      porVeiculo.set(v.veiculo_id, arr);
     });
 
     return veiculos
-      .filter(v => veiculoUsosMap.has(v.id))
+      .filter(v => porVeiculo.has(v.id))
       .map(veiculo => {
-        const usos = veiculoUsosMap.get(veiculo.id) || [];
+        const registros = porVeiculo.get(veiculo.id) || [];
+        // Já vem ordenado por created_at ascending da query
 
-        // Ordenar usos por data (mais recente primeiro)
-        usos.sort((a, b) => b.data.localeCompare(a.data));
+        const usos: VeiculoUsoRegistro[] = [];
+        let cicloAberto: any = null;
+
+        for (const reg of registros) {
+          if (reg.tipo_vistoria === 'vinculacao') {
+            // Se há ciclo aberto sem desvinculação, fecha como "em uso" antes de abrir novo
+            if (cicloAberto) {
+              const motorista = cicloAberto.motorista_id ? motoristasMap.get(cicloAberto.motorista_id) : null;
+              usos.push({
+                id: cicloAberto.id,
+                data: format(new Date(cicloAberto.created_at), 'yyyy-MM-dd'),
+                motorista_id: cicloAberto.motorista_id || '',
+                motorista_nome: cicloAberto.motorista_nome || motorista?.nome || 'Desconhecido',
+                motorista_telefone: motorista?.telefone || null,
+                vinculado_em: cicloAberto.created_at,
+                desvinculado_em: null,
+                duracao_minutos: 0,
+                observacoes: null,
+                vinculado_por: cicloAberto.realizado_por_nome || null,
+                desvinculado_por: null,
+                em_uso: true,
+              });
+            }
+            cicloAberto = reg;
+          } else if (reg.tipo_vistoria === 'desvinculacao') {
+            if (cicloAberto) {
+              const motorista = cicloAberto.motorista_id ? motoristasMap.get(cicloAberto.motorista_id) : null;
+              const vinc = new Date(cicloAberto.created_at);
+              const desv = new Date(reg.created_at);
+              const duracao = Math.round((desv.getTime() - vinc.getTime()) / (1000 * 60));
+
+              usos.push({
+                id: cicloAberto.id,
+                data: format(vinc, 'yyyy-MM-dd'),
+                motorista_id: cicloAberto.motorista_id || '',
+                motorista_nome: cicloAberto.motorista_nome || motorista?.nome || 'Desconhecido',
+                motorista_telefone: motorista?.telefone || null,
+                vinculado_em: cicloAberto.created_at,
+                desvinculado_em: reg.created_at,
+                duracao_minutos: Math.max(duracao, 0),
+                observacoes: reg.observacoes || null,
+                vinculado_por: cicloAberto.realizado_por_nome || null,
+                desvinculado_por: reg.realizado_por_nome || null,
+                em_uso: false,
+              });
+              cicloAberto = null;
+            }
+            // desvinculação sem vinculação aberta: ignorar (registro órfão)
+          }
+        }
+
+        // Ciclo aberto no final = em uso atualmente
+        if (cicloAberto) {
+          const motorista = cicloAberto.motorista_id ? motoristasMap.get(cicloAberto.motorista_id) : null;
+          usos.push({
+            id: cicloAberto.id,
+            data: format(new Date(cicloAberto.created_at), 'yyyy-MM-dd'),
+            motorista_id: cicloAberto.motorista_id || '',
+            motorista_nome: cicloAberto.motorista_nome || motorista?.nome || 'Desconhecido',
+            motorista_telefone: motorista?.telefone || null,
+            vinculado_em: cicloAberto.created_at,
+            desvinculado_em: null,
+            duracao_minutos: 0,
+            observacoes: null,
+            vinculado_por: cicloAberto.realizado_por_nome || null,
+            desvinculado_por: null,
+            em_uso: true,
+          });
+        }
+
+        // Ordenar por data desc (mais recente primeiro)
+        usos.sort((a, b) => b.vinculado_em.localeCompare(a.vinculado_em));
 
         const tempoTotalUso = usos.reduce((sum, u) => sum + u.duracao_minutos, 0);
-        const usosComObservacao = usos.filter(u => u.observacao_checkout?.trim()).length;
+        const usosComObservacao = usos.filter(u => u.observacoes?.trim()).length;
         const motoristasUnicos = new Set(usos.filter(u => u.motorista_id).map(u => u.motorista_id)).size;
+        const ciclosEmUso = usos.filter(u => u.em_uso).length;
 
         return {
           veiculo_id: veiculo.id,
@@ -173,47 +191,42 @@ export function useVeiculoPresencaHistorico(
           totalUsos: usos.length,
           tempoTotalUso,
           usosComObservacao,
-          motoristasUnicos
+          motoristasUnicos,
+          ciclosEmUso
         };
       })
+      .filter(v => v.usos.length > 0)
       .sort((a, b) => b.totalUsos - a.totalUsos);
-  }, [veiculos, presencas, vinculacoes, motoristas]);
+  }, [veiculos, vinculacoes, motoristas]);
 
   // Estatísticas gerais
   const estatisticas = useMemo(() => {
-    const totalUsos = presencas.length;
-    const usosComObservacao = presencas.filter(p => p.observacao_checkout?.trim()).length;
-    const veiculosUtilizados = new Set(presencas.map(p => p.veiculo_id)).size;
-    const motoristasAtivos = new Set(presencas.map(p => p.motorista_id)).size;
-    
-    let totalMinutos = 0;
-    let usosCompletos = 0;
-    presencas.forEach(p => {
-      if (p.checkin_at && p.checkout_at) {
-        const checkin = new Date(p.checkin_at);
-        const checkout = new Date(p.checkout_at);
-        totalMinutos += (checkout.getTime() - checkin.getTime()) / (1000 * 60);
-        usosCompletos++;
-      }
-    });
+    const allUsos = veiculosAgregados.flatMap(v => v.usos);
+    const totalCiclos = allUsos.length;
+    const ciclosCompletos = allUsos.filter(u => !u.em_uso);
+    const ciclosEmUso = allUsos.filter(u => u.em_uso).length;
+    const usosComObservacao = allUsos.filter(u => u.observacoes?.trim()).length;
+    const veiculosUtilizados = veiculosAgregados.length;
+    const motoristasAtivos = new Set(allUsos.filter(u => u.motorista_id).map(u => u.motorista_id)).size;
 
-    const mediaDuracaoHoras = usosCompletos > 0 
-      ? Math.round(totalMinutos / usosCompletos / 60 * 10) / 10 
+    const totalMinutos = ciclosCompletos.reduce((sum, u) => sum + u.duracao_minutos, 0);
+    const mediaDuracaoHoras = ciclosCompletos.length > 0
+      ? Math.round(totalMinutos / ciclosCompletos.length / 60 * 10) / 10
       : 0;
 
     return {
-      totalUsos,
+      totalCiclos,
+      ciclosEmUso,
       usosComObservacao,
       veiculosUtilizados,
       motoristasAtivos,
       totalHorasUso: Math.round(totalMinutos / 60),
       mediaDuracaoHoras
     };
-  }, [presencas]);
+  }, [veiculosAgregados]);
 
   return {
     veiculosAgregados,
-    presencas,
     vinculacoes,
     veiculos,
     motoristas,

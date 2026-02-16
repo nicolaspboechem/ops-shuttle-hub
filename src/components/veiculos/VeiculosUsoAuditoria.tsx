@@ -4,7 +4,7 @@ import { format, parseISO, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, Clock, Download, Filter, Users, Truck, 
-  AlertTriangle, ChevronDown, ChevronRight, Bus, Car, Eye
+  AlertTriangle, ChevronDown, ChevronRight, Bus, Car, Eye, Link, Unlink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -62,12 +62,12 @@ export function VeiculosUsoAuditoria() {
       })).filter(v => v.usos.length > 0);
     }
 
-    // Filtrar por período
+    // Filtrar por período usando data extraída de vinculado_em
     if (dataInicio || dataFim) {
       filtered = filtered.map(v => ({
         ...v,
         usos: v.usos.filter(u => {
-          const data = parseISO(u.data);
+          const data = parseISO(u.data + 'T12:00:00');
           if (dataInicio && data < dataInicio) return false;
           if (dataFim && data > dataFim) return false;
           return true;
@@ -84,7 +84,7 @@ export function VeiculosUsoAuditoria() {
     const totalMinutos = veiculosFiltrados.reduce((sum, v) => 
       sum + v.usos.reduce((s, u) => s + u.duracao_minutos, 0), 0);
     const totalObservacoes = veiculosFiltrados.reduce((sum, v) => 
-      sum + v.usos.filter(u => u.observacao_checkout?.trim()).length, 0);
+      sum + v.usos.filter(u => u.observacoes?.trim()).length, 0);
     const veiculosCount = veiculosFiltrados.length;
 
     return {
@@ -114,10 +114,10 @@ export function VeiculosUsoAuditoria() {
     return `${hours}h ${mins}min`;
   };
 
-  const formatTime = (timeStr: string | null) => {
+  const formatDateTime = (timeStr: string | null) => {
     if (!timeStr) return '--:--';
     try {
-      return format(parseISO(timeStr), 'HH:mm');
+      return format(parseISO(timeStr), 'dd/MM HH:mm');
     } catch {
       return '--:--';
     }
@@ -138,13 +138,15 @@ export function VeiculosUsoAuditoria() {
           'Nome': v.veiculo_nome || '',
           'Tipo': v.veiculo_tipo,
           'Fornecedor': v.fornecedor || '',
-          'Data': format(parseISO(u.data), 'dd/MM/yyyy'),
+          'Data': format(parseISO(u.data + 'T12:00:00'), 'dd/MM/yyyy'),
           'Motorista': u.motorista_nome,
           'Telefone': u.motorista_telefone || '',
-          'Check-in': formatTime(u.checkin_at),
-          'Check-out': formatTime(u.checkout_at),
-          'Duração': formatDuration(u.duracao_minutos),
-          'Observação': u.observacao_checkout || ''
+          'Vinculado em': formatDateTime(u.vinculado_em),
+          'Vinculado por': u.vinculado_por || '',
+          'Desvinculado em': u.em_uso ? 'Em uso' : formatDateTime(u.desvinculado_em),
+          'Desvinculado por': u.desvinculado_por || '',
+          'Duração': u.em_uso ? 'Em uso' : formatDuration(u.duracao_minutos),
+          'Observação': u.observacoes || ''
         });
       });
     });
@@ -308,7 +310,7 @@ export function VeiculosUsoAuditoria() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{totais.totalUsos}</p>
-                <p className="text-xs text-muted-foreground">Registros de uso</p>
+                <p className="text-xs text-muted-foreground">Ciclos de uso</p>
               </div>
             </CardContent>
           </Card>
@@ -394,6 +396,11 @@ export function VeiculosUsoAuditoria() {
                             <Clock className="w-4 h-4 text-muted-foreground" />
                             <span>{formatDuration(veiculo.tempoTotalUso)}</span>
                           </div>
+                          {veiculo.ciclosEmUso > 0 && (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                              {veiculo.ciclosEmUso} em uso
+                            </Badge>
+                          )}
                           {veiculo.usosComObservacao > 0 && (
                             <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
                               {veiculo.usosComObservacao} obs
@@ -411,8 +418,8 @@ export function VeiculosUsoAuditoria() {
                           <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Motorista</TableHead>
-                            <TableHead>Check-in</TableHead>
-                            <TableHead>Check-out</TableHead>
+                            <TableHead>Vinculado em</TableHead>
+                            <TableHead>Desvinculado em</TableHead>
                             <TableHead>Duração</TableHead>
                             <TableHead className="w-10">Obs</TableHead>
                             <TableHead className="w-10"></TableHead>
@@ -422,28 +429,52 @@ export function VeiculosUsoAuditoria() {
                           {veiculo.usos.map(uso => (
                             <TableRow key={uso.id}>
                               <TableCell className="font-medium">
-                                {format(parseISO(uso.data), 'dd/MM/yyyy')}
+                                {format(parseISO(uso.data + 'T12:00:00'), 'dd/MM/yyyy')}
                               </TableCell>
                               <TableCell>{uso.motorista_nome}</TableCell>
-                              <TableCell className="font-mono text-green-600">
-                                {formatTime(uso.checkin_at)}
-                              </TableCell>
-                              <TableCell className="font-mono text-red-600">
-                                {formatTime(uso.checkout_at)}
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <Link className="w-3 h-3" />
+                                  <span className="font-mono">{formatDateTime(uso.vinculado_em)}</span>
+                                </div>
+                                {uso.vinculado_por && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{uso.vinculado_por}</p>
+                                )}
                               </TableCell>
                               <TableCell>
-                                <Badge variant="secondary">
-                                  {formatDuration(uso.duracao_minutos)}
-                                </Badge>
+                                {uso.em_uso ? (
+                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    Em uso
+                                  </Badge>
+                                ) : (
+                                  <>
+                                    <div className="flex items-center gap-1 text-red-600">
+                                      <Unlink className="w-3 h-3" />
+                                      <span className="font-mono">{formatDateTime(uso.desvinculado_em)}</span>
+                                    </div>
+                                    {uso.desvinculado_por && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">{uso.desvinculado_por}</p>
+                                    )}
+                                  </>
+                                )}
                               </TableCell>
                               <TableCell>
-                                {uso.observacao_checkout ? (
+                                {uso.em_uso ? (
+                                  <span className="text-muted-foreground">-</span>
+                                ) : (
+                                  <Badge variant="secondary">
+                                    {formatDuration(uso.duracao_minutos)}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {uso.observacoes ? (
                                   <Tooltip>
                                     <TooltipTrigger>
                                       <AlertTriangle className="w-4 h-4 text-amber-500" />
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs">
-                                      {uso.observacao_checkout}
+                                      {uso.observacoes}
                                     </TooltipContent>
                                   </Tooltip>
                                 ) : (
