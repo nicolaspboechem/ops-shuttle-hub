@@ -149,6 +149,7 @@ export default function AppOperador() {
     ), [viagensEncerradas]
   );
 
+  const { visibleItems: ativasVisiveis, hasMore: hasMoreAtivas, loadMore: loadMoreAtivas, total: totalAtivas, pageSize: pageSizeAtivas, setPageSize: setPageSizeAtivas } = usePaginatedList(sortedAtivas);
   const { visibleItems: encerradasVisiveis, hasMore: hasMoreEnc, loadMore: loadMoreEnc, total: totalEnc, pageSize: pageSizeEnc, setPageSize: setPageSizeEnc } = usePaginatedList(sortedEncerradas);
 
   const handleRefresh = async () => {
@@ -242,13 +243,13 @@ export default function AppOperador() {
             </div>
           </div>
 
-          {/* Viagens ativas */}
+  {/* Viagens ativas */}
           {sortedAtivas.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Em andamento ({sortedAtivas.length})
               </h2>
-              {sortedAtivas.map(viagem => (
+              {ativasVisiveis.map(viagem => (
                 <ShuttleCardOperador
                   key={viagem.id}
                   viagem={viagem}
@@ -256,6 +257,14 @@ export default function AppOperador() {
                   onEncerrar={setViagemParaEncerrar}
                 />
               ))}
+              <LoadMoreFooter
+                total={totalAtivas}
+                visible={ativasVisiveis.length}
+                hasMore={hasMoreAtivas}
+                onLoadMore={loadMoreAtivas}
+                pageSize={pageSizeAtivas}
+                onPageSizeChange={setPageSizeAtivas}
+              />
             </div>
           )}
 
