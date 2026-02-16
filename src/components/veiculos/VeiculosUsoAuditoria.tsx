@@ -22,6 +22,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 import { useVeiculoPresencaHistorico, VeiculoUsoHistorico, VeiculoUsoRegistro } from '@/hooks/useVeiculoPresencaHistorico';
 import { VeiculoUsoDetalheModal } from './VeiculoUsoDetalheModal';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 
 export function VeiculosUsoAuditoria() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -92,6 +94,8 @@ export function VeiculosUsoAuditoria() {
       veiculosCount
     };
   }, [veiculosFiltrados]);
+
+  const { visibleItems: visibleVeiculos, hasMore, loadMore, total: totalVeiculos, pageSize, setPageSize } = usePaginatedList(veiculosFiltrados);
 
   const toggleCard = (id: string) => {
     const newOpen = new Set(openCards);
@@ -347,7 +351,7 @@ export function VeiculosUsoAuditoria() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {veiculosFiltrados.map(veiculo => (
+            {visibleVeiculos.map(veiculo => (
               <Collapsible
                 key={veiculo.veiculo_id}
                 open={openCards.has(veiculo.veiculo_id)}
@@ -464,6 +468,7 @@ export function VeiculosUsoAuditoria() {
                 </Card>
               </Collapsible>
             ))}
+            <LoadMoreFooter total={totalVeiculos} visible={visibleVeiculos.length} hasMore={hasMore} onLoadMore={loadMore} pageSize={pageSize} onPageSizeChange={setPageSize} />
           </div>
         )}
 

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Bus, Car, MoreVertical, Pencil, Trash2, UserCheck, Gauge, Fuel, Eye, ClipboardCheck, AlertTriangle } from 'lucide-react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,6 +33,8 @@ export function VeiculosListView({
   onViewDetails
 }: VeiculosListViewProps) {
 
+  const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(veiculos);
+
   const getMotoristaVinculado = (veiculoId: string) => {
     return motoristas.find(m => m.veiculo_id === veiculoId);
   };
@@ -57,7 +61,7 @@ export function VeiculosListView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {veiculos.map((veiculo) => {
+          {visibleItems.map((veiculo) => {
             const TipoIcon = getTipoIcon(veiculo.tipo_veiculo);
             const motoristaVinculado = getMotoristaVinculado(veiculo.id);
             
@@ -209,6 +213,14 @@ export function VeiculosListView({
           Nenhum veículo encontrado
         </div>
       )}
+      <LoadMoreFooter
+        total={total}
+        visible={visibleItems.length}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
     </div>
   );
 }

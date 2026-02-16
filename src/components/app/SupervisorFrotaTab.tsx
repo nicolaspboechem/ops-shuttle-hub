@@ -96,6 +96,9 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
   };
 
   const handleUnlinkVehicle = async (motorista: MotoristaComVeiculo) => {
+    const veiculoId = motorista.veiculo_id;
+    const veiculoPlaca = motorista.veiculo?.placa || '';
+
     const { error } = await supabase
       .from('motoristas')
       .update({ 
@@ -109,13 +112,37 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
       return;
     }
 
-    // Limpar motorista_id no veículo (desvinculação bidirecional)
-    if (motorista.veiculo_id) {
-      await supabase
-        .from('veiculos')
-        .update({ motorista_id: null, atualizado_por: user?.id })
-        .eq('id', motorista.veiculo_id);
+    // Limpar motorista_id no veículo (desvinculação bidirecional) + registrar histórico
+    const promises: PromiseLike<any>[] = [];
+    
+    if (veiculoId) {
+      promises.push(
+        supabase
+          .from('veiculos')
+          .update({ motorista_id: null, atualizado_por: user?.id })
+          .eq('id', veiculoId)
+          .then()
+      );
+      
+      // Registrar desvinculação no histórico
+      promises.push(
+        supabase
+          .from('veiculo_vistoria_historico')
+          .insert({
+            evento_id: eventoId,
+            veiculo_id: veiculoId,
+            tipo_vistoria: 'desvinculacao',
+            status_novo: 'liberado',
+            motorista_id: motorista.id,
+            motorista_nome: motorista.nome,
+            realizado_por_nome: `Supervisor`,
+            observacoes: `Desvinculação via app supervisor - ${veiculoPlaca}`,
+          })
+          .then()
+      );
     }
+
+    await Promise.all(promises);
 
     toast.success('Veículo desvinculado');
     refetchMotoristas();

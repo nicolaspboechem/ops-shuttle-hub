@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -188,6 +190,8 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
 
     return result.sort((a, b) => b.totalViagens - a.totalViagens);
   }, [viagensFiltradas, veiculosCadastrados, motoristas, filtroTipoVeiculo, filtroFornecedor]);
+
+  const { visibleItems: visibleMetricas, hasMore, loadMore, total: totalMetricas, pageSize, setPageSize } = usePaginatedList(metricasConsolidadas);
 
   // Totais
   const totais = useMemo(() => ({
@@ -385,108 +389,112 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
         </CardHeader>
         <CardContent>
           {viewMode === 'card' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {metricasConsolidadas.map((v) => {
-                const TipoIcon = getTipoIcon(v.tipoVeiculo);
-                return (
-                  <Card 
-                    key={v.placa} 
-                    className="overflow-hidden cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all"
-                    onClick={() => setSelectedVeiculo(v.placa)}
-                  >
-                    <CardContent className="p-4 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "p-2 rounded-lg",
-                            v.tipoVeiculo === 'Ônibus' 
-                              ? 'bg-primary/10 text-primary' 
-                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                          )}>
-                            <TipoIcon className="h-5 w-5" />
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {visibleMetricas.map((v) => {
+                  const TipoIcon = getTipoIcon(v.tipoVeiculo);
+                  return (
+                    <Card 
+                      key={v.placa} 
+                      className="overflow-hidden cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all"
+                      onClick={() => setSelectedVeiculo(v.placa)}
+                    >
+                      <CardContent className="p-4 space-y-3">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "p-2 rounded-lg",
+                              v.tipoVeiculo === 'Ônibus' 
+                                ? 'bg-primary/10 text-primary' 
+                                : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                            )}>
+                              <TipoIcon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">{v.tipoVeiculo}</p>
+                              <code className="font-bold text-sm tracking-wider bg-muted px-1.5 py-0.5 rounded">
+                                {v.placa}
+                              </code>
+                              {v.nome && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{v.nome}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">{v.tipoVeiculo}</p>
-                            <code className="font-bold text-sm tracking-wider bg-muted px-1.5 py-0.5 rounded">
-                              {v.placa}
-                            </code>
-                            {v.nome && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{v.nome}</p>
-                            )}
-                          </div>
                         </div>
-                      </div>
 
-                      {/* KM */}
-                      {(v.kmInicial != null || v.kmFinal != null) && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
-                          <Gauge className="w-3.5 h-3.5 text-blue-500" />
-                          <span>
-                            {v.kmInicial?.toLocaleString('pt-BR') || '-'} → {v.kmFinal?.toLocaleString('pt-BR') || '-'}
-                            {v.kmPercorrido > 0 && (
-                              <span className="ml-1 font-semibold text-primary">
-                                ({v.kmPercorrido.toLocaleString('pt-BR')} km)
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Estatísticas */}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-                        <div className="flex items-center gap-1">
-                          <Bus className="w-3.5 h-3.5" />
-                          <span className="font-medium">{v.totalViagens}</span>
-                          <span>viagens</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          <span className="font-medium">{v.totalPax}</span>
-                          <span>pax</span>
-                        </div>
-                        {v.viagensComTempo > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span className="font-medium">{formatarMinutos(v.tempoTotal / v.viagensComTempo)}</span>
+                        {/* KM */}
+                        {(v.kmInicial != null || v.kmFinal != null) && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded">
+                            <Gauge className="w-3.5 h-3.5 text-blue-500" />
+                            <span>
+                              {v.kmInicial?.toLocaleString('pt-BR') || '-'} → {v.kmFinal?.toLocaleString('pt-BR') || '-'}
+                              {v.kmPercorrido > 0 && (
+                                <span className="ml-1 font-semibold text-primary">
+                                  ({v.kmPercorrido.toLocaleString('pt-BR')} km)
+                                </span>
+                              )}
+                            </span>
                           </div>
                         )}
-                      </div>
 
-                      {/* Motorista */}
-                      {v.motorista && (
-                        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
-                          <UserCheck className="h-3 w-3" />
-                          <span className="truncate font-medium">{v.motorista}</span>
+                        {/* Estatísticas */}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                          <div className="flex items-center gap-1">
+                            <Bus className="w-3.5 h-3.5" />
+                            <span className="font-medium">{v.totalViagens}</span>
+                            <span>viagens</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-3.5 h-3.5" />
+                            <span className="font-medium">{v.totalPax}</span>
+                            <span>pax</span>
+                          </div>
+                          {v.viagensComTempo > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span className="font-medium">{formatarMinutos(v.tempoTotal / v.viagensComTempo)}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
 
-                      {/* Fornecedor */}
-                      {v.fornecedor && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          Fornecedor: <span className="font-medium">{v.fornecedor}</span>
-                        </p>
-                      )}
+                        {/* Motorista */}
+                        {v.motorista && (
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
+                            <UserCheck className="h-3 w-3" />
+                            <span className="truncate font-medium">{v.motorista}</span>
+                          </div>
+                        )}
 
-                      {/* Botão para ver vistorias */}
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="w-full mt-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedVistoriaPlaca(v.placa);
-                        }}
-                      >
-                        <ClipboardCheck className="h-4 w-4 mr-2" />
-                        Ver Vistorias
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                        {/* Fornecedor */}
+                        {v.fornecedor && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            Fornecedor: <span className="font-medium">{v.fornecedor}</span>
+                          </p>
+                        )}
+
+                        {/* Botão para ver vistorias */}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full mt-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVistoriaPlaca(v.placa);
+                          }}
+                        >
+                          <ClipboardCheck className="h-4 w-4 mr-2" />
+                          Ver Vistorias
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+              <LoadMoreFooter total={totalMetricas} visible={visibleMetricas.length} hasMore={hasMore} onLoadMore={loadMore} pageSize={pageSize} onPageSizeChange={setPageSize} />
+            </>
           ) : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -503,7 +511,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {metricasConsolidadas.map((v) => (
+                {visibleMetricas.map((v) => (
                   <TableRow 
                     key={v.placa} 
                     className="cursor-pointer hover:bg-muted/50"
@@ -575,6 +583,8 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
                 ))}
               </TableBody>
             </Table>
+            <LoadMoreFooter total={totalMetricas} visible={visibleMetricas.length} hasMore={hasMore} onLoadMore={loadMore} pageSize={pageSize} onPageSizeChange={setPageSize} />
+            </>
           )}
           {metricasConsolidadas.length === 0 && (
             <div className="py-8 text-center text-muted-foreground">

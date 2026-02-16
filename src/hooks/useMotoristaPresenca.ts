@@ -314,20 +314,46 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
 
       if (error) throw error;
 
+      // Get vehicle info before unlinking for audit
+      const veiculoIdAnterior = presenca.veiculo_id;
+
       // Unlink vehicle from driver (bidirectional)
-      await Promise.all([
+      const unlinkPromises: PromiseLike<any>[] = [
         supabase
           .from('motoristas')
           .update({ 
             status: 'indisponivel',
             veiculo_id: null 
           })
-          .eq('id', motoristaId),
+          .eq('id', motoristaId)
+          .then(),
         supabase
           .from('veiculos')
           .update({ motorista_id: null })
-          .eq('motorista_id', motoristaId),
-      ]);
+          .eq('motorista_id', motoristaId)
+          .then(),
+      ];
+
+      // Register unlink in audit history
+      if (veiculoIdAnterior && eventoId) {
+        unlinkPromises.push(
+          supabase
+            .from('veiculo_vistoria_historico')
+            .insert({
+              evento_id: eventoId,
+              veiculo_id: veiculoIdAnterior,
+              tipo_vistoria: 'desvinculacao',
+              status_novo: 'liberado',
+              motorista_id: motoristaId,
+              motorista_nome: null,
+              realizado_por_nome: 'Motorista (checkout)',
+              observacoes: observacao ? `Checkout: ${observacao}` : 'Desvinculação automática no checkout',
+            })
+            .then()
+        );
+      }
+
+      await Promise.all(unlinkPromises);
 
       setPresenca({ ...data, veiculo: presenca.veiculo });
       setVeiculoAtribuido(null);
