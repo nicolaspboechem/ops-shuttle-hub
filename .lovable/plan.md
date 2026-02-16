@@ -1,36 +1,41 @@
 
+# Corrigir Alertas Criticos Falsos e Adicionar Botao "Lido"
 
-# Paginacao nas Missoes (CCO) e App Operador
+## Problema Identificado
 
-## Resumo
+Na funcao `calcularKPIsDashboard` (arquivo `calculadores.ts`, linha 214-229), os alertas sao calculados para todas as viagens onde `encerrado === false`. Porem, viagens que ja chegaram ao destino (tem `h_chegada` preenchido) mas ainda nao foram encerradas (status `aguardando_retorno`, por exemplo) continuam sendo avaliadas. A funcao `calcularStatusViagem` calcula o tempo decorrido desde o pickup ate agora, gerando alertas criticos falsos para viagens que ja finalizaram a perna de ida.
 
-Aplicar o mesmo sistema de paginacao (`usePaginatedList` + `LoadMoreFooter`) nas listas de missoes do Mapa de Servico e nas viagens ativas do App Operador.
+## Correcao do Bug
 
----
+**Arquivo:** `src/lib/utils/calculadores.ts`
 
-## 1. MissoesPanel.tsx (Mapa de Servico - Aba Missoes)
+Na linha 224, onde filtra viagens para calcular alertas:
 
-### Vista Card
-- Aplicar `usePaginatedList(filteredMissoes)` sobre o grid de cards
-- Renderizar apenas `visibleItems` no `.map()`
-- Adicionar `<LoadMoreFooter>` abaixo do grid
+**Antes:**
+```
+viagensAtivas.filter(v => v.h_pickup).forEach(viagem => {
+```
 
-### Vista Lista (tabela)
-- Mesma logica: paginar `filteredMissoes` na `<TableBody>`
-- Adicionar `<LoadMoreFooter>` abaixo da `<Card>` da tabela
+**Depois:**
+```
+viagensAtivas.filter(v => v.h_pickup && !v.h_chegada).forEach(viagem => {
+```
 
-### Vista Kanban
-- Paginar cada coluna individualmente: aplicar `usePaginatedList` sobre cada `missoesByStatus[col.id]`
-- Como sao 5 colunas com hooks separados, a abordagem sera criar um sub-componente `MissaoKanbanColumnPaginated` que internamente usa o hook
-- Cada coluna tera seu proprio "Ver mais" no rodape
+Viagens que ja possuem `h_chegada` ja completaram a perna de ida. Nao faz sentido monitorar o tempo de deslocamento delas -- o tempo ja esta definido. Apenas viagens em transito (sem `h_chegada`) devem gerar alertas de tempo.
 
-**Nota:** Como o hook nao pode ser chamado condicionalmente (regra dos hooks), sera necessario usar o hook uma vez sobre `filteredMissoes` para as vistas card/list, e o sub-componente para kanban.
+## Botao "Lido" no Painel de Alertas
 
-## 2. AppOperador.tsx (App Operador - Viagens Ativas)
+**Arquivo:** `src/components/dashboard/AlertsPanel.tsx`
 
-- Ja possui paginacao para `sortedEncerradas`
-- Adicionar `usePaginatedList(sortedAtivas)` para a secao "Em andamento"
-- Renderizar apenas os itens visiveis com `<LoadMoreFooter>` abaixo
+Adicionar um estado local `dismissedIds` (Set de IDs de viagens) que persiste durante a sessao. Para cada alerta exibido, mostrar um botao "Lido" que adiciona o `viagemId` ao set, removendo-o visualmente da lista.
+
+- O estado sera gerenciado internamente no componente `AlertsPanel`
+- Filtrar `criticos` e `alertas` removendo os IDs no `dismissedIds`
+- Botao pequeno com icone CheckCircle + texto "Lido" no canto de cada `AlertItem`
+- Ao clicar, o alerta desaparece da lista e os contadores se atualizam
+- O estado reseta automaticamente quando os dados mudam (novo refresh)
+
+Nao sera necessario persistir no banco pois os alertas sao recalculados a cada atualizacao de dados. Se a viagem for realmente encerrada no proximo ciclo, o alerta desaparece naturalmente.
 
 ---
 
@@ -38,6 +43,5 @@ Aplicar o mesmo sistema de paginacao (`usePaginatedList` + `LoadMoreFooter`) nas
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/motoristas/MissoesPanel.tsx` | Paginar vistas card, list e kanban (20 itens iniciais) |
-| `src/pages/app/AppOperador.tsx` | Paginar viagens ativas (20 itens iniciais) |
-
+| `src/lib/utils/calculadores.ts` | Filtrar viagens com `h_chegada` do calculo de alertas |
+| `src/components/dashboard/AlertsPanel.tsx` | Adicionar botao "Lido" para dispensar alertas |
