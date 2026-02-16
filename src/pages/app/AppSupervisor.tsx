@@ -32,6 +32,7 @@ import { SupervisorMaisTab } from '@/components/app/SupervisorMaisTab';
 import { CreateViagemForm } from '@/components/app/CreateViagemForm';
 import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
+import { MissaoDeslocamentoModal } from '@/components/motoristas/MissaoDeslocamentoModal';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
@@ -67,6 +68,7 @@ export default function AppSupervisor() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showAlertasModal, setShowAlertasModal] = useState(false);
+  const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   
   // Dia operacional
@@ -129,6 +131,8 @@ export default function AppSupervisor() {
   const handleActionSelect = (tipo: ActionType) => {
     if (tipo === 'missao') {
       setShowMissaoInstantanea(true);
+    } else if (tipo === 'deslocamento') {
+      setShowMissaoDeslocamento(true);
     } else {
       setPreselectedTipo(tipo);
       setShowNovaViagem(true);
@@ -314,6 +318,17 @@ export default function AppSupervisor() {
       <MissaoInstantaneaModal
         open={showMissaoInstantanea}
         onOpenChange={setShowMissaoInstantanea}
+        motoristas={motoristas}
+        pontos={pontos}
+        onSave={async (data) => {
+          await createMissao(data);
+        }}
+      />
+
+      {/* Missão Deslocamento */}
+      <MissaoDeslocamentoModal
+        open={showMissaoDeslocamento}
+        onOpenChange={setShowMissaoDeslocamento}
         motoristas={motoristas}
         pontos={pontos}
         onSave={async (data) => {

@@ -21,6 +21,7 @@ import { MissaoKanbanCard } from '@/components/motoristas/MissaoKanbanCard';
 import { MissaoKanbanColumn } from '@/components/motoristas/MissaoKanbanColumn';
 import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
+import { MissaoDeslocamentoModal } from '@/components/motoristas/MissaoDeslocamentoModal';
 
 interface MissoesPanelProps {
   eventoId: string | undefined;
@@ -53,6 +54,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const [showMissaoModal, setShowMissaoModal] = useState(false);
   const [showMissaoTipoModal, setShowMissaoTipoModal] = useState(false);
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
+  const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [editingMissao, setEditingMissao] = useState<Missao | null>(null);
 
   // Drag state
@@ -510,6 +512,8 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         onSelect={(tipo: MissaoTipo) => {
           if (tipo === 'instantanea') {
             setShowMissaoInstantanea(true);
+          } else if (tipo === 'deslocamento') {
+            setShowMissaoDeslocamento(true);
           } else {
             setShowMissaoModal(true);
           }
@@ -520,6 +524,17 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
       <MissaoInstantaneaModal
         open={showMissaoInstantanea}
         onOpenChange={setShowMissaoInstantanea}
+        motoristas={motoristasCadastrados}
+        pontos={pontosEmbarque}
+        onSave={async (data) => {
+          await createMissao(data);
+        }}
+      />
+
+      {/* Missão Deslocamento */}
+      <MissaoDeslocamentoModal
+        open={showMissaoDeslocamento}
+        onOpenChange={setShowMissaoDeslocamento}
         motoristas={motoristasCadastrados}
         pontos={pontosEmbarque}
         onSave={async (data) => {
