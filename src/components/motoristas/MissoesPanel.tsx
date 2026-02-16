@@ -14,13 +14,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Skeleton } from '@/components/ui/skeleton';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
 import { MissaoKanbanCard } from '@/components/motoristas/MissaoKanbanCard';
-import { MissaoKanbanColumn } from '@/components/motoristas/MissaoKanbanColumn';
+import { MissaoKanbanColumnPaginated } from '@/components/motoristas/MissaoKanbanColumnPaginated';
 import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { MissaoDeslocamentoModal } from '@/components/motoristas/MissaoDeslocamentoModal';
@@ -235,6 +237,9 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     return grouped;
   }, [filteredMissoes]);
 
+  // Pagination for card/list views
+  const { visibleItems: visibleMissoes, hasMore, loadMore, total: totalMissoes, pageSize, setPageSize } = usePaginatedList(filteredMissoes);
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -441,27 +446,17 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {missaoKanbanColumns.map(col => (
-              <MissaoKanbanColumn
+              <MissaoKanbanColumnPaginated
                 key={col.id}
                 id={col.id}
                 title={col.title}
-                count={missoesByStatus[col.id]?.length || 0}
                 accentColor={col.accent}
-              >
-                {(missoesByStatus[col.id] || []).map(missao => {
-                  const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
-                  return (
-                    <MissaoKanbanCard
-                      key={missao.id}
-                      missao={missao}
-                      motoristaNome={motorista?.nome}
-                      onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
-                      onDelete={() => handleDeleteMissao(missao.id)}
-                      onStatusChange={(status) => handleStatusChange(missao.id, status)}
-                    />
-                  );
-                })}
-              </MissaoKanbanColumn>
+                missoes={missoesByStatus[col.id] || []}
+                motoristas={motoristasCadastrados}
+                onEdit={(missao) => { setEditingMissao(missao); setShowMissaoModal(true); }}
+                onDelete={(id) => handleDeleteMissao(id)}
+                onStatusChange={(id, status) => handleStatusChange(id, status)}
+              />
             ))}
           </div>
           <DragOverlay>
@@ -475,154 +470,174 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
           </DragOverlay>
         </DndContext>
       ) : missaoViewMode === 'card' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMissoes.map(missao => {
-            const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
-            return (
-              <MissaoCard
-                key={missao.id}
-                missao={missao}
-                motoristaNome={motorista?.nome || 'Motorista não encontrado'}
-                onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
-                onDelete={() => handleDeleteMissao(missao.id)}
-                onStatusChange={(status) => handleStatusChange(missao.id, status)}
-              />
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visibleMissoes.map(missao => {
+              const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+              return (
+                <MissaoCard
+                  key={missao.id}
+                  missao={missao}
+                  motoristaNome={motorista?.nome || 'Motorista não encontrado'}
+                  onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
+                  onDelete={() => handleDeleteMissao(missao.id)}
+                  onStatusChange={(status) => handleStatusChange(missao.id, status)}
+                />
+              );
+            })}
+          </div>
+          <LoadMoreFooter
+            total={totalMissoes}
+            visible={visibleMissoes.length}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
+        </>
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Rota</TableHead>
-                <TableHead>Horário</TableHead>
-                <TableHead>PAX</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[50px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredMissoes.map(missao => {
-                const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
-                const prioridadeColors: Record<string, string> = {
-                  baixa: 'bg-muted text-muted-foreground',
-                  normal: 'bg-primary/10 text-primary',
-                  alta: 'bg-amber-500/10 text-amber-600',
-                  urgente: 'bg-destructive/10 text-destructive',
-                };
-                const statusColors: Record<string, string> = {
-                  pendente: 'bg-muted text-muted-foreground',
-                  aceita: 'bg-blue-500/10 text-blue-600',
-                  em_andamento: 'bg-amber-500/10 text-amber-600',
-                  concluida: 'bg-green-500/10 text-green-600',
-                  cancelada: 'bg-destructive/10 text-destructive',
-                };
-                
-                return (
-                  <TableRow key={missao.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{missao.titulo}</p>
-                        {missao.descricao && (
-                          <p className="text-xs text-muted-foreground line-clamp-1">{missao.descricao}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                          {motorista?.nome?.charAt(0) || '?'}
+        <>
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Motorista</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Rota</TableHead>
+                  <TableHead>Horário</TableHead>
+                  <TableHead>PAX</TableHead>
+                  <TableHead>Prioridade</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[50px]">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleMissoes.map(missao => {
+                  const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+                  const prioridadeColors: Record<string, string> = {
+                    baixa: 'bg-muted text-muted-foreground',
+                    normal: 'bg-primary/10 text-primary',
+                    alta: 'bg-amber-500/10 text-amber-600',
+                    urgente: 'bg-destructive/10 text-destructive',
+                  };
+                  const statusColors: Record<string, string> = {
+                    pendente: 'bg-muted text-muted-foreground',
+                    aceita: 'bg-blue-500/10 text-blue-600',
+                    em_andamento: 'bg-amber-500/10 text-amber-600',
+                    concluida: 'bg-green-500/10 text-green-600',
+                    cancelada: 'bg-destructive/10 text-destructive',
+                  };
+                  
+                  return (
+                    <TableRow key={missao.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{missao.titulo}</p>
+                          {missao.descricao && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">{missao.descricao}</p>
+                          )}
                         </div>
-                        <span className="text-sm">{motorista?.nome || 'N/A'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {missao.data_programada 
-                        ? missao.data_programada === new Date().toISOString().slice(0, 10) 
-                          ? 'Hoje' 
-                          : missao.data_programada.split('-').reverse().slice(0, 2).join('/')
-                        : 'Imediata'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {missao.ponto_embarque && missao.ponto_desembarque ? (
-                        <span>{missao.ponto_embarque} → {missao.ponto_desembarque}</span>
-                      ) : missao.ponto_embarque || missao.ponto_desembarque || '-'}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {missao.horario_previsto?.slice(0, 5) || '-'}
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">
-                      {missao.qtd_pax || 0}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={prioridadeColors[missao.prioridade]}>
-                        {missao.prioridade === 'baixa' ? 'Baixa' : 
-                         missao.prioridade === 'normal' ? 'Normal' :
-                         missao.prioridade === 'alta' ? 'Alta' : 'Urgente'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={statusColors[missao.status]}>
-                        {missao.status === 'pendente' ? 'Pendente' :
-                         missao.status === 'aceita' ? 'Aceita' :
-                         missao.status === 'em_andamento' ? 'Em Andamento' :
-                         missao.status === 'concluida' ? 'Concluída' : 'Cancelada'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditingMissao(missao); setShowMissaoModal(true); }}>
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          {missao.status === 'pendente' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'aceita')}>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Aceitar
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
+                            {motorista?.nome?.charAt(0) || '?'}
+                          </div>
+                          <span className="text-sm">{motorista?.nome || 'N/A'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {missao.data_programada 
+                          ? missao.data_programada === new Date().toISOString().slice(0, 10) 
+                            ? 'Hoje' 
+                            : missao.data_programada.split('-').reverse().slice(0, 2).join('/')
+                          : 'Imediata'}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {missao.ponto_embarque && missao.ponto_desembarque ? (
+                          <span>{missao.ponto_embarque} → {missao.ponto_desembarque}</span>
+                        ) : missao.ponto_embarque || missao.ponto_desembarque || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {missao.horario_previsto?.slice(0, 5) || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {missao.qtd_pax || 0}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={prioridadeColors[missao.prioridade]}>
+                          {missao.prioridade === 'baixa' ? 'Baixa' : 
+                           missao.prioridade === 'normal' ? 'Normal' :
+                           missao.prioridade === 'alta' ? 'Alta' : 'Urgente'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusColors[missao.status]}>
+                          {missao.status === 'pendente' ? 'Pendente' :
+                           missao.status === 'aceita' ? 'Aceita' :
+                           missao.status === 'em_andamento' ? 'Em Andamento' :
+                           missao.status === 'concluida' ? 'Concluída' : 'Cancelada'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setEditingMissao(missao); setShowMissaoModal(true); }}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Editar
                             </DropdownMenuItem>
-                          )}
-                          {missao.status === 'aceita' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'em_andamento')}>
-                              <Play className="w-4 h-4 mr-2" />
-                              Iniciar
+                            {missao.status === 'pendente' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'aceita')}>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Aceitar
+                              </DropdownMenuItem>
+                            )}
+                            {missao.status === 'aceita' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'em_andamento')}>
+                                <Play className="w-4 h-4 mr-2" />
+                                Iniciar
+                              </DropdownMenuItem>
+                            )}
+                            {missao.status !== 'concluida' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'concluida')}>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Concluir
+                              </DropdownMenuItem>
+                            )}
+                            {missao.status !== 'cancelada' && (
+                              <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'cancelada')} className="text-destructive">
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Cancelar
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleDeleteMissao(missao.id)} className="text-destructive">
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Excluir
                             </DropdownMenuItem>
-                          )}
-                          {missao.status !== 'concluida' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'concluida')}>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Concluir
-                            </DropdownMenuItem>
-                          )}
-                          {missao.status !== 'cancelada' && (
-                            <DropdownMenuItem onClick={() => handleStatusChange(missao.id, 'cancelada')} className="text-destructive">
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Cancelar
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleDeleteMissao(missao.id)} className="text-destructive">
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
+          <LoadMoreFooter
+            total={totalMissoes}
+            visible={visibleMissoes.length}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+          />
+        </>
       )}
 
       {/* Modal de tipo de missão */}
