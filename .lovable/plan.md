@@ -1,103 +1,70 @@
 
 
-# Horarios de Inicio/Termino do Evento + Finalizacao Diaria
+# Botao de Atalho para Deslocamento no Painel CCO
 
 ## Resumo
 
-Adicionar campos de horario ao periodo do evento (data+hora de inicio e data+hora de termino) e garantir que a finalizacao diaria (auto-checkout) ocorra as 4:50 AM conforme configurado no campo `horario_virada_dia`.
+Adicionar um botao amarelo "Deslocamento" ao lado do botao "Nova Missao" no header do painel de missoes do CCO. Remover a opcao de deslocamento do modal de selecao de tipo de missao. Ao criar um deslocamento, a missao sera criada ja no estado "em_andamento" (auto-iniciada), gerando automaticamente a viagem vinculada.
 
----
+## Mudancas
 
-## 1. Adicionar colunas de horario ao banco de dados
+### 1. `src/components/motoristas/MissoesPanel.tsx`
 
-**Migracao SQL**: Adicionar `horario_inicio_evento` e `horario_fim_evento` na tabela `eventos`.
+- Adicionar botao amarelo "Deslocamento" com icone Route ao lado do botao "Nova Missao" no header (linha ~191)
+- O botao abre diretamente o `MissaoDeslocamentoModal` sem passar pelo `MissaoTipoModal`
+- Alterar o `onSave` do `MissaoDeslocamentoModal` para, apos criar a missao com `createMissao`, chamar automaticamente `iniciarMissao` no ID retornado (sequencia: criar pendente, aceitar, iniciar -- tudo automatico)
 
-```sql
-ALTER TABLE eventos
-  ADD COLUMN horario_inicio_evento time DEFAULT '08:00:00',
-  ADD COLUMN horario_fim_evento time DEFAULT '23:00:00';
-```
+### 2. `src/components/motoristas/MissaoTipoModal.tsx`
 
-Esses campos complementam `data_inicio` e `data_fim` ja existentes, formando datetime completos:
-- Inicio do evento: `data_inicio` + `horario_inicio_evento`
-- Termino do evento: `data_fim` + `horario_fim_evento`
+- Remover a opcao "Deslocamento" do modal de selecao de tipo
+- Manter apenas "Missao Instantanea" e "Missao Agendada"
 
-## 2. Atualizar EditEventoModal - Aba "Periodo"
+### 3. `src/components/motoristas/MissaoDeslocamentoModal.tsx`
 
-**Arquivo:** `src/components/eventos/EditEventoModal.tsx`
+- Sem alteracoes visuais no modal em si
+- A logica de auto-iniciar sera tratada no componente pai (MissoesPanel e AppSupervisor)
 
-Na aba "Periodo", adicionar campos de horario ao lado de cada data:
+### 4. `src/pages/app/AppSupervisor.tsx`
+
+- Mesmo ajuste no `onSave` do `MissaoDeslocamentoModal`: apos criar, chamar `iniciarMissao` automaticamente
+- Manter o fluxo existente de abertura via `NewActionModal`
+
+### 5. `src/components/app/NewActionModal.tsx`
+
+- Nenhuma alteracao necessaria -- o deslocamento ja aparece como opcao separada no modal do supervisor
+
+## Fluxo Tecnico do Auto-Inicio
 
 ```text
-[Data de Inicio]  [Horario Inicio]
-  14/02/2026         08:00
-
-[Data de Termino] [Horario Termino]
-  24/02/2026         23:00
-
---- Finalizacao Diaria ---
-[Horario de Virada do Dia]
-  04:50
-
-Atividades apos meia-noite e antes deste horario
-contam como o dia anterior. Todos os dados do dia
-sao finalizados automaticamente neste horario.
+1. Usuario clica "Deslocamento" (botao amarelo)
+2. Modal abre -> preenche motorista, origem, destino
+3. Clica "Criar Deslocamento"
+4. createMissao() cria com status 'pendente' -> retorna { id }
+5. aceitarMissao(id) atualiza para 'aceita'
+6. iniciarMissao(id) atualiza para 'em_andamento' + cria viagem vinculada + atualiza motorista para 'em_viagem'
+7. Modal fecha -> toast "Deslocamento iniciado"
 ```
 
-Mudancas:
-- Novos states `horarioInicio` e `horarioFim` (inputs type="time")
-- Salvar os novos campos no `handleSave`
-- Carregar valores existentes no `useEffect`
-- Texto explicativo atualizado para deixar claro que a finalizacao diaria (checkout automatico, encerramento de viagens, cancelamento de missoes) ocorre no horario de virada
+A funcao `iniciarMissao` ja cuida de toda a logica de criar a viagem, vincular a missao e atualizar o status do motorista. O `aceitarMissao` e necessario antes pois `iniciarMissao` valida que a missao nao pode pular de 'pendente' para 'em_andamento' diretamente.
 
-## 3. Atualizar CreateEventoWizard - Step 2
+## Detalhes Tecnicos
 
-**Arquivo:** `src/components/eventos/CreateEventoWizard.tsx`
+No `MissoesPanel`, o botao ficara assim:
 
-No step 2 (Periodo), adicionar os mesmos campos de horario:
-- `horarioInicio` (default: "08:00")
-- `horarioFim` (default: "23:00")
-- Salvar no `handleCreate`
-
-## 4. Exibir periodo completo no EventoCard
-
-**Arquivo:** `src/components/eventos/EventoCard.tsx`
-
-Mostrar o periodo do evento com data e hora (se disponivel):
 ```text
-14/02 08:00 - 24/02 23:00
+[Nova Missao]  [Deslocamento]  (amarelo com icone Route)
 ```
 
-## 5. Atualizar tipos TypeScript
+O callback do deslocamento sera:
 
-**Arquivo:** `src/lib/types/viagem.ts`
-
-Adicionar campos opcionais a interface `Evento`:
 ```typescript
-horario_inicio_evento?: string | null;
-horario_fim_evento?: string | null;
+onSave={async (data) => {
+  const missao = await createMissao(data);
+  if (missao?.id) {
+    await aceitarMissao(missao.id);
+    await iniciarMissao(missao.id);
+  }
+}}
 ```
 
----
-
-## Sobre a Finalizacao Diaria as 4:50
-
-O campo `horario_virada_dia` ja controla quando o `auto-checkout` executa a finalizacao. Para que ocorra as 4:50 AM, basta configurar esse campo como `04:50` no modal de edicao do evento. A edge function `auto-checkout` ja respeita esse valor por evento.
-
-O texto explicativo na aba "Periodo" sera atualizado para deixar claro que:
-- O horario de virada define quando ocorre a finalizacao automatica do dia
-- Nesse momento: viagens sao encerradas, missoes canceladas, motoristas recebem checkout automatico
-- Um novo dia operacional se inicia
-
----
-
-## Arquivos Alterados
-
-| Arquivo | Acao |
-|---------|------|
-| Migracao SQL | Adicionar `horario_inicio_evento` e `horario_fim_evento` |
-| `src/components/eventos/EditEventoModal.tsx` | Campos de horario inicio/fim + texto explicativo virada |
-| `src/components/eventos/CreateEventoWizard.tsx` | Campos de horario inicio/fim no step 2 |
-| `src/components/eventos/EventoCard.tsx` | Exibir periodo com horario |
-| `src/lib/types/viagem.ts` | Novos campos opcionais na interface Evento |
-
+O mesmo padrao sera aplicado no `AppSupervisor.tsx`.
