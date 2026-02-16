@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
       // ======== ETAPA C: Checkout automático + desvinculação bidirecional ========
       const { data: presencasAbertas, error: presencaError } = await supabase
         .from("motorista_presenca")
-        .select("id, motorista_id")
+        .select("id, motorista_id, veiculo_id")
         .eq("evento_id", evento.id)
         .eq("data", dataOntem)
         .not("checkin_at", "is", null)
@@ -166,6 +166,30 @@ Deno.serve(async (req) => {
         console.error(`[auto-checkout] Error updating presences:`, updatePresencaError);
         results.push({ evento: evento.nome_planilha, checkouts: 0, viagensFechadas: eventoViagensFechadas, missoesCanceladas: eventoMissoesCanceladas });
         continue;
+      }
+
+      // Register desvinculação history for presences that had vehicles
+      const presencasComVeiculo = presencasAbertas.filter((p: any) => p.veiculo_id);
+      if (presencasComVeiculo.length > 0) {
+        const historicoRecords = presencasComVeiculo.map((p: any) => ({
+          evento_id: evento.id,
+          veiculo_id: p.veiculo_id,
+          tipo_vistoria: "desvinculacao",
+          status_novo: "liberado",
+          motorista_id: p.motorista_id,
+          realizado_por_nome: "Auto-checkout",
+          observacoes: `Desvinculação automática - virada do dia operacional (${dataOntem})`,
+        }));
+
+        const { error: historicoError } = await supabase
+          .from("veiculo_vistoria_historico")
+          .insert(historicoRecords);
+
+        if (historicoError) {
+          console.error(`[auto-checkout] Error inserting history:`, historicoError);
+        } else {
+          console.log(`[auto-checkout] Registered ${historicoRecords.length} unlink history records`);
+        }
       }
 
       // Update motorista status to indisponivel + clear veiculo_id
