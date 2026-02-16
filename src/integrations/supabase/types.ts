@@ -201,6 +201,8 @@ export type Database = {
           descricao: string | null
           habilitar_localizador: boolean | null
           habilitar_missoes: boolean | null
+          horario_fim_evento: string | null
+          horario_inicio_evento: string | null
           horario_virada_dia: string | null
           id: string
           imagem_banner: string | null
@@ -222,6 +224,8 @@ export type Database = {
           descricao?: string | null
           habilitar_localizador?: boolean | null
           habilitar_missoes?: boolean | null
+          horario_fim_evento?: string | null
+          horario_inicio_evento?: string | null
           horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null
@@ -243,6 +247,8 @@ export type Database = {
           descricao?: string | null
           habilitar_localizador?: boolean | null
           habilitar_missoes?: boolean | null
+          horario_fim_evento?: string | null
+          horario_inicio_evento?: string | null
           horario_virada_dia?: string | null
           id?: string
           imagem_banner?: string | null

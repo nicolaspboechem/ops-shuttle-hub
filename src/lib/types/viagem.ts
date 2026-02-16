@@ -24,6 +24,8 @@ export interface Evento {
   alerta_limiar_vermelho?: number | null;
   habilitar_localizador?: boolean | null;
   habilitar_missoes?: boolean | null;
+  horario_inicio_evento?: string | null;
+  horario_fim_evento?: string | null;
 }
 
 export interface EventoUsuario {
