@@ -2,7 +2,7 @@ import { Missao, MissaoPrioridade } from '@/hooks/useMissoes';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, Loader2, CheckCircle, Play, Flag, Calendar, Zap } from 'lucide-react';
+import { MapPin, Clock, Loader2, CheckCircle, Play, Flag, Calendar, Zap, Route } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
 
@@ -32,8 +32,13 @@ const statusLabels: Record<string, string> = {
   em_andamento: 'Em Andamento',
 };
 
-/** Determina se a missão é instantânea ou agendada */
+/** Determina se a missão é instantânea, agendada ou deslocamento */
 function getMissaoTipo(missao: Missao, dataOperacional?: string) {
+  // Detectar deslocamento pelo prefixo do título
+  if (missao.titulo?.startsWith('Deslocamento:')) {
+    return { tipo: 'deslocamento' as const, label: 'Deslocamento', icon: Route, className: 'bg-teal-500/10 text-teal-600' };
+  }
+
   const hoje = dataOperacional || new Date().toISOString().slice(0, 10);
   const isHoje = !missao.data_programada || missao.data_programada === hoje;
   const temHorario = !!missao.horario_previsto;

@@ -5,9 +5,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Target, ArrowRightLeft, Bus } from 'lucide-react';
+import { Target, ArrowRightLeft, Bus, Route } from 'lucide-react';
 
-export type ActionType = 'missao' | 'transfer' | 'shuttle';
+export type ActionType = 'missao' | 'deslocamento' | 'transfer' | 'shuttle';
 
 interface NewActionModalProps {
   open: boolean;
@@ -36,6 +36,14 @@ export function NewActionModal({ open, onOpenChange, onSelect, hideShuttle }: Ne
           >
             <Target className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             <span>Missão</span>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-14 justify-start gap-3 text-base border-teal-200 hover:bg-teal-50 hover:border-teal-400 dark:border-teal-800 dark:hover:bg-teal-950"
+            onClick={() => handleSelect('deslocamento')}
+          >
+            <Route className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <span>Deslocamento</span>
           </Button>
           <Button
             variant="outline"
