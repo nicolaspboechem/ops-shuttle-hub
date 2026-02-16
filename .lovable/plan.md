@@ -17,6 +17,18 @@ A tabela `veiculo_vistoria_historico` e a fonte principal. Registros relevantes:
 
 O checkout do motorista (`useMotoristaPresenca.handleCheckout`) ja registra desvinculacao na tabela (implementado na iteracao anterior). O mesmo vale para supervisor e auto-checkout.
 
+### Todas as origens de desvinculacao (ja implementadas)
+
+| Origem | Arquivo | O que acontece |
+|--------|---------|----------------|
+| Checkout do motorista | `useMotoristaPresenca.ts` | Motorista encerra expediente, veiculo desvinculado e registrado |
+| Troca de veiculo pelo CCO | `VincularVeiculo.tsx` | Operador troca veiculo, desvinculacao do anterior registrada |
+| Supervisor desvincula | `SupervisorFrotaTab.tsx` | Supervisor remove veiculo pelo app, registrado |
+| Virada do dia (auto-checkout) | `auto-checkout/index.ts` | Sistema encerra expediente automaticamente, desvinculacao em batch registrada |
+| Checkout com observacao | `CheckoutModal.tsx` | Checkout formal com nota, desvinculacao registrada |
+
+Todas essas origens ja inserem registros em `veiculo_vistoria_historico`. O problema e que o hook `useVeiculoPresencaHistorico` nao usa esses dados corretamente -- ele trata cada registro como item isolado com duracao zero, em vez de parear vinculacao com desvinculacao.
+
 ## Logica de Pareamento
 
 Para cada veiculo:
@@ -32,6 +44,8 @@ Exemplo de timeline de um veiculo:
 12:00 desvinculacao (motorista A) -> fecha ciclo 1 (3h)
 14:00 vinculacao  (motorista B) -> abre ciclo 2
 18:00 desvinculacao (motorista B) -> fecha ciclo 2 (4h)
+20:00 vinculacao  (motorista C) -> abre ciclo 3
+04:00 desvinculacao (auto-checkout) -> fecha ciclo 3 (8h)
 ```
 
 ## Estrutura do Registro de Uso
