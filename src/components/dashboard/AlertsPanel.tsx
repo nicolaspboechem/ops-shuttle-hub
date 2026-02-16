@@ -1,6 +1,8 @@
-import { AlertTriangle, AlertCircle, Clock, MapPin, User, Car } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, AlertCircle, Clock, MapPin, User, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { AlertaViagem } from '@/lib/types/viagem';
 import { cn } from '@/lib/utils';
 
@@ -13,11 +15,10 @@ interface AlertsPanelProps {
   alertas: AlertaViagem[];
 }
 
-function AlertItem({ alerta }: { alerta: AlertaViagem }) {
+function AlertItem({ alerta, onDismiss }: { alerta: AlertaViagem; onDismiss: (id: string) => void }) {
   const isCritical = alerta.status === 'critico';
   const tempoExcedido = Math.round(alerta.diferenca);
   
-  // Mensagem descritiva baseada no tempo configurado
   const getMensagem = () => {
     if (isCritical) {
       return `Excedeu ${tempoExcedido} min acima da média (limite: +${TEMPO_CRITICO} min)`;
@@ -30,7 +31,6 @@ function AlertItem({ alerta }: { alerta: AlertaViagem }) {
       "flex flex-col gap-2 p-3 rounded-lg transition-colors",
       isCritical ? "bg-status-critical-bg" : "bg-status-alert-bg"
     )}>
-      {/* Header com ícone e motorista */}
       <div className="flex items-start gap-3">
         <div className={cn(
           "flex items-center justify-center w-8 h-8 rounded-full shrink-0",
@@ -52,7 +52,6 @@ function AlertItem({ alerta }: { alerta: AlertaViagem }) {
             </Badge>
           </div>
           
-          {/* Mensagem de alerta descritiva */}
           <p className={cn(
             "text-xs mt-1 font-medium",
             isCritical ? "text-status-critical" : "text-status-alert"
@@ -60,9 +59,17 @@ function AlertItem({ alerta }: { alerta: AlertaViagem }) {
             {getMensagem()}
           </p>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="shrink-0 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => onDismiss(alerta.viagemId)}
+        >
+          <CheckCircle className="w-3.5 h-3.5 mr-1" />
+          Lido
+        </Button>
       </div>
       
-      {/* Detalhes da viagem */}
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground ml-11">
         <span className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
@@ -86,11 +93,17 @@ function AlertItem({ alerta }: { alerta: AlertaViagem }) {
 }
 
 export function AlertsPanel({ criticos, alertas }: AlertsPanelProps) {
-  const totalAlertas = criticos.length + alertas.length;
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+
+  const handleDismiss = (id: string) => {
+    setDismissedIds(prev => new Set(prev).add(id));
+  };
+
+  const visibleCriticos = criticos.filter(a => !dismissedIds.has(a.viagemId));
+  const visibleAlertas = alertas.filter(a => !dismissedIds.has(a.viagemId));
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Alertas Críticos */}
       <Card className="border-status-critical/20 bg-status-critical-bg/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm md:text-base">
@@ -98,55 +111,54 @@ export function AlertsPanel({ criticos, alertas }: AlertsPanelProps) {
             <span className="hidden sm:inline">Alertas Críticos</span>
             <span className="sm:hidden">Críticos</span>
             <Badge className="ml-auto bg-status-critical text-status-critical-foreground text-xs">
-              {criticos.length}
+              {visibleCriticos.length}
             </Badge>
           </CardTitle>
-          {criticos.length > 0 && (
+          {visibleCriticos.length > 0 && (
             <p className="text-xs text-muted-foreground">
               Viagens +{TEMPO_CRITICO} min acima da média do motorista
             </p>
           )}
         </CardHeader>
         <CardContent className="pt-0">
-          {criticos.length === 0 ? (
+          {visibleCriticos.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
               Nenhum alerta crítico
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {criticos.map(alerta => (
-                <AlertItem key={alerta.viagemId} alerta={alerta} />
+              {visibleCriticos.map(alerta => (
+                <AlertItem key={alerta.viagemId} alerta={alerta} onDismiss={handleDismiss} />
               ))}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Alertas */}
       <Card className="border-status-alert/20 bg-status-alert-bg/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm md:text-base">
             <AlertCircle className="w-4 h-4 md:w-5 md:h-5 text-status-alert" />
             Alertas
             <Badge className="ml-auto bg-status-alert text-status-alert-foreground text-xs">
-              {alertas.length}
+              {visibleAlertas.length}
             </Badge>
           </CardTitle>
-          {alertas.length > 0 && (
+          {visibleAlertas.length > 0 && (
             <p className="text-xs text-muted-foreground">
               Viagens +{TEMPO_ALERTA} min acima da média do motorista
             </p>
           )}
         </CardHeader>
         <CardContent className="pt-0">
-          {alertas.length === 0 ? (
+          {visibleAlertas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
               Nenhum alerta
             </p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {alertas.map(alerta => (
-                <AlertItem key={alerta.viagemId} alerta={alerta} />
+              {visibleAlertas.map(alerta => (
+                <AlertItem key={alerta.viagemId} alerta={alerta} onDismiss={handleDismiss} />
               ))}
             </div>
           )}
