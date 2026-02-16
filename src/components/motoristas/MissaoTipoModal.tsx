@@ -50,17 +50,6 @@ export function MissaoTipoModal({ open, onOpenChange, onSelect }: MissaoTipoModa
               <div className="text-xs text-muted-foreground">Completa: data, horário, pax...</div>
             </div>
           </Button>
-          <Button
-            variant="outline"
-            className="h-16 justify-start gap-3 text-base border-teal-200 hover:bg-teal-50 hover:border-teal-400 dark:border-teal-800 dark:hover:bg-teal-950"
-            onClick={() => handleSelect('deslocamento')}
-          >
-            <Route className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-            <div className="text-left">
-              <div className="font-medium">Deslocamento</div>
-              <div className="text-xs text-muted-foreground">Motorista se desloca A → B</div>
-            </div>
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

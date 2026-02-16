@@ -98,7 +98,7 @@ export default function AppSupervisor() {
 
   const { refetch: refetchViagens } = useViagens(eventoId, viagensOptions);
   const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
-  const { createMissao } = useMissoes(eventoId);
+  const { createMissao, aceitarMissao, iniciarMissao } = useMissoes(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
   const { alertas, atualizarStatus: atualizarAlertaStatus } = useAlertasFrota(eventoId);
@@ -332,7 +332,11 @@ export default function AppSupervisor() {
         motoristas={motoristas}
         pontos={pontos}
         onSave={async (data) => {
-          await createMissao(data);
+          const missao = await createMissao(data);
+          if (missao?.id) {
+            await aceitarMissao(missao.id);
+            await iniciarMissao(missao.id);
+          }
         }}
       />
 

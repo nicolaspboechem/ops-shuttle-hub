@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
-import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin } from 'lucide-react';
+import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin, Route } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -188,10 +188,19 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
             Designe missões específicas para motoristas
           </p>
         </div>
-        <Button onClick={() => { setEditingMissao(null); setShowMissaoTipoModal(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nova Missão
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { setEditingMissao(null); setShowMissaoTipoModal(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Missão
+          </Button>
+          <Button 
+            onClick={() => setShowMissaoDeslocamento(true)}
+            className="bg-amber-500 hover:bg-amber-600 text-white"
+          >
+            <Route className="w-4 h-4 mr-2" />
+            Deslocamento
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -512,8 +521,6 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         onSelect={(tipo: MissaoTipo) => {
           if (tipo === 'instantanea') {
             setShowMissaoInstantanea(true);
-          } else if (tipo === 'deslocamento') {
-            setShowMissaoDeslocamento(true);
           } else {
             setShowMissaoModal(true);
           }
@@ -538,7 +545,11 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         motoristas={motoristasCadastrados}
         pontos={pontosEmbarque}
         onSave={async (data) => {
-          await createMissao(data);
+          const missao = await createMissao(data);
+          if (missao?.id) {
+            await aceitarMissao(missao.id);
+            await iniciarMissao(missao.id);
+          }
         }}
       />
 
