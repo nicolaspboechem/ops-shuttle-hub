@@ -221,7 +221,7 @@ export function calcularKPIsDashboard(viagens: Viagem[], agoraSincronizado?: Dat
 
   // Calcular alertas apenas para viagens ativas com h_pickup
   const alertas: AlertaViagem[] = [];
-  viagensAtivas.filter(v => v.h_pickup).forEach(viagem => {
+  viagensAtivas.filter(v => v.h_pickup && !v.h_chegada).forEach(viagem => {
     const metricaMotorista = metricasMotoristas.find(
       m => m.motorista === viagem.motorista
     );
