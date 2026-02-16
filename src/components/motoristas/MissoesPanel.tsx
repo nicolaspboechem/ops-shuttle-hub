@@ -22,7 +22,7 @@ import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
 import { MissaoCard } from '@/components/motoristas/MissaoCard';
 import { MissaoKanbanCard } from '@/components/motoristas/MissaoKanbanCard';
-import { MissaoKanbanColumnPaginated } from '@/components/motoristas/MissaoKanbanColumnPaginated';
+import { MissaoKanbanColumn } from '@/components/motoristas/MissaoKanbanColumn';
 import { MissaoTipoModal, MissaoTipo } from '@/components/motoristas/MissaoTipoModal';
 import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
 import { MissaoDeslocamentoModal } from '@/components/motoristas/MissaoDeslocamentoModal';
@@ -446,17 +446,27 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {missaoKanbanColumns.map(col => (
-              <MissaoKanbanColumnPaginated
+              <MissaoKanbanColumn
                 key={col.id}
                 id={col.id}
                 title={col.title}
+                count={missoesByStatus[col.id]?.length || 0}
                 accentColor={col.accent}
-                missoes={missoesByStatus[col.id] || []}
-                motoristas={motoristasCadastrados}
-                onEdit={(missao) => { setEditingMissao(missao); setShowMissaoModal(true); }}
-                onDelete={(id) => handleDeleteMissao(id)}
-                onStatusChange={(id, status) => handleStatusChange(id, status)}
-              />
+              >
+                {(missoesByStatus[col.id] || []).map(missao => {
+                  const motorista = motoristasCadastrados.find(m => m.id === missao.motorista_id);
+                  return (
+                    <MissaoKanbanCard
+                      key={missao.id}
+                      missao={missao}
+                      motoristaNome={motorista?.nome}
+                      onEdit={() => { setEditingMissao(missao); setShowMissaoModal(true); }}
+                      onDelete={() => handleDeleteMissao(missao.id)}
+                      onStatusChange={(status) => handleStatusChange(missao.id, status)}
+                    />
+                  );
+                })}
+              </MissaoKanbanColumn>
             ))}
           </div>
           <DragOverlay>
