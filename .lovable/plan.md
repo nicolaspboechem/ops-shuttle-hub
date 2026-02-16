@@ -1,73 +1,100 @@
 
-
-# Filtros Avancados, Ordenacao e Correcao de Titulo nas Missoes
+# Paginacao com "Ver Mais" em Listas de Viagens
 
 ## Resumo
 
-Tres melhorias no painel de missoes do CCO:
-1. Adicionar filtros de **Veiculo** (com busca no dropdown), **Prioridade**
-2. Ordenar missoes por horario: instantaneas primeiro, agendadas em ordem crescente
-3. Corrigir titulo do card kanban para quebrar texto ao inves de truncar
+Adicionar paginacao com limite inicial de 20 itens e botao "Ver mais" em todas as listas de viagens/historico do sistema. O usuario podera escolher quantas linhas carregar por vez (20, 50, 100). Isso reduz o volume de dados renderizados e melhora o desempenho em dispositivos moveis e com muitos registros.
+
+**Importante:** A paginacao sera no frontend (sobre os dados ja carregados), pois os hooks `useViagens` ja trazem dados filtrados por dia operacional. O ganho e na renderizacao, nao na query.
 
 ---
 
-## 1. Novos Filtros no MissoesPanel
+## Locais Afetados
 
-**Arquivo:** `src/components/motoristas/MissoesPanel.tsx`
+| Arquivo | Contexto |
+|---------|----------|
+| `src/components/viagens/ViagensTable.tsx` | Tabela do CCO (Viagens Finalizadas e Ativas) |
+| `src/components/shuttle/ShuttleTable.tsx` | Tabela de Shuttles no CCO |
+| `src/components/transfer/TransferTable.tsx` | Tabela de Transfers no CCO |
+| `src/components/app/MotoristaHistoricoTab.tsx` | Historico do app do motorista |
+| `src/components/app/OperadorHistoricoTab.tsx` | Historico do app do operador (apenas resumo, sem lista -- nao precisa) |
+| `src/pages/app/AppOperador.tsx` | Lista de shuttles encerrados no app do operador |
+| `src/components/app/SupervisorViagensTab.tsx` | Lista de viagens ativas no app do supervisor |
 
-### Filtro de Veiculo (com busca)
-- Novo state `missaoVeiculoFilter`
-- Usar componente `Popover` + `Command` (cmdk) para criar um dropdown com barra de pesquisa
-- Listar veiculos unicos extraidos dos motoristas cadastrados (relacao `motorista.veiculos`)
-- Filtrar missoes pelo `veiculo_placa` ou `veiculo_nome`
+---
 
-### Filtro de Prioridade
-- Novo state `missaoPrioridadeFilter`
-- Select simples com opcoes: Todas, Baixa, Normal, Alta, Urgente
-- Filtrar no `filteredMissoes` por `m.prioridade`
+## Implementacao
 
-### Atualizacoes
-- Adicionar ambos filtros ao `hasActiveMissaoFilters` e `clearMissaoFilters`
-- Incluir no `filteredMissoes` useMemo
+### 1. Hook reutilizavel `usePaginatedList`
 
-## 2. Ordenacao por Horario
-
-**Arquivo:** `src/components/motoristas/MissoesPanel.tsx`
-
-Apos a filtragem no `filteredMissoes`, adicionar `.sort()`:
+Criar um hook simples em `src/hooks/usePaginatedList.ts` que encapsula a logica de paginacao:
 
 ```text
-Criterio:
-1. Missoes sem horario_previsto (instantaneas) vem primeiro
-2. Missoes com horario_previsto ordenadas em ordem crescente (08:00 antes de 14:00)
+Parametros:
+- items: T[] (lista completa)
+- defaultPageSize: number (padrao 20)
+
+Retorna:
+- visibleItems: T[] (itens visiveis ate o momento)
+- hasMore: boolean
+- loadMore: () => void
+- total: number
+- pageSize: number
+- setPageSize: (n: number) => void
+- reset: () => void
 ```
 
-A ordenacao sera aplicada dentro do `useMemo` do `filteredMissoes`, garantindo que afeta kanban, cards e lista.
+O hook usa um state interno `visibleCount` que comeca em `defaultPageSize` e incrementa por `pageSize` a cada `loadMore()`. Quando os items mudam (novo filtro/dia), faz reset automatico.
 
-Dentro do `missoesByStatus`, cada grupo tambem sera ordenado pelo mesmo criterio.
+### 2. Componente `LoadMoreFooter`
 
-## 3. Corrigir Titulo Truncado no Card Kanban
+Criar um componente pequeno reutilizavel que renderiza:
+- Texto "Exibindo X de Y"
+- Botao "Ver mais" (quando `hasMore`)
+- Seletor de linhas por vez: 20 | 50 | 100
 
-**Arquivo:** `src/components/motoristas/MissaoKanbanCard.tsx`
+### 3. Aplicar nos componentes
 
-Linha atual:
-```
-<h4 className="font-semibold text-sm leading-tight truncate">
-```
+#### `ViagensTable.tsx`
+- Receber `viagens` normalmente
+- Internamente usar `usePaginatedList(viagens)`
+- Renderizar apenas `visibleItems` no `<TableBody>`
+- Adicionar `<LoadMoreFooter>` abaixo da tabela
 
-Alterar para:
-```
-<h4 className="font-semibold text-sm leading-tight break-words">
-```
+#### `ShuttleTable.tsx`
+- Mesmo padrao: paginar internamente
 
-Remover `truncate` e adicionar `break-words` para que o titulo quebre em multiplas linhas dentro da largura do card.
+#### `TransferTable.tsx`
+- Mesmo padrao: paginar internamente
+
+#### `MotoristaHistoricoTab.tsx`
+- Paginar a lista `viagensDoDia` antes de renderizar os cards
+- Adicionar `<LoadMoreFooter>` abaixo da lista
+
+#### `AppOperador.tsx`
+- Paginar `sortedEncerradas` na secao "Encerradas"
+- Adicionar `<LoadMoreFooter>` abaixo dos `ShuttleRegistroCard`
+
+#### `SupervisorViagensTab.tsx`
+- Paginar `filteredViagens` na lista de viagens ativas
+- Adicionar `<LoadMoreFooter>` abaixo dos cards
 
 ---
+
+## Arquivos Novos
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/hooks/usePaginatedList.ts` | Hook de paginacao reutilizavel |
+| `src/components/ui/load-more-footer.tsx` | Componente de rodape com "Ver mais" e seletor de tamanho |
 
 ## Arquivos Alterados
 
-| Arquivo | Acao |
-|---------|------|
-| `src/components/motoristas/MissoesPanel.tsx` | Filtros de veiculo (com busca) e prioridade + ordenacao |
-| `src/components/motoristas/MissaoKanbanCard.tsx` | Remover truncate do titulo |
-
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/viagens/ViagensTable.tsx` | Adicionar paginacao interna |
+| `src/components/shuttle/ShuttleTable.tsx` | Adicionar paginacao interna |
+| `src/components/transfer/TransferTable.tsx` | Adicionar paginacao interna |
+| `src/components/app/MotoristaHistoricoTab.tsx` | Paginar lista de viagens do dia |
+| `src/pages/app/AppOperador.tsx` | Paginar lista de encerradas |
+| `src/components/app/SupervisorViagensTab.tsx` | Paginar lista de viagens ativas |
