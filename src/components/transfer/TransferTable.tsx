@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Edit2, MapPin, User, Clock, Bus, Radio } from 'lucide-react';
 import {
   Table,
@@ -27,6 +29,7 @@ interface TransferTableProps {
 
 export function TransferTable({ viagens, onUpdate }: TransferTableProps) {
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
+  const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
   
   // Get unique creator IDs to fetch names
   const creatorIds = useMemo(() => 
@@ -84,7 +87,7 @@ export function TransferTable({ viagens, onUpdate }: TransferTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {viagens.map((viagem) => {
+            {visibleItems.map((viagem) => {
               const tempoViagem = viagem.h_chegada 
                 ? calcularTempoViagem(viagem.h_pickup, viagem.h_chegada)
                 : null;
@@ -202,6 +205,14 @@ export function TransferTable({ viagens, onUpdate }: TransferTableProps) {
           </TableBody>
         </Table>
       </div>
+      <LoadMoreFooter
+        total={total}
+        visible={visibleItems.length}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
+      />
 
       {editingViagem && (
         <EditViagemModal
