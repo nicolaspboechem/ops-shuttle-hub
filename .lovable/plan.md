@@ -1,41 +1,64 @@
 
-# Corrigir Alertas Criticos Falsos e Adicionar Botao "Lido"
 
-## Problema Identificado
+# Melhorias no Sistema de Gestao de Veiculos
 
-Na funcao `calcularKPIsDashboard` (arquivo `calculadores.ts`, linha 214-229), os alertas sao calculados para todas as viagens onde `encerrado === false`. Porem, viagens que ja chegaram ao destino (tem `h_chegada` preenchido) mas ainda nao foram encerradas (status `aguardando_retorno`, por exemplo) continuam sendo avaliadas. A funcao `calcularStatusViagem` calcula o tempo decorrido desde o pickup ate agora, gerando alertas criticos falsos para viagens que ja finalizaram a perna de ida.
+## 1. Paginacao
 
-## Correcao do Bug
+### 1.1 Lista de Veiculos (VeiculosListView)
+- Aplicar `usePaginatedList(veiculos)` na tabela de veiculos
+- Adicionar `<LoadMoreFooter>` abaixo da tabela
+- Mesma abordagem usada em ViagensTable, ShuttleTable, etc.
 
-**Arquivo:** `src/lib/utils/calculadores.ts`
+### 1.2 Auditoria de Veiculos (VeiculosAuditoria)
+- Paginar `metricasConsolidadas` nas vistas Card e Lista
+- Adicionar `<LoadMoreFooter>` abaixo do grid de cards e abaixo da tabela
 
-Na linha 224, onde filtra viagens para calcular alertas:
+### 1.3 Historico de Uso (VeiculosUsoAuditoria)
+- Paginar `veiculosFiltrados` na lista de veiculos collapsiveis
+- Adicionar `<LoadMoreFooter>` abaixo da lista
 
-**Antes:**
-```
-viagensAtivas.filter(v => v.h_pickup).forEach(viagem => {
-```
+---
 
-**Depois:**
-```
-viagensAtivas.filter(v => v.h_pickup && !v.h_chegada).forEach(viagem => {
-```
+## 2. Correcao do Historico de Uso de Veiculos
 
-Viagens que ja possuem `h_chegada` ja completaram a perna de ida. Nao faz sentido monitorar o tempo de deslocamento delas -- o tempo ja esta definido. Apenas viagens em transito (sem `h_chegada`) devem gerar alertas de tempo.
+### Problema
+O historico de uso (`useVeiculoPresencaHistorico`) consulta apenas a tabela `motorista_presenca` -- ou seja, so registra uso quando o motorista faz check-in/check-out formal. Muitos veiculos sao vinculados/desvinculados sem presenca formal, resultando em poucos registros.
 
-## Botao "Lido" no Painel de Alertas
+O componente `VeiculoUsoDetalheModal` (modal de detalhe do veiculo) ja tem uma aba de historico que mescla dados de presenca + viagens. O `VeiculosUsoAuditoria` (tela de auditoria) porem usa apenas presenca.
 
-**Arquivo:** `src/components/dashboard/AlertsPanel.tsx`
+### Solucao
+Enriquecer o hook `useVeiculoPresencaHistorico` para tambem consultar a tabela `veiculo_vistoria_historico` (tipos `vinculacao` e `desvinculacao`) e incluir esses registros na timeline de uso de cada veiculo. Isso garante que trocas feitas pelo CCO, supervisor ou auto-checkout aparecam no historico.
 
-Adicionar um estado local `dismissedIds` (Set de IDs de viagens) que persiste durante a sessao. Para cada alerta exibido, mostrar um botao "Lido" que adiciona o `viagemId` ao set, removendo-o visualmente da lista.
+Alterar o hook para:
+1. Buscar tambem `veiculo_vistoria_historico` filtrando por `tipo_vistoria IN ('vinculacao', 'desvinculacao')`
+2. Mesclar esses registros com os de `motorista_presenca` na lista `usos` de cada veiculo
+3. Diferenciar visualmente na tabela com um badge indicando o tipo (check-in/out vs vinculacao/desvinculacao)
 
-- O estado sera gerenciado internamente no componente `AlertsPanel`
-- Filtrar `criticos` e `alertas` removendo os IDs no `dismissedIds`
-- Botao pequeno com icone CheckCircle + texto "Lido" no canto de cada `AlertItem`
-- Ao clicar, o alerta desaparece da lista e os contadores se atualizam
-- O estado reseta automaticamente quando os dados mudam (novo refresh)
+---
 
-Nao sera necessario persistir no banco pois os alertas sao recalculados a cada atualizacao de dados. Se a viagem for realmente encerrada no proximo ciclo, o alerta desaparece naturalmente.
+## 3. Registro de Historico em Desvinculacoes Faltantes
+
+### Locais que desvinculam SEM registrar no historico:
+
+| Local | Contexto |
+|-------|----------|
+| `SupervisorFrotaTab.tsx` (handleUnlinkVehicle) | Supervisor desvincula pelo app |
+| `useMotoristaPresenca.ts` (handleCheckout) | Check-out do motorista |
+| `auto-checkout/index.ts` | Virada automatica do dia |
+
+### Locais que JA registram historico:
+| Local | Contexto |
+|-------|----------|
+| `VincularVeiculo.tsx` | Vinculacao e desvinculacao via tela dedicada |
+| `CheckoutModal.tsx` | Checkout com observacao |
+
+### Correcoes:
+
+**SupervisorFrotaTab.tsx**: Adicionar insert em `veiculo_vistoria_historico` com tipo `desvinculacao` ao desvincular, incluindo nome do supervisor (via `staffUser`) como `realizado_por_nome`.
+
+**useMotoristaPresenca.ts** (handleCheckout): Adicionar insert em `veiculo_vistoria_historico` com tipo `desvinculacao` ao fazer checkout (o veiculo e desvinculado mas o historico nao e registrado).
+
+**auto-checkout/index.ts**: Antes de limpar `veiculo_id`/`motorista_id`, buscar quais motoristas tinham veiculos vinculados e inserir registros de desvinculacao em batch na tabela `veiculo_vistoria_historico`.
 
 ---
 
@@ -43,5 +66,11 @@ Nao sera necessario persistir no banco pois os alertas sao recalculados a cada a
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/lib/utils/calculadores.ts` | Filtrar viagens com `h_chegada` do calculo de alertas |
-| `src/components/dashboard/AlertsPanel.tsx` | Adicionar botao "Lido" para dispensar alertas |
+| `src/components/veiculos/VeiculosListView.tsx` | Paginacao na tabela de veiculos |
+| `src/components/veiculos/VeiculosAuditoria.tsx` | Paginacao nas vistas card e lista |
+| `src/components/veiculos/VeiculosUsoAuditoria.tsx` | Paginacao na lista de veiculos + badge de tipo de registro |
+| `src/hooks/useVeiculoPresencaHistorico.ts` | Incluir dados de `veiculo_vistoria_historico` (vinculacao/desvinculacao) |
+| `src/components/app/SupervisorFrotaTab.tsx` | Registrar historico ao desvincular |
+| `src/hooks/useMotoristaPresenca.ts` | Registrar historico ao fazer checkout |
+| `supabase/functions/auto-checkout/index.ts` | Registrar historico das desvinculacoes automaticas |
+
