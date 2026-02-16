@@ -74,6 +74,9 @@ export function MissaoInstantaneaModal({
     const pontoOrigemData = activePontos.find(p => p.nome === pontoEmbarque);
     const pontoDestinoData = activePontos.find(p => p.nome === pontoDesembarque);
 
+    const agora = getAgoraSync();
+    const horaAtual = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+
     setSaving(true);
     await onSave({
       motorista_id: motoristaId,
@@ -82,9 +85,10 @@ export function MissaoInstantaneaModal({
       ponto_desembarque: pontoDesembarque,
       ponto_embarque_id: pontoOrigemData?.id || null,
       ponto_desembarque_id: pontoDestinoData?.id || null,
+      horario_previsto: horaAtual,
       prioridade: 'normal',
       qtd_pax: 0,
-      data_programada: getDataOperacional(getAgoraSync(), '04:00'),
+      data_programada: getDataOperacional(agora, '04:00'),
     });
     setSaving(false);
     onOpenChange(false);
