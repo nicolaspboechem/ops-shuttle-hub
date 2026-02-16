@@ -1,76 +1,87 @@
 
 
-# Melhorias no Sistema de Gestao de Veiculos
+# Correcao da Logica de Historico de Uso de Veiculos
 
-## 1. Paginacao
+## Conceito Central
 
-### 1.1 Lista de Veiculos (VeiculosListView)
-- Aplicar `usePaginatedList(veiculos)` na tabela de veiculos
-- Adicionar `<LoadMoreFooter>` abaixo da tabela
-- Mesma abordagem usada em ViagensTable, ShuttleTable, etc.
+O uso de um veiculo e definido pelo ciclo **vinculacao -> desvinculacao** no proprio veiculo, independentemente do motorista. Veiculos sao rotativos: motorista A pode vincular e motorista B pode usar depois. O pareamento e feito por ordem cronologica no veiculo, nao por motorista.
 
-### 1.2 Auditoria de Veiculos (VeiculosAuditoria)
-- Paginar `metricasConsolidadas` nas vistas Card e Lista
-- Adicionar `<LoadMoreFooter>` abaixo do grid de cards e abaixo da tabela
+Cada ciclo de uso = 1 vinculacao seguida da proxima desvinculacao naquele veiculo. A duracao = `desvinculacao.created_at - vinculacao.created_at`.
 
-### 1.3 Historico de Uso (VeiculosUsoAuditoria)
-- Paginar `veiculosFiltrados` na lista de veiculos collapsiveis
-- Adicionar `<LoadMoreFooter>` abaixo da lista
+## Fontes de Dados
 
----
+A tabela `veiculo_vistoria_historico` e a fonte principal. Registros relevantes:
 
-## 2. Correcao do Historico de Uso de Veiculos
+- `tipo_vistoria = 'vinculacao'` -- veiculo atribuido a um motorista
+- `tipo_vistoria = 'desvinculacao'` -- veiculo liberado (checkout, troca, supervisor, auto-checkout)
 
-### Problema
-O historico de uso (`useVeiculoPresencaHistorico`) consulta apenas a tabela `motorista_presenca` -- ou seja, so registra uso quando o motorista faz check-in/check-out formal. Muitos veiculos sao vinculados/desvinculados sem presenca formal, resultando em poucos registros.
+O checkout do motorista (`useMotoristaPresenca.handleCheckout`) ja registra desvinculacao na tabela (implementado na iteracao anterior). O mesmo vale para supervisor e auto-checkout.
 
-O componente `VeiculoUsoDetalheModal` (modal de detalhe do veiculo) ja tem uma aba de historico que mescla dados de presenca + viagens. O `VeiculosUsoAuditoria` (tela de auditoria) porem usa apenas presenca.
+## Logica de Pareamento
 
-### Solucao
-Enriquecer o hook `useVeiculoPresencaHistorico` para tambem consultar a tabela `veiculo_vistoria_historico` (tipos `vinculacao` e `desvinculacao`) e incluir esses registros na timeline de uso de cada veiculo. Isso garante que trocas feitas pelo CCO, supervisor ou auto-checkout aparecam no historico.
+Para cada veiculo:
+1. Buscar todos os registros de vinculacao e desvinculacao, ordenados por `created_at` crescente
+2. Percorrer sequencialmente: cada `vinculacao` abre um ciclo de uso
+3. A proxima `desvinculacao` (qualquer motorista) fecha o ciclo
+4. Se nao houver desvinculacao, o veiculo esta "Em uso" atualmente
+5. Calcular duracao em minutos entre vinculacao e desvinculacao
 
-Alterar o hook para:
-1. Buscar tambem `veiculo_vistoria_historico` filtrando por `tipo_vistoria IN ('vinculacao', 'desvinculacao')`
-2. Mesclar esses registros com os de `motorista_presenca` na lista `usos` de cada veiculo
-3. Diferenciar visualmente na tabela com um badge indicando o tipo (check-in/out vs vinculacao/desvinculacao)
+Exemplo de timeline de um veiculo:
+```text
+09:00 vinculacao  (motorista A) -> abre ciclo 1
+12:00 desvinculacao (motorista A) -> fecha ciclo 1 (3h)
+14:00 vinculacao  (motorista B) -> abre ciclo 2
+18:00 desvinculacao (motorista B) -> fecha ciclo 2 (4h)
+```
 
----
+## Estrutura do Registro de Uso
 
-## 3. Registro de Historico em Desvinculacoes Faltantes
+Cada ciclo gera um registro com:
+- `vinculado_em`: timestamp da vinculacao
+- `desvinculado_em`: timestamp da desvinculacao (ou null = em uso)
+- `motorista_nome`: nome do motorista que recebeu o veiculo (da vinculacao)
+- `duracao_minutos`: diferenca entre desvinculacao e vinculacao
+- `vinculado_por`: quem realizou a vinculacao (`realizado_por_nome`)
+- `desvinculado_por`: quem realizou a desvinculacao
+- `observacoes`: observacoes da desvinculacao (ex: checkout com nota)
 
-### Locais que desvinculam SEM registrar no historico:
+## Alteracoes
 
-| Local | Contexto |
-|-------|----------|
-| `SupervisorFrotaTab.tsx` (handleUnlinkVehicle) | Supervisor desvincula pelo app |
-| `useMotoristaPresenca.ts` (handleCheckout) | Check-out do motorista |
-| `auto-checkout/index.ts` | Virada automatica do dia |
+### `src/hooks/useVeiculoPresencaHistorico.ts`
 
-### Locais que JA registram historico:
-| Local | Contexto |
-|-------|----------|
-| `VincularVeiculo.tsx` | Vinculacao e desvinculacao via tela dedicada |
-| `CheckoutModal.tsx` | Checkout com observacao |
+Reescrever a logica de agregacao:
+- Remover `motorista_presenca` como fonte de usos (manter query apenas se necessario para estatisticas complementares)
+- Usar exclusivamente `veiculo_vistoria_historico` com tipos `vinculacao` e `desvinculacao`
+- No `useMemo`, agrupar por `veiculo_id`, ordenar por `created_at` crescente
+- Percorrer sequencialmente pareando vinculacao com proxima desvinculacao (independente do motorista)
+- Atualizar a interface `VeiculoUsoRegistro` para os novos campos:
+  - `vinculado_em` (substituindo `checkin_at`)
+  - `desvinculado_em` (substituindo `checkout_at`)
+  - `vinculado_por` / `desvinculado_por`
+  - `em_uso` (boolean, quando nao ha desvinculacao)
+- Recalcular estatisticas baseadas nos ciclos pareados
 
-### Correcoes:
+### `src/components/veiculos/VeiculosUsoAuditoria.tsx`
 
-**SupervisorFrotaTab.tsx**: Adicionar insert em `veiculo_vistoria_historico` com tipo `desvinculacao` ao desvincular, incluindo nome do supervisor (via `staffUser`) como `realizado_por_nome`.
+Ajustar a tabela para as novas colunas:
+- "Vinculado em" em vez de "Check-in"
+- "Desvinculado em" em vez de "Check-out" (exibir badge "Em uso" se null)
+- "Por" -- quem realizou a acao
+- Manter coluna de duracao e observacoes
+- Atualizar exportacao Excel com novos campos
 
-**useMotoristaPresenca.ts** (handleCheckout): Adicionar insert em `veiculo_vistoria_historico` com tipo `desvinculacao` ao fazer checkout (o veiculo e desvinculado mas o historico nao e registrado).
+### `src/components/veiculos/VeiculoUsoDetalheModal.tsx`
 
-**auto-checkout/index.ts**: Antes de limpar `veiculo_id`/`motorista_id`, buscar quais motoristas tinham veiculos vinculados e inserir registros de desvinculacao em batch na tabela `veiculo_vistoria_historico`.
-
----
+Atualizar o modal de detalhes para exibir:
+- Quem vinculou e quem desvinculou
+- Status "Em uso" quando aplicavel
+- Labels corretos (vinculacao/desvinculacao em vez de check-in/out)
 
 ## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/components/veiculos/VeiculosListView.tsx` | Paginacao na tabela de veiculos |
-| `src/components/veiculos/VeiculosAuditoria.tsx` | Paginacao nas vistas card e lista |
-| `src/components/veiculos/VeiculosUsoAuditoria.tsx` | Paginacao na lista de veiculos + badge de tipo de registro |
-| `src/hooks/useVeiculoPresencaHistorico.ts` | Incluir dados de `veiculo_vistoria_historico` (vinculacao/desvinculacao) |
-| `src/components/app/SupervisorFrotaTab.tsx` | Registrar historico ao desvincular |
-| `src/hooks/useMotoristaPresenca.ts` | Registrar historico ao fazer checkout |
-| `supabase/functions/auto-checkout/index.ts` | Registrar historico das desvinculacoes automaticas |
+| `src/hooks/useVeiculoPresencaHistorico.ts` | Nova logica de pareamento sequencial por veiculo |
+| `src/components/veiculos/VeiculosUsoAuditoria.tsx` | Colunas e labels atualizados |
+| `src/components/veiculos/VeiculoUsoDetalheModal.tsx` | Exibir novos campos no detalhe |
 
