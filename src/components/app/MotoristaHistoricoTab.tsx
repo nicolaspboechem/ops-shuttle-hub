@@ -9,7 +9,10 @@ import {
   Users, 
   LogOut,
   TrendingUp,
-  Car
+  Car,
+  Target,
+  Route,
+  ArrowRightLeft
 } from 'lucide-react';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -112,6 +115,16 @@ export function MotoristaHistoricoTab({
     return `${minutos}min`;
   };
 
+  const getViagemTipoBadge = (viagem: Viagem) => {
+    if (viagem.observacao?.includes('Deslocamento:')) {
+      return { label: 'Deslocamento', icon: Route, className: 'bg-teal-500/10 text-teal-600 border-teal-500/20' };
+    }
+    if (viagem.origem_missao_id) {
+      return { label: 'Missão', icon: Target, className: 'bg-purple-500/10 text-purple-600 border-purple-500/20' };
+    }
+    return { label: 'Transfer', icon: ArrowRightLeft, className: 'bg-primary/10 text-primary border-primary/20' };
+  };
+
   return (
     <div className="space-y-4">
       {/* Seletor de Data */}
@@ -176,17 +189,27 @@ export function MotoristaHistoricoTab({
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {isEncerrado ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                       ) : (
-                        <XCircle className="h-4 w-4 text-destructive" />
+                        <XCircle className="h-4 w-4 text-destructive shrink-0" />
                       )}
                       <span className="font-medium text-sm">
                         {viagem.ponto_embarque || 'Origem'} → {viagem.ponto_desembarque || 'Destino'}
                       </span>
+                      {(() => {
+                        const tipoBadge = getViagemTipoBadge(viagem);
+                        const TipoIcon = tipoBadge.icon;
+                        return (
+                          <Badge variant="outline" className={`text-[10px] gap-0.5 px-1.5 py-0 ${tipoBadge.className}`}>
+                            <TipoIcon className="h-2.5 w-2.5" />
+                            {tipoBadge.label}
+                          </Badge>
+                        );
+                      })()}
                     </div>
-                    <Badge variant={isEncerrado ? 'outline' : 'destructive'} className="text-xs">
+                    <Badge variant={isEncerrado ? 'outline' : 'destructive'} className="text-xs shrink-0">
                       {isEncerrado ? 'Finalizada' : 'Cancelada'}
                     </Badge>
                   </div>
