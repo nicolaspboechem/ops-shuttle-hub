@@ -348,7 +348,17 @@ export default function AppMotorista() {
           return;
         }
 
-        const viagemId = missao.viagem_id;
+        // Buscar viagem_id atualizado do banco (pode estar null no estado local por race condition)
+        let viagemId = missao.viagem_id;
+        if (!viagemId) {
+          const { data: missaoAtualizada } = await supabase
+            .from('missoes')
+            .select('viagem_id')
+            .eq('id', missaoId)
+            .maybeSingle();
+          viagemId = missaoAtualizada?.viagem_id || null;
+        }
+
         const now = getAgoraSync(); // ✅ Usa hora sincronizada do servidor
         const horaChegada = now.toTimeString().slice(0, 8);
         

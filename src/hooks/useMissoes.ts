@@ -423,7 +423,7 @@ export function useMissoes(eventoId: string | undefined) {
     return result;
   };
 
-  const syncMotoristaAoEncerrarMissao = async (missao: Missao, nowISO?: string) => {
+  const syncMotoristaAoEncerrarMissao = async (missao: Missao, nowISO?: string, atualizarLocalizacao = true) => {
     const now = nowISO || getAgoraSync().toISOString();
 
     if (missao.viagem_id) {
@@ -449,7 +449,7 @@ export function useMissoes(eventoId: string | undefined) {
       const updateData: Record<string, any> = {
         status: 'disponivel',
       };
-      if (missao.ponto_desembarque) {
+      if (atualizarLocalizacao && missao.ponto_desembarque) {
         updateData.ultima_localizacao = missao.ponto_desembarque;
         updateData.ultima_localizacao_at = now;
       }
@@ -481,7 +481,8 @@ export function useMissoes(eventoId: string | undefined) {
       .maybeSingle();
 
     if (missao && (missao.status === 'aceita' || missao.status === 'em_andamento')) {
-      await syncMotoristaAoEncerrarMissao(missao as any);
+      // Ao cancelar, NÃO atualizar localização para o destino (motorista não chegou lá)
+      await syncMotoristaAoEncerrarMissao(missao as any, undefined, false);
     }
     return updateMissao(id, { status: 'cancelada' });
   };

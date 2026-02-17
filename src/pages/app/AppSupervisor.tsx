@@ -98,7 +98,7 @@ export default function AppSupervisor() {
 
   const { refetch: refetchViagens } = useViagens(eventoId, viagensOptions);
   const { refetch: refetchMotoristas } = useLocalizadorMotoristas(eventoId || '');
-  const { createMissao, aceitarMissao, iniciarMissao } = useMissoes(eventoId);
+  const { createMissao, aceitarMissao, iniciarMissao, concluirMissao, cancelarMissao } = useMissoes(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
   const { alertas, atualizarStatus: atualizarAlertaStatus } = useAlertasFrota(eventoId);
@@ -172,6 +172,8 @@ export default function AppSupervisor() {
             onRefresh={refetchViagens}
             dataOperacional={verTodosDias ? undefined : dataOperacional}
             horarioVirada={evento?.horario_virada_dia || undefined}
+            onConcluirMissao={concluirMissao}
+            onCancelarMissao={cancelarMissao}
           />
         </div>
       </div>
