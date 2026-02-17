@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -10,11 +10,11 @@ import {
   LogOut,
   ArrowLeft,
   FileBarChart,
-  Eye,
   Route,
   Map,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LucideIcon
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,48 @@ import { useEventos } from '@/hooks/useEventos';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { APP_VERSION } from '@/lib/version';
 import logoASBranca from '@/assets/as_logo_reduzida_branca.png';
+
+interface NavItemProps {
+  item: { name: string; href: string; icon: LucideIcon; dataTutorial?: string | null };
+  collapsed: boolean;
+  isBottom?: boolean;
+}
+
+const NavItem = memo(function NavItem({ item, collapsed, isBottom = false }: NavItemProps) {
+  const content = (
+    <NavLink
+      to={item.href}
+      data-tutorial={item.dataTutorial || undefined}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+        "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        collapsed && "justify-center px-2"
+      )}
+      activeClassName={isBottom 
+        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+        : "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+      }
+    >
+      <item.icon className="w-5 h-5 shrink-0" />
+      {!collapsed && <span>{item.name}</span>}
+    </NavLink>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          {content}
+        </TooltipTrigger>
+        <TooltipContent side="right" className="font-medium">
+          {item.name}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return content;
+});
 
 interface AppSidebarProps {
   collapsed?: boolean;
@@ -35,7 +77,6 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
   const { getEventoById } = useEventos();
   const navigate = useNavigate();
   
-  // Use localStorage to persist collapsed state
   const [internalCollapsed, setInternalCollapsed] = useState(() => {
     const stored = localStorage.getItem('sidebar-collapsed');
     return stored === 'true';
@@ -51,7 +92,6 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
 
   const evento = eventoId ? getEventoById(eventoId) : null;
 
-  // Seções organizadas logicamente com data-tutorial para onboarding
   const sections = [
     {
       title: 'Monitoramento',
@@ -95,42 +135,6 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
   const handleLogout = async () => {
     await signOut();
     navigate('/auth', { replace: true });
-  };
-
-  const NavItem = ({ item, isBottom = false }: { item: { name: string; href: string; icon: any; dataTutorial?: string | null }, isBottom?: boolean }) => {
-    const content = (
-      <NavLink
-        to={item.href}
-        data-tutorial={item.dataTutorial || undefined}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-          "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          collapsed && "justify-center px-2"
-        )}
-        activeClassName={isBottom 
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-        }
-      >
-        <item.icon className="w-5 h-5 shrink-0" />
-        {!collapsed && <span>{item.name}</span>}
-      </NavLink>
-    );
-
-    if (collapsed) {
-      return (
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            {content}
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-medium">
-            {item.name}
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return content;
   };
 
   return (
@@ -224,7 +228,7 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
             )}
             <div className="space-y-1">
               {section.items.map((item) => (
-                <NavItem key={item.name} item={item} />
+                <NavItem key={item.name} item={item} collapsed={collapsed} />
               ))}
             </div>
           </div>
@@ -237,7 +241,7 @@ export function AppSidebar({ collapsed: controlledCollapsed, onCollapsedChange }
         collapsed ? "px-2" : "px-3"
       )}>
         {bottomNav.map((item) => (
-          <NavItem key={item.name} item={item} isBottom />
+          <NavItem key={item.name} item={item} collapsed={collapsed} isBottom />
         ))}
         
         {collapsed ? (
