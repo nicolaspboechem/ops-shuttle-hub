@@ -1,38 +1,51 @@
 
 
-# Correcao da Logica de Historico de Uso de Veiculos
+# Desativar Auto-Checkout e Usar created_at para Filtros
 
-**STATUS: ✅ IMPLEMENTADO**
+## Problema
 
-## Conceito Central
+A Edge Function `auto-checkout` dispara 3 horas antes do horario configurado. A causa raiz: na linha 22, `serverTime.getHours()` retorna horas UTC no runtime Deno, nao horas de Sao Paulo. Quando sao 04:50 em SP, Deno le 07:50 UTC, e a funcao dispara as 01:50 SP.
 
-O uso de um veiculo e definido pelo ciclo **vinculacao -> desvinculacao** no proprio veiculo, independentemente do motorista. Veiculos sao rotativos: motorista A pode vincular e motorista B pode usar depois. O pareamento e feito por ordem cronologica no veiculo, nao por motorista.
+## Decisao do Usuario
 
-Cada ciclo de uso = 1 vinculacao seguida da proxima desvinculacao naquele veiculo. A duracao = `desvinculacao.created_at - vinculacao.created_at`.
+Desativar o auto-checkout completamente. O historico de veiculos ja usa `created_at` das acoes reais (vinculacao/desvinculacao) como filtro de data -- isso e suficiente e mais confiavel.
 
-## Fontes de Dados
+## Alteracoes
 
-A tabela `veiculo_vistoria_historico` e a fonte principal. Registros relevantes:
+### 1. Remover o cron job do banco de dados
 
-- `tipo_vistoria = 'vinculacao'` -- veiculo atribuido a um motorista
-- `tipo_vistoria = 'desvinculacao'` -- veiculo liberado (checkout, troca, supervisor, auto-checkout)
+Executar SQL para remover o job que chama a funcao a cada 15 minutos:
 
-O checkout do motorista (`useMotoristaPresenca.handleCheckout`) ja registra desvinculacao na tabela (implementado na iteracao anterior). O mesmo vale para supervisor e auto-checkout.
+```text
+SELECT cron.unschedule(2);
+```
 
-### Todas as origens de desvinculacao (ja implementadas)
+O job ID 2 e o que dispara `auto-checkout` a cada 15 minutos.
 
-| Origem | Arquivo | O que acontece |
-|--------|---------|----------------|
-| Checkout do motorista | `useMotoristaPresenca.ts` | Motorista encerra expediente, veiculo desvinculado e registrado |
-| Troca de veiculo pelo CCO | `VincularVeiculo.tsx` | Operador troca veiculo, desvinculacao do anterior registrada |
-| Supervisor desvincula | `SupervisorFrotaTab.tsx` | Supervisor remove veiculo pelo app, registrado |
-| Virada do dia (auto-checkout) | `auto-checkout/index.ts` | Sistema encerra expediente automaticamente, desvinculacao em batch registrada |
-| Checkout com observacao | `CheckoutModal.tsx` | Checkout formal com nota, desvinculacao registrada |
+### 2. Desativar a Edge Function `auto-checkout`
+
+Reescrever o `index.ts` para retornar uma resposta indicando que a funcao esta desativada, sem executar nenhuma logica. Isso evita erros caso alguma chamada manual ainda aconteca.
+
+A funcao passara a retornar: `{ "message": "Auto-checkout desativado", "disabled": true }`
+
+### 3. Nenhuma alteracao no frontend
+
+O hook `useVeiculoPresencaHistorico` ja filtra por `created_at` das acoes de vinculacao/desvinculacao -- nao depende do auto-checkout. Os filtros de data continuam funcionando normalmente baseados nos timestamps reais das acoes.
+
+## Impacto
+
+| Item | Antes | Depois |
+|------|-------|--------|
+| Viagens abertas na virada | Fechadas automaticamente | Permanecem abertas ate acao manual |
+| Missoes pendentes na virada | Canceladas automaticamente | Permanecem no status atual |
+| Presenca sem checkout | Auto-checkout registrado | Permanece aberta ate checkout manual |
+| Desvinculacao de veiculos | Automatica na virada | Apenas por acao manual (checkout, supervisor, troca) |
+| Historico de uso de veiculos | Continha registros de "Auto-checkout" | Apenas acoes reais |
 
 ## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/hooks/useVeiculoPresencaHistorico.ts` | Nova logica de pareamento sequencial por veiculo |
-| `src/components/veiculos/VeiculosUsoAuditoria.tsx` | Colunas e labels atualizados |
-| `src/components/veiculos/VeiculoUsoDetalheModal.tsx` | Exibir novos campos no detalhe |
+| `supabase/functions/auto-checkout/index.ts` | Substituir logica por resposta de "desativado" |
+| Banco de dados (cron job) | Remover o agendamento via SQL |
+
