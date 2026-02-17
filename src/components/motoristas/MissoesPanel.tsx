@@ -48,6 +48,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   // Filter states
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
+  const [motoristaFilterOpen, setMotoristaFilterOpen] = useState(false);
   const [missaoPontoAFilter, setMissaoPontoAFilter] = useState<string>('all');
   const [missaoPontoBFilter, setMissaoPontoBFilter] = useState<string>('all');
   const [missaoVeiculoFilter, setMissaoVeiculoFilter] = useState<string>('all');
@@ -345,18 +346,46 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
               <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={missaoMotoristaFilter} onValueChange={setMissaoMotoristaFilter}>
-            <SelectTrigger className="w-[180px]">
-              <User className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Motorista" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos motoristas</SelectItem>
-              {motoristasCadastrados.filter(m => m.ativo).map(m => (
-                <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={motoristaFilterOpen} onOpenChange={setMotoristaFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" role="combobox" aria-expanded={motoristaFilterOpen} className="w-[180px] justify-between">
+                <User className="w-4 h-4 mr-2 shrink-0" />
+                <span className="truncate">
+                  {missaoMotoristaFilter === 'all'
+                    ? 'Motorista'
+                    : motoristasCadastrados.find(m => m.id === missaoMotoristaFilter)?.nome || 'Motorista'}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[220px] p-0">
+              <Command>
+                <CommandInput placeholder="Buscar motorista..." />
+                <CommandList>
+                  <CommandEmpty>Nenhum motorista encontrado.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="all"
+                      onSelect={() => { setMissaoMotoristaFilter('all'); setMotoristaFilterOpen(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", missaoMotoristaFilter === 'all' ? "opacity-100" : "opacity-0")} />
+                      Todos motoristas
+                    </CommandItem>
+                    {motoristasCadastrados.filter(m => m.ativo).map(m => (
+                      <CommandItem
+                        key={m.id}
+                        value={m.nome}
+                        onSelect={() => { setMissaoMotoristaFilter(m.id); setMotoristaFilterOpen(false); }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", missaoMotoristaFilter === m.id ? "opacity-100" : "opacity-0")} />
+                        {m.nome}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Select value={missaoPontoAFilter} onValueChange={setMissaoPontoAFilter}>
             <SelectTrigger className="w-[160px]">
               <MapPin className="w-4 h-4 mr-2" />
