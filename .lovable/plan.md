@@ -1,36 +1,41 @@
 
+# Adicionar Pesquisa no Dropdown de Motorista (Filtro de Missoes)
 
-# Corrigir Modal de Alertas de Combustivel no App Supervisor
+## Problema
 
-## Problemas Identificados
+No Mapa de Servico, aba Missoes, o filtro de motorista usa um dropdown simples (`Select`) sem campo de busca. Com muitos motoristas, fica dificil encontrar o desejado.
 
-1. **Conteudo cortado**: O Sheet bottom usa `h-[80vh]` com padding `p-6` do componente base, mas o calculo do `max-h` interno nao desconta corretamente o padding + header
-2. **Exibe apenas placa**: Mostra `alerta.veiculo?.placa` mas nao exibe o nome/apelido do veiculo (campo `nome` ja vem do banco)
-3. **Botoes grandes demais para mobile**: 3 botoes com texto em `flex-1` ficam apertados em telas pequenas
+## Solucao
 
-## Alteracoes
+Substituir o `Select` do filtro de motorista por um combobox pesquisavel usando `Popover` + `Command` (mesmo padrao ja usado nos modais de criacao de missao).
 
-### 1. `src/components/app/SupervisorAlertasModal.tsx`
+## Alteracao
 
-**Exibir nome do veiculo + placa:**
-- Linha 85: trocar `{alerta.veiculo?.placa || '---'}` por exibir nome como principal e placa entre parenteses
-- De: `<code className="text-sm font-bold">{alerta.veiculo?.placa || '---'}</code>`
-- Para: `<span className="text-sm font-bold">{alerta.veiculo?.nome || alerta.veiculo?.placa || '---'}</span>` + placa em texto secundario quando houver nome
+### Arquivo: `src/components/motoristas/MissoesPanel.tsx`
 
-**Corrigir dimensoes mobile:**
-- Linha 62: Reduzir altura do Sheet de `h-[80vh]` para `max-h-[80vh]` para nao forcar altura fixa
-- Linha 71: Ajustar `max-h` do scroll container para usar `flex-1 overflow-y-auto` em vez de calculo fixo
-- Usar layout flex column no SheetContent para que header + conteudo se distribuam corretamente
-- Botoes: reduzir padding e usar icones sem texto em telas muito pequenas, ou empilhar verticalmente
+**Linhas 348-359** -- Substituir o bloco `<Select>` do filtro de motorista por:
 
-**Layout corrigido do SheetContent:**
-- Adicionar `flex flex-col` ao className
-- Trocar `max-h-[calc(80vh-100px)]` por `flex-1 min-h-0 overflow-y-auto` no container de alertas
+```text
+De:
+  <Select value={missaoMotoristaFilter} onValueChange={setMissaoMotoristaFilter}>
+    <SelectTrigger className="w-[180px]">
+      <User className="w-4 h-4 mr-2" />
+      <SelectValue placeholder="Motorista" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">Todos motoristas</SelectItem>
+      {motoristasCadastrados.filter(m => m.ativo).map(m => (
+        <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
 
-| Local | De | Para |
-|-------|-----|------|
-| SheetContent (L62) | `h-[80vh] rounded-t-2xl` | `max-h-[80vh] rounded-t-2xl flex flex-col` |
-| Scroll container (L71) | `mt-4 space-y-3 overflow-y-auto max-h-[calc(80vh-100px)] pb-4` | `mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pb-4` |
-| Veiculo info (L85) | `alerta.veiculo?.placa \|\| '---'` | Nome principal + `(placa)` secundario |
-| Botoes (L107-139) | `flex gap-2` com texto completo | `flex flex-wrap gap-2` com texto menor |
+Para:
+  Popover + Command com CommandInput para busca,
+  opcao "Todos motoristas" como primeiro item,
+  e lista pesquisavel dos motoristas ativos.
+```
 
+Sera necessario adicionar um state `motoristaFilterOpen` para controlar a abertura do Popover. Os imports de `Popover`, `Command`, `ChevronsUpDown`, `Check` ja existem no arquivo.
+
+Nenhum outro arquivo precisa ser alterado.
