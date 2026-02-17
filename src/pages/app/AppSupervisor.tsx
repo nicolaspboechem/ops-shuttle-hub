@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
@@ -58,7 +59,10 @@ interface Evento {
 export default function AppSupervisor() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { user, signOut, profile } = useAuth();
+  const { user, profile } = useAuth();
+  const { staffSession, signOut: staffSignOut } = useStaffAuth();
+  const userName = staffSession?.user_nome || profile?.full_name || user?.email || '';
+  const handleSignOut = staffSession ? staffSignOut : () => {};
   const { getAgoraSync } = useServerTime();
   
   const [activeTab, setActiveTab] = useState<SupervisorTabId>('frota');
@@ -188,8 +192,8 @@ export default function AppSupervisor() {
         <MemoizedMaisTab 
           eventoId={eventoId!} 
           eventoNome={evento?.nome_planilha}
-          userName={profile?.full_name || user?.email}
-          onLogout={signOut}
+          userName={userName}
+          onLogout={handleSignOut}
         />
       </div>
     </>
@@ -275,7 +279,7 @@ export default function AppSupervisor() {
                 <DropdownMenuItem onClick={() => navigate('/app')}>
                   Trocar Evento
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={signOut} className="text-destructive">
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                   <LogOut className="h-4 w-4 mr-2" />
                   Sair
                 </DropdownMenuItem>

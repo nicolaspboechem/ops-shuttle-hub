@@ -258,9 +258,14 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
           <div className="flex items-center gap-2 mb-2">
             <Bus className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{viagem.motorista}</span>
-            {nomeVeiculo && (
-              <span className="text-muted-foreground">• {nomeVeiculo}</span>
-            )}
+            {viagem.veiculo?.nome ? (
+              <span className="text-muted-foreground">
+                • <span className="font-medium text-foreground">{viagem.veiculo.nome}</span>
+                {viagem.placa && <span className="text-xs ml-1">({viagem.placa})</span>}
+              </span>
+            ) : viagem.placa ? (
+              <span className="text-muted-foreground">• {viagem.placa}</span>
+            ) : null}
           </div>
 
           {/* Ponto de Embarque e Desembarque */}
