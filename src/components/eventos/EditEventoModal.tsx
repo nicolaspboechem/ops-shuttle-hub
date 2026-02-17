@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CalendarIcon, Loader2, Pencil, X, Image as ImageIcon, Clock, UserCheck, Eye } from 'lucide-react';
+import { CalendarIcon, Loader2, Pencil, X, Image as ImageIcon, UserCheck, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -46,7 +46,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   // Dates
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
-  const [horarioVirada, setHorarioVirada] = useState('04:00');
+  
   const [horarioInicio, setHorarioInicio] = useState('08:00');
   const [horarioFim, setHorarioFim] = useState('23:00');
 
@@ -67,9 +67,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
     }
     if (evento.data_fim) {
       setDataFim(new Date(evento.data_fim + 'T12:00:00'));
-    }
-    if (evento.horario_virada_dia) {
-      setHorarioVirada(evento.horario_virada_dia.substring(0, 5));
     }
     if ((evento as any).horario_inicio_evento) {
       setHorarioInicio((evento as any).horario_inicio_evento.substring(0, 5));
@@ -145,7 +142,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
         imagem_logo: imagemLogo,
         habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
-        horario_virada_dia: horarioVirada,
+        
         horario_inicio_evento: horarioInicio,
         horario_fim_evento: horarioFim,
       };
@@ -349,31 +346,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
               </div>
             </div>
 
-            {/* Finalização Diária */}
-            <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-primary" />
-                <Label className="font-medium">Finalização Diária (Virada do Dia)</Label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Neste horário, o sistema finaliza automaticamente o dia operacional:
-              </p>
-              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
-                <li>Viagens abertas são encerradas</li>
-                <li>Missões pendentes são canceladas</li>
-                <li>Motoristas recebem checkout automático</li>
-                <li>Um novo dia operacional se inicia</li>
-              </ul>
-              <Input
-                type="time"
-                value={horarioVirada}
-                onChange={(e) => setHorarioVirada(e.target.value)}
-                className="w-28"
-              />
-              <p className="text-xs text-muted-foreground">
-                Atividades após meia-noite e antes deste horário contam como o dia anterior.
-              </p>
-            </div>
           </TabsContent>
 
           {/* Tab: Imagens */}
