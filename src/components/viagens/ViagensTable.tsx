@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { LoadMoreFooter } from '@/components/ui/load-more-footer';
-import { Bus, Users, Edit2 } from 'lucide-react';
+import { Bus, Users, Edit2, MapPin } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Viagem, AlertaViagem } from '@/lib/types/viagem';
-import { StatusBadge, TripStatusBadge } from './StatusBadge';
+import { StatusBadge, OperationStatusBadge } from './StatusBadge';
+import { MissaoBadge } from './MissaoBadge';
 import { calcularTempoViagem, formatarMinutos, formatarHora } from '@/lib/utils/calculadores';
 import { EditViagemModal } from './EditViagemModal';
 
@@ -36,16 +37,19 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-28">Situação</TableHead>
               <TableHead className="w-24">Status</TableHead>
               <TableHead>Motorista</TableHead>
               <TableHead>Veículo</TableHead>
               <TableHead className="w-24">Placa</TableHead>
+              <TableHead>Embarque</TableHead>
+              <TableHead>Desembarque</TableHead>
               <TableHead className="w-20">Pickup</TableHead>
               <TableHead className="w-20">Chegada</TableHead>
               <TableHead className="w-20">Retorno</TableHead>
               <TableHead className="w-20 text-center">Tempo</TableHead>
               <TableHead className="w-16 text-center">PAX</TableHead>
-              <TableHead className="w-24">Situação</TableHead>
+              <TableHead className="w-20">Missão</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
@@ -62,6 +66,9 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   className="hover:bg-muted/30 transition-colors"
                 >
                   <TableCell>
+                    <OperationStatusBadge status={viagem.status} />
+                  </TableCell>
+                  <TableCell>
                     <StatusBadge status={status} />
                   </TableCell>
                   <TableCell>
@@ -77,6 +84,18 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                       {viagem.placa || '-'}
                     </code>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 text-sm">
+                      <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[140px]">{viagem.ponto_embarque || '-'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1 text-sm">
+                      <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[140px]">{viagem.ponto_desembarque || '-'}</span>
+                    </div>
                   </TableCell>
                   <TableCell className="font-mono text-sm">
                     {formatarHora(viagem.h_pickup)}
@@ -103,11 +122,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                     </div>
                   </TableCell>
                   <TableCell>
-                    <TripStatusBadge 
-                      hChegada={viagem.h_chegada}
-                      hRetorno={viagem.h_retorno}
-                      encerrado={viagem.encerrado}
-                    />
+                    <MissaoBadge missaoId={viagem.origem_missao_id} compact />
                   </TableCell>
                   <TableCell>
                     <Button

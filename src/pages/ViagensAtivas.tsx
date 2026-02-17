@@ -69,11 +69,7 @@ export default function ViagensAtivas() {
         if (v.tipo_operacao !== tipoOperacao || v.origem_missao_id) return false;
       }
       if (filtros.tipoVeiculo !== 'todos' && v.tipo_veiculo !== filtros.tipoVeiculo) return false;
-      if (filtros.status !== 'todos') {
-        if (filtros.status === 'em_transito' && v.h_chegada) return false;
-        if (filtros.status === 'aguardando' && (!v.h_chegada || v.h_retorno)) return false;
-        if (filtros.status === 'retornou' && !v.h_retorno) return false;
-      }
+      if (filtros.status !== 'todos' && v.status !== filtros.status) return false;
       if (filtros.motorista !== 'todos' && v.motorista !== filtros.motorista) return false;
       if (filtros.busca) {
         const busca = filtros.busca.toLowerCase();

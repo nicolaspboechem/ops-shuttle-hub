@@ -1,6 +1,6 @@
-import { CheckCircle, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Clock, XCircle, CalendarClock, Play, Pause } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { StatusViagem } from '@/lib/types/viagem';
+import { StatusViagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
@@ -34,6 +34,52 @@ export function StatusBadge({ status, showLabel = true }: StatusBadgeProps) {
     <Badge variant="outline" className={cn("gap-1", config.className)}>
       <Icon className="w-3 h-3" />
       {showLabel && config.label}
+    </Badge>
+  );
+}
+
+// ---- Operation Status Badge (novo) ----
+
+const operationStatusConfig: Record<string, { label: string; icon: typeof Clock; className: string }> = {
+  agendado: {
+    label: 'Agendado',
+    icon: CalendarClock,
+    className: 'bg-muted text-muted-foreground border-muted-foreground/20'
+  },
+  em_andamento: {
+    label: 'Em Andamento',
+    icon: Play,
+    className: 'bg-primary/10 text-primary border-primary/20 animate-pulse-soft'
+  },
+  aguardando_retorno: {
+    label: 'Aguardando',
+    icon: Pause,
+    className: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+  },
+  encerrado: {
+    label: 'Encerrada',
+    icon: CheckCircle,
+    className: 'bg-status-ok-bg text-status-ok border-status-ok/20'
+  },
+  cancelado: {
+    label: 'Cancelada',
+    icon: XCircle,
+    className: 'bg-destructive/10 text-destructive border-destructive/20'
+  },
+};
+
+interface OperationStatusBadgeProps {
+  status: StatusViagemOperacao | string | null | undefined;
+}
+
+export function OperationStatusBadge({ status }: OperationStatusBadgeProps) {
+  const config = operationStatusConfig[status || 'agendado'] || operationStatusConfig.agendado;
+  const Icon = config.icon;
+
+  return (
+    <Badge variant="outline" className={cn("gap-1", config.className)}>
+      <Icon className="w-3 h-3" />
+      {config.label}
     </Badge>
   );
 }
