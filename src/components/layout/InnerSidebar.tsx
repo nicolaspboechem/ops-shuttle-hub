@@ -38,7 +38,7 @@ export function InnerSidebar({
   return (
     <TooltipProvider delayDuration={0}>
       <aside className={cn(
-        "flex flex-col border-r bg-muted/30 transition-all duration-200 shrink-0 sticky top-0 h-screen",
+        "flex flex-col border-r bg-muted/30 transition-all duration-200 shrink-0 h-full overflow-hidden",
         collapsed ? "w-14" : "w-48"
       )}>
         {/* Navigation */}
