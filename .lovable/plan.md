@@ -1,47 +1,36 @@
 
 
-# Atualizar Versao e Remover Virada do Dia do Modal
+# Corrigir Modal de Alertas de Combustivel no App Supervisor
 
-## Resumo
+## Problemas Identificados
 
-Duas alteracoes:
-1. Remover a secao "Finalizacao Diaria (Virada do Dia)" da aba Periodo do modal Editar Evento
-2. Atualizar a versao do app para 2.0.1
+1. **Conteudo cortado**: O Sheet bottom usa `h-[80vh]` com padding `p-6` do componente base, mas o calculo do `max-h` interno nao desconta corretamente o padding + header
+2. **Exibe apenas placa**: Mostra `alerta.veiculo?.placa` mas nao exibe o nome/apelido do veiculo (campo `nome` ja vem do banco)
+3. **Botoes grandes demais para mobile**: 3 botoes com texto em `flex-1` ficam apertados em telas pequenas
 
 ## Alteracoes
 
-### 1. `src/components/eventos/EditEventoModal.tsx`
+### 1. `src/components/app/SupervisorAlertasModal.tsx`
 
-- Remover o state `horarioVirada` e seu useEffect correspondente
-- Remover `horario_virada_dia` do objeto `updateData` no `handleSave`
-- Remover o import do icone `Clock` (se nao usado em outro lugar)
-- Remover o bloco inteiro da "Finalizacao Diaria" na aba Periodo (o `div` com classe `p-4 rounded-lg border bg-muted/30` que contem o input de time, a lista de bullets e as descricoes)
+**Exibir nome do veiculo + placa:**
+- Linha 85: trocar `{alerta.veiculo?.placa || '---'}` por exibir nome como principal e placa entre parenteses
+- De: `<code className="text-sm font-bold">{alerta.veiculo?.placa || '---'}</code>`
+- Para: `<span className="text-sm font-bold">{alerta.veiculo?.nome || alerta.veiculo?.placa || '---'}</span>` + placa em texto secundario quando houver nome
 
-O campo `horario_virada_dia` continua existindo no banco e sendo usado pela edge function `auto-checkout` -- apenas deixa de ser editavel por este modal.
+**Corrigir dimensoes mobile:**
+- Linha 62: Reduzir altura do Sheet de `h-[80vh]` para `max-h-[80vh]` para nao forcar altura fixa
+- Linha 71: Ajustar `max-h` do scroll container para usar `flex-1 overflow-y-auto` em vez de calculo fixo
+- Usar layout flex column no SheetContent para que header + conteudo se distribuam corretamente
+- Botoes: reduzir padding e usar icones sem texto em telas muito pequenas, ou empilhar verticalmente
 
-### 2. `src/lib/version.ts`
+**Layout corrigido do SheetContent:**
+- Adicionar `flex flex-col` ao className
+- Trocar `max-h-[calc(80vh-100px)]` por `flex-1 min-h-0 overflow-y-auto` no container de alertas
 
-- `APP_VERSION`: de `'2.0.0'` para `'2.0.1'`
-- `APP_BUILD_DATE`: de `'2026-02-15'` para `'2026-02-17'`
-
-## Mensagem de Atualizacao
-
-Apos publicar, enviar para a equipe:
-
----
-
-**Atualizacao CCO AS Brasil - v2.0.1**
-
-Pessoal, atualizem o app no celular: basta **atualizar a pagina** do navegador e limpar o cache.
-
-Correcoes nesta versao:
-- Correcao na exibicao do nome do supervisor
-- Melhoria na identificacao dos veiculos (nome + placa)
-- Correcao de travamento nos menus laterais
-- Sidebar interna agora fica fixa corretamente
-- Remocao de opcao de virada do dia (campo interno)
-
-**Como atualizar:** feche a aba do navegador, abra novamente e, se necessario, limpe o cache (Configuracoes > Dados de navegacao > Limpar).
-
----
+| Local | De | Para |
+|-------|-----|------|
+| SheetContent (L62) | `h-[80vh] rounded-t-2xl` | `max-h-[80vh] rounded-t-2xl flex flex-col` |
+| Scroll container (L71) | `mt-4 space-y-3 overflow-y-auto max-h-[calc(80vh-100px)] pb-4` | `mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pb-4` |
+| Veiculo info (L85) | `alerta.veiculo?.placa \|\| '---'` | Nome principal + `(placa)` secundario |
+| Botoes (L107-139) | `flex gap-2` com texto completo | `flex flex-wrap gap-2` com texto menor |
 
