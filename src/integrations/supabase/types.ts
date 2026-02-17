@@ -1078,6 +1078,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "veiculos_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "veiculos_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "veiculos_evento_id_fkey"
             columns: ["evento_id"]
             isOneToOne: false
