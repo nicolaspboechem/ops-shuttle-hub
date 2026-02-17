@@ -204,25 +204,50 @@ export function VistoriaVeiculoWizard({
           motorista_nome: motoristaAtual?.nome || null
         });
 
-        // Atualizar veículo existente
+        // Atualizar veículo existente (não usar liberado_por com FK se for staff)
+        const updateData: Record<string, any> = {
+          nivel_combustivel: nivelCombustivel,
+          possui_avarias: possuiAvarias,
+          inspecao_dados: inspecaoDados,
+          inspecao_data: getAgoraSync().toISOString(),
+          observacoes_gerais: observacoesGerais.trim() || null,
+          status: statusFinal,
+          atualizado_por: realizadoPorId,
+          ...(kmInicial && { km_inicial: parseInt(kmInicial) }),
+        };
+
+        // liberado_por e inspecao_por têm FK para profiles.user_id
+        // Staff JWT usa user_id do staff_credenciais, que pode não existir em profiles
+        // Só definir esses campos se for um auth.users válido (não staff)
+        if (statusFinal === 'liberado') {
+          updateData.liberado_em = getAgoraSync().toISOString();
+          // Tentar setar liberado_por, mas aceitar falha silenciosa
+          updateData.liberado_por = realizadoPorId;
+        } else {
+          updateData.liberado_em = null;
+          updateData.liberado_por = null;
+        }
+        updateData.inspecao_por = realizadoPorId;
+
         const { error } = await supabase
           .from('veiculos')
-          .update({
-            nivel_combustivel: nivelCombustivel,
-            possui_avarias: possuiAvarias,
-            inspecao_dados: inspecaoDados,
-            inspecao_data: getAgoraSync().toISOString(),
-            inspecao_por: realizadoPorId,
-            observacoes_gerais: observacoesGerais.trim() || null,
-            status: statusFinal,
-            liberado_em: statusFinal === 'liberado' ? getAgoraSync().toISOString() : null,
-            liberado_por: statusFinal === 'liberado' ? realizadoPorId : null,
-            atualizado_por: realizadoPorId,
-            ...(kmInicial && { km_inicial: parseInt(kmInicial) })
-          })
+          .update(updateData)
           .eq('id', veiculoExistente.id);
 
-        if (error) throw error;
+        if (error) {
+          // Se falhar por FK de liberado_por/inspecao_por, tentar sem esses campos
+          console.warn('Erro no update com liberado_por/inspecao_por, tentando sem:', error);
+          const { error: retryError } = await supabase
+            .from('veiculos')
+            .update({
+              ...updateData,
+              liberado_por: null,
+              inspecao_por: null,
+            })
+            .eq('id', veiculoExistente.id);
+          
+          if (retryError) throw retryError;
+        }
 
         toast.success(`Veículo ${statusFinal === 'liberado' ? 'liberado' : 'pendente'}!`);
       } else {

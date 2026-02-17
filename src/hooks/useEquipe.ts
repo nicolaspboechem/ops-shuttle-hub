@@ -244,21 +244,51 @@ export function useEquipe(eventoId?: string) {
         return;
       }
 
+      // Buscar veículo vinculado ANTES de limpar
+      const { data: motoristaAtual } = await supabase
+        .from('motoristas')
+        .select('veiculo_id, nome')
+        .eq('id', motoristaId)
+        .maybeSingle();
+
+      const veiculoIdAtual = motoristaAtual?.veiculo_id;
+
       // Execute all updates in parallel to avoid cascading
-      await Promise.all([
+      const ops = [
         supabase
           .from('motorista_presenca')
           .update({ checkout_at: now })
-          .eq('id', existing.id),
+          .eq('id', existing.id)
+          .then(),
         supabase
           .from('motoristas')
           .update({ status: 'indisponivel', veiculo_id: null })
-          .eq('id', motoristaId),
+          .eq('id', motoristaId)
+          .then(),
         supabase
           .from('veiculos')
           .update({ motorista_id: null })
-          .eq('motorista_id', motoristaId),
-      ]);
+          .eq('motorista_id', motoristaId)
+          .then(),
+      ];
+
+      // Registrar desvinculação no histórico se tinha veículo
+      if (veiculoIdAtual) {
+        ops.push(
+          supabase.from('veiculo_vistoria_historico').insert({
+            veiculo_id: veiculoIdAtual,
+            evento_id: eventoId,
+            tipo_vistoria: 'desvinculacao',
+            status_anterior: 'vinculado',
+            status_novo: 'disponivel',
+            motorista_id: motoristaId,
+            motorista_nome: motoristaAtual?.nome || null,
+            observacoes: 'Desvinculado via CCO (checkout)',
+          }).then()
+        );
+      }
+
+      await Promise.all(ops);
 
       toast.success('Check-out realizado!');
       fetchEquipe();

@@ -100,7 +100,74 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ======== BLOCO 2: Safety net - viagens sem evento_id (órfãs) ========
+    // ======== BLOCO 2: Desvincular veículos órfãos de motoristas sem presença ativa ========
+    let totalUnlinked = 0
+    for (const evento of (eventos || [])) {
+      const virada = evento.horario_virada_dia || '04:00:00'
+      const [hV, mV] = virada.split(':').map(Number)
+      const viradaMin = hV * 60 + (mV || 0)
+      const horaAt = serverTime.getHours()
+      const minAt = serverTime.getMinutes()
+      const atualMin = horaAt * 60 + minAt
+
+      let dataOpHoje: string
+      if (atualMin < viradaMin) {
+        const ontem = new Date(serverTime)
+        ontem.setDate(ontem.getDate() - 1)
+        dataOpHoje = ontem.toISOString().slice(0, 10)
+      } else {
+        dataOpHoje = serverTime.toISOString().slice(0, 10)
+      }
+
+      // Buscar motoristas com veículo vinculado neste evento
+      const { data: motoristasComVeiculo } = await supabase
+        .from('motoristas')
+        .select('id, nome, veiculo_id')
+        .eq('evento_id', evento.id)
+        .not('veiculo_id', 'is', null)
+
+      if (!motoristasComVeiculo || motoristasComVeiculo.length === 0) continue
+
+      for (const mot of motoristasComVeiculo) {
+        // Verificar se tem presença ativa (checkin sem checkout) no dia operacional atual
+        const { data: presencaAtiva } = await supabase
+          .from('motorista_presenca')
+          .select('id')
+          .eq('motorista_id', mot.id)
+          .eq('evento_id', evento.id)
+          .eq('data', dataOpHoje)
+          .not('checkin_at', 'is', null)
+          .is('checkout_at', null)
+          .limit(1)
+
+        if (presencaAtiva && presencaAtiva.length > 0) continue // Tem presença ativa, pular
+
+        // Desvincular bidirecionalmente
+        console.log(`[close-open-trips] Unlinking vehicle ${mot.veiculo_id} from driver ${mot.nome} (no active presence on ${dataOpHoje})`)
+        
+        await Promise.all([
+          supabase.from('motoristas').update({ veiculo_id: null }).eq('id', mot.id),
+          supabase.from('veiculos').update({ motorista_id: null }).eq('id', mot.veiculo_id!),
+          supabase.from('veiculo_vistoria_historico').insert({
+            veiculo_id: mot.veiculo_id!,
+            evento_id: evento.id,
+            tipo_vistoria: 'desvinculacao',
+            status_anterior: 'vinculado',
+            status_novo: 'disponivel',
+            motorista_id: mot.id,
+            motorista_nome: mot.nome,
+            observacoes: `Desvinculado automaticamente - sem presença ativa em ${dataOpHoje}`,
+          }),
+        ])
+        totalUnlinked++
+      }
+    }
+
+    if (totalUnlinked > 0) {
+      console.log(`[close-open-trips] Total vehicles unlinked: ${totalUnlinked}`)
+    }
+
+    // ======== BLOCO 3: Safety net - viagens sem evento_id (órfãs) ========
     const spDateStr = serverTimeData
       ? serverTimeData.substring(0, 10)
       : serverTime.toISOString().substring(0, 10)

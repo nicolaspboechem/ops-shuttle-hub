@@ -11,26 +11,33 @@ import {
   Clock, 
   Play, 
   PauseCircle,
-  Pencil
+  Pencil,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ViagemCardOperador } from './ViagemCardOperador';
 import { EditViagemMobileModal } from './EditViagemMobileModal';
+import { toast } from 'sonner';
 
 interface SupervisorViagensTabProps {
   eventoId: string;
   onRefresh: () => void;
   dataOperacional?: string;
   horarioVirada?: string;
+  onConcluirMissao?: (id: string) => Promise<any>;
+  onCancelarMissao?: (id: string) => Promise<any>;
 }
 
 export function SupervisorViagensTab({ 
   eventoId, 
   onRefresh,
   dataOperacional,
-  horarioVirada
+  horarioVirada,
+  onConcluirMissao,
+  onCancelarMissao
 }: SupervisorViagensTabProps) {
-  // Preparar options para useViagens
   const viagensOptions = useMemo(() => {
     if (!dataOperacional) return undefined;
     return { dataOperacional, horarioVirada };
@@ -39,13 +46,13 @@ export function SupervisorViagensTab({
   const { viagens, loading, refetch } = useViagens(eventoId, viagensOptions);
   const [statusFilter, setStatusFilter] = useState<StatusViagemOperacao | null>(null);
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
+  const [missaoLoading, setMissaoLoading] = useState<string | null>(null);
 
   const handleRefresh = () => {
     refetch();
     onRefresh();
   };
 
-  // Active trips (not encerrado/cancelado)
   const activeViagens = viagens.filter(v => 
     !['encerrado', 'cancelado'].includes(v.status || 'agendado')
   );
@@ -56,11 +63,38 @@ export function SupervisorViagensTab({
 
   const { visibleItems: viagensVisiveis, hasMore, loadMore, total: pTotal, pageSize: pSize, setPageSize: setPSize } = usePaginatedList(filteredViagens);
 
-  // Stats
   const stats = {
     agendado: activeViagens.filter(v => v.status === 'agendado').length,
     em_andamento: activeViagens.filter(v => v.status === 'em_andamento').length,
     aguardando_retorno: activeViagens.filter(v => v.status === 'aguardando_retorno').length,
+  };
+
+  const handleConcluirMissao = async (missaoId: string) => {
+    if (!onConcluirMissao) return;
+    setMissaoLoading(missaoId);
+    try {
+      await onConcluirMissao(missaoId);
+      toast.success('Missão concluída');
+      handleRefresh();
+    } catch {
+      toast.error('Erro ao concluir missão');
+    } finally {
+      setMissaoLoading(null);
+    }
+  };
+
+  const handleCancelarMissao = async (missaoId: string) => {
+    if (!onCancelarMissao) return;
+    setMissaoLoading(missaoId);
+    try {
+      await onCancelarMissao(missaoId);
+      toast.success('Missão cancelada');
+      handleRefresh();
+    } catch {
+      toast.error('Erro ao cancelar missão');
+    } finally {
+      setMissaoLoading(null);
+    }
   };
 
   if (loading) {
@@ -161,14 +195,45 @@ export function SupervisorViagensTab({
                   viagem={viagem}
                   onUpdate={handleRefresh}
                 />
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="absolute top-2 right-14 h-8 w-8 shadow-md"
-                  onClick={() => setEditingViagem(viagem)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="absolute top-2 right-14 flex gap-1">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-8 w-8 shadow-md"
+                    onClick={() => setEditingViagem(viagem)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+                {/* Ações de missão para viagens vinculadas */}
+                {viagem.origem_missao_id && onConcluirMissao && (
+                  <div className="mt-1 flex gap-2 px-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                      onClick={() => handleConcluirMissao(viagem.origem_missao_id!)}
+                      disabled={missaoLoading === viagem.origem_missao_id}
+                    >
+                      {missaoLoading === viagem.origem_missao_id ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      )}
+                      Concluir Missão
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+                      onClick={() => handleCancelarMissao(viagem.origem_missao_id!)}
+                      disabled={missaoLoading === viagem.origem_missao_id}
+                    >
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
               </div>
             ))
           }
