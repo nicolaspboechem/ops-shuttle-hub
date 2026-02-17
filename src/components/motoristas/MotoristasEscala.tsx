@@ -1,12 +1,18 @@
-import { useState } from 'react';
-import { Plus, Clock, UserMinus, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Plus, Clock, UserMinus, Trash2, Pencil, ChevronLeft, ChevronRight, CalendarIcon, History } from 'lucide-react';
+import { format, parseISO, addDays, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useEscalas, Escala } from '@/hooks/useEscalas';
 import { Motorista } from '@/hooks/useCadastros';
 import { CreateEscalaWizard } from './CreateEscalaWizard';
 import { cn } from '@/lib/utils';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
+import { supabase } from '@/integrations/supabase/client';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -16,6 +22,7 @@ interface MotoristasEscalaProps {
   eventoId: string;
   motoristas: Motorista[];
   getPresenca: (motoristaId: string) => { checkin_at?: string | null; checkout_at?: string | null } | null;
+  horarioVirada?: string;
 }
 
 function MotoristaEscalaCard({
@@ -165,7 +172,7 @@ function EscalaKanbanColumn({
   );
 }
 
-export function MotoristasEscala({ eventoId, motoristas, getPresenca }: MotoristasEscalaProps) {
+export function MotoristasEscala({ eventoId, motoristas, getPresenca, horarioVirada = '04:00' }: MotoristasEscalaProps) {
   const {
     escalas,
     loading,
@@ -180,6 +187,55 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
   const [showWizard, setShowWizard] = useState(false);
   const [escalaParaEditar, setEscalaParaEditar] = useState<(Escala & { motorista_ids: string[] }) | null>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Date filter
+  const diaOperacionalHoje = useMemo(() => getDataOperacional(new Date(), horarioVirada), [horarioVirada]);
+  const [selectedDate, setSelectedDate] = useState(diaOperacionalHoje);
+  const isToday = selectedDate === diaOperacionalHoje;
+
+  // Historical presence data
+  const [presencasHistorico, setPresencasHistorico] = useState<Record<string, { checkin_at: string | null; checkout_at: string | null }>>({});
+  const [loadingPresencas, setLoadingPresencas] = useState(false);
+
+  useEffect(() => {
+    if (isToday || !eventoId) {
+      setPresencasHistorico({});
+      return;
+    }
+
+    setLoadingPresencas(true);
+    supabase
+      .from('motorista_presenca')
+      .select('motorista_id, checkin_at, checkout_at')
+      .eq('evento_id', eventoId)
+      .eq('data', selectedDate)
+      .then(({ data }) => {
+        const map: Record<string, { checkin_at: string | null; checkout_at: string | null }> = {};
+        data?.forEach(row => {
+          // Keep the most recent record per driver
+          const existing = map[row.motorista_id];
+          if (!existing || (row.checkin_at && (!existing.checkin_at || row.checkin_at > existing.checkin_at))) {
+            map[row.motorista_id] = { checkin_at: row.checkin_at, checkout_at: row.checkout_at };
+          }
+        });
+        setPresencasHistorico(map);
+        setLoadingPresencas(false);
+      });
+  }, [selectedDate, isToday, eventoId]);
+
+  // Unified getPresenca: real-time for today, historical for past dates
+  const getPresencaEfetiva = useCallback((motoristaId: string) => {
+    if (isToday) return getPresenca(motoristaId);
+    const hist = presencasHistorico[motoristaId];
+    return hist || null;
+  }, [isToday, getPresenca, presencasHistorico]);
+
+  const navigateDate = (direction: -1 | 1) => {
+    const current = parseISO(selectedDate);
+    const next = direction === -1 ? subDays(current, 1) : addDays(current, 1);
+    setSelectedDate(format(next, 'yyyy-MM-dd'));
+  };
 
   const toggleCollapse = (id: string) => {
     setCollapsedIds(prev => {
@@ -208,16 +264,65 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
     );
   }
 
+  const formattedDate = format(parseISO(selectedDate), "dd 'de' MMM", { locale: ptBR });
+
   return (
     <div className="flex flex-col h-full">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">Escalas de Turno</h2>
-          <p className="text-sm text-muted-foreground">
-            {escalas.length} escala{escalas.length !== 1 ? 's' : ''} cadastrada{escalas.length !== 1 ? 's' : ''}
-          </p>
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Escalas de Turno</h2>
+            <p className="text-sm text-muted-foreground">
+              {escalas.length} escala{escalas.length !== 1 ? 's' : ''} cadastrada{escalas.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {!isToday && (
+            <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-600">
+              <History className="w-3 h-3" />
+              Histórico
+            </Badge>
+          )}
         </div>
+
+        {/* Date picker */}
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-medium">
+                <CalendarIcon className="w-3.5 h-3.5" />
+                {formattedDate}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={parseISO(selectedDate)}
+                onSelect={(date) => {
+                  if (date) {
+                    setSelectedDate(format(date, 'yyyy-MM-dd'));
+                    setCalendarOpen(false);
+                  }
+                }}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          {!isToday && (
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSelectedDate(diaOperacionalHoje)}>
+              Hoje
+            </Button>
+          )}
+        </div>
+
         <Button onClick={() => { setEscalaParaEditar(null); setShowWizard(true); }} size="sm">
           <Plus className="w-4 h-4 mr-1" />
           Nova Escala
@@ -245,7 +350,7 @@ export function MotoristasEscala({ eventoId, motoristas, getPresenca }: Motorist
                   key={escala.id}
                   escala={escala}
                   motoristas={escalaMotoristas}
-                  getPresenca={getPresenca}
+                  getPresenca={getPresencaEfetiva}
                   collapsed={collapsedIds.has(escala.id)}
                   onToggleCollapse={() => toggleCollapse(escala.id)}
                   onEdit={() => openEditWizard(escala)}

@@ -577,6 +577,7 @@ export default function MapaServico() {
               eventoId={eventoId || ''}
               motoristas={motoristasCadastrados}
               getPresenca={getPresenca}
+              horarioVirada={horarioVirada}
             />
           </div>
         </div>
