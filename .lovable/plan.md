@@ -1,41 +1,50 @@
 
-# Adicionar Pesquisa no Dropdown de Motorista (Filtro de Missoes)
 
-## Problema
+# Filtro por Data e Historico na Escala (Mapa de Servico)
 
-No Mapa de Servico, aba Missoes, o filtro de motorista usa um dropdown simples (`Select`) sem campo de busca. Com muitos motoristas, fica dificil encontrar o desejado.
+## Resumo
 
-## Solucao
+Adicionar um seletor de data na aba Escala do Mapa de Servico, permitindo visualizar o estado de presenca dos motoristas em qualquer dia passado (historico), nao apenas o dia atual.
 
-Substituir o `Select` do filtro de motorista por um combobox pesquisavel usando `Popover` + `Command` (mesmo padrao ja usado nos modais de criacao de missao).
+## Como funciona hoje
 
-## Alteracao
+- A aba Escala mostra as escalas cadastradas com os motoristas vinculados
+- Os dados de presenca (check-in/checkout) vem do hook `useEquipe`, que retorna apenas o dia atual
+- Nao ha como ver o historico de dias anteriores
 
-### Arquivo: `src/components/motoristas/MissoesPanel.tsx`
+## O que sera feito
 
-**Linhas 348-359** -- Substituir o bloco `<Select>` do filtro de motorista por:
+- Adicionar um **date picker** no header da aba Escala (ao lado de "Escalas de Turno" e do botao "Nova Escala")
+- Por padrao, a data selecionada sera o dia operacional atual (calculado via `getDataOperacional` com o `horarioVirada` do evento)
+- Ao selecionar outra data, buscar os registros de `motorista_presenca` daquele dia especifico e atualizar os badges de status (Ativo/Saiu) e os indicadores coloridos
+- Quando uma data passada estiver selecionada, exibir um badge indicando "Historico" para deixar claro que nao e tempo real
 
-```text
-De:
-  <Select value={missaoMotoristaFilter} onValueChange={setMissaoMotoristaFilter}>
-    <SelectTrigger className="w-[180px]">
-      <User className="w-4 h-4 mr-2" />
-      <SelectValue placeholder="Motorista" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">Todos motoristas</SelectItem>
-      {motoristasCadastrados.filter(m => m.ativo).map(m => (
-        <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+## Alteracoes Tecnicas
 
-Para:
-  Popover + Command com CommandInput para busca,
-  opcao "Todos motoristas" como primeiro item,
-  e lista pesquisavel dos motoristas ativos.
-```
+### 1. `src/components/motoristas/MotoristasEscala.tsx`
 
-Sera necessario adicionar um state `motoristaFilterOpen` para controlar a abertura do Popover. Os imports de `Popover`, `Command`, `ChevronsUpDown`, `Check` ja existem no arquivo.
+**Adicionar props e state:**
+- Nova prop opcional `horarioVirada?: string` (para calcular dia operacional)
+- Novo state `selectedDate` inicializado com `getDataOperacional(new Date(), horarioVirada)`
+- Novo state `presencasPorData` com fetch direto de `motorista_presenca` filtrado pela data selecionada
 
-Nenhum outro arquivo precisa ser alterado.
+**Adicionar fetch de presenca por data:**
+- Quando `selectedDate` muda, buscar `motorista_presenca` do `evento_id` + `data = selectedDate`
+- Criar funcao local `getPresencaByDate(motoristaId)` que retorna os dados da data selecionada
+- Se a data selecionada for o dia operacional atual, usar a prop `getPresenca` original (tempo real via `useEquipe`)
+- Se for dia passado, usar os dados buscados do banco
+
+**Adicionar DatePicker no header:**
+- Usar `Popover` + `Calendar` (padrao shadcn) entre o titulo e o botao "Nova Escala"
+- Botoes de navegacao rapida (seta esquerda/direita) para dia anterior/proximo
+- Badge "Historico" quando a data nao for hoje
+
+**Ajustar KPIs no header da coluna:**
+- O contador "X ativos" na coluna usara os dados da data selecionada
+
+### 2. `src/pages/MapaServico.tsx`
+
+- Passar a prop `horarioVirada` para o componente `MotoristasEscala`
+
+Nenhuma alteracao de banco de dados necessaria -- a tabela `motorista_presenca` ja possui o campo `data` e os dados historicos.
+
