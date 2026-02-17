@@ -1,32 +1,47 @@
 
 
-# Corrigir InnerSidebar Expandindo com Scroll
+# Atualizar Versao e Remover Virada do Dia do Modal
 
-## Problema
+## Resumo
 
-A sidebar interna (cinza/branca) cresce junto com o conteudo da pagina em vez de ficar fixa. Causa: o container pai usa `h-full` ou `min-h-[calc(100vh-4rem)]` que **cresce** com o conteudo. O `sticky top-0 h-screen` da sidebar nao funciona quando o pai ultrapassa a viewport.
+Duas alteracoes:
+1. Remover a secao "Finalizacao Diaria (Virada do Dia)" da aba Periodo do modal Editar Evento
+2. Atualizar a versao do app para 2.0.1
 
-## Solucao
+## Alteracoes
 
-Duas alteracoes coordenadas:
+### 1. `src/components/eventos/EditEventoModal.tsx`
 
-### 1. InnerSidebar - trocar sticky por altura relativa ao pai
+- Remover o state `horarioVirada` e seu useEffect correspondente
+- Remover `horario_virada_dia` do objeto `updateData` no `handleSave`
+- Remover o import do icone `Clock` (se nao usado em outro lugar)
+- Remover o bloco inteiro da "Finalizacao Diaria" na aba Periodo (o `div` com classe `p-4 rounded-lg border bg-muted/30` que contem o input de time, a lista de bullets e as descricoes)
 
-Mudar `sticky top-0 h-screen` para `h-full overflow-hidden`. A restricao de altura vira do pai.
+O campo `horario_virada_dia` continua existindo no banco e sendo usado pela edge function `auto-checkout` -- apenas deixa de ser editavel por este modal.
 
-### 2. Paginas - container com altura fixa e overflow controlado
+### 2. `src/lib/version.ts`
 
-Em cada pagina, o `div` que envolve `InnerSidebar` + conteudo precisa ter altura fixa (`h-screen`) e `overflow-hidden`. O conteudo ao lado fica com `overflow-auto`.
+- `APP_VERSION`: de `'2.0.0'` para `'2.0.1'`
+- `APP_BUILD_DATE`: de `'2026-02-15'` para `'2026-02-17'`
 
-## Alteracoes por Arquivo
+## Mensagem de Atualizacao
 
-| Arquivo | De | Para |
-|---------|-----|------|
-| `InnerSidebar.tsx` (linha 41) | `sticky top-0 h-screen` | `h-full overflow-hidden` |
-| `Veiculos.tsx` (linha 534) | `flex h-full` | `flex h-screen overflow-hidden` |
-| `Motoristas.tsx` (linha 1083) | `flex min-h-[calc(100vh-4rem)]` | `flex h-screen overflow-hidden` |
-| `MapaServico.tsx` (linha 561) | `flex min-h-[calc(100vh-4rem)]` | `flex h-screen overflow-hidden` |
-| `RotasShuttle.tsx` (linha 278) | `flex h-full` | `flex h-screen overflow-hidden` |
+Apos publicar, enviar para a equipe:
 
-Os paineis de conteudo ao lado ja possuem `overflow-auto` na maioria dos casos. Onde nao tiver, sera adicionado.
+---
+
+**Atualizacao CCO AS Brasil - v2.0.1**
+
+Pessoal, atualizem o app no celular: basta **atualizar a pagina** do navegador e limpar o cache.
+
+Correcoes nesta versao:
+- Correcao na exibicao do nome do supervisor
+- Melhoria na identificacao dos veiculos (nome + placa)
+- Correcao de travamento nos menus laterais
+- Sidebar interna agora fica fixa corretamente
+- Remocao de opcao de virada do dia (campo interno)
+
+**Como atualizar:** feche a aba do navegador, abra novamente e, se necessario, limpe o cache (Configuracoes > Dados de navegacao > Limpar).
+
+---
 
