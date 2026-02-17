@@ -1,51 +1,46 @@
 
 
-# Corrigir Nome do Supervisor e Exibicao de Veiculos
+# Corrigir Flickering na Sidebar do Evento
 
-## Problema 1: Nome do supervisor nao aparece
+## Causa Raiz
 
-O `AppSupervisor.tsx` usa `useAuth()` (Supabase Auth) para obter o nome do usuario. Porem, o supervisor Rafael Chaffim faz login via **Staff JWT** (telefone 21967686164), que usa `StaffAuthContext`. O `useAuth()` retorna `user: null` e `profile: null` para usuarios Staff, resultando em nome vazio no app.
+O componente `NavItem` esta definido como funcao **dentro** do render de `AppSidebar` (linha 100). Isso e um anti-pattern classico do React: cada re-render do `AppSidebar` cria uma **nova referencia** de `NavItem`, fazendo o React desmontar e remontar todos os elementos do menu. O resultado e:
 
-O perfil no banco esta correto: `full_name: "Rafael Chaffim"`, e o `staff-login` retorna esse nome no JWT (`user_nome`). O problema e que o app nao le esse dado.
+- Tooltips perdem estado e piscam (`data-state="delayed-open"` aparecendo repetidamente)
+- Hover e clique sao interrompidos pela remontagem
+- Qualquer re-render do componente pai (causado por hooks como `useEventos`) aciona o problema
 
-**Correcao**: No `AppSupervisor.tsx`, importar `useStaffAuth` e usar `staffSession.user_nome` como fonte primaria do nome. Tambem corrigir o `signOut` para usar o signOut do Staff (atualmente chama `signOut` do Supabase Auth, que nao faz nada para usuarios Staff).
+## Solucao
 
-### Arquivo: `src/pages/app/AppSupervisor.tsx`
+Extrair `NavItem` para fora do corpo do `AppSidebar`, transformando-o em um componente separado no mesmo arquivo. As props `collapsed` e `isBottom` passam a ser recebidas como props explicitas em vez de dependerem de closure.
 
-- Adicionar import de `useStaffAuth`
-- Obter `staffSession` e `signOut` do staff
-- Usar `staffSession?.user_nome` como userName principal, com fallback para `profile?.full_name` e `user?.email`
-- Substituir o `signOut` do `useAuth()` pelo do `useStaffAuth()` no botao Sair e no dropdown
+## Detalhes Tecnicos
 
----
+### Arquivo: `src/components/layout/AppSidebar.tsx`
 
-## Problema 2: Exibicao de veiculos - nome/apelido como principal
+1. Criar interface `NavItemProps` com: `item`, `collapsed`, `isBottom`
+2. Mover a funcao `NavItem` para fora do `AppSidebar`, antes da definicao do componente principal
+3. Receber `collapsed` como prop em vez de ler do escopo pai
+4. Usar `React.memo` no `NavItem` extraido para evitar re-renders desnecessarios quando as props nao mudam
 
-Atualmente os componentes do app supervisor ja usam `nome || placa` na maioria dos lugares, mas ha inconsistencias:
+Estrutura resultante:
 
-1. **`VeiculoCardSupervisor.tsx`** (linha 121): Ja mostra `veiculo.nome || veiculo.placa` como principal - OK
-2. **`SupervisorMotoristaCard.tsx`** (linha 113): Ja mostra `motorista.veiculo.nome || motorista.veiculo.placa` - OK
-3. **`ViagemCardOperador.tsx`** (linha 103): Usa `viagem.veiculo?.nome || viagem.placa` - OK em logica, mas o texto ao lado do motorista mostra `nomeVeiculo` sem destaque visual. Melhorar para mostrar nome em negrito e placa secundaria quando ambos existem.
+```text
+// Fora do AppSidebar - componente estavel
+const NavItem = memo(({ item, collapsed, isBottom }: NavItemProps) => {
+  // ... mesma logica atual, mas com collapsed vindo das props
+});
 
-**Correcao**: No `ViagemCardOperador.tsx`, quando o veiculo tem nome E placa, exibir o nome como texto principal e a placa entre parenteses em tamanho menor. Atualmente mostra apenas um dos dois.
+// Componente principal
+export function AppSidebar(...) {
+  // ... sem NavItem dentro do render
+  // Uso: <NavItem item={item} collapsed={collapsed} isBottom />
+}
+```
 
-### Arquivo: `src/components/app/ViagemCardOperador.tsx`
-
-Na linha 258-264, alterar a exibicao do veiculo:
-- Se tem `veiculo.nome`: mostrar nome em destaque + `(placa)` em texto secundario
-- Se nao tem nome: mostrar apenas placa
-
----
-
-## Resumo de Alteracoes
+## Arquivos Alterados
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/app/AppSupervisor.tsx` | Usar `useStaffAuth` para nome + signOut |
-| `src/components/app/ViagemCardOperador.tsx` | Nome do veiculo como principal, placa como secundaria |
-
-## Ordem
-
-1. `AppSupervisor.tsx` - corrigir nome e logout
-2. `ViagemCardOperador.tsx` - melhorar exibicao de veiculo
+| `src/components/layout/AppSidebar.tsx` | Extrair NavItem para fora do render + React.memo |
 
