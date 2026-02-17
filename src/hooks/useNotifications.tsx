@@ -76,14 +76,14 @@ interface VistoriaLogResult {
   } | null;
 }
 
-interface AlertaFrotaResult {
+    interface AlertaFrotaResult {
   id: string;
   tipo: string;
   nivel_combustivel: string | null;
   status: string;
   created_at: string;
   evento_id: string | null;
-  veiculo: { placa: string } | null;
+  veiculo: { placa: string; nome: string | null } | null;
   motorista: { nome: string } | null;
   evento: { nome_planilha: string } | null;
 }
@@ -179,7 +179,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .from('alertas_frota')
         .select(`
           id, tipo, nivel_combustivel, status, created_at, evento_id,
-          veiculo:veiculos!veiculo_id(placa),
+          veiculo:veiculos!veiculo_id(placa, nome),
           motorista:motoristas!motorista_id(nome),
           evento:eventos!evento_id(nome_planilha)
         `)
@@ -259,20 +259,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // Alertas de combustível
     alertasFrota.forEach((alerta) => {
       const config = actionConfig.alerta_combustivel;
-      const placaVeiculo = alerta.veiculo?.placa || 'Veículo';
+      const nomeVeiculo = alerta.veiculo?.nome || alerta.veiculo?.placa || 'Veículo';
       const motoristaNome = alerta.motorista?.nome || 'Motorista';
       newNotifications.push({
         id: `alerta-${alerta.id}`,
         type: 'alerta_combustivel',
         action: 'alerta_combustivel',
         title: `${config.label} - ${alerta.nivel_combustivel || '?'}`,
-        description: `${motoristaNome} (${placaVeiculo})`,
+        description: `${motoristaNome} - ${nomeVeiculo}${alerta.veiculo?.nome && alerta.veiculo?.placa ? ` (${alerta.veiculo.placa})` : ''}`,
         timestamp: alerta.created_at,
         read: false,
         icon: config.icon,
         color: config.color,
         motorista: motoristaNome,
-        placa: placaVeiculo,
+        placa: alerta.veiculo?.placa || '',
         eventoId: alerta.evento_id || undefined,
         eventoNome: alerta.evento?.nome_planilha || undefined,
       });
