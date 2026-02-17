@@ -1,69 +1,69 @@
 
-# Criar Status "Abastecimento" para Veiculos
+# Corrigir Filtros e Informacoes das Viagens Ativas e Finalizadas
 
-## Contexto
+## Problemas Encontrados
 
-Quando o supervisor marca um veiculo com combustivel baixo no modal de alertas, o sistema grava o status `em_manutencao` (que nem e reconhecido pela interface). O correto e criar um novo status **"abastecimento"** dedicado para essa situacao, separando de "manutencao" que e para problemas mecanicos.
+### 1. Filtro de viagens ativas/finalizadas usa campo errado
+O `useCalculos` filtra por `encerrado` (boolean legado) em vez do campo `status` (modelo atual). Isso causa inconsistencias -- ha viagens com `encerrado=true` mas `status=em_andamento`.
 
-Alem disso, existem 4 veiculos no banco presos no status `em_manutencao` que precisam ser corrigidos para `abastecimento`.
+### 2. FilterBar usa modelo antigo de status
+Os filtros de status mostram "Em Transito / Aguardando / Retornou" baseados em `h_chegada`/`h_retorno`. O sistema agora usa `StatusViagemOperacao`: `agendado`, `em_andamento`, `aguardando_retorno`, `encerrado`, `cancelado`.
 
-## Resumo das Alteracoes
+### 3. Tabela nao mostra informacoes importantes
+- Falta coluna de **Ponto de Embarque**
+- Falta coluna de **Ponto de Desembarque**
+- Falta indicador de **Missao** (quando viagem vem de uma missao)
+- A coluna "Situacao" usa `TripStatusBadge` legado (baseado em h_chegada/h_retorno) em vez do campo `status` real
 
-1. **SupervisorAlertasModal** - trocar `em_manutencao` por `abastecimento` e renomear botao
-2. **SupervisorFrotaTab** - adicionar grupo/filtro "Abastecimento"
-3. **VeiculoCardSupervisor** - adicionar status `abastecimento` no config visual e no dropdown
-4. **VeiculoStatusBadge** - adicionar entrada para `abastecimento`
-5. **VeiculoKanbanColumn** - adicionar coluna/config `abastecimento`
-6. **VeiculoKanbanColumnFull** - adicionar coluna/config `abastecimento`
-7. **Pagina Veiculos (CCO)** - adicionar `abastecimento` nos filtros, grupos e kanban
-8. **CadastroModals** - adicionar `abastecimento` na ordenacao/agrupamento
-9. **Corrigir dados** - UPDATE dos 4 veiculos de `em_manutencao` para `abastecimento`
+## Dados atuais no banco (evento atual)
 
-## Detalhes Tecnicos
+| Status | Encerrado | Tipo | Missao | Qtd |
+|---|---|---|---|---|
+| em_andamento | false | shuttle | nao | 10 |
+| em_andamento | false | transfer | sim | 9 |
+| em_andamento | true | transfer | sim | 1 |
+| em_andamento | false | transfer | nao | 1 |
+| encerrado | true | shuttle | nao | 1206 |
+| encerrado | true | transfer | sim | 628 |
+| encerrado | true | transfer | nao | 6 |
 
-### 1. `src/components/app/SupervisorAlertasModal.tsx`
-- Linha 57: trocar `em_manutencao` por `abastecimento`
-- Trocar icone do botao de `Wrench` para `Fuel`
-- Renomear label do botao de "Manutencao" para "Abastecimento"
+## Solucao
 
-### 2. `src/components/app/SupervisorFrotaTab.tsx`
-- Adicionar `'abastecimento'` ao type `VeiculoFilterType`
-- Adicionar stat card para abastecimento (icone Fuel, cor orange)
-- Adicionar grupo "Abastecimento" na listagem agrupada
-- Adicionar label no filtro ativo
-- Importar icone `Fuel`
+### 1. `src/hooks/useViagens.ts` - useCalculos
+Trocar filtro de `encerrado` boolean para `status`:
+- `viagensAtivas`: viagens onde `status !== 'encerrado' && status !== 'cancelado'`
+- `viagensFinalizadas`: viagens onde `status === 'encerrado' || status === 'cancelado'`
 
-### 3. `src/components/app/VeiculoCardSupervisor.tsx`
-- Adicionar `abastecimento` no `statusConfig` (icone Fuel, cor orange)
-- Adicionar opcao "Abastecimento" no dropdown menu
+### 2. `src/components/viagens/FilterBar.tsx`
+Atualizar opcoes de status para refletir `StatusViagemOperacao`:
+- Agendado
+- Em Andamento
+- Aguardando Retorno
+- Encerrado
+- Cancelado
 
-### 4. `src/components/veiculos/VeiculoStatusBadge.tsx`
-- Adicionar entrada `abastecimento` no `statusConfig` com icone Fuel e cores orange
+Atualizar logica de filtragem para comparar com `v.status` em vez de `h_chegada`/`h_retorno`.
 
-### 5. `src/components/veiculos/VeiculoKanbanColumn.tsx`
-- Adicionar `'abastecimento'` ao type union do `status` prop
-- Adicionar config visual para `abastecimento`
+### 3. `src/pages/ViagensAtivas.tsx` e `src/pages/ViagensFinalizadas.tsx`
+Atualizar a logica de filtragem de `viagensFiltradas` para usar `v.status` no filtro de status.
 
-### 6. `src/components/veiculos/VeiculoKanbanColumnFull.tsx`
-- Adicionar `'abastecimento'` ao type union do `status` prop
-- Adicionar config visual para `abastecimento`
+### 4. `src/components/viagens/ViagensTable.tsx`
+- Adicionar coluna **Embarque** (ponto_embarque)
+- Adicionar coluna **Desembarque** (ponto_desembarque)
+- Adicionar coluna/badge de **Missao** (usando MissaoBadge compact quando `origem_missao_id` existe)
+- Trocar `TripStatusBadge` pela `StatusViagemOperacao` real do campo `status`
+- Criar badge inline para os status (agendado, em_andamento, etc.) com cores consistentes com o resto do sistema
 
-### 7. `src/pages/Veiculos.tsx`
-- Adicionar `'abastecimento'` no array `validStatuses`
-- Adicionar label no toast
-- Adicionar no `SelectItem` de filtro
-- Adicionar grupo no kanban e na listagem
-- Adicionar coluna `VeiculoKanbanColumnFull` para abastecimento
+### 5. `src/components/viagens/StatusBadge.tsx`
+Criar novo componente `OperationStatusBadge` para exibir `StatusViagemOperacao` com cores e icones corretos (reutilizando o pattern do `VeiculoGrid`).
 
-### 8. `src/components/cadastros/CadastroModals.tsx`
-- Adicionar `abastecimento` na ordem de status e no agrupamento
+## Resumo visual
 
-### 9. Correcao de dados (SQL)
-```sql
-UPDATE veiculos SET status = 'abastecimento' WHERE status = 'em_manutencao';
-```
+A tabela passara a mostrar:
+**Status Op. | Motorista | Veiculo | Placa | Embarque | Desembarque | Pickup | Chegada | Retorno | Tempo | PAX | Missao | Editar**
 
-### Visual do novo status
-- **Label**: "Abastecimento"
-- **Icone**: Fuel (lucide-react)
-- **Cor**: Orange (bg-orange-500/10, text-orange-600, border-orange-500/30)
+Os filtros passarao a ter:
+- Busca (texto)
+- Tipo Veiculo (Todos/Onibus/Van)
+- Status Operacional (Todos/Agendado/Em Andamento/Aguardando Retorno/Encerrado/Cancelado)
+- Motorista (lista dinamica)
