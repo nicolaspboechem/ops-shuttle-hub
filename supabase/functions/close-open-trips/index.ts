@@ -6,6 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Parse SP time components directly from the fixed-format string
+// Format: YYYY-MM-DDTHH:MI:SS.MS-03:00
+function parseSPTime(serverTimeData: string) {
+  const dataHoje = serverTimeData.substring(0, 10)
+  const horaAtual = parseInt(serverTimeData.substring(11, 13))
+  const minAtual = parseInt(serverTimeData.substring(14, 16))
+  return { dataHoje, horaAtual, minAtual }
+}
+
+function calcDataOperacional(horaAtual: number, minAtual: number, dataHoje: string, virada: string) {
+  const [hV, mV] = virada.split(':').map(Number)
+  const viradaMin = hV * 60 + (mV || 0)
+  const atualMin = horaAtual * 60 + minAtual
+
+  if (atualMin < viradaMin) {
+    // Antes da virada = dia anterior
+    const d = new Date(dataHoje + 'T12:00:00')
+    d.setDate(d.getDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }
+  return dataHoje
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -21,9 +44,16 @@ Deno.serve(async (req) => {
     if (timeError) {
       console.warn('[close-open-trips] Error getting server time:', timeError)
     }
+
+    // Parse SP time directly from string to avoid UTC conversion bugs
+    const spTime = serverTimeData ? parseSPTime(serverTimeData) : null
     const serverTime = serverTimeData ? new Date(serverTimeData) : new Date()
     const serverTimeISO = serverTime.toISOString()
-    console.log(`[close-open-trips] Running at ${serverTimeISO} (SP)`)
+    const horaAtualSP = spTime?.horaAtual ?? serverTime.getHours()
+    const minAtualSP = spTime?.minAtual ?? serverTime.getMinutes()
+    const dataHojeSP = spTime?.dataHoje ?? serverTime.toISOString().substring(0, 10)
+
+    console.log(`[close-open-trips] Running at ${serverTimeISO} (SP parsed: ${dataHojeSP} ${horaAtualSP}:${minAtualSP})`)
 
     // Fetch all active events with their virada time
     const { data: eventos, error: eventosError } = await supabase
@@ -43,29 +73,9 @@ Deno.serve(async (req) => {
     for (const evento of (eventos || [])) {
       const virada = evento.horario_virada_dia || '04:00:00'
       const viradaHHMM = virada.substring(0, 5)
-
-      // Calculate current operational date for this event
-      const [horaVirada, minVirada] = virada.split(':').map(Number)
-      const viradaMinutos = horaVirada * 60 + (minVirada || 0)
-      const horaAtual = serverTime.getHours()
-      const minAtual = serverTime.getMinutes()
-      const atualMinutos = horaAtual * 60 + minAtual
-
-      // Current operational date
-      let dataOpAtual: string
-      if (atualMinutos < viradaMinutos) {
-        const ontem = new Date(serverTime)
-        ontem.setDate(ontem.getDate() - 1)
-        dataOpAtual = ontem.toISOString().slice(0, 10)
-      } else {
-        dataOpAtual = serverTime.toISOString().slice(0, 10)
-      }
-
-      // The cutoff: anything before the START of the current operational day should be closed
-      // Current op day starts at: dataOpAtual + virada
+      const dataOpAtual = calcDataOperacional(horaAtualSP, minAtualSP, dataHojeSP, virada)
       const cutoffISO = `${dataOpAtual}T${viradaHHMM}:00-03:00`
 
-      // Find open trips for this event created before the current operational day
       const { data: oldTrips, error: oldError } = await supabase
         .from('viagens')
         .select('id')
@@ -104,22 +114,8 @@ Deno.serve(async (req) => {
     let totalUnlinked = 0
     for (const evento of (eventos || [])) {
       const virada = evento.horario_virada_dia || '04:00:00'
-      const [hV, mV] = virada.split(':').map(Number)
-      const viradaMin = hV * 60 + (mV || 0)
-      const horaAt = serverTime.getHours()
-      const minAt = serverTime.getMinutes()
-      const atualMin = horaAt * 60 + minAt
+      const dataOpHoje = calcDataOperacional(horaAtualSP, minAtualSP, dataHojeSP, virada)
 
-      let dataOpHoje: string
-      if (atualMin < viradaMin) {
-        const ontem = new Date(serverTime)
-        ontem.setDate(ontem.getDate() - 1)
-        dataOpHoje = ontem.toISOString().slice(0, 10)
-      } else {
-        dataOpHoje = serverTime.toISOString().slice(0, 10)
-      }
-
-      // Buscar motoristas com veículo vinculado neste evento
       const { data: motoristasComVeiculo } = await supabase
         .from('motoristas')
         .select('id, nome, veiculo_id')
@@ -129,7 +125,6 @@ Deno.serve(async (req) => {
       if (!motoristasComVeiculo || motoristasComVeiculo.length === 0) continue
 
       for (const mot of motoristasComVeiculo) {
-        // Verificar se tem presença ativa (checkin sem checkout) no dia operacional atual
         const { data: presencaAtiva } = await supabase
           .from('motorista_presenca')
           .select('id')
@@ -140,9 +135,8 @@ Deno.serve(async (req) => {
           .is('checkout_at', null)
           .limit(1)
 
-        if (presencaAtiva && presencaAtiva.length > 0) continue // Tem presença ativa, pular
+        if (presencaAtiva && presencaAtiva.length > 0) continue
 
-        // Desvincular bidirecionalmente
         console.log(`[close-open-trips] Unlinking vehicle ${mot.veiculo_id} from driver ${mot.nome} (no active presence on ${dataOpHoje})`)
         
         await Promise.all([
@@ -168,16 +162,12 @@ Deno.serve(async (req) => {
     }
 
     // ======== BLOCO 3: Safety net - viagens sem evento_id (órfãs) ========
-    const spDateStr = serverTimeData
-      ? serverTimeData.substring(0, 10)
-      : serverTime.toISOString().substring(0, 10)
-
     const { data: orphanTrips, error: orphanError } = await supabase
       .from('viagens')
       .select('id')
       .eq('encerrado', false)
       .is('evento_id', null)
-      .lt('data_criacao', `${spDateStr}T00:00:00-03:00`)
+      .lt('data_criacao', `${dataHojeSP}T00:00:00-03:00`)
 
     if (orphanError) {
       console.error('[close-open-trips] Error fetching orphan trips:', orphanError)
@@ -200,11 +190,158 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[close-open-trips] Total closed: ${totalClosed}`)
+    // ======== BLOCO 4: Fechar vinculações órfãs de dias anteriores ========
+    let totalOrphansClosed = 0
+    for (const evento of (eventos || [])) {
+      const virada = evento.horario_virada_dia || '04:00:00'
+      const viradaHHMM = virada.substring(0, 5)
+      const dataOpAtual = calcDataOperacional(horaAtualSP, minAtualSP, dataHojeSP, virada)
+      const cutoffISO = `${dataOpAtual}T${viradaHHMM}:00-03:00`
+
+      // Buscar todas as vinculações deste evento antes do dia operacional atual
+      const { data: allVinculacoes, error: vincError } = await supabase
+        .from('veiculo_vistoria_historico')
+        .select('id, veiculo_id, motorista_id, motorista_nome, created_at')
+        .eq('evento_id', evento.id)
+        .eq('tipo_vistoria', 'vinculacao')
+        .lt('created_at', cutoffISO)
+        .order('created_at', { ascending: true })
+
+      if (vincError || !allVinculacoes || allVinculacoes.length === 0) continue
+
+      // Buscar todas as desvinculações deste evento
+      const { data: allDesvinculacoes } = await supabase
+        .from('veiculo_vistoria_historico')
+        .select('id, veiculo_id, motorista_id, created_at')
+        .eq('evento_id', evento.id)
+        .eq('tipo_vistoria', 'desvinculacao')
+        .order('created_at', { ascending: true })
+
+      const desvSet = new Set<string>()
+      const desvByVeiculo = new Map<string, { created_at: string }[]>()
+      for (const d of (allDesvinculacoes || [])) {
+        // Index desvinculações por veiculo para lookup rápido
+        const arr = desvByVeiculo.get(d.veiculo_id) || []
+        arr.push(d)
+        desvByVeiculo.set(d.veiculo_id, arr)
+      }
+
+      // Agrupar vinculações por veículo para encontrar próxima vinculação
+      const vincByVeiculo = new Map<string, typeof allVinculacoes>()
+      for (const v of allVinculacoes) {
+        const arr = vincByVeiculo.get(v.veiculo_id) || []
+        arr.push(v)
+        vincByVeiculo.set(v.veiculo_id, arr)
+      }
+
+      // Identificar vinculações órfãs: sem desvinculação entre ela e a próxima vinculação
+      for (const [veiculoId, vincs] of vincByVeiculo) {
+        const desvs = desvByVeiculo.get(veiculoId) || []
+
+        for (let i = 0; i < vincs.length; i++) {
+          const vinc = vincs[i]
+          const nextVinc = vincs[i + 1] // pode ser undefined se for a última
+
+          // Verificar se existe desvinculação entre esta vinculação e a próxima (ou agora)
+          const upperBound = nextVinc ? nextVinc.created_at : cutoffISO
+          const hasDesv = desvs.some(d => d.created_at > vinc.created_at && d.created_at <= upperBound)
+          
+          if (hasDesv) continue // Ciclo já fechado
+
+          // É órfã! Determinar timestamp de fechamento por prioridade:
+          let closeTimestamp: string | null = null
+          let closeSource = ''
+
+          // Prioridade 1: Próxima vinculação no mesmo veículo (troca de motorista)
+          if (nextVinc) {
+            closeTimestamp = nextVinc.created_at
+            closeSource = 'Troca de motorista'
+          }
+
+          // Prioridade 2: Última viagem encerrada do motorista após a vinculação
+          if (!closeTimestamp && vinc.motorista_id) {
+            const { data: lastTrip } = await supabase
+              .from('viagens')
+              .select('h_fim_real')
+              .eq('motorista_id', vinc.motorista_id)
+              .eq('veiculo_id', veiculoId)
+              .eq('encerrado', true)
+              .gt('h_fim_real', vinc.created_at)
+              .lt('h_fim_real', cutoffISO)
+              .order('h_fim_real', { ascending: false })
+              .limit(1)
+
+            if (lastTrip && lastTrip.length > 0 && lastTrip[0].h_fim_real) {
+              closeTimestamp = lastTrip[0].h_fim_real
+              closeSource = 'Última viagem encerrada'
+            }
+          }
+
+          // Prioridade 3: Checkout do motorista após a vinculação
+          if (!closeTimestamp && vinc.motorista_id) {
+            const vincDate = vinc.created_at.substring(0, 10)
+            const { data: checkout } = await supabase
+              .from('motorista_presenca')
+              .select('checkout_at')
+              .eq('motorista_id', vinc.motorista_id)
+              .eq('evento_id', evento.id)
+              .not('checkout_at', 'is', null)
+              .gte('checkout_at', vinc.created_at)
+              .lt('checkout_at', cutoffISO)
+              .order('checkout_at', { ascending: true })
+              .limit(1)
+
+            if (checkout && checkout.length > 0 && checkout[0].checkout_at) {
+              closeTimestamp = checkout[0].checkout_at
+              closeSource = 'Checkout do motorista'
+            }
+          }
+
+          // Prioridade 4: Virada do dia seguinte à vinculação
+          if (!closeTimestamp) {
+            const vincDate = vinc.created_at.substring(0, 10)
+            const nextDay = new Date(vincDate + 'T12:00:00')
+            nextDay.setDate(nextDay.getDate() + 1)
+            const nextDayStr = nextDay.toISOString().slice(0, 10)
+            closeTimestamp = `${nextDayStr}T${viradaHHMM}:00-03:00`
+            closeSource = 'Virada do dia operacional'
+          }
+
+          // Inserir desvinculação retroativa
+          const { error: insertError } = await supabase
+            .from('veiculo_vistoria_historico')
+            .insert({
+              veiculo_id: veiculoId,
+              evento_id: evento.id,
+              tipo_vistoria: 'desvinculacao',
+              status_anterior: 'vinculado',
+              status_novo: 'disponivel',
+              motorista_id: vinc.motorista_id,
+              motorista_nome: vinc.motorista_nome,
+              created_at: closeTimestamp,
+              observacoes: `Desvinculação retroativa (correção automática) - ${closeSource}`,
+            })
+
+          if (insertError) {
+            console.error(`[close-open-trips] Error inserting retroactive desvinculacao for vinc ${vinc.id}:`, insertError)
+          } else {
+            totalOrphansClosed++
+          }
+        }
+      }
+
+      if (totalOrphansClosed > 0) {
+        console.log(`[close-open-trips] Event "${evento.nome_planilha}": closed ${totalOrphansClosed} orphan vinculações`)
+      }
+    }
+
+    console.log(`[close-open-trips] Total closed trips: ${totalClosed}, orphan vinculações closed: ${totalOrphansClosed}`)
 
     return new Response(JSON.stringify({ 
       success: true, 
       closed: totalClosed,
+      orphanVinculacoesClosed: totalOrphansClosed,
+      unlinked: totalUnlinked,
       details,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
