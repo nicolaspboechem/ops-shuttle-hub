@@ -108,22 +108,25 @@ export function useVeiculoPresencaHistorico(
 
         for (const reg of registros) {
           if (reg.tipo_vistoria === 'vinculacao') {
-            // Se há ciclo aberto sem desvinculação, fecha como "em uso" antes de abrir novo
+            // Se há ciclo aberto sem desvinculação, fecha implicitamente usando a nova vinculação como timestamp
             if (cicloAberto) {
               const motorista = cicloAberto.motorista_id ? motoristasMap.get(cicloAberto.motorista_id) : null;
+              const vinc = new Date(cicloAberto.created_at);
+              const desv = new Date(reg.created_at);
+              const duracao = Math.round((desv.getTime() - vinc.getTime()) / (1000 * 60));
               usos.push({
                 id: cicloAberto.id,
-                data: format(new Date(cicloAberto.created_at), 'yyyy-MM-dd'),
+                data: format(vinc, 'yyyy-MM-dd'),
                 motorista_id: cicloAberto.motorista_id || '',
                 motorista_nome: cicloAberto.motorista_nome || motorista?.nome || 'Desconhecido',
                 motorista_telefone: motorista?.telefone || null,
                 vinculado_em: cicloAberto.created_at,
-                desvinculado_em: null,
-                duracao_minutos: 0,
+                desvinculado_em: reg.created_at,
+                duracao_minutos: Math.max(duracao, 0),
                 observacoes: null,
                 vinculado_por: cicloAberto.realizado_por_nome || null,
-                desvinculado_por: null,
-                em_uso: true,
+                desvinculado_por: '(troca de motorista)',
+                em_uso: false,
               });
             }
             cicloAberto = reg;
