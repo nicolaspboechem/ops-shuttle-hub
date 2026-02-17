@@ -59,7 +59,7 @@ export function SupervisorAlertasModal({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl">
+      <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl flex flex-col">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Fuel className="h-5 w-5 text-destructive" />
@@ -68,7 +68,7 @@ export function SupervisorAlertasModal({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="mt-4 space-y-3 overflow-y-auto max-h-[calc(80vh-100px)] pb-4">
+        <div className="mt-4 space-y-3 flex-1 min-h-0 overflow-y-auto pb-4">
           {alertas.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Fuel className="h-10 w-10 mx-auto mb-2 opacity-30" />
@@ -81,8 +81,11 @@ export function SupervisorAlertasModal({
                 <div key={alerta.id} className="p-4 rounded-xl border bg-card space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <code className="text-sm font-bold">{alerta.veiculo?.placa || '---'}</code>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold">{alerta.veiculo?.nome || alerta.veiculo?.placa || '---'}</span>
+                        {alerta.veiculo?.nome && alerta.veiculo?.placa && (
+                          <span className="text-xs text-muted-foreground">({alerta.veiculo.placa})</span>
+                        )}
                         <Badge className={nivel.color}>{nivel.label}</Badge>
                         {alerta.status === 'pendente' && (
                           <Badge variant="outline" className="text-yellow-600 border-yellow-400">Pendente</Badge>
@@ -104,7 +107,7 @@ export function SupervisorAlertasModal({
                     </p>
                   )}
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {alerta.status === 'aberto' && (
                       <Button
                         size="sm"
