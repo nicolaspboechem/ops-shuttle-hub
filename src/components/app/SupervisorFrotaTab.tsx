@@ -18,7 +18,8 @@ import {
   AlertTriangle,
   Clock,
   Wrench,
-  User
+  User,
+  Fuel
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SupervisorMotoristaCard } from './SupervisorMotoristaCard';
@@ -31,7 +32,7 @@ interface SupervisorFrotaTabProps {
 }
 
 type MotoristaFilterType = 'disponivel' | 'em_viagem' | 'sem_veiculo' | null;
-type VeiculoFilterType = 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao' | null;
+type VeiculoFilterType = 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao' | 'abastecimento' | null;
 
 export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
   const navigate = useNavigate();
@@ -201,6 +202,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
     pendentes: veiculos.filter(v => v.status === 'pendente').length,
     emInspecao: veiculos.filter(v => v.status === 'em_inspecao').length,
     manutencao: veiculos.filter(v => v.status === 'manutencao').length,
+    abastecimento: veiculos.filter(v => v.status === 'abastecimento').length,
   };
 
   // Filtered data - text search first
@@ -236,6 +238,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
     em_inspecao: displayedVeiculos.filter(v => v.status === 'em_inspecao'),
     liberado: displayedVeiculos.filter(v => v.status === 'liberado'),
     manutencao: displayedVeiculos.filter(v => v.status === 'manutencao'),
+    abastecimento: displayedVeiculos.filter(v => v.status === 'abastecimento'),
   };
 
   const isLoading = subTab === 'motoristas' ? loadingMotoristas : loadingVeiculos;
@@ -342,7 +345,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
           </Card>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <Card 
             className={cn(
               "cursor-pointer transition-all active:scale-95",
@@ -403,6 +406,21 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
               <p className="text-[9px] text-muted-foreground">Manutenção</p>
             </CardContent>
           </Card>
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all active:scale-95",
+              veiculoFilter === 'abastecimento' 
+                ? "ring-2 ring-orange-500 border-orange-500" 
+                : "border-orange-500/30 bg-orange-500/5 hover:border-orange-500/50"
+            )}
+            onClick={() => toggleVeiculoFilter('abastecimento')}
+          >
+            <CardContent className="p-2 text-center">
+              <Fuel className="h-4 w-4 text-orange-600 mx-auto mb-0.5" />
+              <p className="text-lg font-bold text-orange-600">{veiculosStats.abastecimento}</p>
+              <p className="text-[9px] text-muted-foreground">Abastec.</p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -432,6 +450,7 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
             {veiculoFilter === 'pendente' && 'Pendentes'}
             {veiculoFilter === 'em_inspecao' && 'Em Inspeção'}
             {veiculoFilter === 'manutencao' && 'Manutenção'}
+            {veiculoFilter === 'abastecimento' && 'Abastecimento'}
             <span className="ml-1">×</span>
           </button>
         </div>
@@ -577,6 +596,27 @@ export function SupervisorFrotaTab({ eventoId }: SupervisorFrotaTabProps) {
                   </h3>
                   <div className="space-y-2">
                     {groupedVeiculos.manutencao.map(veiculo => (
+                      <VeiculoCardSupervisor
+                        key={veiculo.id}
+                        veiculo={veiculo}
+                        onStatusChange={handleStatusChange}
+                        onReInspecao={handleReInspecao}
+                        onEditNome={handleEditNome}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Abastecimento */}
+              {groupedVeiculos.abastecimento.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-orange-600">
+                    <Fuel className="h-4 w-4" />
+                    Abastecimento ({groupedVeiculos.abastecimento.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {groupedVeiculos.abastecimento.map(veiculo => (
                       <VeiculoCardSupervisor
                         key={veiculo.id}
                         veiculo={veiculo}

@@ -1,0 +1,1 @@
+UPDATE veiculos SET status = 'abastecimento' WHERE status = 'em_manutencao';

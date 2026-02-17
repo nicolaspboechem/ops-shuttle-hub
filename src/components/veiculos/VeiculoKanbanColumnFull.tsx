@@ -27,7 +27,7 @@ interface VeiculoStats {
 }
 
 interface VeiculoKanbanColumnFullProps {
-  status: 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao';
+  status: 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao' | 'abastecimento';
   veiculos: Veiculo[];
   veiculosStats: Map<string, VeiculoStats>;
   motoristas: Array<{ nome: string; veiculo_id: string | null }>;
@@ -44,6 +44,7 @@ const statusConfig = {
   pendente: { title: 'Pendentes', accentColor: 'bg-amber-500' },
   em_inspecao: { title: 'Em Inspeção', accentColor: 'bg-blue-500' },
   manutencao: { title: 'Manutenção', accentColor: 'bg-gray-500' },
+  abastecimento: { title: 'Abastecimento', accentColor: 'bg-orange-500' },
 };
 
 export function VeiculoKanbanColumnFull({ 

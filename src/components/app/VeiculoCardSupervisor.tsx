@@ -70,6 +70,13 @@ const statusConfig = {
     bg: 'bg-muted/50',
     border: 'border-muted',
   },
+  abastecimento: {
+    label: 'Abastecimento',
+    icon: Fuel,
+    color: 'text-orange-600',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/30',
+  },
 };
 
 const fuelLabels: Record<string, string> = {
@@ -220,6 +227,12 @@ export function VeiculoCardSupervisor({
                     <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'manutencao')}>
                       <Wrench className="h-4 w-4 mr-2" />
                       Enviar Manutenção
+                    </DropdownMenuItem>
+                  )}
+                  {veiculo.status !== 'abastecimento' && (
+                    <DropdownMenuItem onClick={() => onStatusChange(veiculo.id, 'abastecimento')}>
+                      <Fuel className="h-4 w-4 mr-2 text-orange-600" />
+                      Abastecimento
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
