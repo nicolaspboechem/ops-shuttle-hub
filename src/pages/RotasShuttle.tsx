@@ -275,7 +275,7 @@ export default function RotasShuttle() {
 
   return (
     <EventLayout>
-      <div className="flex h-full">
+      <div className="flex h-screen overflow-hidden">
         <InnerSidebar
           sections={sections}
           activeSection={activeSection}

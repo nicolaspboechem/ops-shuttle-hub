@@ -558,7 +558,7 @@ export default function MapaServico() {
 
   return (
     <EventLayout>
-      <div className="flex min-h-[calc(100vh-4rem)]">
+      <div className="flex h-screen overflow-hidden">
         <InnerSidebar
           sections={sections}
           activeSection={activeSection}
