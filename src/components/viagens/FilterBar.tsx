@@ -65,8 +65,11 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todos">Todos Tipos</SelectItem>
-          <SelectItem value="Ônibus">Ônibus</SelectItem>
           <SelectItem value="Van">Van</SelectItem>
+          <SelectItem value="Ônibus">Ônibus</SelectItem>
+          <SelectItem value="Sedan">Sedan</SelectItem>
+          <SelectItem value="SUV">SUV</SelectItem>
+          <SelectItem value="Blindado">Blindado</SelectItem>
         </SelectContent>
       </Select>
 

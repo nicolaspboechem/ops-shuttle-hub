@@ -29,7 +29,7 @@ import { Motorista, Veiculo } from '@/hooks/useCadastros';
 
 // ============ VEÍCULO MODAL ============
 const veiculoSchema = z.object({
-  tipo_veiculo: z.enum(['Ônibus', 'Van', 'Sedan', 'SUV']),
+  tipo_veiculo: z.enum(['Ônibus', 'Van', 'Sedan', 'SUV', 'Blindado']),
   placa: z.string().min(7, 'Placa inválida').max(10),
   nome: z.string().max(100).optional(),
   fornecedor: z.string().max(100).optional(),
@@ -156,7 +156,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
               <Label htmlFor="tipo_veiculo">Tipo *</Label>
               <Select
                 value={form.watch('tipo_veiculo')}
-                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van' | 'Sedan' | 'SUV')}
+                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van' | 'Sedan' | 'SUV' | 'Blindado')}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -166,6 +166,7 @@ export function VeiculoModal({ veiculo, eventoId, onSave, onUpdate, trigger }: V
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
                   <SelectItem value="Sedan">Sedan</SelectItem>
                   <SelectItem value="SUV">SUV</SelectItem>
+                  <SelectItem value="Blindado">Blindado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -572,7 +573,7 @@ export function MotoristaModal({
 const motoristaComVeiculoSchema = z.object({
   nome: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100),
   telefone: z.string().max(20).optional(),
-  tipo_veiculo: z.enum(['Ônibus', 'Van']),
+  tipo_veiculo: z.enum(['Ônibus', 'Van', 'Sedan', 'SUV', 'Blindado']),
   placa: z.string().min(7, 'Placa inválida').max(10),
 });
 
@@ -714,7 +715,7 @@ export function MotoristaComVeiculoModal({
               <Label htmlFor="tipo_veiculo">Tipo Veículo *</Label>
               <Select
                 value={form.watch('tipo_veiculo')}
-                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van')}
+                onValueChange={(value) => form.setValue('tipo_veiculo', value as 'Ônibus' | 'Van' | 'Sedan' | 'SUV' | 'Blindado')}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -722,6 +723,9 @@ export function MotoristaComVeiculoModal({
                 <SelectContent>
                   <SelectItem value="Van">Van</SelectItem>
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
+                  <SelectItem value="Sedan">Sedan</SelectItem>
+                  <SelectItem value="SUV">SUV</SelectItem>
+                  <SelectItem value="Blindado">Blindado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

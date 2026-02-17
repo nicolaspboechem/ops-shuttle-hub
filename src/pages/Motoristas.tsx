@@ -619,6 +619,9 @@ export default function Motoristas() {
               <SelectItem value="all">Todos tipos</SelectItem>
               <SelectItem value="Van">Van</SelectItem>
               <SelectItem value="Ônibus">Ônibus</SelectItem>
+              <SelectItem value="Sedan">Sedan</SelectItem>
+              <SelectItem value="SUV">SUV</SelectItem>
+              <SelectItem value="Blindado">Blindado</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterVinculo} onValueChange={setFilterVinculo}>

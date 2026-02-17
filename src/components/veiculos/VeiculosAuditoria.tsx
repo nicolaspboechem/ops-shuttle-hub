@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink, ClipboardCheck } from 'lucide-react';
+import { Bus, Car, Users, Clock, FileSpreadsheet, Gauge, Filter, X, LayoutGrid, List as ListIcon, UserCheck, ExternalLink, ClipboardCheck, Search } from 'lucide-react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,12 +54,24 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
   const [activeTab, setActiveTab] = useState<'uso' | 'vistorias'>('uso');
   const [selectedVistoriaPlaca, setSelectedVistoriaPlaca] = useState<string | null>(null);
   const [selectedVistoriaDetalhe, setSelectedVistoriaDetalhe] = useState<VistoriaHistorico | null>(null);
+  const [busca, setBusca] = useState('');
+  const [filtroMotorista, setFiltroMotorista] = useState<string>('all');
+  const [filtroUso, setFiltroUso] = useState<string>('all');
 
   // Buscar histórico de vistorias quando seleciona um veículo para ver vistorias
   const { data: vistoriasHistorico, isLoading: vistoriasLoading } = useVistoriaHistoricoByPlaca(
     selectedVistoriaPlaca,
     eventoId || ''
   );
+
+  // Motoristas únicos para filtro
+  const motoristasUnicos = useMemo(() => {
+    const nomes = new Set<string>();
+    motoristas.forEach(m => {
+      if (m.nome) nomes.add(m.nome);
+    });
+    return Array.from(nomes).sort();
+  }, [motoristas]);
 
   // Fornecedores únicos
   const fornecedoresUnicos = useMemo(() => {
@@ -188,8 +200,34 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
       result = result.filter(v => v.fornecedor === filtroFornecedor);
     }
 
+    // Busca por texto
+    if (busca.trim()) {
+      const termo = busca.toLowerCase().trim();
+      result = result.filter(v => 
+        v.placa.toLowerCase().includes(termo) ||
+        (v.nome && v.nome.toLowerCase().includes(termo)) ||
+        (v.motorista && v.motorista.toLowerCase().includes(termo))
+      );
+    }
+
+    // Filtro por motorista
+    if (filtroMotorista !== 'all') {
+      result = result.filter(v => v.motorista === filtroMotorista);
+    }
+
+    // Filtro por status de uso
+    if (filtroUso === 'com_viagens') {
+      result = result.filter(v => v.totalViagens > 0);
+    } else if (filtroUso === 'sem_viagens') {
+      result = result.filter(v => v.totalViagens === 0);
+    } else if (filtroUso === 'com_km') {
+      result = result.filter(v => v.kmPercorrido > 0);
+    } else if (filtroUso === 'sem_km') {
+      result = result.filter(v => v.kmPercorrido === 0);
+    }
+
     return result.sort((a, b) => b.totalViagens - a.totalViagens);
-  }, [viagensFiltradas, veiculosCadastrados, motoristas, filtroTipoVeiculo, filtroFornecedor]);
+  }, [viagensFiltradas, veiculosCadastrados, motoristas, filtroTipoVeiculo, filtroFornecedor, busca, filtroMotorista, filtroUso]);
 
   const { visibleItems: visibleMetricas, hasMore, loadMore, total: totalMetricas, pageSize, setPageSize } = usePaginatedList(metricasConsolidadas);
 
@@ -201,13 +239,16 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
     veiculos: metricasConsolidadas.length
   }), [metricasConsolidadas]);
 
-  const hasActiveFilters = filtroTipoVeiculo !== 'all' || filtroFornecedor !== 'all' || dataInicio || dataFim;
+  const hasActiveFilters = filtroTipoVeiculo !== 'all' || filtroFornecedor !== 'all' || dataInicio || dataFim || busca || filtroMotorista !== 'all' || filtroUso !== 'all';
 
   const clearFilters = () => {
     setFiltroTipoVeiculo('all');
     setFiltroFornecedor('all');
     setDataInicio('');
     setDataFim('');
+    setBusca('');
+    setFiltroMotorista('all');
+    setFiltroUso('all');
   };
 
   // Exportar para Excel
@@ -255,8 +296,19 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
             Filtros
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <CardContent className="space-y-4">
+          {/* Busca por texto */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por placa, nome ou motorista..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {/* Filtros em grid */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Período Início</label>
               <Input
@@ -287,6 +339,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
                   <SelectItem value="Sedan">Sedan</SelectItem>
                   <SelectItem value="SUV">SUV</SelectItem>
+                  <SelectItem value="Blindado">Blindado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -301,6 +354,35 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
                   {fornecedoresUnicos.map(f => (
                     <SelectItem key={f} value={f!}>{f}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Motorista</label>
+              <Select value={filtroMotorista} onValueChange={setFiltroMotorista}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {motoristasUnicos.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Status Uso</label>
+              <Select value={filtroUso} onValueChange={setFiltroUso}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="com_viagens">Com viagens</SelectItem>
+                  <SelectItem value="sem_viagens">Sem viagens</SelectItem>
+                  <SelectItem value="com_km">Com KM</SelectItem>
+                  <SelectItem value="sem_km">Sem KM</SelectItem>
                 </SelectContent>
               </Select>
             </div>
