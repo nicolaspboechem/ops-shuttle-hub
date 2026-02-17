@@ -332,7 +332,7 @@ export function MotoristaModal({
     });
 
     // Ordenar por status: liberados primeiro, depois pendentes, depois em inspeção
-    const statusOrder: Record<string, number> = { liberado: 0, pendente: 1, em_inspecao: 2, manutencao: 3 };
+    const statusOrder: Record<string, number> = { liberado: 0, pendente: 1, em_inspecao: 2, manutencao: 3, abastecimento: 4 };
     return filtered.sort((a, b) => {
       const statusA = statusOrder[a.status || 'em_inspecao'] ?? 2;
       const statusB = statusOrder[b.status || 'em_inspecao'] ?? 2;
@@ -347,7 +347,8 @@ export function MotoristaModal({
     const pendentes = veiculosParaSelecao.filter(v => v.status === 'pendente');
     const emInspecao = veiculosParaSelecao.filter(v => !v.status || v.status === 'em_inspecao');
     const manutencao = veiculosParaSelecao.filter(v => v.status === 'manutencao');
-    return { liberados, pendentes, emInspecao, manutencao };
+    const abastecimento = veiculosParaSelecao.filter(v => v.status === 'abastecimento');
+    return { liberados, pendentes, emInspecao, manutencao, abastecimento };
   }, [veiculosParaSelecao]);
 
   const getStatusBadge = (status: string | null | undefined) => {
@@ -370,6 +371,13 @@ export function MotoristaModal({
         return (
           <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0">
             Manutenção
+          </Badge>
+        );
+      case 'abastecimento':
+        return (
+          <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20 text-[10px] px-1.5 py-0">
+            <Fuel className="w-2.5 h-2.5 mr-0.5" />
+            Abastecimento
           </Badge>
         );
       default:
@@ -540,6 +548,7 @@ export function MotoristaModal({
                   {renderVeiculoGroup(veiculosAgrupados.pendentes, '⚠ Pendentes', form.watch('veiculo_id') || '')}
                   {renderVeiculoGroup(veiculosAgrupados.emInspecao, '🔄 Em Inspeção', form.watch('veiculo_id') || '')}
                   {renderVeiculoGroup(veiculosAgrupados.manutencao, '🔧 Manutenção', form.watch('veiculo_id') || '')}
+                  {renderVeiculoGroup(veiculosAgrupados.abastecimento, '⛽ Abastecimento', form.watch('veiculo_id') || '')}
                 </RadioGroup>
               </ScrollArea>
             )}

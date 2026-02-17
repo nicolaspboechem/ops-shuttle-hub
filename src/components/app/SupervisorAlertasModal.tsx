@@ -1,7 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Fuel, MapPin, Clock, CheckCircle, Loader2, Wrench } from 'lucide-react';
+import { Fuel, MapPin, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertaFrota } from '@/hooks/useAlertasFrota';
@@ -47,9 +47,9 @@ export function SupervisorAlertasModal({
   const handleManutencao = async (alerta: AlertaFrota) => {
     setLoadingId(alerta.id);
     try {
-      await supabase.from('veiculos').update({ status: 'em_manutencao' }).eq('id', alerta.veiculo_id);
+      await supabase.from('veiculos').update({ status: 'abastecimento' }).eq('id', alerta.veiculo_id);
       await onAtualizarStatus(alerta.id, 'resolvido');
-      toast.success('Veículo enviado para manutenção');
+      toast.success('Veículo enviado para abastecimento');
     } catch {
       toast.error('Erro ao atualizar');
     } finally {
@@ -127,8 +127,8 @@ export function SupervisorAlertasModal({
                       disabled={loadingId === alerta.id}
                       onClick={() => handleManutencao(alerta)}
                     >
-                      {loadingId === alerta.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wrench className="h-4 w-4 mr-1" />}
-                      Manutenção
+                      {loadingId === alerta.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fuel className="h-4 w-4 mr-1" />}
+                      Abastecimento
                     </Button>
                     <Button
                       size="sm"

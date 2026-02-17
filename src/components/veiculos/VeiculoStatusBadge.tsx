@@ -31,6 +31,11 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; cla
     icon: Wrench,
     className: 'bg-muted text-muted-foreground border-muted-foreground/20',
   },
+  abastecimento: {
+    label: 'Abastecimento',
+    icon: Fuel,
+    className: 'bg-orange-500/10 text-orange-600 border-orange-500/20 hover:bg-orange-500/20',
+  },
 };
 
 export function VeiculoStatusBadge({ status, size = 'md', showIcon = true }: VeiculoStatusBadgeProps) {

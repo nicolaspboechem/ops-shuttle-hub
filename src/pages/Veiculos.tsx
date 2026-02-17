@@ -114,7 +114,7 @@ export default function Veiculos() {
     const newStatus = over.id as string;
     
     // Validate status
-    const validStatuses = ['liberado', 'pendente', 'em_inspecao', 'manutencao'];
+    const validStatuses = ['liberado', 'pendente', 'em_inspecao', 'manutencao', 'abastecimento'];
     if (!validStatuses.includes(newStatus)) return;
 
     const veiculo = veiculos.find(v => v.id === veiculoId);
@@ -122,7 +122,7 @@ export default function Veiculos() {
 
     try {
       await handleUpdateVeiculo(veiculoId, { status: newStatus }, veiculo.placa);
-      toast.success(`Veículo ${veiculo.placa} movido para "${newStatus === 'liberado' ? 'Liberados' : newStatus === 'pendente' ? 'Pendentes' : newStatus === 'em_inspecao' ? 'Em Inspeção' : 'Manutenção'}"`);
+      toast.success(`Veículo ${veiculo.placa} movido para "${newStatus === 'liberado' ? 'Liberados' : newStatus === 'pendente' ? 'Pendentes' : newStatus === 'em_inspecao' ? 'Em Inspeção' : newStatus === 'abastecimento' ? 'Abastecimento' : 'Manutenção'}"`);
     } catch (error: any) {
       toast.error(`Erro ao mover veículo: ${error.message}`);
     }
@@ -244,6 +244,7 @@ export default function Veiculos() {
       pendente: [] as typeof veiculos,
       em_inspecao: [] as typeof veiculos,
       manutencao: [] as typeof veiculos,
+      abastecimento: [] as typeof veiculos,
     };
 
     filteredVeiculos.forEach(v => {
@@ -388,6 +389,7 @@ export default function Veiculos() {
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="em_inspecao">Em Inspeção</SelectItem>
               <SelectItem value="manutencao">Manutenção</SelectItem>
+              <SelectItem value="abastecimento">Abastecimento</SelectItem>
             </SelectContent>
           </Select>
           {(() => {
@@ -501,6 +503,18 @@ export default function Veiculos() {
             <VeiculoKanbanColumnFull
               status="manutencao"
               veiculos={veiculosPorStatus.manutencao}
+              veiculosStats={veiculosStatsMap}
+              motoristas={motoristas}
+              eventoId={eventoId}
+              onSave={handleSaveVeiculo}
+              onUpdate={handleUpdateVeiculo}
+              onDelete={handleDeleteVeiculo}
+              getName={getName}
+              onViewDetails={setSelectedVeiculoId}
+            />
+            <VeiculoKanbanColumnFull
+              status="abastecimento"
+              veiculos={veiculosPorStatus.abastecimento}
               veiculosStats={veiculosStatsMap}
               motoristas={motoristas}
               eventoId={eventoId}

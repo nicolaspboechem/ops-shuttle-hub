@@ -1,5 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CheckCircle, AlertTriangle, Loader, Wrench } from "lucide-react";
+import { CheckCircle, AlertTriangle, Loader, Wrench, Fuel } from "lucide-react";
 import { VeiculoKanbanCard } from "./VeiculoKanbanCard";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ interface Veiculo {
 }
 
 interface VeiculoKanbanColumnProps {
-  status: 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao';
+  status: 'liberado' | 'pendente' | 'em_inspecao' | 'manutencao' | 'abastecimento';
   veiculos: Veiculo[];
   onSelect?: (veiculoId: string) => void;
   selectedId?: string;
@@ -56,6 +56,14 @@ const statusConfig = {
     headerColor: 'bg-gray-100 dark:bg-gray-800/50',
     iconColor: 'text-gray-600 dark:text-gray-400',
     borderColor: 'border-gray-200 dark:border-gray-700',
+  },
+  abastecimento: {
+    title: 'Abastecimento',
+    icon: Fuel,
+    bgColor: 'bg-orange-50 dark:bg-orange-950/30',
+    headerColor: 'bg-orange-100 dark:bg-orange-900/50',
+    iconColor: 'text-orange-600 dark:text-orange-400',
+    borderColor: 'border-orange-200 dark:border-orange-800',
   },
 };
 
