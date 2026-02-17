@@ -246,6 +246,7 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
                   <SelectItem value="Ônibus">Ônibus</SelectItem>
                   <SelectItem value="Sedan">Sedan</SelectItem>
                   <SelectItem value="SUV">SUV</SelectItem>
+                  <SelectItem value="Blindado">Blindado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
