@@ -249,11 +249,11 @@ export function useCalculos(viagens: Viagem[]) {
   }, [viagens]);
 
   const viagensAtivas = useMemo(() => {
-    return viagens.filter(v => !v.encerrado);
+    return viagens.filter(v => v.status !== 'encerrado' && v.status !== 'cancelado');
   }, [viagens]);
 
   const viagensFinalizadas = useMemo(() => {
-    return viagens.filter(v => v.encerrado);
+    return viagens.filter(v => v.status === 'encerrado' || v.status === 'cancelado');
   }, [viagens]);
 
   return {

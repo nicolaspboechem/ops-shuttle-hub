@@ -80,9 +80,11 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todos">Todos Status</SelectItem>
-          <SelectItem value="em_transito">Em Trânsito</SelectItem>
-          <SelectItem value="aguardando">Aguardando</SelectItem>
-          <SelectItem value="retornou">Retornou</SelectItem>
+          <SelectItem value="agendado">Agendado</SelectItem>
+          <SelectItem value="em_andamento">Em Andamento</SelectItem>
+          <SelectItem value="aguardando_retorno">Aguardando Retorno</SelectItem>
+          <SelectItem value="encerrado">Encerrado</SelectItem>
+          <SelectItem value="cancelado">Cancelado</SelectItem>
         </SelectContent>
       </Select>
 
