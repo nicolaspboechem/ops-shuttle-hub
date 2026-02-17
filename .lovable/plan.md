@@ -1,36 +1,38 @@
 
-# Corrigir Foreign Keys da Tabela Veiculos
+# Corrigir Foreign Keys da Tabela Veiculos (Manter FKs)
 
-## Problema
+## Diagnostico
 
-Ao fazer uma vistoria/revistoria pelo app Supervisor (que usa autenticacao Staff JWT), o sistema tenta gravar o `user_id` do Staff na coluna `atualizado_por` da tabela `veiculos`. Porem, essa coluna tem uma foreign key apontando para `auth.users(id)`, e o ID do Staff nao existe la -- ele existe apenas na tabela `staff_credenciais`.
+| Constraint | Aponta para | Staff existe la? | Status |
+|---|---|---|---|
+| `veiculos_atualizado_por_fkey` | `auth.users(id)` | NAO | PROBLEMA |
+| `veiculos_criado_por_fkey` | `auth.users(id)` | NAO | PROBLEMA |
+| `veiculos_inspecao_por_fkey` | `profiles(user_id)` | SIM | OK |
+| `veiculos_liberado_por_fkey` | `profiles(user_id)` | SIM | OK |
 
-Isso causa o erro: **"violates foreign key constraint veiculos_atualizado_por_fkey"**.
-
-## Causa Raiz
-
-A tabela `veiculos` possui 4 foreign keys que referenciam `auth.users` ou `profiles`, mas o sistema suporta 3 tipos de autenticacao (Supabase Auth, Staff JWT, Motorista JWT). Os IDs de Staff e Motorista nao existem nessas tabelas referenciadas.
-
-| Constraint | Referencia | Problema |
-|---|---|---|
-| `veiculos_atualizado_por_fkey` | `auth.users(id)` | Staff/Motorista nao existe em auth.users |
-| `veiculos_criado_por_fkey` | `auth.users(id)` | Staff/Motorista nao existe em auth.users |
-| `veiculos_inspecao_por_fkey` | `profiles(user_id)` | Staff/Motorista nao existe em profiles |
-| `veiculos_liberado_por_fkey` | `profiles(user_id)` | Staff/Motorista nao existe em profiles |
+O `staff-register` ja cria um registro em `profiles` para cada Staff. Entao basta redirecionar as 2 FKs que apontam para `auth.users` para apontar para `profiles(user_id)`.
 
 ## Solucao
 
-Remover as 4 foreign key constraints. As colunas continuam existindo e armazenando os IDs normalmente, apenas sem a restricao de FK. Isso esta alinhado com a arquitetura do projeto (conforme documentado: campos de auditoria nao devem ter FK para suportar o modelo dual de autenticacao).
+Trocar a referencia de `auth.users(id)` para `profiles(user_id)` nas constraints `atualizado_por` e `criado_por`. Assim mantemos a integridade referencial sem remover nenhuma FK.
 
 ## Alteracao Tecnica
 
-### Migracao SQL (unica alteracao necessaria)
+### Migracao SQL (unica alteracao)
 
 ```sql
+-- Remover FKs que apontam para auth.users
 ALTER TABLE veiculos DROP CONSTRAINT veiculos_atualizado_por_fkey;
 ALTER TABLE veiculos DROP CONSTRAINT veiculos_criado_por_fkey;
-ALTER TABLE veiculos DROP CONSTRAINT veiculos_inspecao_por_fkey;
-ALTER TABLE veiculos DROP CONSTRAINT veiculos_liberado_por_fkey;
+
+-- Recriar apontando para profiles (onde Staff ja existe)
+ALTER TABLE veiculos
+  ADD CONSTRAINT veiculos_atualizado_por_fkey
+  FOREIGN KEY (atualizado_por) REFERENCES profiles(user_id) ON DELETE SET NULL;
+
+ALTER TABLE veiculos
+  ADD CONSTRAINT veiculos_criado_por_fkey
+  FOREIGN KEY (criado_por) REFERENCES profiles(user_id) ON DELETE SET NULL;
 ```
 
-Nenhuma alteracao de codigo necessaria -- o codigo ja grava os IDs corretamente, so a constraint do banco que estava impedindo.
+Nenhuma alteracao de codigo necessaria. As 4 FKs passam a apontar para `profiles(user_id)`, tabela onde tanto Admins (via `handle_new_user`) quanto Staff (via `staff-register`) ja possuem registros.
