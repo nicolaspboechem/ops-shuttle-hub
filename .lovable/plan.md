@@ -1,117 +1,95 @@
 
-# Correcao de 6 Bugs - Plano por Etapas
+# Corrigir Ciclos Orfaos de Veiculos - Backend + Frontend
 
-## Etapa 1: Re-vistoria falha na liberacao
+## Diagnostico
 
-**Problema**: Ao fazer re-vistoria pelo app supervisor, o status do veiculo nao atualiza para "liberado".
+- **71 vinculacoes orfas** de dias anteriores (sem desvinculacao correspondente)
+- **24 vinculacoes orfas** de hoje (normais, veiculos em uso)
+- **Bug de fuso horario** no `close-open-trips`: mesma causa do auto-checkout. `serverTime.getHours()` retorna UTC, nao SP. A funcao `get_server_time` retorna `2026-02-17T12:40:47-03:00`, mas `new Date(str).getHours()` converte para UTC (15h), nao SP (12h). Resultado: o dia operacional e calculado errado.
 
-**Causa raiz**: No `VistoriaVeiculoWizard.tsx` (linha 218), o update define `liberado_em: statusFinal === 'liberado' ? getAgoraSync().toISOString() : null`. Porem, o campo `liberado_por` recebe `realizadoPorId`, que vem do `useCurrentUser()`. Para supervisores autenticados via Staff JWT, o `userId` pode nao corresponder ao UUID esperado pelo banco, ou o update silenciosamente falha porque o campo `liberado_por` espera um UUID valido de `auth.users`.
+## Solucao em 3 Partes
 
-**Correcao**: No bloco de re-vistoria (linha 187-225), adicionar tratamento de erro explicito no update e garantir que `liberado_por` e `inspecao_por` aceitam o ID do staff corretamente. Tambem logar o erro caso o update falhe.
+### Parte 1: Corrigir fuso horario no `close-open-trips`
 
-**Arquivo**: `src/components/app/VistoriaVeiculoWizard.tsx`
+Extrair hora/minuto diretamente da string retornada por `get_server_time` (parse manual dos caracteres, sem depender de `Date.getHours()`). O formato e fixo: `YYYY-MM-DDTHH:MI:SS.MS-03:00`.
 
-**Como testar**: Fazer uma re-vistoria no app supervisor, selecionar "Liberado" no ultimo passo, confirmar. Verificar se o status do veiculo muda para "liberado" na lista.
+```text
+const horaAtual = parseInt(serverTimeData.substring(11, 13))
+const minAtual  = parseInt(serverTimeData.substring(14, 16))
+const dataHoje  = serverTimeData.substring(0, 10)
+```
 
----
+Isso ja resolve o calculo de `dataOpAtual` e `dataOpHoje` para todos os blocos.
 
-## Etapa 2: Supervisor precisa encerrar missoes
+### Parte 2: Novo bloco na Edge Function - fechar vinculacoes orfas
 
-**Problema**: O app supervisor nao tem botao para encerrar/concluir missoes.
+Adicionar um **Bloco 4** no `close-open-trips` que:
 
-**Causa raiz**: O `AppSupervisor.tsx` importa `useMissoes` que tem `concluirMissao` e `cancelarMissao`, mas essas funcoes nao sao passadas para nenhum componente de UI no app supervisor. As viagens na tab de viagens nao expoem acoes de missao.
+1. Busca todas as vinculacoes sem desvinculacao correspondente de dias anteriores ao dia operacional atual
+2. Para cada vinculacao orfa, determina o timestamp de fechamento usando (em ordem de prioridade):
+   - A proxima vinculacao no mesmo veiculo (troca de motorista)
+   - A ultima viagem encerrada (`h_fim_real`) do motorista naquele veiculo apos a vinculacao
+   - O `checkout_at` da presenca do motorista apos a vinculacao
+   - Se nenhum dado disponivel: usa o inicio do dia operacional seguinte ao da vinculacao (virada)
+3. Insere um registro de `desvinculacao` no `veiculo_vistoria_historico` com o timestamp calculado e observacao "Desvinculacao retroativa (correcao automatica)"
 
-**Correcao**: Adicionar no `AppSupervisor.tsx` a capacidade de concluir e cancelar missoes. Isso sera feito passando as funcoes `concluirMissao` e `cancelarMissao` do hook `useMissoes` para o componente `SupervisorViagensTab`, que podera exibir um botao de acao nas viagens vinculadas a missoes (`origem_missao_id`).
+Essa logica roda a cada execucao do cron, garantindo que novas orfas sejam corrigidas automaticamente.
 
-**Arquivos**: 
-- `src/pages/app/AppSupervisor.tsx` - expor funcoes de missao
-- `src/components/app/SupervisorViagensTab.tsx` - adicionar botoes de acao para missoes
-- `src/components/app/ViagemCardOperador.tsx` - adicionar botao "Encerrar Missao" quando viagem tem `origem_missao_id`
+### Parte 3: Frontend - fechamento implicito no hook
 
-**Como testar**: No app supervisor, na aba Viagens, encontrar uma viagem vinculada a uma missao em andamento. Deve aparecer opcao de encerrar a missao. Ao encerrar, a viagem e a missao devem ser finalizadas.
+No `useVeiculoPresencaHistorico.ts`, quando uma vinculacao e seguida por outra vinculacao (sem desvinculacao entre elas):
 
----
+- Fechar o ciclo anterior usando o timestamp da proxima vinculacao como `desvinculado_em`
+- Marcar `desvinculado_por` como "(troca de motorista)"
+- Calcular duracao normalmente
+- Nao marcar como `em_uso`
 
-## Etapa 3: CCO checkout nao desvincula veiculo (historico)
+Isso garante que mesmo antes da Edge Function rodar, o frontend ja exibe os ciclos corretamente.
 
-**Problema**: Ao fazer checkout pelo painel CCO (pagina Motoristas), o veiculo e desvinculado bidirecionalmente (motoristas.veiculo_id = null, veiculos.motorista_id = null), POREM nao registra a desvinculacao no historico (`veiculo_vistoria_historico`).
+## Detalhes Tecnicos
 
-**Causa raiz**: O `handleCheckout` no `useEquipe.ts` (linhas 248-261) faz as 3 operacoes em paralelo (update presenca, update motorista, update veiculo), mas NAO insere registro de desvinculacao no `veiculo_vistoria_historico`. Diferente do checkout do motorista (`useMotoristaPresenca.ts` linhas 321-353) que insere o registro corretamente.
+### Arquivo: `supabase/functions/close-open-trips/index.ts`
 
-**Correcao**: Adicionar no `handleCheckout` do `useEquipe.ts` a insercao do registro de desvinculacao no `veiculo_vistoria_historico`, similar ao que ja e feito no checkout do motorista. Precisa buscar o `veiculo_id` do motorista antes de limpar.
+**Fix do fuso**: Substituir todas as ocorrencias de `serverTime.getHours()` e `serverTime.getMinutes()` por parse direto da string `serverTimeData`. Aplicar em todos os 3 blocos existentes (viagens, desvinculacao, orfas).
 
-**Arquivo**: `src/hooks/useEquipe.ts`
+**Novo Bloco 4**: Query SQL com window function para identificar vinculacoes orfas:
 
-**Como testar**: No CCO (pagina Motoristas), fazer checkout de um motorista que tem veiculo vinculado. Verificar na auditoria de veiculos que aparece um registro de desvinculacao com "CCO (checkout)".
+```text
+Para cada evento ativo:
+1. SELECT vinculacoes WHERE tipo_vistoria = 'vinculacao'
+   AND NOT EXISTS (desvinculacao subsequente antes da proxima vinculacao)
+   AND created_at < inicio do dia operacional atual
+   
+2. Para cada orfa:
+   - Buscar proxima vinculacao no mesmo veiculo -> usar como timestamp
+   - OU buscar ultima viagem (h_fim_real) do motorista+veiculo
+   - OU buscar checkout_at do motorista
+   - OU usar virada do dia da vinculacao
+   
+3. INSERT desvinculacao com timestamp calculado
+```
 
----
+### Arquivo: `src/hooks/useVeiculoPresencaHistorico.ts`
 
-## Etapa 4: Veiculos orfaos de dias anteriores
+No loop de pareamento (linhas 109-154), quando `cicloAberto` existe e chega nova vinculacao:
 
-**Problema**: Motoristas que fizeram checkout em dias anteriores ainda aparecem com veiculos vinculados no dia seguinte, porque o auto-checkout foi desativado.
+Em vez de criar registro com `em_uso: true` e `duracao_minutos: 0`, fechar o ciclo:
+- `desvinculado_em` = nova vinculacao `.created_at`
+- `duracao_minutos` = diferenca calculada
+- `desvinculado_por` = "(troca de motorista)"
+- `em_uso` = false
 
-**Causa raiz**: Com o auto-checkout desativado, se um motorista nao fizer checkout explicitamente, o vinculo `motoristas.veiculo_id` e `veiculos.motorista_id` permanecem. No dia seguinte, aparecem como vinculados mesmo sem estar em servico.
+O unico caso de `em_uso: true` sera o ultimo ciclo aberto de **hoje**.
 
-**Correcao**: Na edge function `close-open-trips` (que ja roda via cron para fechar viagens orfas), adicionar logica para desvinculacao de veiculos de motoristas que NAO tem presenca ativa no dia operacional atual. A funcao ja percorre todos os eventos ativos e calcula o dia operacional.
+## Arquivos Alterados
 
-**Arquivo**: `supabase/functions/close-open-trips/index.ts`
-
-**Como testar**: Verificar se apos a virada do dia, motoristas sem checkin ativo perdem o vinculo com o veiculo. Pode-se chamar a funcao manualmente: `supabase.functions.invoke('close-open-trips')`.
-
----
-
-## Etapa 5: Missao de deslocamento nao finaliza no app
-
-**Problema**: Missoes de deslocamento nao podem ser finalizadas pelo app do motorista.
-
-**Causa raiz**: Missoes de deslocamento sao criadas pelo CCO/Supervisor com o fluxo `createMissao` + `aceitarMissao` + `iniciarMissao` em sequencia (em `useMissoes.ts`). O `iniciarMissao` cria a viagem e salva o `viagem_id` na missao. Porem, o `useMissoesPorMotorista` busca as missoes e carrega `viagem_id`, mas o estado local `missoes` no `AppMotorista` pode estar desatualizado no momento da finalizacao (o `viagem_id` ainda e null no estado local porque o realtime nao atualizou a tempo). 
-
-Na logica de `finalizar` (linha 351), se `missao.viagem_id` for null, a viagem nao e encerrada - mas a missao sim. A viagem fica "em_andamento" eternamente.
-
-**Correcao**: No bloco `finalizar` do `handleMissaoAction` no `AppMotorista.tsx`, buscar a missao atualizada do banco antes de usar `viagem_id`. Se `viagem_id` estiver null no estado local, fazer um `select` para buscar o valor real.
-
-**Arquivo**: `src/pages/app/AppMotorista.tsx`
-
-**Como testar**: Criar uma missao de deslocamento pelo CCO/Supervisor. No app do motorista, clicar em "Finalizar Missao". A missao e a viagem vinculada devem ser encerradas.
-
----
-
-## Etapa 6: Missao cancelada atualiza localizacao para destino
-
-**Problema**: Ao cancelar uma missao, o sistema atualiza a localizacao do motorista para o ponto de desembarque da missao, mesmo ele nunca tendo chegado la.
-
-**Causa raiz**: A funcao `syncMotoristaAoEncerrarMissao` no `useMissoes.ts` (linhas 452-456) atualiza `ultima_localizacao` para `missao.ponto_desembarque` independentemente de ser conclusao ou cancelamento. Essa funcao e chamada tanto por `concluirMissao` quanto por `cancelarMissao`.
-
-A mesma logica errada existe no `AppMotorista.tsx` no bloco `finalizar` (linhas 383-392) e no bloco `recusar` (que chama apenas update de status, sem localizacao - correto).
-
-**Correcao**: 
-1. No `cancelarMissao` do `useMissoes.ts`: chamar uma versao modificada que NAO atualiza localizacao. Separar a logica de `syncMotoristaAoEncerrarMissao` para aceitar um parametro `atualizarLocalizacao: boolean`.
-2. No `AppMotorista.tsx`, no bloco `recusar`: ja esta correto (nao atualiza localizacao).
-
-**Arquivo**: `src/hooks/useMissoes.ts`
-
-**Como testar**: Criar uma missao, aceitar, iniciar e depois cancelar pelo CCO. Verificar que a localizacao do motorista NAO muda para o destino da missao.
-
----
-
-## Resumo de Arquivos
-
-| Etapa | Arquivo | Bug |
-|-------|---------|-----|
-| 1 | `src/components/app/VistoriaVeiculoWizard.tsx` | Re-vistoria nao libera |
-| 2 | `src/pages/app/AppSupervisor.tsx`, `SupervisorViagensTab.tsx`, `ViagemCardOperador.tsx` | Supervisor sem encerrar missao |
-| 3 | `src/hooks/useEquipe.ts` | CCO checkout sem historico |
-| 4 | `supabase/functions/close-open-trips/index.ts` | Veiculos orfaos |
-| 5 | `src/pages/app/AppMotorista.tsx` | Deslocamento nao finaliza |
-| 6 | `src/hooks/useMissoes.ts` | Cancelar missao altera localizacao |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/close-open-trips/index.ts` | Fix UTC + Bloco 4 (fechar orfas retroativamente) |
+| `src/hooks/useVeiculoPresencaHistorico.ts` | Fechamento implicito de ciclos consecutivos |
 
 ## Ordem de Implementacao
 
-Recomendo implementar nesta ordem para que cada etapa possa ser testada isoladamente:
-
-1. **Etapa 6** (menor risco, correcao pontual em `useMissoes.ts`)
-2. **Etapa 3** (correcao pontual em `useEquipe.ts`)
-3. **Etapa 1** (correcao no wizard de vistoria)
-4. **Etapa 5** (correcao no app motorista)
-5. **Etapa 2** (nova funcionalidade no app supervisor)
-6. **Etapa 4** (alteracao na edge function)
+1. **Frontend** (`useVeiculoPresencaHistorico.ts`) - correcao visual imediata
+2. **Edge Function** (`close-open-trips`) - fix UTC + bloco de limpeza retroativa
+3. **Deploy e teste manual** - chamar `close-open-trips` para processar as 71 orfas
