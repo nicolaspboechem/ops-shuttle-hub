@@ -797,15 +797,9 @@ export default function Motoristas() {
                     <CardContent className="space-y-4">
                       {metricas ? (
                         <>
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Total Viagens</span>
-                              <span className="font-medium">{metricas.totalViagens}</span>
-                            </div>
-                            <Progress 
-                              value={(metricas.totalViagens / maxViagens) * 100} 
-                              className="h-2"
-                            />
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Viagens</span>
+                            <span className="font-medium">{metricas.totalViagens}</span>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
