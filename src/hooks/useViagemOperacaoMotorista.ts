@@ -43,7 +43,7 @@ async function motoristaTemViagensAtivas(motoristaId: string, eventoId: string, 
     .select('id')
     .eq('evento_id', eventoId)
     .eq('motorista_id', motoristaId)
-    .eq('encerrado', false);
+    .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
 
   if (viagemIdExcluir) {
     query = query.neq('id', viagemIdExcluir);
