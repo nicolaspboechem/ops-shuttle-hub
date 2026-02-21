@@ -1,76 +1,35 @@
 
 
-# Diagnóstico: Missões do Supervisor nao aparecem no App do Motorista
+# Limpar registro duplicado "Alan Nascimento"
 
-## Problema Identificado
+## Situacao
 
-Após investigacao detalhada do codigo, foram encontrados **dois problemas** que podem causar o comportamento relatado:
+Existem dois registros para o mesmo motorista (telefone 21993683642):
+- **Alan da Silva Santos Nascimento** (`0fcd77e2`) -- registro correto, com veiculo, status disponivel
+- **Alan Nascimento** (`d01d12d6`) -- duplicado, sem veiculo, com missao e viagem orfas travadas
 
----
+## Dados vinculados ao registro duplicado
 
-## Problema 1: Horario de virada hardcoded (causa principal em horarios de borda)
+| Recurso | ID | Status |
+|---|---|---|
+| Missao orfa | `e19f112e` | em_andamento |
+| Viagem orfa | `0e4f9610` | em_andamento |
+| Credencial | `112f60ae` | ativa |
+| Presenca | nenhuma | - |
 
-O `MissaoInstantaneaModal` e o `MissaoDeslocamentoModal` usam `'04:00'` fixo para calcular o dia operacional ao salvar a missao:
+## Acoes a executar (todas via SQL direto no banco)
 
-```text
-data_programada: getDataOperacional(agora, '04:00')   // hardcoded
-```
+1. **Encerrar missao orfa** -- atualizar status para `cancelada`
+2. **Encerrar viagem orfa** -- atualizar status para `encerrado`, `encerrado = true`, `h_fim_real = now()`
+3. **Desativar credencial** -- `ativo = false` na credencial `112f60ae`
+4. **Desativar motorista duplicado** -- `ativo = false` no motorista `d01d12d6`
 
-Porem o evento Rio Open 2026 tem `horario_virada_dia = '04:50:00'`. O app do motorista usa o horario real do evento para calcular `dataOperacional` e filtrar missoes:
+Nao sera feita exclusao fisica (DELETE) para preservar integridade referencial. Ao marcar `ativo = false`, o motorista desaparece de todas as listas e filtros da aplicacao.
 
-```text
-(!m.data_programada || m.data_programada === dataOperacional)
-```
+## Resultado esperado
 
-Entre 04:00 e 04:50, o Supervisor calcula um dia operacional **diferente** do Motorista, e a missao fica invisivel.
-
-**Arquivos afetados:**
-- `src/components/motoristas/MissaoInstantaneaModal.tsx` (linha 91)
-- `src/components/motoristas/MissaoDeslocamentoModal.tsx` (linha 96)
-- `src/components/motoristas/MissaoModal.tsx` (linhas 73, 88, 98)
-- `src/components/motoristas/MissoesPanel.tsx` (linhas 58, 124, 190, 193)
-- `src/components/motoristas/MissaoCard.tsx` (linha 153)
-
-**Correcao:** Todos esses componentes precisam receber o `horario_virada_dia` do evento como prop em vez de usar `'04:00'` hardcoded.
-
----
-
-## Problema 2: Realtime pode nao disparar para o motorista
-
-O app do motorista depende de Supabase Realtime para detectar novas missoes em tempo real. O canal esta configurado corretamente (`missoes-motorista-${motoristaId}` com filtro `motorista_id=eq.${motoristaId}`), mas:
-
-- Se o Realtime falhar silenciosamente (limite de conexoes, rede instavel), o motorista so vera novas missoes ao fazer pull-to-refresh manualmente
-- Nao existe fallback de polling no hook `useMissoesPorMotorista`
-
-**Correcao:** Adicionar um polling de fallback (intervalo de 30s) como rede de seguranca.
-
----
-
-## Plano de Implementacao
-
-### Etapa 1 - Corrigir horario de virada hardcoded
-
-1. **MissaoInstantaneaModal** e **MissaoDeslocamentoModal**: adicionar prop `horarioVirada?: string` e usar no lugar de `'04:00'`
-2. **MissaoModal**: mesma correcao
-3. **MissoesPanel**: receber `horarioVirada` do evento pai
-4. **MissaoCard**: receber `horarioVirada` para exibicao correta de "Hoje"
-5. **AppSupervisor**: passar `evento.horario_virada_dia` para os modais de missao
-6. **MissoesPanel (CCO)**: buscar `horario_virada_dia` do evento e propagar
-
-### Etapa 2 - Adicionar polling de fallback no app do motorista
-
-1. No hook `useMissoesPorMotorista`, adicionar um `setInterval` de 30 segundos que chama `fetchMissoes()` como rede de seguranca caso o Realtime falhe
-2. Limpar o interval no cleanup do useEffect
-
-### Resumo tecnico das alteracoes
-
-| Arquivo | Alteracao |
-|---|---|
-| `MissaoInstantaneaModal.tsx` | Adicionar prop `horarioVirada`, usar em `getDataOperacional` |
-| `MissaoDeslocamentoModal.tsx` | Adicionar prop `horarioVirada`, usar em `getDataOperacional` |
-| `MissaoModal.tsx` | Adicionar prop `horarioVirada`, usar em `getDataOperacional` |
-| `MissoesPanel.tsx` | Receber e propagar `horarioVirada` do evento |
-| `MissaoCard.tsx` | Receber `horarioVirada` para label "Hoje" |
-| `AppSupervisor.tsx` | Passar `horarioVirada` nos modais de missao |
-| `useMissoes.ts` | Adicionar polling fallback de 30s em `useMissoesPorMotorista` |
+- O "Alan Nascimento" some da lista de motoristas
+- Apenas o "Alan da Silva Santos Nascimento" permanece visivel
+- Nenhuma missao ou viagem fica travada
+- A missao "Levar VIP GIG" de hoje fica liberada para aceite no app do motorista
 
