@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ViagemCardOperador } from './ViagemCardOperador';
 import { EditViagemMobileModal } from './EditViagemMobileModal';
+import { useViagemOperacaoStaff } from '@/hooks/useViagemOperacaoStaff';
 import { toast } from 'sonner';
 
 interface SupervisorViagensTabProps {
@@ -44,6 +45,7 @@ export function SupervisorViagensTab({
   }, [dataOperacional, horarioVirada]);
 
   const { viagens, loading, refetch } = useViagens(eventoId, viagensOptions);
+  const staffOps = useViagemOperacaoStaff();
   const [statusFilter, setStatusFilter] = useState<StatusViagemOperacao | null>(null);
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
   const [missaoLoading, setMissaoLoading] = useState<string | null>(null);
@@ -194,6 +196,7 @@ export function SupervisorViagensTab({
                 <ViagemCardOperador 
                   viagem={viagem}
                   onUpdate={handleRefresh}
+                  operacoes={staffOps}
                 />
                 <div className="absolute top-2 right-14 flex gap-1">
                   <Button
