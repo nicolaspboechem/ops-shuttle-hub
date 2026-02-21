@@ -1,77 +1,111 @@
 
-# Corrigir Renato Quintanilha + Garantir sincronização CCO
 
-## Problema atual
+# Corrigir presenças sem checkout + Prevenir duplicatas de check-in
 
-A viagem `dc9013ad` do Renato ficou em estado inconsistente:
-- `encerrado = true` (definido pela migration anterior)
-- `status = 'em_andamento'` (nunca foi atualizado)
-- `h_fim_real = null`
+## Situacao atual
 
-O motorista tambem esta com `status = 'em_viagem'` (ID: `ead4aae2-3ebf-4fe0-ac5b-cf6b85265c8b`).
+### Dados a corrigir
 
-A tabela de viagens no CCO filtra por `status`, entao a viagem continua aparecendo como "Em Andamento" mesmo apos todas as tentativas.
+**Duplicatas por race condition (mesmo dia, mesma hora):**
+- Fabricio Fernandes: 3 registros identicos em 21/02 (16:53:29) - manter 1, deletar 2
+- Alexandre Lima: 2 registros identicos em 21/02 (19:39:06) - manter 1, deletar 1
 
-## Correção 1: Dados (Migration SQL)
+**Presenças de dias anteriores sem checkout:**
+- Rafael Santos: 2 registros abertos (dias 19 e 20)
+- Fabricio Fernandes: 1 registro aberto (dia 20)
+- Felipe Quirino: 1 registro aberto (dia 19)
+- Cassio dos Santos Motta: 1 registro aberto (dia 19)
 
-Atualizar a viagem orfa e o motorista com os IDs corretos:
+Esses registros de dias anteriores devem receber checkout no horario de virada (04:50) do respectivo dia operacional, pois o motorista claramente encerrou o expediente sem fazer checkout.
 
-```text
-UPDATE viagens 
-SET status = 'encerrado', h_fim_real = now(), encerrado = true
-WHERE id = 'dc9013ad-c0cc-4ffa-a3aa-f6626bab30bb';
+### Problema de fluxo
 
-UPDATE motoristas 
-SET status = 'disponivel' 
-WHERE id = 'ead4aae2-3ebf-4fe0-ac5b-cf6b85265c8b';
-```
+Quando o CCO clica "Liberar Check-in", apenas altera `motoristas.status = 'disponivel'`. O app do motorista detecta isso via Realtime e pode disparar multiplas chamadas `realizarCheckin()` antes que a primeira termine, criando duplicatas. O guard atual (`existingActive` query) nao e atomico.
 
-## Correção 2: Código - `encerrarViagem` no CCO
+## Correcoes
 
-**Arquivo:** `src/hooks/useViagemOperacao.ts`
-
-Na funcao `encerrarViagem` (linha ~226), apos encerrar a viagem principal, adicionar logica para fechar viagens orfas vinculadas via `origem_missao_id`. Quando o CCO encerra manualmente uma viagem que veio de uma missao, pode haver outra viagem duplicada (criada pelo motorista ou CCO em paralelo) que ficara pendente.
-
-Adicionar apos o update principal (linha ~243):
+### 1. Migration SQL - Limpar dados
 
 ```text
-// Se a viagem veio de uma missão, fechar todas as viagens órfãs da mesma missão
-if (viagem.origem_missao_id) {
-  await supabase
-    .from('viagens')
-    .update({
-      status: 'encerrado',
-      h_fim_real: now.toISOString(),
-      encerrado: true,
-      finalizado_por: user.id,
-    })
-    .eq('origem_missao_id', viagem.origem_missao_id)
-    .neq('id', viagem.id)
-    .eq('encerrado', false);
-}
+-- Deletar duplicatas do Fabricio (manter 5a2028c5, deletar os outros 2)
+DELETE FROM motorista_presenca 
+WHERE id IN ('ee7aba65-32c7-47f9-879a-229d23f8e89b', '0324bcec-66d8-4c83-8f1c-e0b8d3acc846');
+
+-- Deletar duplicata do Alexandre Lima (manter 9e2e9621, deletar o outro)
+DELETE FROM motorista_presenca 
+WHERE id = '254f7c18-2d0b-4cfd-a4b9-1f5262b69313';
+
+-- Fechar presenças orfas de dias anteriores com checkout no horario de virada
+-- Dia 19 -> virada = 2026-02-20 04:50:00 BRT = 2026-02-20 07:50:00 UTC
+UPDATE motorista_presenca SET checkout_at = '2026-02-20 07:50:00+00', 
+  observacao_checkout = 'Checkout automático (virada operacional)'
+WHERE id IN ('465e442f-fa21-4615-8ad3-8ac2abe50906', '627c532f-5c35-4c64-9ef5-bb74bb715e8e', 'ae652437-4dab-474e-afec-a82fff425e8f');
+
+-- Dia 20 -> virada = 2026-02-21 04:50:00 BRT = 2026-02-21 07:50:00 UTC
+UPDATE motorista_presenca SET checkout_at = '2026-02-21 07:50:00+00',
+  observacao_checkout = 'Checkout automático (virada operacional)'
+WHERE id IN ('050e4f09-970e-42eb-b8be-99fcae400a5e', 'bca839ef-0876-4e90-98c4-6bfa35d6cf98');
 ```
 
-## Correção 3: Código - `motoristaTemViagensAtivas`
+### 2. Prevenir race condition no check-in
 
-**Arquivo:** `src/hooks/useViagemOperacao.ts`
+**Arquivo:** `src/hooks/useMotoristaPresenca.ts`
 
-A funcao `motoristaTemViagensAtivas` (linha 80) usa `.eq('encerrado', false)` para filtrar. Conforme a memoria do projeto, o campo `status` e a fonte de verdade, nao o booleano `encerrado`. Alterar para usar `status`:
+Adicionar `useRef(false)` como guard de concorrencia no `realizarCheckin`:
 
 ```text
-// Antes:
-.eq('encerrado', false);
+const checkinInProgress = useRef(false);
 
-// Depois:
-.in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
+const realizarCheckin = async () => {
+  if (checkinInProgress.current) return false;
+  checkinInProgress.current = true;
+  try {
+    // ... logica existente ...
+  } finally {
+    checkinInProgress.current = false;
+  }
+};
 ```
 
-Aplicar a mesma correção em `src/hooks/useViagemOperacaoMotorista.ts` na funcao equivalente.
+Isso garante que mesmo com multiplos triggers Realtime, apenas uma chamada passa.
 
-## Resumo
+### 3. Exibir turnos no historico de auditoria
 
-| Acao | Arquivo |
+**Arquivo:** `src/components/motoristas/MotoristaAuditoriaCard.tsx`
+
+Agrupar presencas por `data`. Quando ha mais de 1 registro no mesmo dia, exibir badge "1o Turno", "2o Turno" etc. Ordenar por `checkin_at` dentro do dia.
+
+Exemplo visual:
+```text
+sabado, 21/02 - 1o Turno
+  In: 08:16  Out: 09:05  TKB0J35  0h 48min
+
+sabado, 21/02 - 2o Turno
+  In: 16:53  Out: --:--
+```
+
+### 4. Corrigir contagem totalDias
+
+**Arquivo:** `src/hooks/useMotoristaPresencaHistorico.ts`
+
+Alterar `totalDias` para contar dias unicos em vez de numero de registros:
+
+```text
+totalDias: new Set(presencasMotorista.map(p => p.data)).size
+```
+
+### 5. Associar viagens ao turno correto
+
+**Arquivo:** `src/components/motoristas/MotoristaAuditoriaCard.tsx`
+
+Em vez de filtrar viagens por `data_criacao.startsWith(data)` (que mostra todas as viagens do dia em todos os turnos), filtrar pelo intervalo `checkin_at` a `checkout_at` de cada turno individual.
+
+## Resumo de arquivos
+
+| Arquivo | Alteracao |
 |---|---|
-| Migration SQL | Corrigir dados da viagem `dc9013ad` e motorista |
-| `useViagemOperacao.ts` | `encerrarViagem` fecha orfas por `origem_missao_id` |
-| `useViagemOperacao.ts` | `motoristaTemViagensAtivas` usa `status` ao inves de `encerrado` |
-| `useViagemOperacaoMotorista.ts` | Mesma correcao no helper do motorista |
+| Migration SQL | Deletar duplicatas + fechar presenças orfas com checkout na virada |
+| `src/hooks/useMotoristaPresenca.ts` | Guard `useRef` contra race condition no check-in |
+| `src/hooks/useMotoristaPresencaHistorico.ts` | `totalDias` conta dias unicos |
+| `src/components/motoristas/MotoristaAuditoriaCard.tsx` | Exibir numero do turno + viagens por turno |
+
