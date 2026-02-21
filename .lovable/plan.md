@@ -1,42 +1,74 @@
 
-
-# Corrigir fluxos de viagem: Supervisor, Motorista e botoes
+# Corrigir slow resource no CCO (Viagens Ativas/Finalizadas + Motoristas)
 
 ## Problemas identificados
 
-### 1. Todas as acoes de viagem do Supervisor estao quebradas (critico)
+### 1. useUserNames - Loop infinito de re-renders (CRITICO)
 
-O componente `SupervisorViagensTab` renderiza `ViagemCardOperador` **sem passar a prop `operacoes`**. Isso faz com que o card use o hook padrao `useViagemOperacao()`, que depende de `useAuth()` (Supabase Auth). Supervisores usam **Staff JWT** (StaffAuthContext), entao `user` retorna `null` e **todas as acoes falham silenciosamente** (iniciar, chegada, encerrar, retorno).
+**Arquivo:** `src/hooks/useUserNames.ts`
 
-**Correcao:** Instanciar `useViagemOperacaoStaff()` dentro de `SupervisorViagensTab` e passa-lo como prop `operacoes` para cada `ViagemCardOperador`.
+O callback `fetchNames` tem `names` na lista de dependencias (linha 48). Quando `setNames` e chamado, `names` muda, o que recria `fetchNames`, que dispara o `useEffect` novamente. Mesmo com o early return (`idsToFetch.length === 0`), o efeito dispara desnecessariamente a cada mudanca de estado, causando cascata de re-renders em todos os componentes que usam o hook.
 
-### 2. Finalizacao de missao pelo motorista usa filtro errado (critico)
+**Correcao:** Usar `useRef` para o cache de nomes em vez de `useState`, e remover `names` das dependencias do `fetchNames`. Usar um counter de estado apenas para forcar re-render quando novos nomes sao carregados.
 
-Em `AppMotorista.tsx` (linha 391), ao finalizar uma missao, a verificacao de "outras viagens ativas" usa `.eq('encerrado', false)` em vez de filtrar por `status`. Isso pode retornar viagens que ja foram encerradas mas com o booleano inconsistente, impedindo que o motorista volte ao status `disponivel`.
+```text
+const namesRef = useRef<UserNameCache>({});
+const [version, setVersion] = useState(0);
 
-**Correcao:** Trocar `.eq('encerrado', false)` por `.in('status', ['agendado', 'em_andamento', 'aguardando_retorno'])`.
+const fetchNames = useCallback(async () => {
+  const validIds = userIds.filter((id): id is string => !!id);
+  const uniqueIds = [...new Set(validIds)];
+  const idsToFetch = uniqueIds.filter(id => !namesRef.current[id]);
+  if (idsToFetch.length === 0) return;
 
-### 3. Botoes trocados no card de viagem (UX)
+  // ... fetch ...
+  data?.forEach(profile => {
+    namesRef.current[profile.user_id] = profile.full_name || 'Usuario';
+  });
+  idsToFetch.forEach(id => {
+    if (!namesRef.current[id]) namesRef.current[id] = 'Usuario';
+  });
+  setVersion(v => v + 1); // trigger re-render
+}, [userIds]); // SEM 'names' nas deps
+```
 
-No `ViagemCardOperador`, quando um shuttle esta em `aguardando_retorno`:
-- Atualmente: botao principal (grande) = "Iniciar Retorno", botao secundario (pequeno) = "Encerrar"
-- Esperado pelo usuario: botao principal = "Concluir/Encerrar", botao secundario = "Retorno"
+### 2. Pagina Motoristas carrega TODAS as viagens do evento (ALTO IMPACTO)
 
-Tambem no swipe:
-- Atualmente: swipe esquerdo = "Encerrar", swipe direito = "Retorno"
-- Esperado: inverter posicoes
+**Arquivo:** `src/pages/Motoristas.tsx` (linha 64)
 
-## Alteracoes por arquivo
+`useViagens(eventoId)` sem filtro de `dataOperacional` carrega todas as viagens do evento inteiro. Para um evento com centenas/milhares de viagens, isso e muito pesado e desnecessario - as metricas de motorista devem ser do dia operacional atual.
 
-### `src/components/app/SupervisorViagensTab.tsx`
-- Importar `useViagemOperacaoStaff`
-- Instanciar o hook no componente
-- Passar `operacoes={staffOps}` para cada `ViagemCardOperador`
+**Correcao:** Adicionar filtro de dia operacional, igual ao Dashboard:
 
-### `src/pages/app/AppMotorista.tsx`
-- Linha 391: trocar `.eq('encerrado', false)` por `.in('status', ['agendado', 'em_andamento', 'aguardando_retorno'])`
+```text
+const { getAgoraSync } = useServerTime();
+const evento = eventoId ? getEventoById(eventoId) : null;
 
-### `src/components/app/ViagemCardOperador.tsx`
-- Swipe (linhas 195-211): trocar posicoes - "Concluir" vai para direita (acao principal), "Retorno" vai para esquerda
-- Botoes (linhas 391-415): "Concluir" vira o botao grande (flex-1), "Retorno" vira o botao secundario (outline)
+const viagensOptions = useMemo(() => ({
+  dataOperacional: getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00'),
+  horarioVirada: evento?.horario_virada_dia || '04:00',
+}), [evento?.horario_virada_dia]);
 
+const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId, viagensOptions);
+```
+
+### 3. Serializar userIds para estabilizar referencia
+
+**Arquivo:** `src/hooks/useUserNames.ts`
+
+O array `userIds` muda de referencia a cada render mesmo quando o conteudo e o mesmo. Usar `JSON.stringify` para estabilizar o efeito:
+
+```text
+const serializedIds = JSON.stringify(userIds);
+
+useEffect(() => {
+  fetchNames();
+}, [serializedIds]); // em vez de [fetchNames]
+```
+
+## Resumo de arquivos
+
+| Arquivo | Alteracao | Impacto |
+|---|---|---|
+| `src/hooks/useUserNames.ts` | useRef para cache + remover dep ciclica | Elimina loop de re-renders |
+| `src/pages/Motoristas.tsx` | Adicionar filtro dataOperacional ao useViagens | Reduz volume de dados em ~90% |
