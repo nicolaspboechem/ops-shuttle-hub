@@ -1,35 +1,56 @@
 
 
-# Limpar registro duplicado "Alan Nascimento"
+# Corrigir viagem orfa do Renato Quintanilha + Prevenir recorrencia
 
-## Situacao
+## Correcao imediata (dados)
 
-Existem dois registros para o mesmo motorista (telefone 21993683642):
-- **Alan da Silva Santos Nascimento** (`0fcd77e2`) -- registro correto, com veiculo, status disponivel
-- **Alan Nascimento** (`d01d12d6`) -- duplicado, sem veiculo, com missao e viagem orfas travadas
+Encerrar a viagem orfa e liberar o motorista via migration SQL:
 
-## Dados vinculados ao registro duplicado
+- Viagem `dc9013ad` -> status `encerrado`, `encerrado = true`, `h_fim_real = now()`
+- Motorista `ead4aae2` -> status `disponivel`
 
-| Recurso | ID | Status |
-|---|---|---|
-| Missao orfa | `e19f112e` | em_andamento |
-| Viagem orfa | `0e4f9610` | em_andamento |
-| Credencial | `112f60ae` | ativa |
-| Presenca | nenhuma | - |
+## Causa raiz identificada
 
-## Acoes a executar (todas via SQL direto no banco)
+Quando o CCO inicia uma missao, cria uma viagem (A) e salva em `missao.viagem_id`. Depois, o motorista inicia a mesma missao no app e cria uma **segunda viagem** (B), sobrescrevendo `missao.viagem_id` com o ID da viagem B.
 
-1. **Encerrar missao orfa** -- atualizar status para `cancelada`
-2. **Encerrar viagem orfa** -- atualizar status para `encerrado`, `encerrado = true`, `h_fim_real = now()`
-3. **Desativar credencial** -- `ativo = false` na credencial `112f60ae`
-4. **Desativar motorista duplicado** -- `ativo = false` no motorista `d01d12d6`
+Ao concluir a missao, o `syncMotoristaAoEncerrarMissao` encerra apenas a viagem referenciada por `missao.viagem_id` (B), deixando a viagem (A) -- que tem `origem_missao_id` apontando para a missao -- permanentemente aberta e invisivel.
 
-Nao sera feita exclusao fisica (DELETE) para preservar integridade referencial. Ao marcar `ativo = false`, o motorista desaparece de todas as listas e filtros da aplicacao.
+## Correcao definitiva (codigo)
 
-## Resultado esperado
+### Arquivo: `src/hooks/useMissoes.ts` - funcao `syncMotoristaAoEncerrarMissao`
 
-- O "Alan Nascimento" some da lista de motoristas
-- Apenas o "Alan da Silva Santos Nascimento" permanece visivel
-- Nenhuma missao ou viagem fica travada
-- A missao "Levar VIP GIG" de hoje fica liberada para aceite no app do motorista
+Apos encerrar a viagem via `missao.viagem_id`, adicionar uma segunda query para encerrar **todas** as viagens abertas vinculadas a mesma missao via `origem_missao_id`:
+
+```text
+// Apos fechar a viagem principal (missao.viagem_id):
+// Fechar TODAS as viagens orfas vinculadas via origem_missao_id
+await supabase
+  .from('viagens')
+  .update({ status: 'encerrado', h_fim_real: now, encerrado: true })
+  .eq('origem_missao_id', missao.id)
+  .eq('encerrado', false);
+```
+
+### Arquivo: `src/pages/app/AppMotorista.tsx` - acao `iniciar`
+
+Antes de criar uma nova viagem, alem de verificar se ja existe viagem ativa, **encerrar** qualquer viagem previa da mesma missao que esteja aberta, evitando duplicatas:
+
+```text
+// Se existe viagem antiga da mesma missao, encerrar antes de criar nova
+if (viagemExistente && viagemExistente.length > 0) {
+  // Ja existe viagem ativa - nao criar duplicata
+  // Apenas vincular a existente a missao
+  await supabase.from('missoes').update({ viagem_id: viagemExistente[0].id, status: 'em_andamento' }).eq('id', missaoId);
+  // Usar viagem existente ao inves de criar nova
+  return;
+}
+```
+
+### Resumo das alteracoes
+
+| Arquivo | Alteracao |
+|---|---|
+| Migration SQL | Encerrar viagem `dc9013ad`, liberar motorista `ead4aae2` |
+| `src/hooks/useMissoes.ts` | `syncMotoristaAoEncerrarMissao` tambem encerra viagens por `origem_missao_id` |
+| `src/pages/app/AppMotorista.tsx` | Acao `iniciar` reaproveita viagem existente ao inves de criar duplicata |
 
