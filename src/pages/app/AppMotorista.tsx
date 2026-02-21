@@ -388,7 +388,7 @@ export default function AppMotorista() {
           .select('id')
           .eq('motorista_id', motoristaData.id)
           .eq('evento_id', eventoId)
-          .eq('encerrado', false);
+          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
 
         if (!outrasViagens || outrasViagens.length === 0) {
           await supabase

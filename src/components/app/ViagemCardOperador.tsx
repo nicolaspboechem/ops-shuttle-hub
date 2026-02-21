@@ -195,18 +195,18 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
     if (status === 'aguardando_retorno' && viagem.tipo_operacao === 'shuttle') {
       return {
         leftAction: {
-          icon: <CheckCircle className="h-6 w-6" />,
-          label: 'Encerrar',
-          color: 'text-white',
-          bgColor: 'bg-muted',
-          action: handleEncerrar,
-        },
-        rightAction: {
           icon: <RotateCcw className="h-6 w-6" />,
           label: 'Retorno',
           color: 'text-white',
           bgColor: 'bg-blue-600',
           action: handleIniciarRetorno,
+        },
+        rightAction: {
+          icon: <CheckCircle className="h-6 w-6" />,
+          label: 'Concluir',
+          color: 'text-white',
+          bgColor: 'bg-emerald-600',
+          action: handleEncerrar,
         },
       };
     }
@@ -391,25 +391,25 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
             {status === 'aguardando_retorno' && viagem.tipo_operacao === 'shuttle' && (
               <div className="flex gap-2 w-full">
                 <Button 
-                  className="flex-1 bg-blue-600 hover:bg-blue-700" 
-                  onClick={handleIniciarRetorno}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+                  onClick={handleEncerrar}
                   disabled={loading}
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Iniciar Retorno
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Concluir
                     </>
                   )}
                 </Button>
                 <Button 
                   variant="outline"
-                  onClick={handleEncerrar}
+                  onClick={handleIniciarRetorno}
                   disabled={loading}
                 >
-                  <CheckCircle className="h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" />
                 </Button>
               </div>
             )}
