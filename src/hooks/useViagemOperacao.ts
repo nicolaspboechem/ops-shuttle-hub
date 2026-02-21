@@ -77,7 +77,7 @@ async function motoristaTemViagensAtivas(motoristaId: string | null | undefined,
     .from('viagens')
     .select('id')
     .eq('evento_id', eventoId)
-    .eq('encerrado', false);
+    .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
 
   // Preferir motorista_id
   if (motoristaId) {
@@ -249,6 +249,21 @@ export function useViagemOperacao() {
     }
 
     await registrarLog(viagem.id, 'encerramento');
+
+    // Se a viagem veio de uma missão, fechar todas as viagens órfãs da mesma missão
+    if (viagem.origem_missao_id) {
+      await supabase
+        .from('viagens')
+        .update({
+          status: 'encerrado' as StatusViagemOperacao,
+          h_fim_real: now.toISOString(),
+          encerrado: true,
+          finalizado_por: user.id,
+        })
+        .eq('origem_missao_id', viagem.origem_missao_id)
+        .neq('id', viagem.id)
+        .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
+    }
 
     // Verificar se motorista tem outras viagens ativas, senão voltar para 'disponivel'
     if (viagem.evento_id) {
