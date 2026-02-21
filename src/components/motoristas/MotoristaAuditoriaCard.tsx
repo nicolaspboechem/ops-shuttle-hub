@@ -33,6 +33,13 @@ interface MotoristaAuditoriaCardProps {
   onToggle?: () => void;
 }
 
+interface TurnoGroup {
+  data: string;
+  turnoIndex: number;
+  totalTurnos: number;
+  presenca: PresencaHistorico;
+}
+
 export function MotoristaAuditoriaCard({ 
   motorista, 
   viagens,
@@ -40,6 +47,7 @@ export function MotoristaAuditoriaCard({
   onToggle
 }: MotoristaAuditoriaCardProps) {
   const [selectedPresenca, setSelectedPresenca] = useState<PresencaHistorico | null>(null);
+  const [selectedViagens, setSelectedViagens] = useState<Viagem[]>([]);
   
   const formatTime = (isoString: string | null) => {
     if (!isoString) return '--:--';
@@ -65,23 +73,55 @@ export function MotoristaAuditoriaCard({
     return viagens.filter(v => v.motorista === motorista.motorista_nome);
   }, [viagens, motorista.motorista_nome]);
 
-  // Viagens por dia
-  const viagensPorDia = useMemo(() => {
-    const map: Record<string, { total: number; pax: number }> = {};
-    viagensMotorista.forEach(v => {
-      const data = v.data_criacao.split('T')[0];
-      if (!map[data]) {
-        map[data] = { total: 0, pax: 0 };
-      }
-      map[data].total++;
-      map[data].pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
+  // Group presences by date and assign shift numbers
+  const turnoGroups = useMemo((): TurnoGroup[] => {
+    const byDate: Record<string, PresencaHistorico[]> = {};
+    motorista.presencas.forEach(p => {
+      if (!byDate[p.data]) byDate[p.data] = [];
+      byDate[p.data].push(p);
     });
-    return map;
-  }, [viagensMotorista]);
 
-  // Viagens filtradas por dia específico
-  const getViagensDoDia = (data: string) => {
-    return viagensMotorista.filter(v => v.data_criacao.startsWith(data));
+    // Sort each day's presences by checkin_at
+    Object.values(byDate).forEach(arr => {
+      arr.sort((a, b) => {
+        if (!a.checkin_at) return 1;
+        if (!b.checkin_at) return -1;
+        return a.checkin_at.localeCompare(b.checkin_at);
+      });
+    });
+
+    const groups: TurnoGroup[] = [];
+    // Sort dates descending (most recent first)
+    const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+    
+    for (const data of sortedDates) {
+      const presencas = byDate[data];
+      presencas.forEach((p, idx) => {
+        groups.push({
+          data,
+          turnoIndex: idx + 1,
+          totalTurnos: presencas.length,
+          presenca: p,
+        });
+      });
+    }
+
+    return groups;
+  }, [motorista.presencas]);
+
+  // Get trips for a specific shift (by time interval)
+  const getViagensTurno = (presenca: PresencaHistorico): Viagem[] => {
+    if (!presenca.checkin_at) return [];
+    
+    const checkinTime = new Date(presenca.checkin_at).getTime();
+    const checkoutTime = presenca.checkout_at 
+      ? new Date(presenca.checkout_at).getTime() 
+      : Date.now();
+
+    return viagensMotorista.filter(v => {
+      const viagemTime = new Date(v.data_criacao).getTime();
+      return viagemTime >= checkinTime && viagemTime <= checkoutTime;
+    });
   };
 
   const getStatusBadge = (status: string | null) => {
@@ -169,26 +209,34 @@ export function MotoristaAuditoriaCard({
               Histórico de Presenças
             </h4>
 
-            {motorista.presencas.length === 0 ? (
+            {turnoGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 Nenhum registro de presença encontrado
               </p>
             ) : (
               <div className="space-y-2">
-                {motorista.presencas.map((presenca) => {
+                {turnoGroups.map(({ data, turnoIndex, totalTurnos, presenca }) => {
                   const duracao = calcularDuracaoDia(presenca);
-                  const viagensDia = viagensPorDia[presenca.data] || { total: 0, pax: 0 };
+                  const viagensTurno = getViagensTurno(presenca);
+                  const paxTurno = viagensTurno.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
                   
                   return (
                     <div 
                       key={presenca.id} 
                       className="p-3 rounded-lg bg-muted/30 border space-y-2"
                     >
-                      {/* Header do dia */}
+                      {/* Header do dia + turno */}
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">
-                          {format(parseISO(presenca.data), "EEEE, dd/MM", { locale: ptBR })}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">
+                            {format(parseISO(data), "EEEE, dd/MM", { locale: ptBR })}
+                          </span>
+                          {totalTurnos > 1 && (
+                            <Badge variant="outline" className="text-xs font-medium px-1.5 py-0">
+                              {turnoIndex}º Turno
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5">
                           {presenca.checkout_at ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -225,11 +273,11 @@ export function MotoristaAuditoriaCard({
                             </span>
                           </div>
                         )}
-                        {viagensDia.total > 0 && (
+                        {viagensTurno.length > 0 && (
                           <div className="flex items-center gap-1.5">
                             <Route className="h-3.5 w-3.5 text-primary" />
-                            <span>{viagensDia.total} viagens</span>
-                            <span className="text-muted-foreground">({viagensDia.pax} PAX)</span>
+                            <span>{viagensTurno.length} viagens</span>
+                            <span className="text-muted-foreground">({paxTurno} PAX)</span>
                           </div>
                         )}
                       </div>
@@ -252,7 +300,8 @@ export function MotoristaAuditoriaCard({
                           className="gap-1.5 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
                           onClick={(e) => { 
                             e.stopPropagation(); 
-                            setSelectedPresenca(presenca); 
+                            setSelectedPresenca(presenca);
+                            setSelectedViagens(viagensTurno);
                           }}
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -271,10 +320,10 @@ export function MotoristaAuditoriaCard({
       {/* Modal de detalhes do dia */}
       <PresencaDiaModal
         presenca={selectedPresenca}
-        viagens={selectedPresenca ? getViagensDoDia(selectedPresenca.data) : []}
+        viagens={selectedViagens}
         motoristaNome={motorista.motorista_nome}
         isOpen={!!selectedPresenca}
-        onClose={() => setSelectedPresenca(null)}
+        onClose={() => { setSelectedPresenca(null); setSelectedViagens([]); }}
       />
     </Collapsible>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useServerTime } from '@/hooks/useServerTime';
@@ -201,8 +201,12 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
     };
   }, [eventoId, motoristaId, fetchPresenca]);
 
+  const checkinInProgress = useRef(false);
+
   const realizarCheckin = async () => {
     if (!eventoId || !motoristaId) return false;
+    if (checkinInProgress.current) return false;
+    checkinInProgress.current = true;
 
     try {
       // Get driver's current assigned vehicle
@@ -292,6 +296,8 @@ export function useMotoristaPresenca(eventoId: string | undefined, motoristaId: 
         variant: 'destructive',
       });
       return false;
+    } finally {
+      checkinInProgress.current = false;
     }
   };
 

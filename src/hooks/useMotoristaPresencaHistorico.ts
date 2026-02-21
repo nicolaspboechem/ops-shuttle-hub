@@ -115,7 +115,7 @@ export function useMotoristaPresencaHistorico(
         telefone: motorista.telefone,
         veiculo_atual_id: motorista.veiculo_id,
         presencas: presencasMotorista,
-        totalDias: presencasMotorista.length,
+        totalDias: new Set(presencasMotorista.map(p => p.data)).size,
         tempoTotalTrabalhado: Math.round(tempoTotalTrabalhado),
         diasComObservacao
       };
