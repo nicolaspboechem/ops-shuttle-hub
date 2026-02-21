@@ -597,7 +597,11 @@ export function useMissoesPorMotorista(eventoId: string | undefined, motoristaId
       )
       .subscribe();
 
+    // Polling fallback every 30s in case Realtime fails silently
+    const pollingInterval = setInterval(() => fetchMissoes(), 30000);
+
     return () => {
+      clearInterval(pollingInterval);
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };

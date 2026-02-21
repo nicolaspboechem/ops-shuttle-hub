@@ -19,6 +19,7 @@ export interface MissaoCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onStatusChange?: (status: string) => void;
+  horarioVirada?: string;
 }
 
 const prioridadeConfig: Record<MissaoPrioridade, { label: string; className: string }> = {
@@ -36,7 +37,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   cancelada: { label: 'Cancelada', className: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
-export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusChange }: MissaoCardProps) {
+export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusChange, horarioVirada = '04:00' }: MissaoCardProps) {
   const { getAgoraSync } = useServerTime();
   const prioridade = prioridadeConfig[missao.prioridade];
   const status = statusConfig[missao.status];
@@ -150,7 +151,7 @@ export function MissaoCard({ missao, motoristaNome, onEdit, onDelete, onStatusCh
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               <span>
-                {missao.data_programada === getDataOperacional(getAgoraSync(), '04:00')
+                {missao.data_programada === getDataOperacional(getAgoraSync(), horarioVirada)
                   ? 'Hoje'
                   : missao.data_programada.split('-').reverse().slice(0, 2).join('/')}
               </span>
