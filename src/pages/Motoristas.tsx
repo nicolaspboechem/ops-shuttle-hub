@@ -61,11 +61,18 @@ export default function Motoristas() {
   const [filterAtivo, setFilterAtivo] = useState<string>('all');
   const [activeMotorista, setActiveMotorista] = useState<Motorista | null>(null);
   
-  const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId);
+  const { getEventoById } = useEventos();
+  const { getAgoraSync } = useServerTime();
+  const evento = eventoId ? getEventoById(eventoId) : null;
+  const viagensOptions = useMemo(() => ({
+    dataOperacional: getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00'),
+    horarioVirada: evento?.horario_virada_dia || '04:00',
+  }), [evento?.horario_virada_dia]);
+  const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId, viagensOptions);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
-  const { getEventoById } = useEventos();
+  // useEventos already called above for getEventoById
   const { membros: equipeMembros, handleCheckin, handleCheckout, refetch: refetchEquipe } = useEquipe(eventoId);
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
 
@@ -113,7 +120,6 @@ export default function Motoristas() {
   );
   const { getName } = useUserNames(userIds);
 
-  const evento = eventoId ? getEventoById(eventoId) : null;
   const maxViagens = Math.max(...metricasMotoristas.map(m => m.totalViagens), 1);
 
   const handleSaveMotorista = async (data: { 
@@ -349,7 +355,7 @@ export default function Motoristas() {
   const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
   
   const { user } = useAuth();
-  const { getAgoraSync } = useServerTime();
+  // getAgoraSync already declared above
 
   // Handler para atualizar localização manualmente
   const handleUpdateLocalizacao = async (motoristaId: string, novaLocalizacao: string) => {

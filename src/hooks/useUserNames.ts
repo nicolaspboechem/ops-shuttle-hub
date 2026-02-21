@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UserNameCache {
@@ -6,15 +6,18 @@ interface UserNameCache {
 }
 
 export function useUserNames(userIds: (string | null | undefined)[]) {
-  const [names, setNames] = useState<UserNameCache>({});
+  const namesRef = useRef<UserNameCache>({});
+  const [, setVersion] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  const serializedIds = JSON.stringify(userIds);
+
   const fetchNames = useCallback(async () => {
-    const validIds = userIds.filter((id): id is string => !!id);
+    const validIds = (JSON.parse(serializedIds) as (string | null | undefined)[])
+      .filter((id): id is string => !!id);
     const uniqueIds = [...new Set(validIds)];
     
-    // Filtrar IDs que ainda não temos no cache
-    const idsToFetch = uniqueIds.filter(id => !names[id]);
+    const idsToFetch = uniqueIds.filter(id => !namesRef.current[id]);
     
     if (idsToFetch.length === 0) return;
 
@@ -31,21 +34,19 @@ export function useUserNames(userIds: (string | null | undefined)[]) {
       return;
     }
 
-    const newNames: UserNameCache = { ...names };
     data?.forEach(profile => {
-      newNames[profile.user_id] = profile.full_name || 'Usuário';
+      namesRef.current[profile.user_id] = profile.full_name || 'Usuário';
     });
 
-    // Marcar IDs não encontrados
     idsToFetch.forEach(id => {
-      if (!newNames[id]) {
-        newNames[id] = 'Usuário';
+      if (!namesRef.current[id]) {
+        namesRef.current[id] = 'Usuário';
       }
     });
 
-    setNames(newNames);
+    setVersion(v => v + 1);
     setLoading(false);
-  }, [userIds, names]);
+  }, [serializedIds]);
 
   useEffect(() => {
     fetchNames();
@@ -53,8 +54,8 @@ export function useUserNames(userIds: (string | null | undefined)[]) {
 
   const getName = useCallback((userId: string | null | undefined): string => {
     if (!userId) return 'Sistema';
-    return names[userId] || 'Carregando...';
-  }, [names]);
+    return namesRef.current[userId] || 'Carregando...';
+  }, []);
 
-  return { names, getName, loading };
+  return { names: namesRef.current, getName, loading };
 }
