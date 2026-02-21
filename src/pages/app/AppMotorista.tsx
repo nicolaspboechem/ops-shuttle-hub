@@ -263,7 +263,14 @@ export default function AppMotorista() {
           .limit(1);
 
         if (viagemExistente && viagemExistente.length > 0) {
-          toast.info('Missão já possui viagem ativa');
+          // Viagem já existe - reaproveitar ao invés de criar duplicata
+          await supabase.from('missoes').update({ 
+            viagem_id: viagemExistente[0].id, 
+            status: 'em_andamento' 
+          }).eq('id', missaoId);
+          await supabase.from('motoristas').update({ status: 'em_viagem' }).eq('id', motoristaData?.id);
+          toast.success('Missão iniciada!');
+          refetchMissoes();
           return;
         }
         // Criar viagem ao iniciar a missão

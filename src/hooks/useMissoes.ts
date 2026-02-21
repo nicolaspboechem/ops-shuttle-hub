@@ -437,6 +437,14 @@ export function useMissoes(eventoId: string | undefined) {
         .eq('id', missao.viagem_id);
     }
 
+    // Fechar TODAS as viagens órfãs vinculadas via origem_missao_id
+    // Previne viagens fantasma quando CCO e motorista iniciam a mesma missão
+    await supabase
+      .from('viagens')
+      .update({ status: 'encerrado', h_fim_real: now, encerrado: true })
+      .eq('origem_missao_id', missao.id)
+      .eq('encerrado', false);
+
     const { data: outrasViagens } = await supabase
       .from('viagens')
       .select('id')
