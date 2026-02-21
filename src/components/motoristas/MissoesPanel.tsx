@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Plus, Search, Filter, X, LayoutGrid, List, Columns, User, Calendar, MoreVertical, Pencil, Trash2, CheckCircle, XCircle, Play, ClipboardList, MapPin, Route, Car, ChevronsUpDown, Check, AlertTriangle } from 'lucide-react';
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useMissoes, Missao, MissaoStatus } from '@/hooks/useMissoes';
+import { supabase } from '@/integrations/supabase/client';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { MissaoModal } from '@/components/motoristas/MissaoModal';
@@ -45,6 +46,24 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const { motoristas: motoristasCadastrados } = useMotoristas(eventoId);
   const { pontos: pontosEmbarque } = usePontosEmbarque(eventoId);
 
+  // Fetch horarioVirada from evento
+  const [horarioVirada, setHorarioVirada] = useState('04:00');
+  useEffect(() => {
+    if (!eventoId) return;
+    supabase
+      .from('eventos')
+      .select('horario_virada_dia')
+      .eq('id', eventoId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.horario_virada_dia) {
+          setHorarioVirada(data.horario_virada_dia);
+          // Update date filter to use correct virada
+          setMissaoDataFilter(getDataOperacional(getAgoraSync(), data.horario_virada_dia));
+        }
+      });
+  }, [eventoId]);
+
   // Filter states
   const [missaoFilter, setMissaoFilter] = useState<string>('all');
   const [missaoMotoristaFilter, setMissaoMotoristaFilter] = useState<string>('all');
@@ -55,7 +74,10 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
   const [missaoPrioridadeFilter, setMissaoPrioridadeFilter] = useState<string>('all');
   const [missaoViewMode, setMissaoViewMode] = useState<'card' | 'list' | 'kanban'>('kanban');
   const [missaoSearchTerm, setMissaoSearchTerm] = useState('');
-  const [missaoDataFilter, setMissaoDataFilter] = useState<string>(getDataOperacional(getAgoraSync(), '04:00'));
+  const [missaoDataFilter, setMissaoDataFilter] = useState<string>(() => {
+    // Will be updated when evento loads
+    return getDataOperacional(getAgoraSync(), '04:00');
+  });
   const [veiculoPopoverOpen, setVeiculoPopoverOpen] = useState(false);
 
   // Modal states
@@ -121,7 +143,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
       filtered = filtered.filter(m => {
         if (!m.data_programada) {
           if (!m.created_at) return false;
-          const createdOpDate = getDataOperacional(new Date(m.created_at), '04:00');
+          const createdOpDate = getDataOperacional(new Date(m.created_at), horarioVirada);
           return createdOpDate === missaoDataFilter;
         }
         return m.data_programada === missaoDataFilter;
@@ -187,10 +209,10 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
     setMissaoVeiculoFilter('all');
     setMissaoPrioridadeFilter('all');
     setMissaoSearchTerm('');
-    setMissaoDataFilter(getDataOperacional(getAgoraSync(), '04:00'));
+    setMissaoDataFilter(getDataOperacional(getAgoraSync(), horarioVirada));
   };
 
-  const todayOp = getDataOperacional(getAgoraSync(), '04:00');
+  const todayOp = getDataOperacional(getAgoraSync(), horarioVirada);
   const hasActiveMissaoFilters = missaoFilter !== 'all' || missaoMotoristaFilter !== 'all' || missaoPontoAFilter !== 'all' || missaoPontoBFilter !== 'all' || missaoVeiculoFilter !== 'all' || missaoPrioridadeFilter !== 'all' || missaoSearchTerm || missaoDataFilter !== todayOp;
 
   const handleMissaoDragStart = (event: DragStartEvent) => {
@@ -698,6 +720,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         onOpenChange={setShowMissaoInstantanea}
         motoristas={motoristasCadastrados}
         pontos={pontosEmbarque}
+        horarioVirada={horarioVirada}
         onSave={async (data) => {
           await createMissao(data);
         }}
@@ -709,6 +732,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         onOpenChange={setShowMissaoDeslocamento}
         motoristas={motoristasCadastrados}
         pontos={pontosEmbarque}
+        horarioVirada={horarioVirada}
         onSave={async (data) => {
           const missao = await createMissao(data);
           if (missao?.id) {
@@ -725,6 +749,7 @@ export function MissoesPanel({ eventoId }: MissoesPanelProps) {
         missao={editingMissao}
         motoristas={motoristasCadastrados}
         pontos={pontosEmbarque}
+        horarioVirada={horarioVirada}
         onSave={handleSaveMissao}
       />
     </div>

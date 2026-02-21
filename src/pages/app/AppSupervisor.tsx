@@ -326,6 +326,7 @@ export default function AppSupervisor() {
         onOpenChange={setShowMissaoInstantanea}
         motoristas={motoristas}
         pontos={pontos}
+        horarioVirada={evento?.horario_virada_dia || undefined}
         onSave={async (data) => {
           await createMissao(data);
         }}
@@ -337,6 +338,7 @@ export default function AppSupervisor() {
         onOpenChange={setShowMissaoDeslocamento}
         motoristas={motoristas}
         pontos={pontos}
+        horarioVirada={evento?.horario_virada_dia || undefined}
         onSave={async (data) => {
           const missao = await createMissao(data);
           if (missao?.id) {

@@ -41,6 +41,7 @@ interface MissaoDeslocamentoModalProps {
   motoristas: Motorista[];
   pontos: PontoEmbarque[];
   onSave: (data: MissaoInput) => Promise<any>;
+  horarioVirada?: string;
 }
 
 export function MissaoDeslocamentoModal({
@@ -49,6 +50,7 @@ export function MissaoDeslocamentoModal({
   motoristas,
   pontos,
   onSave,
+  horarioVirada = '04:00',
 }: MissaoDeslocamentoModalProps) {
   const { getAgoraSync } = useServerTime();
   const [motoristaId, setMotoristaId] = useState('');
@@ -93,7 +95,7 @@ export function MissaoDeslocamentoModal({
       horario_previsto: horaAtual,
       prioridade: 'normal',
       qtd_pax: 0,
-      data_programada: getDataOperacional(agora, '04:00'),
+      data_programada: getDataOperacional(agora, horarioVirada),
     });
     setSaving(false);
     onOpenChange(false);

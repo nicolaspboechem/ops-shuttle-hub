@@ -44,6 +44,7 @@ interface MissaoModalProps {
   motoristas: Motorista[];
   pontos: PontoEmbarque[];
   onSave: (data: MissaoInput) => Promise<any>;
+  horarioVirada?: string;
 }
 
 const prioridadeOptions: { value: MissaoPrioridade; label: string; color: string }[] = [
@@ -60,6 +61,7 @@ export function MissaoModal({
   motoristas,
   pontos,
   onSave,
+  horarioVirada = '04:00',
 }: MissaoModalProps) {
   const { getAgoraSync } = useServerTime();
   const [motoristaId, setMotoristaId] = useState('');
@@ -70,7 +72,7 @@ export function MissaoModal({
   const [horarioPrevisto, setHorarioPrevisto] = useState('');
   const [prioridade, setPrioridade] = useState<MissaoPrioridade>('normal');
   const [qtdPax, setQtdPax] = useState<number>(0);
-  const [dataProgramada, setDataProgramada] = useState(getDataOperacional(getAgoraSync(), '04:00'));
+  const [dataProgramada, setDataProgramada] = useState(getDataOperacional(getAgoraSync(), horarioVirada));
   const [saving, setSaving] = useState(false);
   const [motoristaOpen, setMotoristaOpen] = useState(false);
 
@@ -85,7 +87,7 @@ export function MissaoModal({
         setHorarioPrevisto(missao.horario_previsto?.slice(0, 5) || '');
         setPrioridade(missao.prioridade);
         setQtdPax(missao.qtd_pax || 0);
-        setDataProgramada(missao.data_programada || getDataOperacional(getAgoraSync(), '04:00'));
+        setDataProgramada(missao.data_programada || getDataOperacional(getAgoraSync(), horarioVirada));
       } else {
         setMotoristaId('');
         setTitulo('');
@@ -95,7 +97,7 @@ export function MissaoModal({
         setHorarioPrevisto('');
         setPrioridade('normal');
         setQtdPax(0);
-        setDataProgramada(getDataOperacional(getAgoraSync(), '04:00'));
+        setDataProgramada(getDataOperacional(getAgoraSync(), horarioVirada));
       }
     }
   }, [open, missao]);
