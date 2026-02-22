@@ -9,9 +9,11 @@ import {
   MessageSquare, 
   Phone,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
-  Eye
+  Eye,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +28,8 @@ import { MotoristaPresencaAgregado, PresencaHistorico } from '@/hooks/useMotoris
 import { Viagem } from '@/lib/types/viagem';
 import { PresencaDiaModal } from './PresencaDiaModal';
 
+const CARGA_HORARIA_MINUTOS = 720; // 12h
+
 interface MotoristaAuditoriaCardProps {
   motorista: MotoristaPresencaAgregado;
   viagens: Viagem[];
@@ -38,6 +42,18 @@ interface TurnoGroup {
   turnoIndex: number;
   totalTurnos: number;
   presenca: PresencaHistorico;
+}
+
+function formatDuracaoHM(minutos: number): string {
+  const h = Math.floor(Math.abs(minutos) / 60);
+  const m = Math.round(Math.abs(minutos) % 60);
+  return `${h}h${m > 0 ? ` ${m}min` : ''}`;
+}
+
+function formatSaldo(minutos: number): string {
+  if (minutos === 0) return '0h';
+  const sinal = minutos > 0 ? '+' : '-';
+  return `${sinal}${formatDuracaoHM(minutos)}`;
 }
 
 export function MotoristaAuditoriaCard({ 
@@ -54,20 +70,6 @@ export function MotoristaAuditoriaCard({
     return format(parseISO(isoString), 'HH:mm');
   };
 
-  const formatDuracao = (minutos: number) => {
-    const horas = Math.floor(minutos / 60);
-    const mins = minutos % 60;
-    return `${horas}h ${mins}min`;
-  };
-
-  const calcularDuracaoDia = (presenca: PresencaHistorico): number | null => {
-    if (!presenca.checkin_at || !presenca.checkout_at) return null;
-    return differenceInMinutes(
-      parseISO(presenca.checkout_at),
-      parseISO(presenca.checkin_at)
-    );
-  };
-
   // Viagens do motorista
   const viagensMotorista = useMemo(() => {
     return viagens.filter(v => v.motorista === motorista.motorista_nome);
@@ -81,7 +83,6 @@ export function MotoristaAuditoriaCard({
       byDate[p.data].push(p);
     });
 
-    // Sort each day's presences by checkin_at
     Object.values(byDate).forEach(arr => {
       arr.sort((a, b) => {
         if (!a.checkin_at) return 1;
@@ -91,7 +92,6 @@ export function MotoristaAuditoriaCard({
     });
 
     const groups: TurnoGroup[] = [];
-    // Sort dates descending (most recent first)
     const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
     
     for (const data of sortedDates) {
@@ -109,34 +109,37 @@ export function MotoristaAuditoriaCard({
     return groups;
   }, [motorista.presencas]);
 
-  // Get trips for a specific shift (by time interval)
+  // Get trips for a specific shift
   const getViagensTurno = (presenca: PresencaHistorico): Viagem[] => {
     if (!presenca.checkin_at) return [];
     
     const checkinTime = new Date(presenca.checkin_at).getTime();
+    // Quando checkout é null, NÃO usar Date.now() - filtrar apenas por checkin
     const checkoutTime = presenca.checkout_at 
       ? new Date(presenca.checkout_at).getTime() 
-      : Date.now();
+      : null;
 
     return viagensMotorista.filter(v => {
       const viagemTime = new Date(v.data_criacao).getTime();
-      return viagemTime >= checkinTime && viagemTime <= checkoutTime;
+      if (checkoutTime) {
+        return viagemTime >= checkinTime && viagemTime <= checkoutTime;
+      }
+      return viagemTime >= checkinTime;
     });
   };
 
-  const getStatusBadge = (status: string | null) => {
-    const statusConfig = {
-      disponivel: { label: 'Disponível', variant: 'default' as const, className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
-      em_viagem: { label: 'Em Viagem', variant: 'default' as const, className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
-      indisponivel: { label: 'Indisponível', variant: 'secondary' as const, className: '' },
-      inativo: { label: 'Inativo', variant: 'outline' as const, className: 'text-muted-foreground' },
-    };
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.disponivel;
-    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
+  // Saldo color helper
+  const getSaldoColor = (saldoMin: number) => {
+    if (saldoMin > 0) return 'text-emerald-600';
+    if (saldoMin < 0) return 'text-destructive';
+    return 'text-muted-foreground';
   };
 
-  const totalViagens = viagensMotorista.length;
-  const totalPax = viagensMotorista.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
+  const getSaldoBg = (saldoMin: number) => {
+    if (saldoMin > 0) return 'bg-emerald-500/10';
+    if (saldoMin < 0) return 'bg-destructive/10';
+    return 'bg-muted/50';
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
@@ -155,49 +158,46 @@ export function MotoristaAuditoriaCard({
                 </div>
                 <div>
                   <h3 className="font-medium">{motorista.motorista_nome}</h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {motorista.telefone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {motorista.telefone}
-                      </span>
-                    )}
-                  </div>
+                  {motorista.telefone && (
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      {motorista.telefone}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="text-right text-sm hidden sm:block">
-                  <p className="font-medium">{motorista.totalDias} dias</p>
-                  <p className="text-muted-foreground">{formatDuracao(motorista.tempoTotalTrabalhado)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(motorista.motorista_status)}
-                  <ChevronDown className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                    isOpen && "rotate-180"
-                  )} />
-                </div>
-              </div>
+              <ChevronDown className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                isOpen && "rotate-180"
+              )} />
             </div>
 
-            {/* Stats resumido */}
+            {/* Métricas de horas - foco total em HORAS e SALDO */}
             <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t">
               <div className="text-center">
-                <p className="text-lg font-bold text-primary">{motorista.totalDias}</p>
-                <p className="text-xs text-muted-foreground">Dias</p>
+                <p className="text-lg font-bold text-primary">
+                  {formatDuracaoHM(motorista.horasTrabalhadasMinutos)}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Horas</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold">{totalViagens}</p>
-                <p className="text-xs text-muted-foreground">Viagens</p>
+                <p className={cn("text-lg font-bold", getSaldoColor(motorista.saldoMinutos))}>
+                  {formatSaldo(motorista.saldoMinutos)}
+                </p>
+                <p className="text-xs text-muted-foreground">Saldo</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold">{totalPax}</p>
-                <p className="text-xs text-muted-foreground">PAX</p>
+                <p className="text-lg font-bold">{motorista.turnosCompletos}</p>
+                <p className="text-xs text-muted-foreground">Completos</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold">{motorista.diasComObservacao}</p>
-                <p className="text-xs text-muted-foreground">Obs.</p>
+                {motorista.turnosIncompletos > 0 ? (
+                  <p className="text-lg font-bold text-amber-500">{motorista.turnosIncompletos}</p>
+                ) : (
+                  <p className="text-lg font-bold text-muted-foreground">0</p>
+                )}
+                <p className="text-xs text-muted-foreground">Incompletos</p>
               </div>
             </div>
           </CardContent>
@@ -206,7 +206,7 @@ export function MotoristaAuditoriaCard({
         <CollapsibleContent>
           <div className="border-t px-4 pb-4 pt-2 space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Histórico de Presenças
+              Histórico de Turnos
             </h4>
 
             {turnoGroups.length === 0 ? (
@@ -216,14 +216,21 @@ export function MotoristaAuditoriaCard({
             ) : (
               <div className="space-y-2">
                 {turnoGroups.map(({ data, turnoIndex, totalTurnos, presenca }) => {
-                  const duracao = calcularDuracaoDia(presenca);
+                  const isCompleto = !!(presenca.checkin_at && presenca.checkout_at);
+                  const duracaoMin = isCompleto
+                    ? differenceInMinutes(parseISO(presenca.checkout_at!), parseISO(presenca.checkin_at!))
+                    : null;
+                  const saldoTurno = duracaoMin !== null ? duracaoMin - CARGA_HORARIA_MINUTOS : null;
                   const viagensTurno = getViagensTurno(presenca);
                   const paxTurno = viagensTurno.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
                   
                   return (
                     <div 
                       key={presenca.id} 
-                      className="p-3 rounded-lg bg-muted/30 border space-y-2"
+                      className={cn(
+                        "p-3 rounded-lg border space-y-2",
+                        !isCompleto ? "bg-amber-500/5 border-amber-500/30" : "bg-muted/30"
+                      )}
                     >
                       {/* Header do dia + turno */}
                       <div className="flex items-center justify-between">
@@ -238,17 +245,26 @@ export function MotoristaAuditoriaCard({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {presenca.checkout_at ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                          ) : presenca.checkin_at ? (
-                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          {!isCompleto ? (
+                            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              SEM CHECKOUT
+                            </Badge>
+                          ) : saldoTurno !== null && saldoTurno > 0 ? (
+                            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                              EXTRA {formatSaldo(saldoTurno)}
+                            </Badge>
+                          ) : saldoTurno !== null && saldoTurno < 0 ? (
+                            <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                              DÉBITO {formatSaldo(saldoTurno)}
+                            </Badge>
                           ) : (
-                            <XCircle className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          {duracao && (
-                            <span className="text-sm font-medium">
-                              {formatDuracao(duracao)}
-                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              <Minus className="h-3 w-3 mr-1" />
+                              12h
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -263,24 +279,35 @@ export function MotoristaAuditoriaCard({
                         <div className="flex items-center gap-1.5">
                           <Clock className="h-3.5 w-3.5 text-destructive" />
                           <span className="text-muted-foreground">Out:</span>
-                          <span className="font-medium">{formatTime(presenca.checkout_at)}</span>
+                          <span className={cn("font-medium", !presenca.checkout_at && "text-amber-500")}>
+                            {formatTime(presenca.checkout_at)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-muted-foreground">Dur:</span>
+                          <span className="font-medium">
+                            {duracaoMin !== null ? formatDuracaoHM(duracaoMin) : '--'}
+                          </span>
                         </div>
                         {presenca.veiculo && (
-                          <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
+                          <div className="flex items-center gap-1.5">
                             <Car className="h-3.5 w-3.5 text-primary" />
                             <span className="font-mono text-xs">
                               {presenca.veiculo.placa}
                             </span>
                           </div>
                         )}
-                        {viagensTurno.length > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <Route className="h-3.5 w-3.5 text-primary" />
-                            <span>{viagensTurno.length} viagens</span>
-                            <span className="text-muted-foreground">({paxTurno} PAX)</span>
-                          </div>
-                        )}
                       </div>
+
+                      {/* Viagens do turno */}
+                      {viagensTurno.length > 0 && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Route className="h-3.5 w-3.5" />
+                          <span>{viagensTurno.length} viagens</span>
+                          <span>({paxTurno} PAX)</span>
+                        </div>
+                      )}
 
                       {/* Observação */}
                       {presenca.observacao_checkout && (
@@ -292,12 +319,12 @@ export function MotoristaAuditoriaCard({
                         </div>
                       )}
 
-                      {/* Botão destacado para ver detalhes */}
-                      <div className="flex justify-end pt-2">
+                      {/* Botão detalhes */}
+                      <div className="flex justify-end pt-1">
                         <Button 
                           variant="outline" 
                           size="sm"
-                          className="gap-1.5 bg-primary/5 hover:bg-primary/10 text-primary border-primary/20"
+                          className="gap-1.5 text-xs"
                           onClick={(e) => { 
                             e.stopPropagation(); 
                             setSelectedPresenca(presenca);
@@ -305,7 +332,7 @@ export function MotoristaAuditoriaCard({
                           }}
                         >
                           <Eye className="h-3.5 w-3.5" />
-                          Ver Detalhes
+                          Detalhes
                         </Button>
                       </div>
                     </div>
@@ -317,7 +344,6 @@ export function MotoristaAuditoriaCard({
         </CollapsibleContent>
       </Card>
 
-      {/* Modal de detalhes do dia */}
       <PresencaDiaModal
         presenca={selectedPresenca}
         viagens={selectedViagens}

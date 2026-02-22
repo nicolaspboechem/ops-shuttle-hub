@@ -7,12 +7,12 @@ import {
   Calendar, 
   Filter, 
   X,
-  ChevronDown,
-  MessageSquare,
+  AlertTriangle,
   TrendingUp
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -162,25 +162,18 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
 
   // Exportar para Excel
   const handleExport = () => {
-    const data = metricasConsolidadas.map(m => {
-      const presencaData = motoristasAgregados.find(p => p.motorista_nome === m.nome);
+    const data = motoristasFiltrados.map(m => {
+      const metrica = metricasConsolidadas.find(mc => mc.nome === m.motorista_nome);
       return {
-        'Motorista': m.nome,
-        'Dias Trabalhados': presencaData?.totalDias || 0,
-        'Total Viagens': m.totalViagens,
-        'Viagens Encerradas': m.viagensEncerradas,
-        'Total PAX': m.totalPax,
-        'Tempo Médio (min)': m.viagensComTempo > 0 
-          ? Math.round(m.tempoTotal / m.viagensComTempo) 
-          : 0,
-        'Horas Trabalhadas': presencaData 
-          ? Math.round(presencaData.tempoTotalTrabalhado / 60 * 10) / 10 
-          : 0,
-        'Observações': presencaData?.diasComObservacao || 0,
-        'Veículo Principal': m.veiculoPrincipal || '-',
-        'Última Viagem': m.ultimaViagem 
-          ? format(new Date(m.ultimaViagem), 'dd/MM/yyyy HH:mm')
-          : '-'
+        'Motorista': m.motorista_nome,
+        'Horas Trabalhadas': `${Math.floor(m.horasTrabalhadasMinutos / 60)}h ${Math.round(m.horasTrabalhadasMinutos % 60)}m`,
+        'Saldo (min)': m.saldoMinutos,
+        'Turnos Completos': m.turnosCompletos,
+        'Turnos Incompletos': m.turnosIncompletos,
+        'Dias Trabalhados': m.totalDias,
+        'Total Viagens': metrica?.totalViagens || 0,
+        'Total PAX': metrica?.totalPax || 0,
+        'Observações': m.diasComObservacao,
       };
     });
 
@@ -292,77 +285,58 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <Calendar className="h-4 w-4" />
-              Dias Trabalhados
+              <Clock className="h-4 w-4" />
+              Horas Totais
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totais.diasTrabalhados}</p>
+            <p className="text-3xl font-bold">
+              {Math.floor(estatisticas.totalHorasMinutos / 60)}h {Math.round(estatisticas.totalHorasMinutos % 60)}m
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
               <TrendingUp className="h-4 w-4" />
-              Total Viagens
+              Saldo Global
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totais.viagens}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total PAX
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totais.pax.toLocaleString()}</p>
+            <p className={cn(
+              "text-3xl font-bold",
+              estatisticas.saldoGlobalMinutos > 0 ? "text-emerald-600" : 
+              estatisticas.saldoGlobalMinutos < 0 ? "text-destructive" : ""
+            )}>
+              {estatisticas.saldoGlobalMinutos > 0 ? '+' : ''}{Math.floor(estatisticas.saldoGlobalMinutos / 60)}h {Math.abs(Math.round(estatisticas.saldoGlobalMinutos % 60))}m
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              <MessageSquare className="h-4 w-4" />
-              Observações
+              <Calendar className="h-4 w-4" />
+              Turnos Completos
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totais.observacoes}</p>
+            <p className="text-3xl font-bold">{estatisticas.diasCompletos}</p>
+          </CardContent>
+        </Card>
+        <Card className={cn(estatisticas.totalTurnosIncompletos > 0 && "border-amber-500/30")}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <AlertTriangle className={cn("h-4 w-4", estatisticas.totalTurnosIncompletos > 0 && "text-amber-500")} />
+              Incompletos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={cn("text-3xl font-bold", estatisticas.totalTurnosIncompletos > 0 && "text-amber-500")}>
+              {estatisticas.totalTurnosIncompletos}
+            </p>
           </CardContent>
         </Card>
       </div>
-
-      {/* Estatísticas de Presença */}
-      {estatisticas.totalCheckins > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Estatísticas de Presença (Últimos {diasHistorico} dias)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Check-ins</p>
-                <p className="text-xl font-bold">{estatisticas.totalCheckins}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Check-outs</p>
-                <p className="text-xl font-bold">{estatisticas.totalCheckouts}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Média horas/dia</p>
-                <p className="text-xl font-bold">{estatisticas.mediaHorasPorDia}h</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Com observações</p>
-                <p className="text-xl font-bold">{estatisticas.comObservacoes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Header com Exportar */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Detalhes por Motorista</h2>

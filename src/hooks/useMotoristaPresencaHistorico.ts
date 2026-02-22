@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subDays } from 'date-fns';
 import { Veiculo } from '@/hooks/useCadastros';
 
+const CARGA_HORARIA_MINUTOS = 720; // 12h
+
 export interface PresencaHistorico {
   id: string;
   motorista_id: string;
@@ -25,8 +27,13 @@ export interface MotoristaPresencaAgregado {
   veiculo_atual_id: string | null;
   presencas: PresencaHistorico[];
   totalDias: number;
-  tempoTotalTrabalhado: number; // em minutos
+  tempoTotalTrabalhado: number; // em minutos - SOMENTE turnos completos
   diasComObservacao: number;
+  // Novos campos para auditoria de ponto
+  horasTrabalhadasMinutos: number; // soma apenas turnos completos
+  saldoMinutos: number; // soma (trabalhado - 720) por turno completo
+  turnosCompletos: number;
+  turnosIncompletos: number;
 }
 
 export function useMotoristaPresencaHistorico(
@@ -47,7 +54,6 @@ export function useMotoristaPresencaHistorico(
     }
 
     try {
-      // Fetch all data in parallel
       const [presencasRes, motoristasRes, veiculosRes] = await Promise.all([
         supabase
           .from('motorista_presenca')
@@ -94,13 +100,23 @@ export function useMotoristaPresencaHistorico(
           veiculo: veiculos.find(v => v.id === p.veiculo_id) || null
         }));
 
-      // Calcular tempo total trabalhado
-      let tempoTotalTrabalhado = 0;
+      let horasTrabalhadasMinutos = 0;
+      let saldoMinutos = 0;
+      let turnosCompletos = 0;
+      let turnosIncompletos = 0;
+
       presencasMotorista.forEach(p => {
         if (p.checkin_at && p.checkout_at) {
+          // Turno completo - calcular
           const checkin = new Date(p.checkin_at);
           const checkout = new Date(p.checkout_at);
-          tempoTotalTrabalhado += (checkout.getTime() - checkin.getTime()) / (1000 * 60);
+          const duracaoMin = (checkout.getTime() - checkin.getTime()) / (1000 * 60);
+          horasTrabalhadasMinutos += duracaoMin;
+          saldoMinutos += (duracaoMin - CARGA_HORARIA_MINUTOS);
+          turnosCompletos++;
+        } else if (p.checkin_at && !p.checkout_at) {
+          // Turno incompleto - NÃO calcular horas, NÃO somar
+          turnosIncompletos++;
         }
       });
 
@@ -116,8 +132,12 @@ export function useMotoristaPresencaHistorico(
         veiculo_atual_id: motorista.veiculo_id,
         presencas: presencasMotorista,
         totalDias: new Set(presencasMotorista.map(p => p.data)).size,
-        tempoTotalTrabalhado: Math.round(tempoTotalTrabalhado),
-        diasComObservacao
+        tempoTotalTrabalhado: Math.round(horasTrabalhadasMinutos),
+        diasComObservacao,
+        horasTrabalhadasMinutos: Math.round(horasTrabalhadasMinutos),
+        saldoMinutos: Math.round(saldoMinutos),
+        turnosCompletos,
+        turnosIncompletos
       };
     }).filter(m => m.presencas.length > 0 || motoristas.some(mot => mot.id === m.motorista_id));
   }, [motoristas, presencas, veiculos]);
@@ -127,15 +147,19 @@ export function useMotoristaPresencaHistorico(
     const totalCheckins = presencas.filter(p => p.checkin_at).length;
     const totalCheckouts = presencas.filter(p => p.checkout_at).length;
     const comObservacoes = presencas.filter(p => p.observacao_checkout?.trim()).length;
+    const totalTurnosIncompletos = presencas.filter(p => p.checkin_at && !p.checkout_at).length;
     
-    // Média de horas por dia
+    // Horas totais e saldo global - SOMENTE turnos completos
     let totalMinutos = 0;
     let diasCompletos = 0;
+    let saldoGlobalMinutos = 0;
     presencas.forEach(p => {
       if (p.checkin_at && p.checkout_at) {
         const checkin = new Date(p.checkin_at);
         const checkout = new Date(p.checkout_at);
-        totalMinutos += (checkout.getTime() - checkin.getTime()) / (1000 * 60);
+        const dur = (checkout.getTime() - checkin.getTime()) / (1000 * 60);
+        totalMinutos += dur;
+        saldoGlobalMinutos += (dur - CARGA_HORARIA_MINUTOS);
         diasCompletos++;
       }
     });
@@ -150,7 +174,10 @@ export function useMotoristaPresencaHistorico(
       comObservacoes,
       mediaHorasPorDia,
       diasCompletos,
-      motoristasAtivos: motoristasAgregados.filter(m => m.presencas.length > 0).length
+      motoristasAtivos: motoristasAgregados.filter(m => m.presencas.length > 0).length,
+      totalHorasMinutos: Math.round(totalMinutos),
+      saldoGlobalMinutos: Math.round(saldoGlobalMinutos),
+      totalTurnosIncompletos
     };
   }, [presencas, motoristasAgregados]);
 
