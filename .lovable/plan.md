@@ -1,74 +1,176 @@
 
-# Corrigir slow resource no CCO (Viagens Ativas/Finalizadas + Motoristas)
 
-## Problemas identificados
+# Plano: Auditoria de Ponto dos Motoristas - Redesign Completo
 
-### 1. useUserNames - Loop infinito de re-renders (CRITICO)
+---
 
-**Arquivo:** `src/hooks/useUserNames.ts`
+## 1. Diagnostico dos Dados (Supabase)
 
-O callback `fetchNames` tem `names` na lista de dependencias (linha 48). Quando `setNames` e chamado, `names` muda, o que recria `fetchNames`, que dispara o `useEffect` novamente. Mesmo com o early return (`idsToFetch.length === 0`), o efeito dispara desnecessariamente a cada mudanca de estado, causando cascata de re-renders em todos os componentes que usam o hook.
+### Tabela e campos
 
-**Correcao:** Usar `useRef` para o cache de nomes em vez de `useState`, e remover `names` das dependencias do `fetchNames`. Usar um counter de estado apenas para forcar re-render quando novos nomes sao carregados.
+A tabela `motorista_presenca` armazena os registros de ponto:
+- `checkin_at` (timestamp with time zone, nullable) -- horario real do check-in
+- `checkout_at` (timestamp with time zone, nullable) -- horario real do checkout
+- `data` (date) -- dia operacional do registro
+- `observacao_checkout` (text, nullable) -- observacao opcional no checkout
+
+### Comportamento do checkout ausente
+
+Quando o motorista nao faz checkout, `checkout_at` e `NULL` no banco. Nao ha string vazia, nao ha valor padrao. E simplesmente nulo.
+
+### Logica de preenchimento automatico no codigo
+
+**Nao existe nenhuma logica que preenche checkout com valor estimado.** Confirmado por busca no codigo-fonte. O unico ponto que merece atencao e a funcao `getViagensTurno` no `MotoristaAuditoriaCard.tsx` (linha 117-119) que usa `Date.now()` como limite superior para filtrar viagens quando checkout e nulo -- isso e apenas para filtro de viagens, nao altera dados nem exibe hora falsa.
+
+### Diferenca entre checkout do motorista vs supervisor
+
+O checkout pelo motorista vem da funcao `realizarCheckout` no hook `useMotoristaPresenca.ts`. O checkout pelo CCO/supervisor vem da funcao `handleCheckout` no hook `useEquipe.ts`. Ambos gravam diretamente em `motorista_presenca.checkout_at` com o timestamp real do momento. Nao ha campo que diferencie quem fez o checkout, mas quando o checkout e automatico (virada operacional), a `observacao_checkout` contem "Checkout automatico (virada operacional)".
+
+### Registros sem checkout na base atual
+
+**29 registros sem checkout hoje (22/02)** -- esperado, pois sao motoristas em expediente ativo.
+
+**1 registro orfao de dia anterior:**
+- Leony Pereira: dia 21/02, check-in 19:27, sem checkout
+
+---
+
+## 2. Estrategia de Calculo das Horas
+
+### Carga horaria de referencia: 12 horas/dia
+
+### Horas trabalhadas por turno
+- **SOMENTE calculadas** quando `checkin_at` E `checkout_at` existem como dados reais do banco
+- Formula: `checkout_at - checkin_at` em minutos, convertido para horas
+- Quando `checkout_at` e `null`: exibir "--" na duracao, NAO calcular, NAO somar
+
+### Saldo por turno (quando completo)
+- `saldo = horas_trabalhadas - 12h`
+- Positivo = hora extra (verde)
+- Negativo = debito (vermelho)
+- Zero = neutro
+
+### Total por motorista no periodo
+- **Horas trabalhadas**: soma APENAS de turnos com checkout real
+- **Saldo acumulado**: soma dos saldos individuais de turnos completos
+- **Turnos incompletos**: contagem separada, exibida como alerta, NUNCA misturada na soma
+- **Dias ausentes**: dias dentro do periodo sem nenhum registro de presenca
+
+### O que NAO fazer nos calculos
+- Nenhum calculo quando checkout for nulo
+- Nenhum preenchimento automatico de checkout
+- Nenhuma soma misturando completos com incompletos
+- Nenhuma suposicao sobre o que deveria ter sido registrado
+
+---
+
+## 3. Estrategia Visual
+
+### Card fechado (resumo do motorista)
 
 ```text
-const namesRef = useRef<UserNameCache>({});
-const [version, setVersion] = useState(0);
-
-const fetchNames = useCallback(async () => {
-  const validIds = userIds.filter((id): id is string => !!id);
-  const uniqueIds = [...new Set(validIds)];
-  const idsToFetch = uniqueIds.filter(id => !namesRef.current[id]);
-  if (idsToFetch.length === 0) return;
-
-  // ... fetch ...
-  data?.forEach(profile => {
-    namesRef.current[profile.user_id] = profile.full_name || 'Usuario';
-  });
-  idsToFetch.forEach(id => {
-    if (!namesRef.current[id]) namesRef.current[id] = 'Usuario';
-  });
-  setVersion(v => v + 1); // trigger re-render
-}, [userIds]); // SEM 'names' nas deps
++----------------------------------------------------------+
+| [A] Altair Sobrinho                    [Disponivel]       |
+|     Tel: (21) 99999-9999                                  |
+|                                                           |
+|  +----------+  +-----------+  +-----------+  +----------+ |
+|  | 120h 30m |  | +0h 30m   |  | 5 dias    |  | 1 incomp | |
+|  | TOTAL    |  | SALDO     |  | COMPLETOS |  | ALERTA   | |
+|  +----------+  +-----------+  +-----------+  +----------+ |
++----------------------------------------------------------+
 ```
 
-### 2. Pagina Motoristas carrega TODAS as viagens do evento (ALTO IMPACTO)
+- **Total horas**: numero grande e destacado -- e o dado mais importante
+- **Saldo acumulado**: verde se extra, vermelho se debito, com sinal +/-
+- **Dias completos**: quantos dias tem check-in E checkout
+- **Alerta**: quantos dias tem registro incompleto (laranja)
 
-**Arquivo:** `src/pages/Motoristas.tsx` (linha 64)
+### Card expandido (detalhamento dia a dia)
 
-`useViagens(eventoId)` sem filtro de `dataOperacional` carrega todas as viagens do evento inteiro. Para um evento com centenas/milhares de viagens, isso e muito pesado e desnecessario - as metricas de motorista devem ser do dia operacional atual.
-
-**Correcao:** Adicionar filtro de dia operacional, igual ao Dashboard:
+Cada linha representa um turno (pode haver multiplos turnos por dia):
 
 ```text
-const { getAgoraSync } = useServerTime();
-const evento = eventoId ? getEventoById(eventoId) : null;
+sabado, 22/02
+  [!] In: 07:54   Out: --:--   Duracao: --    Saldo: --     [SEM CHECKOUT]
 
-const viagensOptions = useMemo(() => ({
-  dataOperacional: getDataOperacional(getAgoraSync(), evento?.horario_virada_dia || '04:00'),
-  horarioVirada: evento?.horario_virada_dia || '04:00',
-}), [evento?.horario_virada_dia]);
+sexta, 21/02 - 1o Turno
+  [v] In: 10:17   Out: 23:24   Duracao: 13h07  Saldo: +1h07  [COMPLETO]
 
-const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId, viagensOptions);
+sexta, 21/02 - 2o Turno
+  [v] In: 15:00   Out: 03:00   Duracao: 12h00  Saldo: 0h00   [COMPLETO]
 ```
 
-### 3. Serializar userIds para estabilizar referencia
+### Sinalizacao visual por cores
 
-**Arquivo:** `src/hooks/useUserNames.ts`
+| Status | Icone | Cor | Significado |
+|---|---|---|---|
+| Completo, saldo positivo | CheckCircle | Verde | Hora extra |
+| Completo, saldo neutro | CheckCircle | Cinza/azul | Carga cumprida |
+| Completo, saldo negativo | Clock | Vermelho | Debito de hora |
+| Incompleto (sem checkout) | AlertTriangle | Laranja/amber | Checkout ausente |
+| Ausencia total | XCircle | Vermelho escuro | Sem nenhum registro no dia |
 
-O array `userIds` muda de referencia a cada render mesmo quando o conteudo e o mesmo. Usar `JSON.stringify` para estabilizar o efeito:
+### Dados que NAO serao exibidos no card resumido
+- Viagens e PAX (movidos para dentro do detalhe expandido)
+- O foco do card e exclusivamente HORAS e SALDO
 
-```text
-const serializedIds = JSON.stringify(userIds);
+---
 
-useEffect(() => {
-  fetchNames();
-}, [serializedIds]); // em vez de [fetchNames]
-```
+## 4. Alteracoes por Arquivo
 
-## Resumo de arquivos
+### `src/hooks/useMotoristaPresencaHistorico.ts`
 
-| Arquivo | Alteracao | Impacto |
+Alterar a interface `MotoristaPresencaAgregado` para incluir:
+- `horasTrabalhadasMinutos`: soma apenas de turnos completos (checkin + checkout reais)
+- `saldoMinutos`: soma dos saldos (trabalhado - 720min por turno completo)
+- `turnosCompletos`: quantidade de turnos com checkout real
+- `turnosIncompletos`: quantidade de turnos sem checkout
+- `diasAusentes`: dias no periodo sem registro (calculado comparando datas do periodo vs datas com presenca)
+
+Alterar o calculo em `motoristasAgregados` para:
+- Contar separadamente turnos completos vs incompletos
+- Calcular saldo: para cada turno completo, `duracao - 720` minutos
+- NAO incluir turnos incompletos em nenhuma soma de horas
+
+### `src/components/motoristas/MotoristaAuditoriaCard.tsx`
+
+Redesign completo do card:
+
+**Card fechado:**
+- Remover grid de 4 colunas (Dias/Viagens/PAX/Obs)
+- Substituir por: Total Horas (destaque) | Saldo Acumulado (cor) | Turnos Completos | Alertas
+
+**Card expandido:**
+- Manter agrupamento por data + turno (ja existe)
+- Adicionar coluna de saldo por turno com indicador de cor
+- Badge "SEM CHECKOUT" em laranja quando checkout e null
+- Badge "DEBITO" em vermelho ou "EXTRA" em verde com valor
+- Remover o uso de `Date.now()` como fallback na filtragem de viagens (linha 119) -- quando checkout e null, filtrar apenas por `checkin_at <= viagemTime`
+
+### `src/components/motoristas/MotoristasAuditoria.tsx`
+
+- Atualizar cards de totais no topo para refletir novas metricas:
+  - Substituir "Total PAX" e "Observacoes" por "Horas Totais" e "Saldo Global"
+  - Adicionar card "Turnos Incompletos" com cor amber como alerta
+- Atualizar exportacao Excel para incluir novas colunas (horas, saldo, turnos incompletos)
+
+### `src/components/motoristas/PresencaDiaModal.tsx`
+
+- Adicionar secao de saldo do turno no topo, ao lado da duracao
+- Cor condicional: verde (extra), vermelho (debito), cinza (neutro)
+- Quando checkout e null: exibir "--:--" e texto explicito "Checkout nao registrado"
+
+---
+
+## 5. Ordem de Execucao
+
+| Etapa | Descricao | Motivo da ordem |
 |---|---|---|
-| `src/hooks/useUserNames.ts` | useRef para cache + remover dep ciclica | Elimina loop de re-renders |
-| `src/pages/Motoristas.tsx` | Adicionar filtro dataOperacional ao useViagens | Reduz volume de dados em ~90% |
+| 1 | Alterar `useMotoristaPresencaHistorico.ts` -- adicionar campos de saldo e separacao completo/incompleto | Base de dados calculados que alimenta todos os componentes visuais |
+| 2 | Redesign do `MotoristaAuditoriaCard.tsx` -- card fechado + expandido | Componente principal da auditoria, depende dos novos campos do hook |
+| 3 | Atualizar `MotoristasAuditoria.tsx` -- cards de totais + exportacao | Depende do hook atualizado para exibir metricas globais corretas |
+| 4 | Atualizar `PresencaDiaModal.tsx` -- saldo e sinalizacao | Complementar, depende da mesma logica |
+| 5 | Limpeza do registro orfao de Leony Pereira (dia 21/02 sem checkout) | Migration SQL para fechar com checkout na virada operacional |
+
+### Nenhuma alteracao nos dados do Supabase sera feita nos componentes -- somente leitura. A unica escrita e a migration de limpeza (etapa 5) para o registro orfao, que sera apresentada separadamente.
+
