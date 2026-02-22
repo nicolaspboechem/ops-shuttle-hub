@@ -4,6 +4,7 @@ import { format, subDays } from 'date-fns';
 import { Veiculo } from '@/hooks/useCadastros';
 
 const CARGA_HORARIA_MINUTOS = 720; // 12h
+const DURACAO_MAXIMA_TURNO_MINUTOS = 1440; // 24h - limite de sanidade
 
 export interface PresencaHistorico {
   id: string;
@@ -34,6 +35,7 @@ export interface MotoristaPresencaAgregado {
   saldoMinutos: number; // soma (trabalhado - 720) por turno completo
   turnosCompletos: number;
   turnosIncompletos: number;
+  turnosAnomalos: number;
 }
 
 export function useMotoristaPresencaHistorico(
@@ -107,18 +109,23 @@ export function useMotoristaPresencaHistorico(
       let saldoMinutos = 0;
       let turnosCompletos = 0;
       let turnosIncompletos = 0;
+      let turnosAnomalos = 0;
 
       presencasMotorista.forEach(p => {
         if (p.checkin_at && p.checkout_at) {
-          // Turno completo - calcular
           const checkin = new Date(p.checkin_at);
           const checkout = new Date(p.checkout_at);
           const duracaoMin = (checkout.getTime() - checkin.getTime()) / (1000 * 60);
-          horasTrabalhadasMinutos += duracaoMin;
-          saldoMinutos += (duracaoMin - CARGA_HORARIA_MINUTOS);
-          turnosCompletos++;
+          if (duracaoMin > DURACAO_MAXIMA_TURNO_MINUTOS) {
+            // Turno anômalo (>24h) - NÃO somar
+            turnosAnomalos++;
+          } else {
+            // Turno completo normal
+            horasTrabalhadasMinutos += duracaoMin;
+            saldoMinutos += (duracaoMin - CARGA_HORARIA_MINUTOS);
+            turnosCompletos++;
+          }
         } else if (p.checkin_at && !p.checkout_at) {
-          // Turno incompleto - NÃO calcular horas, NÃO somar
           turnosIncompletos++;
         }
       });
@@ -140,7 +147,8 @@ export function useMotoristaPresencaHistorico(
         horasTrabalhadasMinutos: Math.round(horasTrabalhadasMinutos),
         saldoMinutos: Math.round(saldoMinutos),
         turnosCompletos,
-        turnosIncompletos
+        turnosIncompletos,
+        turnosAnomalos
       };
     }).filter(m => m.presencas.length > 0 || motoristas.some(mot => mot.id === m.motorista_id));
   }, [motoristas, presencas, veiculos]);
@@ -156,14 +164,19 @@ export function useMotoristaPresencaHistorico(
     let totalMinutos = 0;
     let diasCompletos = 0;
     let saldoGlobalMinutos = 0;
+    let totalTurnosAnomalos = 0;
     presencas.forEach(p => {
       if (p.checkin_at && p.checkout_at) {
         const checkin = new Date(p.checkin_at);
         const checkout = new Date(p.checkout_at);
         const dur = (checkout.getTime() - checkin.getTime()) / (1000 * 60);
-        totalMinutos += dur;
-        saldoGlobalMinutos += (dur - CARGA_HORARIA_MINUTOS);
-        diasCompletos++;
+        if (dur > DURACAO_MAXIMA_TURNO_MINUTOS) {
+          totalTurnosAnomalos++;
+        } else {
+          totalMinutos += dur;
+          saldoGlobalMinutos += (dur - CARGA_HORARIA_MINUTOS);
+          diasCompletos++;
+        }
       }
     });
 
@@ -180,7 +193,8 @@ export function useMotoristaPresencaHistorico(
       motoristasAtivos: motoristasAgregados.filter(m => m.presencas.length > 0).length,
       totalHorasMinutos: Math.round(totalMinutos),
       saldoGlobalMinutos: Math.round(saldoGlobalMinutos),
-      totalTurnosIncompletos
+      totalTurnosIncompletos,
+      totalTurnosAnomalos
     };
   }, [presencas, motoristasAgregados]);
 

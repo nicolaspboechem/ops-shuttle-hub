@@ -29,6 +29,7 @@ import { Viagem } from '@/lib/types/viagem';
 import { PresencaDiaModal } from './PresencaDiaModal';
 
 const CARGA_HORARIA_MINUTOS = 720; // 12h
+const DURACAO_MAXIMA_TURNO_MINUTOS = 1440; // 24h
 
 interface MotoristaAuditoriaCardProps {
   motorista: MotoristaPresencaAgregado;
@@ -194,10 +195,14 @@ export function MotoristaAuditoriaCard({
               <div className="text-center">
                 {motorista.turnosIncompletos > 0 ? (
                   <p className="text-lg font-bold text-amber-500">{motorista.turnosIncompletos}</p>
+                ) : motorista.turnosAnomalos > 0 ? (
+                  <p className="text-lg font-bold text-destructive">{motorista.turnosAnomalos}</p>
                 ) : (
                   <p className="text-lg font-bold text-muted-foreground">0</p>
                 )}
-                <p className="text-xs text-muted-foreground">Incompletos</p>
+                <p className="text-xs text-muted-foreground">
+                  {motorista.turnosAnomalos > 0 ? 'Anomalias' : 'Incompletos'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -220,7 +225,8 @@ export function MotoristaAuditoriaCard({
                   const duracaoMin = isCompleto
                     ? differenceInMinutes(parseISO(presenca.checkout_at!), parseISO(presenca.checkin_at!))
                     : null;
-                  const saldoTurno = duracaoMin !== null ? duracaoMin - CARGA_HORARIA_MINUTOS : null;
+                  const isAnomalo = duracaoMin !== null && duracaoMin > DURACAO_MAXIMA_TURNO_MINUTOS;
+                  const saldoTurno = duracaoMin !== null && !isAnomalo ? duracaoMin - CARGA_HORARIA_MINUTOS : null;
                   const viagensTurno = getViagensTurno(presenca);
                   const paxTurno = viagensTurno.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
                   
@@ -229,6 +235,7 @@ export function MotoristaAuditoriaCard({
                       key={presenca.id} 
                       className={cn(
                         "p-3 rounded-lg border space-y-2",
+                        isAnomalo ? "bg-destructive/5 border-destructive/30" :
                         !isCompleto ? "bg-amber-500/5 border-amber-500/30" : "bg-muted/30"
                       )}
                     >
@@ -245,7 +252,12 @@ export function MotoristaAuditoriaCard({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {!isCompleto ? (
+                          {isAnomalo ? (
+                            <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              ANOMALIA ({formatDuracaoHM(duracaoMin!)})
+                            </Badge>
+                          ) : !isCompleto ? (
                             <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
                               <AlertTriangle className="h-3 w-3 mr-1" />
                               SEM CHECKOUT

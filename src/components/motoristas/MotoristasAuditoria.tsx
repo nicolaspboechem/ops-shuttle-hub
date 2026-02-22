@@ -345,6 +345,21 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
             </p>
           </CardContent>
         </Card>
+        {estatisticas.totalTurnosAnomalos > 0 && (
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Anomalias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-destructive">
+                {estatisticas.totalTurnosAnomalos}
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
       {/* Header com Exportar */}
       <div className="flex items-center justify-between">
