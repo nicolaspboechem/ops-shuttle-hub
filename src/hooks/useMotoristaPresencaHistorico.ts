@@ -38,14 +38,17 @@ export interface MotoristaPresencaAgregado {
 
 export function useMotoristaPresencaHistorico(
   eventoId: string | undefined,
-  diasHistorico: number = 7
+  diasHistorico: number = 7,
+  dataInicioEvento?: string
 ) {
   const [presencas, setPresencas] = useState<PresencaHistorico[]>([]);
   const [motoristas, setMotoristas] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const dataInicio = format(subDays(new Date(), diasHistorico), 'yyyy-MM-dd');
+  const dataInicio = diasHistorico === 0 && dataInicioEvento
+    ? dataInicioEvento
+    : format(subDays(new Date(), diasHistorico), 'yyyy-MM-dd');
 
   const fetchData = useCallback(async () => {
     if (!eventoId) {

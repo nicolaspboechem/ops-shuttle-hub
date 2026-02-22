@@ -20,6 +20,7 @@ import { Viagem } from '@/lib/types/viagem';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { useMotoristaPresencaHistorico } from '@/hooks/useMotoristaPresencaHistorico';
 import { MotoristaAuditoriaCard } from './MotoristaAuditoriaCard';
+import { useEventos } from '@/hooks/useEventos';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -38,12 +39,17 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [diasHistorico, setDiasHistorico] = useState<number>(7);
 
+  // Buscar data de início do evento
+  const { getEventoById } = useEventos();
+  const evento = eventoId ? getEventoById(eventoId) : undefined;
+  const dataInicioEvento = evento?.data_inicio || undefined;
+
   // Hook para buscar histórico de presença
   const { 
     motoristasAgregados, 
     estatisticas, 
     loading: loadingPresenca 
-  } = useMotoristaPresencaHistorico(eventoId, diasHistorico);
+  } = useMotoristaPresencaHistorico(eventoId, diasHistorico, dataInicioEvento);
 
   // Listas para filtros
   const motoristasUnicos = useMemo(() => {
@@ -256,6 +262,9 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
                   <SelectItem value="7">Últimos 7 dias</SelectItem>
                   <SelectItem value="15">Últimos 15 dias</SelectItem>
                   <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  {dataInicioEvento && (
+                    <SelectItem value="0">Desde o início</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
