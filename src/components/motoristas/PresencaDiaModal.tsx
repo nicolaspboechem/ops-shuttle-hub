@@ -154,18 +154,38 @@ export function PresencaDiaModal({
                 <Clock className="h-4 w-4" />
                 Jornada
               </h3>
-              <div className="grid grid-cols-3 gap-4 p-4 rounded-lg bg-muted/30 border">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg bg-muted/30 border">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-1">Check-in</p>
                   <p className="text-xl font-bold text-emerald-600">{formatTime(presenca.checkin_at)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-1">Check-out</p>
-                  <p className="text-xl font-bold text-destructive">{formatTime(presenca.checkout_at)}</p>
+                  {presenca.checkout_at ? (
+                    <p className="text-xl font-bold text-destructive">{formatTime(presenca.checkout_at)}</p>
+                  ) : (
+                    <div>
+                      <p className="text-xl font-bold text-amber-500">--:--</p>
+                      <p className="text-[10px] text-amber-500 font-medium">Não registrado</p>
+                    </div>
+                  )}
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground mb-1">Duração</p>
                   <p className="text-xl font-bold">{duracao ? formatDuracao(duracao) : '--'}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground mb-1">Saldo (12h)</p>
+                  {duracao !== null ? (
+                    <p className={cn(
+                      "text-xl font-bold",
+                      (duracao - 720) > 0 ? "text-emerald-600" : (duracao - 720) < 0 ? "text-destructive" : ""
+                    )}>
+                      {(duracao - 720) > 0 ? '+' : ''}{Math.floor((duracao - 720) / 60)}h {Math.abs(Math.round((duracao - 720) % 60))}m
+                    </p>
+                  ) : (
+                    <p className="text-xl font-bold text-muted-foreground">--</p>
+                  )}
                 </div>
               </div>
               
