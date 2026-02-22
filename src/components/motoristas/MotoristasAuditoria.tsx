@@ -37,7 +37,7 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
   const [dataInicio, setDataInicio] = useState<string>('');
   const [dataFim, setDataFim] = useState<string>('');
   const [openCardId, setOpenCardId] = useState<string | null>(null);
-  const [diasHistorico, setDiasHistorico] = useState<number>(7);
+  const [diasHistorico, setDiasHistorico] = useState<number>(0);
 
   // Buscar data de início do evento
   const { getEventoById } = useEventos();
