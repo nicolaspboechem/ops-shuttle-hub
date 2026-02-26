@@ -1,77 +1,54 @@
 
 
-# Fechamento do Evento - Consolidacao da Auditoria
+# Ranking de Motoristas e Veiculos na Auditoria
 
-## Visao Geral
+## Objetivo
+Adicionar tabelas de ranking diretamente na aba **Resumo Geral** da Auditoria (como no dashboard), com ordenacao decrescente por numero de viagens e PAX como criterio de desempate. Isso servira como base para a premiacao dos motoristas.
 
-O plano consiste em duas acoes principais:
-1. **Encerrar as 11 viagens ainda "em_andamento"** no banco de dados (fechamento operacional)
-2. **Reestruturar a pagina Auditoria** (`src/pages/Auditoria.tsx`) para incluir abas com consolidacao de Viagens, Veiculos, Motoristas e Abastecimento
+## Alteracoes
 
----
+### 1. `src/components/auditoria/AuditoriaResumoTab.tsx`
 
-## Parte 1: Encerrar Viagens Pendentes (SQL)
+Adicionar duas novas tabelas apos os graficos e antes da tabela de pontos:
 
-Existem **11 viagens** com status `em_andamento` que precisam ser encerradas para fechar o evento. Serao atualizadas para `status = 'encerrado'` e `encerrado = true`, com observacao de fechamento administrativo.
+**Tabela "Ranking de Motoristas":**
+- Coluna `#` (posicao no ranking, comecando em 1)
+- Coluna `Motorista`
+- Coluna `Total Viagens`
+- Coluna `Total PAX`
+- Coluna `Media PAX/Viagem`
+- Ordenacao: viagens DESC, PAX DESC como desempate
+- Destaque visual nas 3 primeiras posicoes (medalha ou badge dourado/prata/bronze)
 
----
+**Tabela "Ranking de Veiculos":**
+- Coluna `#` (posicao)
+- Coluna `Placa`
+- Coluna `Tipo`
+- Coluna `Total Viagens`
+- Coluna `Total PAX`
+- Mesma logica de ordenacao
 
-## Parte 2: Reestruturar a Pagina de Auditoria
+Ambas com botao de exportar Excel.
 
-A pagina atual (`src/pages/Auditoria.tsx`) ja tem cards de totais, graficos e tabelas de pontos. O plano e:
+### 2. `src/components/auditoria/AuditoriaMotoristasTab.tsx`
 
-### 2.1 Adicionar sistema de abas (Tabs)
+Corrigir o `.sort()` para usar PAX como criterio de desempate:
+```
+.sort((a, b) => b.viagens - a.viagens || b.pax - a.pax)
+```
+Adicionar coluna `#` com posicao no ranking.
 
-Criar 4 abas dentro da pagina de Auditoria:
-- **Resumo Geral** (aba atual, com os cards de totais, graficos e tabela por pontos)
-- **Motoristas** (tabela consolidada com viagens e PAX por motorista)
-- **Veiculos** (tabela consolidada com viagens e PAX por veiculo, sem KM)
-- **Abastecimento** (resumo de alertas de combustivel)
+### 3. `src/components/auditoria/AuditoriaVeiculosTab.tsx`
 
-### 2.2 Aba "Resumo Geral" (reestruturar a existente)
+Mesma correcao de sort com desempate por PAX e coluna `#`.
 
-Manter:
-- Cards de totais: Total Viagens, Total PAX, Veiculos utilizados, Motoristas ativos
-- Substituir card de "KM Total" por card de **"Alertas Combustivel"** (138 total, 134 resolvidos)
-- Graficos: Viagens/PAX por Hora e Viagens por Tipo de Veiculo (mantidos)
-- Tabela de Totais por Ponto de Embarque (mantida)
+## Detalhes visuais
 
-### 2.3 Aba "Motoristas"
+- Top 3 motoristas com icone de medalha (Trophy) ou badge colorido para facilitar identificacao visual na premiacao
+- Posicao 1: dourado, Posicao 2: prata, Posicao 3: bronze
+- As tabelas no Resumo sao versoes compactas (mesmos dados, mesmo layout)
 
-Tabela ordenada por total de viagens:
-- Colunas: Motorista | Total Viagens | Total PAX | Media PAX/Viagem
-- Dados calculados a partir das viagens filtradas pelo tipo de operacao
-- Botao de exportar Excel
-
-### 2.4 Aba "Veiculos"
-
-Tabela ordenada por total de viagens:
-- Colunas: Placa | Tipo | Total Viagens | Total PAX | Motorista vinculado
-- Sem KM (conforme solicitado)
-- Botao de exportar Excel
-
-### 2.5 Aba "Abastecimento"
-
-Cards de resumo:
-- Total de alertas emitidos
-- Alertas resolvidos
-- Alertas ainda abertos
-- Taxa de resolucao (%)
-
-Utiliza o hook `useAlertasFrota` ja existente, adicionando query para buscar alertas resolvidos (atualmente o hook so busca abertos/pendentes). Sera feita uma query direta para contagem consolidada.
-
----
-
-## Arquivos a modificar
-
-1. **`src/pages/Auditoria.tsx`** - Reestruturar com Tabs (Resumo, Motoristas, Veiculos, Abastecimento), remover tabela de KM, adicionar tabelas de motoristas e veiculos, adicionar secao de abastecimento
-2. **SQL (insert tool)** - Encerrar 11 viagens pendentes
-
-## Detalhes tecnicos
-
-- Tabs usando `@radix-ui/react-tabs` (ja instalado e disponivel em `src/components/ui/tabs.tsx`)
-- Dados de abastecimento via query direta no Supabase (contagem total incluindo resolvidos)
-- Tabela de motoristas e veiculos calculadas no frontend a partir dos dados ja carregados (`useViagens`, `useCadastros`)
-- OperationTabs mantido para filtrar por tipo de operacao em todas as abas
-- Exportacao Excel com `xlsx` (ja instalado)
-
+## Arquivos modificados
+1. `src/components/auditoria/AuditoriaResumoTab.tsx` - adicionar tabelas de ranking de motoristas e veiculos
+2. `src/components/auditoria/AuditoriaMotoristasTab.tsx` - corrigir sort com desempate por PAX, adicionar coluna #
+3. `src/components/auditoria/AuditoriaVeiculosTab.tsx` - corrigir sort com desempate por PAX, adicionar coluna #
