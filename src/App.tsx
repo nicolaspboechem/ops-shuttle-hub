@@ -9,16 +9,12 @@ import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
 import { NotificationsProvider } from "@/hooks/useNotifications";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
-import { DriverRoute } from "@/components/auth/DriverRoute";
-import { StaffRoute } from "@/components/auth/StaffRoute";
 import { Loader2 } from 'lucide-react';
 
 // ============================================================
 // CRITICAL PAGES: imported directly (NO lazy load)
 // ============================================================
-import LoginMotorista from "./pages/LoginMotorista";
 import Auth from "./pages/Auth";
-import LoginEquipe from "./pages/LoginEquipe";
 import NotFound from "./pages/NotFound";
 
 // ============================================================
@@ -149,8 +145,6 @@ const App = () => (
             {/* ========================================= */}
             {/* PUBLIC ROUTES: No auth needed */}
             {/* ========================================= */}
-            <Route path="/login/motorista" element={<LoginMotorista />} />
-            <Route path="/login/equipe" element={<LoginEquipe />} />
             <Route path="/painel" element={<PainelPublico />} />
             <Route path="/painel/:eventoId" element={<PainelPublico />} />
             <Route path="/localizador" element={<PainelLocalizador />} />
@@ -167,25 +161,21 @@ const App = () => (
               {/* App Hub */}
               <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
 
-              {/* Driver app — now uses Supabase Auth via AuthProvider */}
+              {/* Field apps — Admin only now */}
               <Route path="/app/:eventoId/motorista" element={
-                <DriverRoute><AppMotorista /></DriverRoute>
+                <AdminRoute><AppMotorista /></AdminRoute>
               } />
-
-              {/* Staff field apps */}
               <Route path="/app/:eventoId/operador" element={
-                <StaffRoute allowedRoles={['operador', 'supervisor']}><AppOperador /></StaffRoute>
+                <AdminRoute><AppOperador /></AdminRoute>
               } />
               <Route path="/app/:eventoId/supervisor" element={
-                <StaffRoute allowedRoles={['supervisor']}><AppSupervisor /></StaffRoute>
+                <AdminRoute><AppSupervisor /></AdminRoute>
               } />
               <Route path="/app/:eventoId/cliente" element={
-                <StaffRoute allowedRoles={['cliente']}><AppCliente /></StaffRoute>
+                <AdminRoute><AppCliente /></AdminRoute>
               } />
               <Route path="/app/:eventoId/vincular-veiculo/:motoristaId" element={
-                <StaffRoute allowedRoles={['supervisor']}>
-                  <VincularVeiculo />
-                </StaffRoute>
+                <AdminRoute><VincularVeiculo /></AdminRoute>
               } />
 
               {/* Admin Routes (CCO) */}

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Shield, ShieldCheck, ShieldX, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, MapPin, AlertCircle, ArrowRight } from 'lucide-react';
+import { Users, Shield, ShieldCheck, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, Binoculars, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -11,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -19,7 +18,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { cn } from '@/lib/utils';
 import { maskPhone, formatPhoneDisplay, isValidPhone } from '@/lib/utils/formatPhone';
 
-type UserType = 'motorista' | 'operador' | 'admin' | 'supervisor' | 'coordenador';
+type UserType = 'motorista' | 'operador' | 'admin' | 'supervisor' | 'cliente';
 type LoginType = 'email' | 'phone';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
@@ -46,19 +45,19 @@ const PERMISSION_LABELS: Record<AppPermission, { label: string; description: str
 const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
   admin: { label: 'Admin', icon: Crown, color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
   supervisor: { label: 'Supervisor', icon: UserCog, color: 'text-blue-600', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
-  coordenador: { label: 'Coordenador', icon: MapPin, color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
   operador: { label: 'Operador', icon: Headset, color: 'text-emerald-600', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30' },
   motorista: { label: 'Motorista', icon: Car, color: 'text-gray-600', bgColor: 'bg-gray-100 dark:bg-gray-900/30' },
+  cliente: { label: 'Cliente', icon: Binoculars, color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
 };
 
 export default function Usuarios() {
-  const navigate = useNavigate();
   const { isAdmin, user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
   
   // Modal de criar usuário
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -96,56 +95,58 @@ export default function Usuarios() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  // Admin sempre usa email
-  const loginType: LoginType = 'email';
+  // Login type derived from user type
+  const isPhoneLogin = newUserType !== 'admin';
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // Apenas administradores
-  const adminUsers = useMemo(() => {
-    return users.filter(user => user.user_type === 'admin' || user.role === 'admin');
-  }, [users]);
-
   const filteredUsers = useMemo(() => {
-    let filtered = adminUsers;
+    let filtered = users;
+    
+    // Filtrar por tipo
+    if (filterType !== 'all') {
+      filtered = filtered.filter(user => user.user_type === filterType);
+    }
     
     // Filtrar por busca
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(user => 
         (user.email && user.email.toLowerCase().includes(query)) ||
-        (user.full_name && user.full_name.toLowerCase().includes(query))
+        (user.full_name && user.full_name.toLowerCase().includes(query)) ||
+        (user.telefone && user.telefone.includes(query))
       );
     }
     
     return filtered;
-  }, [adminUsers, searchQuery]);
+  }, [users, searchQuery, filterType]);
+
+  // Stats por tipo
+  const userStats = useMemo(() => {
+    const stats: Record<string, number> = { all: users.length };
+    for (const type of Object.keys(USER_TYPE_CONFIG)) {
+      stats[type] = users.filter(u => u.user_type === type).length;
+    }
+    return stats;
+  }, [users]);
 
   const fetchUsers = async () => {
     try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
+      const [profilesRes, rolesRes, permRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('user_roles').select('*'),
+        supabase.from('user_permissions').select('*'),
+      ]);
 
-      if (profilesError) throw profilesError;
+      if (profilesRes.error) throw profilesRes.error;
+      if (rolesRes.error) throw rolesRes.error;
+      if (permRes.error) throw permRes.error;
 
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('*');
-
-      if (rolesError) throw rolesError;
-
-      const { data: permissions, error: permError } = await supabase
-        .from('user_permissions')
-        .select('*');
-
-      if (permError) throw permError;
-
-      const usersData: UserWithPermissions[] = (profiles || []).map(profile => {
-        const role = roles?.find(r => r.user_id === profile.user_id);
-        const userPerms = permissions?.filter(p => p.user_id === profile.user_id) || [];
+      const usersData: UserWithPermissions[] = (profilesRes.data || []).map(profile => {
+        const role = rolesRes.data?.find(r => r.user_id === profile.user_id);
+        const userPerms = permRes.data?.filter(p => p.user_id === profile.user_id) || [];
         
         return {
           id: profile.id,
@@ -191,41 +192,53 @@ export default function Usuarios() {
       return;
     }
 
-    // Admin sempre usa email
-    if (!newEmail) {
-      toast.error('Digite um email válido');
-      return;
+    if (isPhoneLogin) {
+      if (!newTelefone || !isValidPhone(newTelefone)) {
+        toast.error('Digite um telefone válido');
+        return;
+      }
+    } else {
+      if (!newEmail) {
+        toast.error('Digite um email válido');
+        return;
+      }
     }
 
     setCreating(true);
 
     try {
-      const body = {
-        email: newEmail,
-        login_type: 'email',
-        password: newPassword,
-        full_name: newFullName,
-        user_type: 'admin' as const
-      };
+      const body = isPhoneLogin
+        ? {
+            telefone: newTelefone.replace(/\D/g, ''),
+            login_type: 'phone',
+            password: newPassword,
+            full_name: newFullName,
+            user_type: newUserType,
+          }
+        : {
+            email: newEmail,
+            login_type: 'email',
+            password: newPassword,
+            full_name: newFullName,
+            user_type: 'admin' as const,
+          };
 
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body
-      });
+      const { data, error } = await supabase.functions.invoke('create-user', { body });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Exibir modal com credenciais
       setCreatedCredentials({
-        login: newEmail,
+        login: isPhoneLogin ? newTelefone : newEmail,
         password: newPassword,
-        name: newFullName
+        name: newFullName,
       });
       setShowCreateModal(false);
       setShowCredentialsModal(true);
       
       // Limpar campos
       setNewEmail('');
+      setNewTelefone('');
       setNewPassword('');
       setNewConfirmPassword('');
       setNewFullName('');
@@ -240,7 +253,7 @@ export default function Usuarios() {
       
       if (msg.includes('email') && msg.includes('already') || msg.includes('email_exists')) {
         errorMessage = 'Já existe um usuário cadastrado com este email';
-      } else if (msg.includes('phone') && msg.includes('already')) {
+      } else if (msg.includes('phone') && msg.includes('already') || msg.includes('telefone')) {
         errorMessage = 'Já existe um usuário cadastrado com este celular';
       } else if (error.message) {
         errorMessage = error.message;
@@ -264,13 +277,11 @@ export default function Usuarios() {
 
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!isAdmin || !editingUser) return;
 
     setUpdating(editingUser.id);
 
     try {
-      // Atualizar profile com user_type
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
@@ -283,43 +294,21 @@ export default function Usuarios() {
 
       if (profileError) throw profileError;
 
-      // Se mudou para admin, garantir que tem role admin
       if (editUserType === 'admin' && editingUser.role !== 'admin') {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .update({ role: 'admin' })
-          .eq('user_id', editingUser.user_id);
-
-        if (roleError) throw roleError;
+        await supabase.from('user_roles').update({ role: 'admin' }).eq('user_id', editingUser.user_id);
       }
       
-      // Se mudou de admin para outro tipo, remover role admin
       if (editUserType !== 'admin' && editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .update({ role: 'user' })
-          .eq('user_id', editingUser.user_id);
-
-        if (roleError) throw roleError;
+        await supabase.from('user_roles').update({ role: 'user' }).eq('user_id', editingUser.user_id);
       }
 
-      // Determinar o novo role baseado nas mudanças
       let newRole: 'admin' | 'user' = editingUser.role;
-      if (editUserType === 'admin') {
-        newRole = 'admin';
-      } else if (editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
-        newRole = 'user';
-      }
+      if (editUserType === 'admin') newRole = 'admin';
+      else if (editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) newRole = 'user';
 
       setUsers(prev => prev.map(u => {
         if (u.id !== editingUser.id) return u;
-        return { 
-          ...u, 
-          full_name: editFullName, 
-          email: editEmail,
-          user_type: editUserType,
-          role: newRole
-        };
+        return { ...u, full_name: editFullName, email: editEmail, user_type: editUserType, role: newRole };
       }));
 
       toast.success('Usuário atualizado com sucesso!');
@@ -335,19 +324,16 @@ export default function Usuarios() {
 
   const handleDeleteUser = async () => {
     if (!isAdmin || !deletingUser) return;
-
     if (deletingUser.user_id === currentUser?.id) {
       toast.error('Você não pode deletar sua própria conta');
       return;
     }
 
     setDeleting(true);
-
     try {
       const { data, error } = await supabase.functions.invoke('delete-user', {
         body: { user_id: deletingUser.user_id }
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -364,36 +350,17 @@ export default function Usuarios() {
   };
 
   const toggleAdminRole = async (user: UserWithPermissions) => {
-    if (!isAdmin) {
-      toast.error('Apenas administradores podem alterar roles');
-      return;
-    }
-
-    if (user.user_id === currentUser?.id) {
-      toast.error('Você não pode alterar seu próprio role');
-      return;
-    }
+    if (!isAdmin || user.user_id === currentUser?.id) return;
 
     setUpdating(`admin-${user.user_id}`);
-
     try {
       const newRole = user.role === 'admin' ? 'user' : 'admin';
-      
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', user.user_id);
-
+      const { error } = await supabase.from('user_roles').update({ role: newRole }).eq('user_id', user.user_id);
       if (error) throw error;
 
-      setUsers(prev => prev.map(u => {
-        if (u.user_id !== user.user_id) return u;
-        return { ...u, role: newRole };
-      }));
-
+      setUsers(prev => prev.map(u => u.user_id !== user.user_id ? u : { ...u, role: newRole }));
       toast.success(newRole === 'admin' ? 'Usuário promovido a administrador!' : 'Acesso de administrador removido');
     } catch (error) {
-      console.error('Error updating role:', error);
       toast.error('Erro ao atualizar role');
     } finally {
       setUpdating(null);
@@ -401,32 +368,18 @@ export default function Usuarios() {
   };
 
   const togglePermission = async (userId: string, permission: AppPermission, currentlyHas: boolean) => {
-    if (!isAdmin) {
-      toast.error('Apenas administradores podem alterar permissões');
-      return;
-    }
+    if (!isAdmin) return;
 
     setUpdating(`${userId}-${permission}`);
-
     try {
       if (currentlyHas) {
-        const { error } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('permission', permission);
-
-        if (error) throw error;
+        await supabase.from('user_permissions').delete().eq('user_id', userId).eq('permission', permission);
       } else {
-        const { error } = await supabase
-          .from('user_permissions')
-          .insert({
-            user_id: userId,
-            permission: permission,
-            granted_by: currentUser?.id,
-          });
-
-        if (error) throw error;
+        await supabase.from('user_permissions').insert({
+          user_id: userId,
+          permission,
+          granted_by: currentUser?.id,
+        });
       }
 
       setUsers(prev => prev.map(u => {
@@ -438,10 +391,8 @@ export default function Usuarios() {
             : [...u.permissions, permission],
         };
       }));
-
       toast.success(currentlyHas ? 'Permissão removida' : 'Permissão concedida');
     } catch (error) {
-      console.error('Error updating permission:', error);
       toast.error('Erro ao atualizar permissão');
     } finally {
       setUpdating(null);
@@ -451,11 +402,7 @@ export default function Usuarios() {
   const toggleExpanded = (userId: string) => {
     setExpandedUsers(prev => {
       const next = new Set(prev);
-      if (next.has(userId)) {
-        next.delete(userId);
-      } else {
-        next.add(userId);
-      }
+      next.has(userId) ? next.delete(userId) : next.add(userId);
       return next;
     });
   };
@@ -483,46 +430,28 @@ export default function Usuarios() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!isAdmin || !resetPasswordUser) return;
-
-    if (resetPassword.length < 6) {
-      toast.error('A senha deve ter no mínimo 6 caracteres');
-      return;
-    }
-
-    if (resetPassword !== resetConfirmPassword) {
-      toast.error('As senhas não coincidem');
-      return;
-    }
+    if (resetPassword.length < 6) { toast.error('A senha deve ter no mínimo 6 caracteres'); return; }
+    if (resetPassword !== resetConfirmPassword) { toast.error('As senhas não coincidem'); return; }
 
     setResettingPassword(true);
-
     try {
       const { data, error } = await supabase.functions.invoke('reset-password', {
-        body: {
-          user_id: resetPasswordUser.user_id,
-          new_password: resetPassword
-        }
+        body: { user_id: resetPasswordUser.user_id, new_password: resetPassword }
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Exibir credenciais para o admin copiar
       setCreatedCredentials({
         login: getUserLoginDisplay(resetPasswordUser),
         password: resetPassword,
         name: resetPasswordUser.full_name || getUserLoginDisplay(resetPasswordUser)
       });
-      
       setShowResetPasswordModal(false);
       setShowCredentialsModal(true);
       setResetPasswordUser(null);
-      
       toast.success('Senha alterada com sucesso!');
     } catch (error: any) {
-      console.error('Error resetting password:', error);
       toast.error(error.message || 'Erro ao resetar senha');
     } finally {
       setResettingPassword(false);
@@ -530,17 +459,15 @@ export default function Usuarios() {
   };
 
   const getUserLoginDisplay = (user: UserWithPermissions) => {
-    if (user.login_type === 'phone' && user.telefone) {
-      return formatPhoneDisplay(user.telefone);
-    }
+    if (user.login_type === 'phone' && user.telefone) return formatPhoneDisplay(user.telefone);
     return user.email || '-';
   };
 
   const getUserTypeBadge = (userType: UserType | null) => {
     const type = userType || 'operador';
     const config = USER_TYPE_CONFIG[type];
+    if (!config) return null;
     const Icon = config.icon;
-    
     return (
       <Badge variant="outline" className={cn("text-xs gap-1", config.color, config.bgColor)}>
         <Icon className="h-3 w-3" />
@@ -565,40 +492,63 @@ export default function Usuarios() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-              <Crown className="w-7 h-7 text-amber-500" />
-              Administradores do Sistema
+              <Users className="w-7 h-7 text-primary" />
+              Usuários do Sistema
             </h1>
             <p className="text-muted-foreground mt-1">
-              Gerencie os administradores globais do sistema
+              Gerencie todos os usuários e permissões do sistema
             </p>
           </div>
           
           {isAdmin && (
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => { setNewUserType('admin'); setShowCreateModal(true); }}>
               <UserPlus className="w-4 h-4 mr-2" />
-              Criar Admin
+              Novo Usuário
             </Button>
           )}
         </div>
 
-        {/* Alerta informativo sobre equipe de eventos */}
-        <Alert className="mb-6 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
-          <AlertCircle className="h-4 w-4 text-blue-600" />
-          <AlertTitle className="text-blue-800 dark:text-blue-300">Cadastro de Equipe por Evento</AlertTitle>
-          <AlertDescription className="text-blue-700 dark:text-blue-400">
-            Para cadastrar <strong>Motoristas, Operadores, Supervisores e Coordenadores</strong>, acesse a página <strong>Equipe</strong> dentro de cada evento. 
-            Cada tipo de equipe é vinculado ao seu evento específico.
-          </AlertDescription>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-3 border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300"
-            onClick={() => navigate('/eventos')}
+        {/* Stats por tipo */}
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+          {Object.entries(USER_TYPE_CONFIG).map(([type, config]) => {
+            const Icon = config.icon;
+            const count = userStats[type] || 0;
+            const isActive = filterType === type;
+            return (
+              <button
+                key={type}
+                onClick={() => setFilterType(isActive ? 'all' : type)}
+                className={cn(
+                  "flex items-center gap-2 p-3 rounded-lg border transition-all text-left",
+                  isActive
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <Icon className={cn("w-4 h-4", config.color)} />
+                <div>
+                  <p className="text-lg font-bold leading-none">{count}</p>
+                  <p className="text-xs text-muted-foreground">{config.label}</p>
+                </div>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setFilterType('all')}
+            className={cn(
+              "flex items-center gap-2 p-3 rounded-lg border transition-all text-left",
+              filterType === 'all'
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border hover:border-primary/50"
+            )}
           >
-            Ir para Eventos
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </Alert>
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <p className="text-lg font-bold leading-none">{userStats.all || 0}</p>
+              <p className="text-xs text-muted-foreground">Todos</p>
+            </div>
+          </button>
+        </div>
 
         {/* Barra de pesquisa */}
         <div className="relative mb-6">
@@ -668,12 +618,9 @@ export default function Usuarios() {
                           <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="sm" className="gap-2">
                               <span className="text-sm text-muted-foreground">
-                                {activePermissions} permissões ativas
+                                {activePermissions} permissões
                               </span>
-                              <ChevronDown className={cn(
-                                "h-4 w-4 transition-transform",
-                                isExpanded && "rotate-180"
-                              )} />
+                              <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
                             </Button>
                           </CollapsibleTrigger>
                         )}
@@ -697,28 +644,22 @@ export default function Usuarios() {
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
-                              
                               {!isCurrentUser && (
                                 <>
                                   <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
                                     <KeyRound className="w-4 h-4 mr-2" />
                                     Resetar Senha
                                   </DropdownMenuItem>
-                                  
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     onClick={() => toggleAdminRole(user)}
                                     disabled={updating === `admin-${user.user_id}`}
                                   >
                                     <Crown className="w-4 h-4 mr-2" />
                                     {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
-                                    {updating === `admin-${user.user_id}` && (
-                                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-                                    )}
+                                    {updating === `admin-${user.user_id}` && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
                                   </DropdownMenuItem>
-                                  
                                   <DropdownMenuSeparator />
-                                  
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     onClick={() => openDeleteModal(user)}
                                     className="text-destructive focus:text-destructive"
                                   >
@@ -741,31 +682,19 @@ export default function Usuarios() {
                           {(Object.keys(PERMISSION_LABELS) as AppPermission[]).map((permission) => {
                             const hasPermission = user.permissions.includes(permission);
                             const isUpdatingThis = updating === `${user.user_id}-${permission}`;
-                            
                             return (
-                              <div
-                                key={permission}
-                                className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30"
-                              >
+                              <div key={permission} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
                                 <div className="flex-1 mr-4">
-                                  <Label className="text-sm font-medium">
-                                    {PERMISSION_LABELS[permission].label}
-                                  </Label>
-                                  <p className="text-xs text-muted-foreground">
-                                    {PERMISSION_LABELS[permission].description}
-                                  </p>
+                                  <Label className="text-sm font-medium">{PERMISSION_LABELS[permission].label}</Label>
+                                  <p className="text-xs text-muted-foreground">{PERMISSION_LABELS[permission].description}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {isUpdatingThis ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
                                   ) : hasPermission ? (
-                                    <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
-                                      Ativo
-                                    </Badge>
+                                    <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">Ativo</Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Inativo
-                                    </Badge>
+                                    <Badge variant="secondary" className="text-xs">Inativo</Badge>
                                   )}
                                   <Switch
                                     checked={hasPermission}
@@ -785,44 +714,63 @@ export default function Usuarios() {
             );
           })}
 
-          {filteredUsers.length === 0 && searchQuery && (
+          {filteredUsers.length === 0 && (searchQuery || filterType !== 'all') && (
             <div className="text-center py-12">
               <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário encontrado</h3>
-              <p className="text-muted-foreground">
-                Tente buscar por outro nome, email ou celular.
-              </p>
+              <p className="text-muted-foreground">Tente buscar por outro termo ou ajuste o filtro.</p>
             </div>
           )}
 
-          {filteredUsers.length === 0 && !searchQuery && (
+          {filteredUsers.length === 0 && !searchQuery && filterType === 'all' && (
             <div className="text-center py-12">
-              <Crown className="w-12 h-12 text-amber-500/50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum administrador cadastrado</h3>
-              <p className="text-muted-foreground">
-                Clique em "Criar Admin" para adicionar o primeiro administrador.
-              </p>
+              <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Nenhum usuário cadastrado</h3>
+              <p className="text-muted-foreground">Clique em "Novo Usuário" para adicionar o primeiro.</p>
             </div>
           )}
-
         </div>
 
         {/* Modal Criar Usuário */}
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Criar Novo Usuário</DialogTitle>
             </DialogHeader>
             
             <form onSubmit={handleCreateUser} className="space-y-4">
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
-                <div className="flex items-center gap-3">
-                  <Crown className="h-6 w-6 text-amber-600" />
-                  <div>
-                    <p className="font-medium text-amber-800 dark:text-amber-300">Novo Administrador</p>
-                    <p className="text-sm text-amber-600 dark:text-amber-400">Acesso total ao sistema via email</p>
-                  </div>
-                </div>
+              {/* Tipo de Usuário */}
+              <div className="space-y-3">
+                <Label>Tipo de Usuário</Label>
+                <RadioGroup 
+                  value={newUserType} 
+                  onValueChange={(value) => setNewUserType(value as UserType)}
+                  className="grid grid-cols-3 gap-2"
+                >
+                  {Object.entries(USER_TYPE_CONFIG).map(([type, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <div key={type}>
+                        <RadioGroupItem value={type} id={`new-type-${type}`} className="peer sr-only" />
+                        <Label
+                          htmlFor={`new-type-${type}`}
+                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                        >
+                          <Icon className="mb-1 h-4 w-4" />
+                          <span className="text-xs font-medium">{config.label}</span>
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+              </div>
+
+              <div className="p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                {isPhoneLogin ? (
+                  <p className="flex items-center gap-2"><Phone className="w-4 h-4" /> Login por telefone + senha</p>
+                ) : (
+                  <p className="flex items-center gap-2"><Mail className="w-4 h-4" /> Login por email + senha</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -830,27 +778,42 @@ export default function Usuarios() {
                 <Input
                   id="new-fullname"
                   type="text"
-                  placeholder="Nome do administrador"
+                  placeholder="Nome do usuário"
                   value={newFullName}
                   onChange={(e) => setNewFullName(e.target.value)}
                   required
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="new-email" className="flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Email
-                </Label>
-                <Input
-                  id="new-email"
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  required
-                />
-              </div>
+              {isPhoneLogin ? (
+                <div className="space-y-2">
+                  <Label htmlFor="new-telefone" className="flex items-center gap-2">
+                    <Phone className="w-4 h-4" /> Telefone
+                  </Label>
+                  <Input
+                    id="new-telefone"
+                    type="tel"
+                    placeholder="(00) 00000-0000"
+                    value={newTelefone}
+                    onChange={handlePhoneChange}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="new-email" className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" /> Email
+                  </Label>
+                  <Input
+                    id="new-email"
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="new-password">Senha</Label>
@@ -876,17 +839,14 @@ export default function Usuarios() {
 
               <div className="space-y-2">
                 <Label htmlFor="new-confirm-password">Confirmar Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="new-confirm-password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Repita a senha"
-                    value={newConfirmPassword}
-                    onChange={(e) => setNewConfirmPassword(e.target.value)}
-                    required
-                    className="pr-10"
-                  />
-                </div>
+                <Input
+                  id="new-confirm-password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Repita a senha"
+                  value={newConfirmPassword}
+                  onChange={(e) => setNewConfirmPassword(e.target.value)}
+                  required
+                />
                 {newConfirmPassword && newPassword !== newConfirmPassword && (
                   <p className="text-xs text-destructive">As senhas não coincidem</p>
                 )}
@@ -913,9 +873,7 @@ export default function Usuarios() {
                 <Check className="w-5 h-5" />
                 Usuário criado com sucesso!
               </DialogTitle>
-              <DialogDescription>
-                Envie as credenciais abaixo para o usuário
-              </DialogDescription>
+              <DialogDescription>Envie as credenciais abaixo para o usuário</DialogDescription>
             </DialogHeader>
             
             {createdCredentials && (
@@ -927,70 +885,36 @@ export default function Usuarios() {
                       <p className="font-medium">{createdCredentials.name}</p>
                     </div>
                   </div>
-                  
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground">Login</p>
                       <p className="font-medium font-mono">{createdCredentials.login}</p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => copyToClipboard(createdCredentials.login, 'login')}
-                    >
-                      {copiedField === 'login' ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(createdCredentials.login, 'login')}>
+                      {copiedField === 'login' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </Button>
                   </div>
-                  
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground">Senha</p>
                       <p className="font-medium font-mono">{createdCredentials.password}</p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => copyToClipboard(createdCredentials.password, 'password')}
-                    >
-                      {copiedField === 'password' ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(createdCredentials.password, 'password')}>
+                      {copiedField === 'password' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
-                
-                <Button 
-                  className="w-full" 
-                  onClick={() => {
-                    const text = `Login: ${createdCredentials.login}\nSenha: ${createdCredentials.password}`;
-                    copyToClipboard(text, 'all');
-                  }}
-                >
-                  {copiedField === 'all' ? (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copiar Tudo
-                    </>
-                  )}
+                <Button className="w-full" onClick={() => {
+                  const text = `Login: ${createdCredentials.login}\nSenha: ${createdCredentials.password}`;
+                  copyToClipboard(text, 'all');
+                }}>
+                  {copiedField === 'all' ? <><Check className="w-4 h-4 mr-2" />Copiado!</> : <><Copy className="w-4 h-4 mr-2" />Copiar Tudo</>}
                 </Button>
               </div>
             )}
             
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCredentialsModal(false)}>
-                Fechar
-              </Button>
+              <Button variant="outline" onClick={() => setShowCredentialsModal(false)}>Fechar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1003,7 +927,6 @@ export default function Usuarios() {
             </DialogHeader>
             
             <form onSubmit={handleEditUser} className="space-y-4">
-              {/* Tipo de Usuário */}
               <div className="space-y-3">
                 <Label>Tipo de Usuário</Label>
                 <RadioGroup 
@@ -1011,64 +934,25 @@ export default function Usuarios() {
                   onValueChange={(value) => setEditUserType(value as UserType)}
                   className="grid grid-cols-3 gap-2"
                 >
-                  <div>
-                    <RadioGroupItem value="motorista" id="edit-type-motorista" className="peer sr-only" />
-                    <Label
-                      htmlFor="edit-type-motorista"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Car className="mb-1 h-4 w-4" />
-                      <span className="text-xs font-medium">Motorista</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="operador" id="edit-type-operador" className="peer sr-only" />
-                    <Label
-                      htmlFor="edit-type-operador"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <Headset className="mb-1 h-4 w-4" />
-                      <span className="text-xs font-medium">Operador</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="supervisor" id="edit-type-supervisor" className="peer sr-only" />
-                    <Label
-                      htmlFor="edit-type-supervisor"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <UserCog className="mb-1 h-4 w-4" />
-                      <span className="text-xs font-medium">Supervisor</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem value="coordenador" id="edit-type-coordenador" className="peer sr-only" />
-                    <Label
-                      htmlFor="edit-type-coordenador"
-                      className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
-                    >
-                      <MapPin className="mb-1 h-4 w-4" />
-                      <span className="text-xs font-medium">Coordenador</span>
-                    </Label>
-                  </div>
-                  <div>
-                    <RadioGroupItem 
-                      value="admin" 
-                      id="edit-type-admin" 
-                      className="peer sr-only" 
-                      disabled={editingUser?.user_id === currentUser?.id}
-                    />
-                    <Label
-                      htmlFor="edit-type-admin"
-                      className={cn(
-                        "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer",
-                        editingUser?.user_id === currentUser?.id && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <Crown className="mb-1 h-4 w-4" />
-                      <span className="text-xs font-medium">Admin</span>
-                    </Label>
-                  </div>
+                  {Object.entries(USER_TYPE_CONFIG).map(([type, config]) => {
+                    const Icon = config.icon;
+                    const disabled = type === 'admin' && editingUser?.user_id === currentUser?.id;
+                    return (
+                      <div key={type}>
+                        <RadioGroupItem value={type} id={`edit-type-${type}`} className="peer sr-only" disabled={disabled} />
+                        <Label
+                          htmlFor={`edit-type-${type}`}
+                          className={cn(
+                            "flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer",
+                            disabled && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <Icon className="mb-1 h-4 w-4" />
+                          <span className="text-xs font-medium">{config.label}</span>
+                        </Label>
+                      </div>
+                    );
+                  })}
                 </RadioGroup>
                 {editingUser?.user_id === currentUser?.id && editUserType === 'admin' && (
                   <p className="text-xs text-muted-foreground">Você não pode alterar seu próprio tipo de admin</p>
@@ -1077,32 +961,16 @@ export default function Usuarios() {
 
               <div className="space-y-2">
                 <Label htmlFor="edit-fullname">Nome completo</Label>
-                <Input
-                  id="edit-fullname"
-                  type="text"
-                  placeholder="Nome do usuário"
-                  value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
-                  required
-                />
+                <Input id="edit-fullname" type="text" placeholder="Nome do usuário" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} required />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="edit-email">Email</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  required
-                />
+                <Input id="edit-email" type="email" placeholder="email@exemplo.com" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>
-                  Cancelar
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)}>Cancelar</Button>
                 <Button type="submit" disabled={updating === editingUser?.id}>
                   {updating === editingUser?.id && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                   Salvar
@@ -1122,11 +990,8 @@ export default function Usuarios() {
                 Esta ação não pode ser desfeita.
               </DialogDescription>
             </DialogHeader>
-            
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowDeleteModal(false)}>
-                Cancelar
-              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowDeleteModal(false)}>Cancelar</Button>
               <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
                 {deleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Excluir
@@ -1187,9 +1052,7 @@ export default function Usuarios() {
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowResetPasswordModal(false)}>
-                  Cancelar
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setShowResetPasswordModal(false)}>Cancelar</Button>
                 <Button type="submit" disabled={resettingPassword}>
                   {resettingPassword && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                   Alterar Senha

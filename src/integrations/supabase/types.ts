@@ -364,47 +364,6 @@ export type Database = {
           },
         ]
       }
-      motorista_credenciais: {
-        Row: {
-          ativo: boolean | null
-          created_at: string | null
-          id: string
-          motorista_id: string
-          senha_hash: string
-          telefone: string
-          ultimo_login: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          ativo?: boolean | null
-          created_at?: string | null
-          id?: string
-          motorista_id: string
-          senha_hash: string
-          telefone: string
-          ultimo_login?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          ativo?: boolean | null
-          created_at?: string | null
-          id?: string
-          motorista_id?: string
-          senha_hash?: string
-          telefone?: string
-          ultimo_login?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "motorista_credenciais_motorista_id_fkey"
-            columns: ["motorista_id"]
-            isOneToOne: false
-            referencedRelation: "motoristas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       motorista_presenca: {
         Row: {
           checkin_at: string | null
@@ -747,53 +706,6 @@ export type Database = {
             columns: ["ponto_origem_id"]
             isOneToOne: false
             referencedRelation: "pontos_embarque"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      staff_credenciais: {
-        Row: {
-          ativo: boolean | null
-          created_at: string | null
-          evento_id: string
-          id: string
-          role: string
-          senha_hash: string
-          telefone: string
-          ultimo_login: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          ativo?: boolean | null
-          created_at?: string | null
-          evento_id: string
-          id?: string
-          role?: string
-          senha_hash: string
-          telefone: string
-          ultimo_login?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          ativo?: boolean | null
-          created_at?: string | null
-          evento_id?: string
-          id?: string
-          role?: string
-          senha_hash?: string
-          telefone?: string
-          ultimo_login?: string | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "staff_credenciais_evento_id_fkey"
-            columns: ["evento_id"]
-            isOneToOne: false
-            referencedRelation: "eventos"
             referencedColumns: ["id"]
           },
         ]
