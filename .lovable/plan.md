@@ -1,39 +1,27 @@
 
-# Arquitetura Atual do Sistema
 
-## Resumo
+# Usar as OperationTabs como filtro dos graficos da Auditoria
 
-Sistema de gestão de transporte para eventos. Cadastro centralizado de usuários na aba `/usuarios` com roles: Admin, Supervisor, Operador, Motorista, Cliente. Dentro dos eventos, a equipe é vinculada (não criada inline). Login de campo (motoristas/staff) foi removido — apenas Supabase Auth.
+## O que muda
 
-## Autenticação
+As abas Missao/Transfer/Shuttle que ja existem no topo da pagina de Auditoria passarao a filtrar tambem os graficos. O dropdown "Filtrar graficos por tipo" dentro do componente `AuditoriaResumoTab` sera removido.
 
-- **Supabase Auth** para todos os usuários
-- Admin: login por email
-- Outros: login por telefone + senha
-- Roles armazenadas em `user_roles` (enum: admin, user, motorista, supervisor, operador, cliente)
-- Profiles em `profiles` (user_type, login_type, telefone, email)
+## Alteracoes
 
-## Estrutura de Páginas
+### `src/components/auditoria/AuditoriaResumoTab.tsx`
 
-- `/auth` - Login
-- `/usuarios` - Cadastro universal de usuários com filtros por tipo
-- `/eventos` - Listagem de eventos
-- `/evento/:id/*` - Painel do evento (dashboard, operação, equipe, etc.)
-- `/app/:eventoId/*` - Apps de campo (supervisor, operador, motorista, cliente) — protegidos por AdminRoute
+1. Remover o state `filtroGrafico` e o `useMemo` de `viagensGrafico` (que fazia filtragem local)
+2. Remover o dropdown Select de filtro por tipo e o `contadoresGrafico`
+3. Todos os graficos (Viagens por Dia, Viagens por Hora, Tipo de Veiculo) passam a usar `viagensFiltradas` em vez de `viagensGrafico`
+4. Remover a prop `todasViagens` da interface (nao sera mais necessaria)
 
-## Tabelas Principais
+### `src/pages/Auditoria.tsx`
 
-- `profiles`, `user_roles`, `user_permissions`
-- `eventos`, `evento_usuarios`
-- `motoristas`, `veiculos`, `viagens`, `viagem_logs`
-- `missoes`, `motorista_presenca`, `escalas`, `escala_motoristas`
-- `pontos_embarque`, `ponto_motoristas`, `rotas_shuttle`
-- `alertas_frota`, `veiculo_fotos`, `veiculo_vistoria_historico`
+1. Remover a prop `todasViagens={viagens}` da chamada do `AuditoriaResumoTab`
 
-## Removido (limpeza concluída)
+### Resultado
 
-- Tabelas: `motorista_credenciais`, `staff_credenciais`
-- Edge functions: `driver-login`, `driver-register`, `staff-login`, `staff-register`, `migrate-field-users`
-- Páginas: `LoginMotorista`, `LoginEquipe`
-- Componentes: `DriverRoute`, `StaffRoute`, `EditMotoristaLoginModal`, `EditStaffLoginModal`
-- Role: `coordenador` (admin assume todas as funções)
+- Interface mais limpa, sem dropdown redundante
+- Os graficos respondem diretamente as abas Missao/Transfer/Shuttle do topo
+- KPIs e rankings continuam usando `viagensFiltradas` (mesmo comportamento)
+
