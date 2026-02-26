@@ -42,10 +42,12 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated }: C
       const agora = getAgoraSync().toISOString();
       const horaAtual = getAgoraSync().toTimeString().slice(0, 5);
 
+      // Shuttle não tem motorista real - motorista_id permanece null
+      // O campo motorista='Shuttle' é texto fixo para identificação visual
       const { error } = await supabase.from('viagens').insert({
         evento_id: eventoId,
         tipo_operacao: 'shuttle',
-        motorista: 'Shuttle',
+        motorista: 'Shuttle', // Texto fixo - sem FK (shuttle não tem motorista)
         coordenador: nomeViagem.trim() || null,
         status: 'em_andamento',
         encerrado: false,

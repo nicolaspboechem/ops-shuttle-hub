@@ -352,19 +352,7 @@ export function useMissoes(eventoId: string | undefined) {
       .eq('id', missao.motorista_id)
       .maybeSingle();
 
-    let placa: string | null = null;
-    let tipoVeiculo: string | null = null;
     let veiculoId: string | null = motorista?.veiculo_id || null;
-
-    if (veiculoId) {
-      const { data: veiculo } = await supabase
-        .from('veiculos')
-        .select('placa, tipo_veiculo')
-        .eq('id', veiculoId)
-        .maybeSingle();
-      placa = veiculo?.placa || null;
-      tipoVeiculo = veiculo?.tipo_veiculo || null;
-    }
 
     // 5. Atualizar missão para em_andamento
     const result = await updateMissao(id, { status: 'em_andamento' });
@@ -372,16 +360,14 @@ export function useMissoes(eventoId: string | undefined) {
 
     const now = getAgoraSync().toISOString();
 
-    // 6. Criar viagem vinculada
+    // 6. Criar viagem vinculada - trigger preenche motorista/placa/tipo_veiculo via FKs
     const { data: novaViagem, error: viagemError } = await supabase
       .from('viagens')
       .insert({
         evento_id: missao.evento_id,
         motorista_id: missao.motorista_id,
-        motorista: motorista?.nome || 'Motorista',
+        motorista: motorista?.nome || 'Motorista', // NOT NULL - trigger sobrescreve via FK
         veiculo_id: veiculoId,
-        placa: placa,
-        tipo_veiculo: tipoVeiculo,
         ponto_embarque: missao.ponto_embarque,
         ponto_desembarque: missao.ponto_desembarque,
         ponto_embarque_id: missao.ponto_embarque_id,

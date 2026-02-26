@@ -79,7 +79,7 @@ async function motoristaTemViagensAtivas(motoristaId: string | null | undefined,
     .eq('evento_id', eventoId)
     .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
 
-  // Preferir motorista_id
+  // Usar motorista_id (FK normalizada) - fallback por nome apenas para viagens históricas sem FK
   if (motoristaId) {
     query = query.eq('motorista_id', motoristaId);
   } else {
@@ -325,16 +325,15 @@ export function useViagemOperacao() {
     const now = getAgoraSync();
 
     // 1. Criar nova viagem com origem/destino invertidos
+    // Trigger no banco preenche automaticamente: motorista, placa, tipo_veiculo via FKs
     const { data: novaViagem, error: insertError } = await supabase
       .from('viagens')
       .insert([{
         evento_id: viagemOriginal.evento_id,
         tipo_operacao: viagemOriginal.tipo_operacao,
-        motorista: viagemOriginal.motorista,
+        motorista: viagemOriginal.motorista, // NOT NULL - trigger sobrescreve via FK
         motorista_id: viagemOriginal.motorista_id,
         veiculo_id: viagemOriginal.veiculo_id,
-        placa: viagemOriginal.placa,
-        tipo_veiculo: viagemOriginal.tipo_veiculo,
         ponto_embarque: viagemOriginal.ponto_desembarque, // Invertido
         ponto_embarque_id: viagemOriginal.ponto_desembarque_id,
         ponto_desembarque: viagemOriginal.ponto_embarque, // Invertido  

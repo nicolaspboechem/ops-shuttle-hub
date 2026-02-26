@@ -285,19 +285,16 @@ export default function AppMotorista() {
         const now = getAgoraSync();
         const horaPickup = now.toTimeString().slice(0, 8);
 
+        // Trigger no banco preenche automaticamente: placa, tipo_veiculo via veiculo_id
         const { data: novaViagem, error } = await supabase
           .from('viagens')
           .insert({
             evento_id: eventoId,
-            // Campos FK normalizados
             motorista_id: motoristaData.id,
             veiculo_id: veiculoVinculado || null,
             ponto_embarque_id: missao.ponto_embarque_id || null,
             ponto_desembarque_id: missao.ponto_desembarque_id || null,
-            // Campos de texto (compatibilidade)
-            motorista: motoristaData.nome,
-            placa: veiculoExibir?.placa || null,
-            tipo_veiculo: veiculoExibir?.tipo_veiculo || null,
+            motorista: motoristaData.nome, // NOT NULL - trigger sobrescreve via FK
             ponto_embarque: missao.ponto_embarque,
             ponto_desembarque: missao.ponto_desembarque,
             tipo_operacao: 'transfer',
@@ -306,7 +303,7 @@ export default function AppMotorista() {
             status: 'em_andamento',
             h_inicio_real: now.toISOString(),
             encerrado: false,
-            origem_missao_id: missaoId, // Vincular viagem à missão
+            origem_missao_id: missaoId,
           })
           .select()
           .single();

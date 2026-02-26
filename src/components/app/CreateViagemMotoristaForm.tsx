@@ -147,19 +147,16 @@ export function CreateViagemMotoristaForm({
       const pontoEmbarqueData = pontos.find(p => p.nome === pontoEmbarque);
       const pontoDesembarqueData = pontos.find(p => p.nome === pontoDesembarque);
 
-      const { error } = await supabase
+      // Trigger no banco preenche automaticamente: placa, tipo_veiculo via veiculo_id
+      const { data: viagemCriada, error } = await supabase
         .from('viagens')
         .insert([{
           evento_id: eventoId,
-          // Campos FK normalizados
           motorista_id: motoristaData?.id || null,
           veiculo_id: veiculoVinculado?.id || null,
           ponto_embarque_id: pontoEmbarqueData?.id || null,
           ponto_desembarque_id: pontoDesembarqueData?.id || null,
-          // Campos de texto (mantidos para compatibilidade)
-          motorista: motoristaName,
-          placa: veiculoVinculado?.placa || null,
-          tipo_veiculo: veiculoVinculado?.tipo_veiculo || 'Van',
+          motorista: motoristaName, // NOT NULL - trigger sobrescreve se motorista_id presente
           ponto_embarque: pontoEmbarque,
           ponto_desembarque: pontoDesembarque,
           qtd_pax: parseInt(qtdPax),
@@ -170,7 +167,9 @@ export function CreateViagemMotoristaForm({
           h_inicio_real: agora.toISOString(),
           iniciado_por: driverSession?.motorista_id || null,
           criado_por: driverSession?.motorista_id || null
-        }]);
+        }])
+        .select('id')
+        .single();
 
       if (error) {
         console.error('[CreateViagemMotoristaForm] Erro detalhado:', {
@@ -183,7 +182,7 @@ export function CreateViagemMotoristaForm({
         return;
       }
 
-      // Atualizar status do motorista para 'em_viagem' (para aparecer no localizador)
+      // Atualizar status do motorista para 'em_viagem'
       if (motoristaData?.id) {
         await supabase
           .from('motoristas')
@@ -191,20 +190,10 @@ export function CreateViagemMotoristaForm({
           .eq('id', motoristaData.id);
       }
 
-      // Registrar log
-      const { data: viagemData } = await supabase
-        .from('viagens')
-        .select('id')
-        .eq('evento_id', eventoId)
-        .eq('motorista', motoristaName)
-        .eq('h_pickup', horaPickup)
-        .order('data_criacao', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (viagemData && driverSession?.motorista_id) {
+      // Registrar log usando ID retornado diretamente
+      if (viagemCriada && driverSession?.motorista_id) {
         await supabase.from('viagem_logs').insert([{
-          viagem_id: viagemData.id,
+          viagem_id: viagemCriada.id,
           user_id: driverSession.motorista_id,
           acao: 'inicio',
           detalhes: { 

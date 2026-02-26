@@ -19,7 +19,7 @@ export type Database = {
           created_at: string
           evento_id: string
           id: string
-          motorista_id: string
+          motorista_id: string | null
           nivel_combustivel: string | null
           observacao: string | null
           resolvido_em: string | null
@@ -32,7 +32,7 @@ export type Database = {
           created_at?: string
           evento_id: string
           id?: string
-          motorista_id: string
+          motorista_id?: string | null
           nivel_combustivel?: string | null
           observacao?: string | null
           resolvido_em?: string | null
@@ -45,7 +45,7 @@ export type Database = {
           created_at?: string
           evento_id?: string
           id?: string
-          motorista_id?: string
+          motorista_id?: string | null
           nivel_combustivel?: string | null
           observacao?: string | null
           resolvido_em?: string | null
