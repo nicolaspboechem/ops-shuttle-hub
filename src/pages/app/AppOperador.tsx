@@ -504,9 +504,9 @@ export default function AppOperador() {
   );
 
   return (
-    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
+    <div className="h-screen bg-background flex flex-col overflow-hidden w-full max-w-full">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-primary safe-area-top">
+      <header className="shrink-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -568,11 +568,13 @@ export default function AppOperador() {
         </div>
       </header>
 
-      <PullToRefresh onRefresh={handleRefresh}>
-        <main className="container mx-auto px-4 py-4 pb-24">
-          {renderAllTabs()}
-        </main>
-      </PullToRefresh>
+      <div className="flex-1 overflow-y-auto pb-20">
+        <PullToRefresh onRefresh={handleRefresh}>
+          <main className="container mx-auto px-4 py-4">
+            {renderAllTabs()}
+          </main>
+        </PullToRefresh>
+      </div>
 
       <OperadorBottomNav 
         activeTab={activeTab} 

@@ -625,7 +625,7 @@ export default function AppMotorista() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden w-full max-w-full">
+    <div className="h-screen bg-background flex flex-col overflow-hidden w-full max-w-full">
       {/* Tutorial Popover */}
       {tutorial.isActive && tutorial.currentStep && (
         <TutorialPopover
@@ -639,7 +639,7 @@ export default function AppMotorista() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-primary safe-area-top">
+      <header className="shrink-0 z-50 bg-primary safe-area-top">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -686,11 +686,13 @@ export default function AppMotorista() {
       </header>
 
       {/* Main content com Pull-to-Refresh */}
-      <PullToRefresh onRefresh={handleRefresh}>
-        <main className="container mx-auto px-4 py-4 pb-24">
-          {renderTabContent()}
-        </main>
-      </PullToRefresh>
+      <div className="flex-1 overflow-y-auto pb-20">
+        <PullToRefresh onRefresh={handleRefresh}>
+          <main className="container mx-auto px-4 py-4">
+            {renderTabContent()}
+          </main>
+        </PullToRefresh>
+      </div>
 
       {/* Bottom Navigation */}
       <MotoristaBottomNav 
