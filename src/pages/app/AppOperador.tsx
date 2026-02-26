@@ -4,7 +4,7 @@ import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
-import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useUserNames } from '@/hooks/useUserNames';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
@@ -75,7 +75,7 @@ function ShuttleRegistroCard({ viagem, getName }: { viagem: Viagem; getName: (id
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
-  const { staffSession, signOut } = useStaffAuth();
+  const { user, profile, signOut } = useAuth();
   const { getAgoraSync } = useServerTime();
   
   const [evento, setEvento] = useState<Evento | null>(null);
@@ -167,8 +167,8 @@ export default function AppOperador() {
     }
   }, [eventoId]);
 
-  const handleLogout = useCallback(() => {
-    signOut();
+  const handleLogout = useCallback(async () => {
+    await signOut();
     navigate('/login/equipe');
   }, [signOut, navigate]);
 
@@ -181,18 +181,18 @@ export default function AppOperador() {
   };
 
   const maisTabProps = useMemo(() => ({
-    userName: staffSession?.user_nome,
+    userName: profile?.full_name || user?.email || '',
     eventoNome: evento?.nome_planilha,
     onLogout: handleLogout,
-  }), [staffSession?.user_nome, evento?.nome_planilha, handleLogout]);
+  }), [profile?.full_name, user?.email, evento?.nome_planilha, handleLogout]);
 
   useEffect(() => {
-    if (!staffSession) {
+    if (!user) {
       navigate('/login/equipe');
     }
-  }, [staffSession, navigate]);
+  }, [user, navigate]);
 
-  if (!staffSession) {
+  if (!user) {
     return null;
   }
 

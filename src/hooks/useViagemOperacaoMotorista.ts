@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
 import { Viagem, StatusViagemOperacao } from '@/lib/types/viagem';
 import { toast } from 'sonner';
@@ -61,38 +61,36 @@ async function motoristaTemViagensAtivas(motoristaId: string, eventoId: string, 
 
 /**
  * Hook específico para operações de viagem do MOTORISTA.
- * Usa useDriverAuth() (JWT customizado) ao invés de useAuth() (Supabase Auth).
- * 
- * Permissões:
- * - Transfer/Missão: Pode iniciar e encerrar
- * - Shuttle: Pode iniciar, mas só registra chegada (standby) - não encerra
+ * Agora usa useAuth() (Supabase Auth unificado) com motoristaId do context.
  */
 export function useViagemOperacaoMotorista() {
-  const { driverSession } = useDriverAuth();
+  const { user, motoristaId, profile } = useAuth();
   const { getAgoraSync } = useServerTime();
+
+  const motoristaNome = profile?.full_name || '';
 
   const registrarLog = useCallback(async (
     viagemId: string, 
     acao: string, 
     detalhes?: Record<string, unknown>
   ) => {
-    if (!driverSession) return;
+    if (!user || !motoristaId) return;
     
     await supabase.from('viagem_logs').insert([{
       viagem_id: viagemId,
-      user_id: driverSession.motorista_id, // UUID do motorista
+      user_id: motoristaId,
       acao,
       detalhes: {
         ...detalhes,
         via: 'app_motorista',
-        motorista_nome: driverSession.motorista_nome,
-        nome_usuario: driverSession.motorista_nome
+        motorista_nome: motoristaNome,
+        nome_usuario: motoristaNome
       } as any
     }]);
-  }, [driverSession]);
+  }, [user, motoristaId, motoristaNome]);
 
   const iniciarViagem = useCallback(async (viagem: Viagem) => {
-    if (!driverSession || driverSession.expires_at < Date.now()) {
+    if (!user || !motoristaId) {
       toast.error('Sessão expirada. Faça login novamente.');
       return false;
     }
@@ -103,8 +101,8 @@ export function useViagemOperacaoMotorista() {
       .from('viagens')
       .update({
         status: 'em_andamento' as StatusViagemOperacao,
-        iniciado_por: driverSession.motorista_id,
-        atualizado_por: driverSession.motorista_id,
+        iniciado_por: motoristaId,
+        atualizado_por: motoristaId,
         h_inicio_real: now.toISOString()
       })
       .eq('id', viagem.id);
@@ -120,20 +118,14 @@ export function useViagemOperacaoMotorista() {
       placa: viagem.placa 
     });
 
-    // Atualizar status do motorista para 'em_viagem'
-    await atualizarStatusMotorista(driverSession.motorista_id, 'em_viagem');
+    await atualizarStatusMotorista(motoristaId, 'em_viagem');
     
     toast.success('Viagem iniciada!');
     return true;
-  }, [driverSession, registrarLog, getAgoraSync]);
+  }, [user, motoristaId, registrarLog, getAgoraSync]);
 
-  /**
-   * Registrar chegada ao destino.
-   * - Transfer/Missão: Encerra diretamente
-   * - Shuttle: Coloca em standby (aguardando_retorno) - motorista não encerra shuttle
-   */
   const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number) => {
-    if (!driverSession || driverSession.expires_at < Date.now()) {
+    if (!user || !motoristaId) {
       toast.error('Sessão expirada. Faça login novamente.');
       return false;
     }
@@ -141,8 +133,6 @@ export function useViagemOperacaoMotorista() {
     const now = getAgoraSync();
     const horaChegada = now.toTimeString().slice(0, 8);
     
-    // Shuttle: motorista sempre coloca em standby (não encerra)
-    // Transfer/Missão: motorista pode encerrar diretamente
     const isShuttle = viagem.tipo_operacao === 'shuttle';
     const novoStatus = isShuttle ? 'aguardando_retorno' : 'encerrado';
 
@@ -152,8 +142,8 @@ export function useViagemOperacaoMotorista() {
         status: novoStatus as StatusViagemOperacao,
         h_chegada: horaChegada,
         h_fim_real: novoStatus === 'encerrado' ? now.toISOString() : null,
-        finalizado_por: novoStatus === 'encerrado' ? driverSession.motorista_id : null,
-        atualizado_por: driverSession.motorista_id,
+        finalizado_por: novoStatus === 'encerrado' ? motoristaId : null,
+        atualizado_por: motoristaId,
         encerrado: novoStatus === 'encerrado',
         qtd_pax: qtdPax ?? viagem.qtd_pax
       })
@@ -171,22 +161,20 @@ export function useViagemOperacaoMotorista() {
       aguardando_retorno: isShuttle
     });
 
-    // Apenas atualizar status do motorista se encerrou (não está em standby)
     if (viagem.evento_id && novoStatus === 'encerrado') {
       const temOutrasViagens = await motoristaTemViagensAtivas(
-        driverSession.motorista_id, 
+        motoristaId, 
         viagem.evento_id, 
         viagem.id
       );
       if (!temOutrasViagens) {
-        await atualizarStatusMotorista(driverSession.motorista_id, 'disponivel');
+        await atualizarStatusMotorista(motoristaId, 'disponivel');
       }
     }
     
-    // Atualizar localização do motorista para o ponto de desembarque
     if (viagem.ponto_desembarque) {
       await atualizarLocalizacaoMotorista(
-        driverSession.motorista_id, 
+        motoristaId, 
         viagem.ponto_desembarque,
         now.toISOString()
       );
@@ -207,14 +195,10 @@ export function useViagemOperacaoMotorista() {
     }
     
     return true;
-  }, [driverSession, registrarLog, getAgoraSync]);
+  }, [user, motoristaId, registrarLog, getAgoraSync]);
 
   return {
     iniciarViagem,
     registrarChegada,
-    // Motorista NÃO tem acesso a:
-    // - encerrarViagem (para shuttle)
-    // - cancelarViagem
-    // - iniciarRetorno
   };
 }

@@ -6,8 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
-import { DriverAuthProvider } from "@/lib/auth/DriverAuthContext";
-import { StaffAuthProvider } from "@/lib/auth/StaffAuthContext";
 import { NotificationsProvider } from "@/hooks/useNotifications";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
@@ -17,7 +15,6 @@ import { Loader2 } from 'lucide-react';
 
 // ============================================================
 // CRITICAL PAGES: imported directly (NO lazy load)
-// Only pages that must render instantly without network auth
 // ============================================================
 import LoginMotorista from "./pages/LoginMotorista";
 import Auth from "./pages/Auth";
@@ -38,14 +35,12 @@ function lazyRetry(importFn: () => Promise<any>) {
           msg.includes('Loading chunk') ||
           msg.includes('Loading CSS chunk');
 
-        // Stale chunk after deploy → reload to get new index.html with correct hashes
         if (isStaleChunk) {
           const key = 'lazyRetry_reload';
           if (!sessionStorage.getItem(key)) {
             sessionStorage.setItem(key, '1');
             window.location.reload();
           }
-          // If we already reloaded once this session, fall through to error UI
         }
 
         if (retriesLeft <= 0) {
@@ -73,7 +68,7 @@ function lazyRetry(importFn: () => Promise<any>) {
 }
 
 // ============================================================
-// LAZY PAGES: only loaded when navigated to
+// LAZY PAGES
 // ============================================================
 const Index = lazyRetry(() => import("./pages/Index"));
 const Home = lazyRetry(() => import("./pages/Home"));
@@ -129,7 +124,7 @@ function ConditionalNotifications({ children }: { children: ReactNode }) {
   return <NotificationsProvider>{children}</NotificationsProvider>;
 }
 
-// Layout wrapper that provides AuthProvider + Notifications for admin/staff routes
+// Layout wrapper that provides AuthProvider + Notifications
 function AuthLayout() {
   return (
     <AuthProvider>
@@ -144,90 +139,82 @@ function AuthLayout() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <DriverAuthProvider>
-      <StaffAuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <ErrorBoundary>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                {/* ========================================= */}
-                {/* FAST ROUTES: No AuthProvider (no getSession call) */}
-                {/* These load instantly on 3G/4G */}
-                {/* ========================================= */}
-                <Route path="/login/motorista" element={<LoginMotorista />} />
-                <Route path="/login/equipe" element={<LoginEquipe />} />
-                
-                {/* Driver app — uses DriverAuthContext only */}
-                <Route path="/app/:eventoId/motorista" element={
-                  <DriverRoute><AppMotorista /></DriverRoute>
-                } />
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* ========================================= */}
+            {/* PUBLIC ROUTES: No auth needed */}
+            {/* ========================================= */}
+            <Route path="/login/motorista" element={<LoginMotorista />} />
+            <Route path="/login/equipe" element={<LoginEquipe />} />
+            <Route path="/painel" element={<PainelPublico />} />
+            <Route path="/painel/:eventoId" element={<PainelPublico />} />
+            <Route path="/localizador" element={<PainelLocalizador />} />
+            <Route path="/localizador/:eventoId" element={<PainelLocalizador />} />
 
-                {/* Public routes — no auth needed */}
-                <Route path="/painel" element={<PainelPublico />} />
-                <Route path="/painel/:eventoId" element={<PainelPublico />} />
-                <Route path="/localizador" element={<PainelLocalizador />} />
-                <Route path="/localizador/:eventoId" element={<PainelLocalizador />} />
+            {/* ========================================= */}
+            {/* AUTH ROUTES: All wrapped in AuthProvider */}
+            {/* ========================================= */}
+            <Route element={<AuthLayout />}>
+              {/* Landing + Auth */}
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
 
-                {/* ========================================= */}
-                {/* AUTH ROUTES: Wrapped in AuthProvider */}
-                {/* getSession() only runs when these routes load */}
-                {/* ========================================= */}
-                <Route element={<AuthLayout />}>
-                  {/* Landing + Auth */}
-                  <Route path="/" element={<Index />} />
-                  <Route path="/auth" element={<Auth />} />
+              {/* App Hub */}
+              <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
 
-                  {/* App Hub (needs auth to determine role) */}
-                  <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
+              {/* Driver app — now uses Supabase Auth via AuthProvider */}
+              <Route path="/app/:eventoId/motorista" element={
+                <DriverRoute><AppMotorista /></DriverRoute>
+              } />
 
-                  {/* Staff field app — uses StaffAuth but also needs AuthProvider for role check */}
-                  <Route path="/app/:eventoId/operador" element={
-                    <StaffRoute allowedRoles={['operador', 'supervisor']}><AppOperador /></StaffRoute>
-                  } />
-                  <Route path="/app/:eventoId/supervisor" element={
-                    <StaffRoute allowedRoles={['supervisor']}><AppSupervisor /></StaffRoute>
-                  } />
-                  <Route path="/app/:eventoId/cliente" element={
-                    <StaffRoute allowedRoles={['cliente']}><AppCliente /></StaffRoute>
-                  } />
-                  <Route path="/app/:eventoId/vincular-veiculo/:motoristaId" element={
-                    <StaffRoute allowedRoles={['supervisor']}>
-                      <VincularVeiculo />
-                    </StaffRoute>
-                  } />
+              {/* Staff field apps */}
+              <Route path="/app/:eventoId/operador" element={
+                <StaffRoute allowedRoles={['operador', 'supervisor']}><AppOperador /></StaffRoute>
+              } />
+              <Route path="/app/:eventoId/supervisor" element={
+                <StaffRoute allowedRoles={['supervisor']}><AppSupervisor /></StaffRoute>
+              } />
+              <Route path="/app/:eventoId/cliente" element={
+                <StaffRoute allowedRoles={['cliente']}><AppCliente /></StaffRoute>
+              } />
+              <Route path="/app/:eventoId/vincular-veiculo/:motoristaId" element={
+                <StaffRoute allowedRoles={['supervisor']}>
+                  <VincularVeiculo />
+                </StaffRoute>
+              } />
 
-                  {/* Admin Routes (CCO) */}
-                  <Route path="/home" element={<AdminRoute><Home /></AdminRoute>} />
-                  <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />
-                  <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
-                  <Route path="/suporte" element={<AdminRoute><Suporte /></AdminRoute>} />
-                  <Route path="/evento/:eventoId" element={<AdminRoute><Dashboard /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/operacao" element={<AdminRoute><Operacao /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/viagens-ativas" element={<AdminRoute><ViagensAtivas /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/viagens-finalizadas" element={<AdminRoute><ViagensFinalizadas /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/motoristas" element={<AdminRoute><Motoristas /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/vincular-veiculo/:motoristaId" element={<AdminRoute><VincularVeiculo /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/veiculos" element={<AdminRoute><Veiculos /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/rotas-shuttle" element={<AdminRoute><RotasShuttle /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/mapa-servico" element={<AdminRoute><MapaServico /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
-                  <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
-                </Route>
+              {/* Admin Routes (CCO) */}
+              <Route path="/home" element={<AdminRoute><Home /></AdminRoute>} />
+              <Route path="/eventos" element={<AdminRoute><Eventos /></AdminRoute>} />
+              <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
+              <Route path="/suporte" element={<AdminRoute><Suporte /></AdminRoute>} />
+              <Route path="/evento/:eventoId" element={<AdminRoute><Dashboard /></AdminRoute>} />
+              <Route path="/evento/:eventoId/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
+              <Route path="/evento/:eventoId/operacao" element={<AdminRoute><Operacao /></AdminRoute>} />
+              <Route path="/evento/:eventoId/viagens-ativas" element={<AdminRoute><ViagensAtivas /></AdminRoute>} />
+              <Route path="/evento/:eventoId/viagens-finalizadas" element={<AdminRoute><ViagensFinalizadas /></AdminRoute>} />
+              <Route path="/evento/:eventoId/motoristas" element={<AdminRoute><Motoristas /></AdminRoute>} />
+              <Route path="/evento/:eventoId/vincular-veiculo/:motoristaId" element={<AdminRoute><VincularVeiculo /></AdminRoute>} />
+              <Route path="/evento/:eventoId/veiculos" element={<AdminRoute><Veiculos /></AdminRoute>} />
+              <Route path="/evento/:eventoId/rotas-shuttle" element={<AdminRoute><RotasShuttle /></AdminRoute>} />
+              <Route path="/evento/:eventoId/equipe" element={<AdminRoute><EventoUsuarios /></AdminRoute>} />
+              <Route path="/evento/:eventoId/mapa-servico" element={<AdminRoute><MapaServico /></AdminRoute>} />
+              <Route path="/evento/:eventoId/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
+              <Route path="/evento/:eventoId/painel-config" element={<AdminRoute><EventoPainelConfig /></AdminRoute>} />
+              <Route path="/evento/:eventoId/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
+            </Route>
 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-            </ErrorBoundary>
-          </BrowserRouter>
-        </TooltipProvider>
-      </StaffAuthProvider>
-    </DriverAuthProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+        </ErrorBoundary>
+      </BrowserRouter>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 

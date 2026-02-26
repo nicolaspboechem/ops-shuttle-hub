@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
 type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
+type AppRole = 'admin' | 'user' | 'motorista' | 'operador' | 'supervisor' | 'cliente';
 
 interface UserProfile {
   id: string;
@@ -26,6 +27,13 @@ interface AuthContextType {
   permissions: AppPermission[];
   eventRoles: EventRoleMapping[];
   loading: boolean;
+  // Field user data
+  fieldRole: AppRole | null;
+  motoristaId: string | null;
+  fieldEventoId: string | null;
+  isFieldUser: boolean;
+  isMotorista: boolean;
+  isSupervisor: boolean;
   signIn: (identifier: string, password: string, type?: 'email' | 'phone') => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -44,30 +52,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<AppPermission[]>([]);
   const [eventRoles, setEventRoles] = useState<EventRoleMapping[]>([]);
   const [loading, setLoading] = useState(true);
+  // Field user state
+  const [fieldRole, setFieldRole] = useState<AppRole | null>(null);
+  const [motoristaId, setMotoristaId] = useState<string | null>(null);
+  const [fieldEventoId, setFieldEventoId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Defer Supabase calls with setTimeout
         if (session?.user) {
           setTimeout(() => {
             fetchUserData(session.user.id);
           }, 0);
         } else {
-          setProfile(null);
-          setIsAdmin(false);
-          setPermissions([]);
-          setEventRoles([]);
-          setLoading(false);
+          resetState();
         }
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -80,6 +85,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const resetState = () => {
+    setProfile(null);
+    setIsAdmin(false);
+    setPermissions([]);
+    setEventRoles([]);
+    setFieldRole(null);
+    setMotoristaId(null);
+    setFieldEventoId(null);
+    setLoading(false);
+  };
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -94,8 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(profileRes.data as UserProfile);
       }
 
-      const userIsAdmin = roleRes.data?.role === 'admin';
+      const userRole = roleRes.data?.role as AppRole | undefined;
+      const userIsAdmin = userRole === 'admin';
       setIsAdmin(userIsAdmin);
+      setFieldRole(userRole || null);
 
       if (userIsAdmin) {
         setPermissions(['view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data']);
@@ -108,6 +126,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           eventoId: er.evento_id,
           role: er.role as EventRole
         })));
+        // Set first event as field event for field users
+        if (!userIsAdmin && eventRolesRes.data.length > 0) {
+          setFieldEventoId(eventRolesRes.data[0].evento_id);
+        }
+      }
+
+      // If motorista, fetch motorista_id
+      if (userRole === 'motorista') {
+        const { data: motoristaData } = await supabase
+          .from('motoristas')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+        if (motoristaData) {
+          setMotoristaId(motoristaData.id);
+        }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -152,10 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setProfile(null);
-    setIsAdmin(false);
-    setPermissions([]);
-    setEventRoles([]);
+    resetState();
   };
 
   const hasPermission = (permission: AppPermission): boolean => {
@@ -164,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const getEventRole = (eventoId: string): EventRole | null => {
-    if (isAdmin) return 'operador'; // Admin has full access as operador
+    if (isAdmin) return 'operador';
     const mapping = eventRoles.find(er => er.eventoId === eventoId);
     return mapping?.role || null;
   };
@@ -176,6 +207,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return allowedRoles.includes(role);
   };
 
+  const isFieldUser = !!fieldRole && ['motorista', 'supervisor', 'operador', 'cliente'].includes(fieldRole);
+  const isMotorista = fieldRole === 'motorista';
+  const isSupervisor = fieldRole === 'supervisor';
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -185,6 +220,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       permissions,
       eventRoles,
       loading,
+      fieldRole,
+      motoristaId,
+      fieldEventoId,
+      isFieldUser,
+      isMotorista,
+      isSupervisor,
       signIn,
       signUp,
       signOut,
@@ -205,4 +246,4 @@ export function useAuth() {
   return context;
 }
 
-export type { EventRole };
+export type { EventRole, AppRole };
