@@ -32,7 +32,7 @@ export interface EventoUsuario {
   id: string;
   evento_id: string;
   user_id: string;
-  role: 'coordenador' | 'motorista' | 'operador';
+  role: 'motorista' | 'operador' | 'supervisor' | 'cliente';
   created_at: string;
 }
 

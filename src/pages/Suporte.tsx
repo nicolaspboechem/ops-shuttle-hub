@@ -98,7 +98,7 @@ export default function Suporte() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground">
-                  <p>Painel TV para <strong>coordenadores</strong> acompanharem localização dos motoristas.</p>
+                  <p>Painel TV para <strong>supervisores</strong> acompanharem localização dos motoristas.</p>
                   <p className="mt-2">Kanban por localização com atualização automática.</p>
                   <Badge variant="outline" className="mt-3 bg-purple-50 text-purple-700 border-purple-200">
                     Apenas Missões

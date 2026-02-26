@@ -217,8 +217,6 @@ export function VistoriaVeiculoWizard({
         };
 
         // liberado_por e inspecao_por têm FK para profiles.user_id
-        // Staff JWT usa user_id do staff_credenciais, que pode não existir em profiles
-        // Só definir esses campos se for um auth.users válido (não staff)
         if (statusFinal === 'liberado') {
           updateData.liberado_em = getAgoraSync().toISOString();
           // Tentar setar liberado_por, mas aceitar falha silenciosa
