@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.auto-checkout]
 verify_jwt = false
+
+[functions.cleanup-orphans]
+verify_jwt = false

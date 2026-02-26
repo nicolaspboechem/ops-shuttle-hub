@@ -72,67 +72,31 @@ serve(async (req) => {
         targetUserId = motorista.user_id;
       }
 
-      // 1. Desvincular veículos (SET motorista_id = NULL)
-      const { error: veiculoError, count: veiculosCount } = await supabaseAdmin
+      // 1. Desvincular veículos
+      await supabaseAdmin
         .from('veiculos')
         .update({ motorista_id: null })
         .eq('motorista_id', motorista_id);
-      
-      if (veiculoError) {
-        console.log('Error unlinking veiculos:', veiculoError.message);
-      } else {
-        console.log('Veiculos unlinked:', veiculosCount ?? 0);
-      }
 
-      // 2. Limpar referência nas vistorias (manter histórico, só remove FK)
-      const { error: vistoriaError, count: vistoriasCount } = await supabaseAdmin
+      // 2. Limpar referência nas vistorias
+      await supabaseAdmin
         .from('veiculo_vistoria_historico')
         .update({ motorista_id: null })
         .eq('motorista_id', motorista_id);
-      
-      if (vistoriaError) {
-        console.log('Error unlinking vistorias:', vistoriaError.message);
-      } else {
-        console.log('Vistorias unlinked:', vistoriasCount ?? 0);
-      }
 
-      // 3. Limpar referência nas viagens (manter histórico, só remove FK)
-      const { error: viagemError, count: viagensCount } = await supabaseAdmin
+      // 3. Limpar referência nas viagens
+      await supabaseAdmin
         .from('viagens')
         .update({ motorista_id: null })
         .eq('motorista_id', motorista_id);
-      
-      if (viagemError) {
-        console.log('Error unlinking viagens:', viagemError.message);
-      } else {
-        console.log('Viagens unlinked:', viagensCount ?? 0);
-      }
 
-      // 4. Remove motorista credentials
-      const { error: credError } = await supabaseAdmin
-        .from('motorista_credenciais')
-        .delete()
-        .eq('motorista_id', motorista_id);
-      
-      if (credError) {
-        console.log('Error deleting motorista_credenciais:', credError.message);
-      } else {
-        console.log('Motorista credenciais deleted');
-      }
-
-      // 5. Remove motorista presence records
-      const { error: presError } = await supabaseAdmin
+      // 4. Remove motorista presence records
+      await supabaseAdmin
         .from('motorista_presenca')
         .delete()
         .eq('motorista_id', motorista_id);
-      
-      if (presError) {
-        console.log('Error deleting motorista_presenca:', presError.message);
-      } else {
-        console.log('Motorista presenca deleted');
-      }
 
-      // 6. Remove motorista record (missoes e ponto_motoristas fazem CASCADE)
+      // 5. Remove motorista record (missoes e ponto_motoristas fazem CASCADE)
       const { error: motError } = await supabaseAdmin
         .from('motoristas')
         .delete()
@@ -144,84 +108,83 @@ serve(async (req) => {
           JSON.stringify({ error: `Erro ao deletar motorista: ${motError.message}` }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-      } else {
-        console.log('Motorista deleted successfully');
       }
+      console.log('Motorista deleted successfully');
     }
 
-    // If we have a user_id (either passed or from motorista), clean up user-related records
+    // Clean up user-related records
     if (targetUserId) {
-      // Remove staff credentials
       if (evento_id) {
-        // Remove only for specific event
-        await supabaseAdmin
-          .from('staff_credenciais')
-          .delete()
-          .eq('user_id', targetUserId)
-          .eq('evento_id', evento_id);
-      } else {
-        // Remove all credentials
-        await supabaseAdmin
-          .from('staff_credenciais')
-          .delete()
-          .eq('user_id', targetUserId);
-      }
-
-      // Remove from evento_usuarios
-      if (evento_id) {
+        // Remove only from specific event
         await supabaseAdmin
           .from('evento_usuarios')
           .delete()
           .eq('user_id', targetUserId)
           .eq('evento_id', evento_id);
       } else {
+        // FULL deletion - no conditional checks
+        console.log('Full user deletion for:', targetUserId);
+
+        // 1. Nullify FK refs in veiculo_vistoria_historico
+        await supabaseAdmin
+          .from('veiculo_vistoria_historico')
+          .update({ realizado_por: null })
+          .eq('realizado_por', targetUserId);
+
+        // 2. Nullify FK refs in veiculos
+        await supabaseAdmin
+          .from('veiculos')
+          .update({ atualizado_por: null })
+          .eq('atualizado_por', targetUserId);
+
+        await supabaseAdmin
+          .from('veiculos')
+          .update({ criado_por: null })
+          .eq('criado_por', targetUserId);
+
+        await supabaseAdmin
+          .from('veiculos')
+          .update({ inspecao_por: null })
+          .eq('inspecao_por', targetUserId);
+
+        await supabaseAdmin
+          .from('veiculos')
+          .update({ liberado_por: null })
+          .eq('liberado_por', targetUserId);
+
+        // 3. Remove all evento_usuarios
         await supabaseAdmin
           .from('evento_usuarios')
           .delete()
           .eq('user_id', targetUserId);
-      }
 
-      // Only delete profile if removing from all events (no evento_id specified)
-      if (!evento_id) {
-        // Check if user has other event associations
-        const { data: otherEvents } = await supabaseAdmin
-          .from('evento_usuarios')
-          .select('id')
-          .eq('user_id', targetUserId)
-          .limit(1);
+        // 4. Remove user roles and permissions
+        await supabaseAdmin
+          .from('user_roles')
+          .delete()
+          .eq('user_id', targetUserId);
 
-        const { data: otherStaffCreds } = await supabaseAdmin
-          .from('staff_credenciais')
-          .select('id')
-          .eq('user_id', targetUserId)
-          .limit(1);
+        await supabaseAdmin
+          .from('user_permissions')
+          .delete()
+          .eq('user_id', targetUserId);
 
-        // Only delete profile if no other associations exist
-        if ((!otherEvents || otherEvents.length === 0) && (!otherStaffCreds || otherStaffCreds.length === 0)) {
-          // Remove user roles and permissions
-          await supabaseAdmin
-            .from('user_roles')
-            .delete()
-            .eq('user_id', targetUserId);
+        // 5. Remove profile
+        await supabaseAdmin
+          .from('profiles')
+          .delete()
+          .eq('user_id', targetUserId);
 
-          await supabaseAdmin
-            .from('user_permissions')
-            .delete()
-            .eq('user_id', targetUserId);
-
-          // Remove profile
-          await supabaseAdmin
-            .from('profiles')
-            .delete()
-            .eq('user_id', targetUserId);
-
-          // Try to delete from Supabase Auth (may fail if user was never in Auth)
-          try {
-            await supabaseAdmin.auth.admin.deleteUser(targetUserId);
-          } catch (authDeleteError) {
-            // User might not exist in Auth - that's okay for custom auth users
-            console.log('User not in Auth or already deleted:', authDeleteError);
+        // 6. Delete from Supabase Auth
+        try {
+          const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
+          if (authDeleteError) {
+            console.log('Auth delete error (non-fatal):', authDeleteError.message);
+          } else {
+            console.log('Auth user deleted successfully');
           }
+        } catch (e) {
+          console.log('Auth user not found or already deleted:', e);
         }
       }
     }
