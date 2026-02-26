@@ -53,6 +53,7 @@ interface Evento {
   data_inicio?: string | null;
   data_fim?: string | null;
   horario_virada_dia?: string | null;
+  tipos_viagem_habilitados?: string[] | null;
 }
 
 export default function AppSupervisor() {
@@ -114,7 +115,7 @@ export default function AppSupervisor() {
   const fetchEvento = async () => {
     const { data } = await supabase
       .from('eventos')
-      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia')
+      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia, tipos_viagem_habilitados')
       .eq('id', eventoId)
       .single();
     
@@ -302,7 +303,7 @@ export default function AppSupervisor() {
         open={showActionModal}
         onOpenChange={setShowActionModal}
         onSelect={handleActionSelect}
-        hideShuttle
+        tiposHabilitados={evento?.tipos_viagem_habilitados || undefined}
       />
 
       {/* Nova Viagem (Transfer/Shuttle) */}
