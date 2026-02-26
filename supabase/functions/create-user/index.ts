@@ -121,7 +121,6 @@ serve(async (req) => {
             if (!existingLink) {
               const eventoRole = user_type === 'motorista' ? 'motorista' : 
                                  user_type === 'supervisor' ? 'supervisor' :
-                                 user_type === 'coordenador' ? 'coordenador' : 
                                  user_type === 'cliente' ? 'cliente' : 'operador';
               
               await supabaseAdmin.from('evento_usuarios').insert({
@@ -260,7 +259,7 @@ serve(async (req) => {
     
     if (user_type === 'admin') {
       // Admin tem acesso total via role
-    } else if (user_type === 'supervisor' || user_type === 'coordenador') {
+    } else if (user_type === 'supervisor') {
       permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
     } else if (user_type === 'operador') {
       permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
@@ -282,7 +281,7 @@ serve(async (req) => {
     if (evento_id) {
       const eventoRole = user_type === 'motorista' ? 'motorista' : 
                          user_type === 'supervisor' ? 'supervisor' :
-                         user_type === 'coordenador' ? 'coordenador' : 'operador';
+                         user_type === 'cliente' ? 'cliente' : 'operador';
       
       await supabaseAdmin.from('evento_usuarios').insert({
         evento_id: evento_id,

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, KeyRound, Clock, LogIn, LogOut, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle, Lock, Binoculars } from 'lucide-react';
+import { Users, Plus, Search, Trash2, UserPlus, Loader2, Car, Phone, Clock, LogIn, Radio, ClipboardCheck, MoreVertical, Check, X, MessageCircle, Binoculars } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -16,9 +17,6 @@ import { cn } from '@/lib/utils';
 import { useEquipe, EquipeMembro } from '@/hooks/useEquipe';
 import { useVeiculos } from '@/hooks/useCadastros';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
-import { AddStaffWizard } from '@/components/equipe/AddStaffWizard';
-import { EditMotoristaLoginModal } from '@/components/equipe/EditMotoristaLoginModal';
-import { EditStaffLoginModal } from '@/components/equipe/EditStaffLoginModal';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EventoUsuarios() {
@@ -29,8 +27,13 @@ export default function EventoUsuarios() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
   const [showMotoristaWizard, setShowMotoristaWizard] = useState(false);
-  const [showStaffWizard, setShowStaffWizard] = useState(false);
-  const [loginModalMembro, setLoginModalMembro] = useState<EquipeMembro | null>(null);
+  
+  // Modal vincular equipe
+  const [showAddTeamModal, setShowAddTeamModal] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
 
   const filteredMembros = useMemo(() => {
     let filtered = [...membros];
@@ -47,7 +50,6 @@ export default function EventoUsuarios() {
       filtered = filtered.filter(m => m.role === filterRole);
     }
     
-    // Sort: staff first, then motoristas
     return filtered.sort((a, b) => {
       if (a.tipo !== b.tipo) return a.tipo === 'staff' ? -1 : 1;
       return a.nome.localeCompare(b.nome);
@@ -76,6 +78,67 @@ export default function EventoUsuarios() {
     refetch();
     return motorista?.id;
   };
+
+  const fetchAvailableUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      // Buscar profiles de usuários que NÃO são admin e que têm user_type de campo
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, telefone, email, user_type')
+        .in('user_type', ['operador', 'supervisor', 'cliente']);
+
+      if (error) throw error;
+
+      // Filtrar quem já está no evento
+      const existingUserIds = new Set(membros.filter(m => m.user_id).map(m => m.user_id));
+      const available = (profiles || []).filter(p => !existingUserIds.has(p.user_id));
+      setAvailableUsers(available);
+    } catch (error) {
+      toast.error('Erro ao carregar usuários disponíveis');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleAddUserToEvent = async (userProfile: any) => {
+    if (!eventoId) return;
+    setAddingUserId(userProfile.user_id);
+    try {
+      const { error } = await supabase.from('evento_usuarios').insert({
+        evento_id: eventoId,
+        user_id: userProfile.user_id,
+        role: userProfile.user_type || 'operador',
+      });
+
+      if (error) throw error;
+
+      toast.success(`${userProfile.full_name || 'Usuário'} adicionado à equipe!`);
+      // Remove from available list
+      setAvailableUsers(prev => prev.filter(u => u.user_id !== userProfile.user_id));
+      refetch();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao adicionar membro');
+    } finally {
+      setAddingUserId(null);
+    }
+  };
+
+  const openAddTeamModal = () => {
+    setShowAddTeamModal(true);
+    setUserSearch('');
+    fetchAvailableUsers();
+  };
+
+  const filteredAvailableUsers = useMemo(() => {
+    if (!userSearch.trim()) return availableUsers;
+    const term = userSearch.toLowerCase();
+    return availableUsers.filter(u =>
+      (u.full_name && u.full_name.toLowerCase().includes(term)) ||
+      (u.telefone && u.telefone.includes(term)) ||
+      (u.email && u.email.toLowerCase().includes(term))
+    );
+  }, [availableUsers, userSearch]);
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -129,21 +192,11 @@ export default function EventoUsuarios() {
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className={cn(
-                "h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold",
-                membro.has_login 
-                  ? "bg-primary/10 text-primary" 
-                  : "bg-muted text-muted-foreground"
-              )}>
+              <div className="h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold bg-primary/10 text-primary">
                 {membro.nome.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="font-medium flex items-center gap-2">
-                  {membro.nome}
-                  {membro.has_login && (
-                    <KeyRound className="w-3 h-3 text-emerald-500" />
-                  )}
-                </p>
+                <p className="font-medium">{membro.nome}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <Badge variant="outline" className={cn("text-xs", getRoleBadgeClass(membro.role))}>
                     {getRoleIcon(membro.role)}
@@ -174,13 +227,6 @@ export default function EventoUsuarios() {
                     WhatsApp
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => setLoginModalMembro(membro)}>
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  {isMotorista 
-                    ? (membro.has_login ? "Gerenciar Login" : "Criar Login")
-                    : "Gerenciar Acesso"
-                  }
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -231,7 +277,6 @@ export default function EventoUsuarios() {
                 </div>
               )}
 
-              {/* Presença info (somente leitura) */}
               {membro.checkin_at && !membro.checkout_at && (
                 <div className="flex items-center gap-1 text-xs text-emerald-600 mt-1">
                   <Clock className="w-3 h-3" />
@@ -246,43 +291,16 @@ export default function EventoUsuarios() {
                   <span>Jornada encerrada</span>
                 </div>
               )}
-
-              {/* Botão Criar Login - visível apenas se motorista não tem login */}
-              {!membro.has_login && (
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="w-full mt-2 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-                  onClick={() => setLoginModalMembro(membro)}
-                >
-                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
-                  Criar Login de Acesso
-                </Button>
-              )}
             </div>
           )}
 
-          {/* Info adicional para staff (operadores/supervisores) */}
-          {!isMotorista && (
-            <div className="mt-3 pt-3 border-t space-y-2">
-              {membro.telefone && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>{membro.telefone}</span>
-                </div>
-              )}
-              
-              {!membro.has_login && (
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="w-full mt-2 text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-                  onClick={() => setLoginModalMembro(membro)}
-                >
-                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
-                  Criar Login de Acesso
-                </Button>
-              )}
+          {/* Info adicional para staff */}
+          {!isMotorista && membro.telefone && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Phone className="w-3.5 h-3.5" />
+                <span>{membro.telefone}</span>
+              </div>
             </div>
           )}
         </CardContent>
@@ -314,7 +332,7 @@ export default function EventoUsuarios() {
           <div>
             <h1 className="text-2xl font-bold">Equipe do Evento</h1>
             <p className="text-muted-foreground">
-              Hub centralizado para gerenciar motoristas e staff operacional
+              Gerencie motoristas e staff operacional vinculados ao evento
             </p>
           </div>
 
@@ -323,15 +341,15 @@ export default function EventoUsuarios() {
               <Car className="w-4 h-4 mr-2" />
               Adicionar Motorista
             </Button>
-            <Button onClick={() => setShowStaffWizard(true)}>
+            <Button onClick={openAddTeamModal}>
               <UserPlus className="w-4 h-4 mr-2" />
-              Adicionar Staff
+              Adicionar Equipe
             </Button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-lg bg-primary/10">
@@ -380,30 +398,6 @@ export default function EventoUsuarios() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-orange-500/10">
-                <Binoculars className="w-5 h-5 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.clientes}</p>
-                <p className="text-xs text-muted-foreground">Clientes</p>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-amber-500/10">
-                <KeyRound className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.motoristasComLogin}</p>
-                <p className="text-xs text-muted-foreground">Com Login</p>
-              </div>
-            </CardContent>
-          </Card>
-          
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="p-2.5 rounded-lg bg-teal-500/10">
@@ -463,7 +457,7 @@ export default function EventoUsuarios() {
             <p className="text-muted-foreground mb-6">
               {searchTerm || filterRole !== 'all'
                 ? 'Tente ajustar os filtros de busca'
-                : 'Adicione motoristas e staff para começar'}
+                : 'Adicione motoristas e equipe para começar'}
             </p>
             {!searchTerm && filterRole === 'all' && (
               <div className="flex gap-3 justify-center">
@@ -471,9 +465,9 @@ export default function EventoUsuarios() {
                   <Car className="w-4 h-4 mr-2" />
                   Adicionar Motorista
                 </Button>
-                <Button onClick={() => setShowStaffWizard(true)}>
+                <Button onClick={openAddTeamModal}>
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Adicionar Staff
+                  Adicionar Equipe
                 </Button>
               </div>
             )}
@@ -486,7 +480,7 @@ export default function EventoUsuarios() {
           </div>
         )}
 
-        {/* Wizards */}
+        {/* Wizard Motorista */}
         <CreateMotoristaWizard
           open={showMotoristaWizard}
           onOpenChange={setShowMotoristaWizard}
@@ -494,45 +488,84 @@ export default function EventoUsuarios() {
           eventoId={eventoId}
           onSubmit={handleCreateMotorista}
         />
-        
-        <AddStaffWizard
-          open={showStaffWizard}
-          onOpenChange={setShowStaffWizard}
-          eventoId={eventoId}
-          onSuccess={refetch}
-        />
 
-        {loginModalMembro && loginModalMembro.tipo === 'motorista' && (
-          <EditMotoristaLoginModal
-            open={!!loginModalMembro}
-            onOpenChange={(open) => !open && setLoginModalMembro(null)}
-            motorista={{
-              id: loginModalMembro.id,
-              nome: loginModalMembro.nome,
-              telefone: loginModalMembro.telefone,
-              has_login: loginModalMembro.has_login,
-            }}
-            eventoId={eventoId}
-            onSuccess={refetch}
-          />
-        )}
+        {/* Modal Adicionar Equipe (vincular usuários existentes) */}
+        <Dialog open={showAddTeamModal} onOpenChange={setShowAddTeamModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Adicionar Equipe ao Evento</DialogTitle>
+              <DialogDescription>
+                Selecione um usuário já cadastrado no sistema para vincular a este evento. 
+                Cadastre novos usuários na aba <strong>Usuários</strong> do menu principal.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome, telefone ou email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
 
-        {loginModalMembro && loginModalMembro.tipo === 'staff' && (
-          <EditStaffLoginModal
-            open={!!loginModalMembro}
-            onOpenChange={(open) => !open && setLoginModalMembro(null)}
-            staff={{
-              id: loginModalMembro.id,
-              user_id: loginModalMembro.user_id,
-              nome: loginModalMembro.nome,
-              telefone: loginModalMembro.telefone,
-              role: loginModalMembro.role,
-              has_login: loginModalMembro.has_login,
-            }}
-            eventoId={eventoId}
-            onSuccess={refetch}
-          />
-        )}
+              {loadingUsers ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : filteredAvailableUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">
+                    {userSearch ? 'Nenhum usuário encontrado' : 'Todos os usuários já estão vinculados ou não há usuários de campo cadastrados'}
+                  </p>
+                  <p className="text-xs mt-1">Cadastre novos usuários na aba Usuários do menu principal.</p>
+                </div>
+              ) : (
+                <div className="max-h-80 overflow-y-auto space-y-2">
+                  {filteredAvailableUsers.map((u) => (
+                    <div key={u.user_id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                          {(u.full_name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{u.full_name || 'Sem nome'}</p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={cn("text-xs", getRoleBadgeClass(u.user_type))}>
+                              {getRoleIcon(u.user_type)}
+                              <span className="ml-1 capitalize">{u.user_type}</span>
+                            </Badge>
+                            {u.telefone && (
+                              <span className="text-xs text-muted-foreground">{u.telefone}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleAddUserToEvent(u)}
+                        disabled={addingUserId === u.user_id}
+                      >
+                        {addingUserId === u.user_id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddTeamModal(false)}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </EventLayout>
   );
