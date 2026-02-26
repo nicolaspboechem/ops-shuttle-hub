@@ -1,99 +1,55 @@
 
-# Tipos de Viagem Configuráveis por Evento
 
-## Resumo
+# Limpeza bidirecional de usuarios e dados orfaos
 
-Hoje o sistema tem um campo `tipo_operacao` (transfer/shuttle) e um toggle separado `habilitar_missoes`. A proposta e substituir isso por um campo multi-selecao `tipos_viagem_habilitados` que controla quais tipos de viagem estao disponiveis no evento. Isso afeta: criacao de evento, edicao de evento, OperationTabs (abas Missao/Transfer/Shuttle), criacao de viagens no app (Supervisor/Operador), e o CCO.
+## Problema encontrado
 
-## Mudancas no Banco de Dados
+Ao investigar o banco, encontrei dados orfaos significativos:
 
-Nova coluna na tabela `eventos`:
+- **10 profiles** sem usuario correspondente no Supabase Auth (foram deletados do Auth mas ficaram na tabela profiles)
+- **5 usuarios no Auth** sem profile correspondente (criados mas profile nao foi gerado)
+- **6 registros em evento_usuarios** referenciando usuarios que nao existem mais no Auth
 
-```text
-tipos_viagem_habilitados TEXT[] DEFAULT '{missao}'
-```
+A edge function `delete-user` ja deleta do Supabase Auth, mas referencia uma tabela `staff_credenciais` que nao existe (erro silencioso).
 
-Essa coluna armazena um array de strings com os tipos habilitados: `missao`, `transfer`, `shuttle`. Exemplos: `{missao}`, `{transfer,shuttle}`, `{missao,transfer,shuttle}`.
+## Plano de acao
 
-Os campos legados `tipo_operacao` e `habilitar_missoes` permanecem na tabela por compatibilidade mas deixam de ser a fonte de verdade.
+### 1. Limpeza imediata dos dados orfaos (SQL direto)
 
-Migration SQL:
-- Adicionar coluna `tipos_viagem_habilitados`
-- Popular valores iniciais baseado nos campos existentes (`tipo_operacao` + `habilitar_missoes`)
+Executar queries para limpar:
+- Deletar os 10 profiles orfaos (sem auth.users correspondente)
+- Deletar os 6 evento_usuarios orfaos
+- Deletar user_roles e user_permissions orfaos (se houver)
+- Os 5 auth.users sem profile serao tratados na edge function (criando profile ou deletando)
 
-## Alteracoes por Arquivo
+IDs dos profiles orfaos a remover:
+- `2bf77817...`, `5909cfe2...`, `c3e2c2c3...`, `62162a57...`, `ba2fad6e...`, `551c8825...`, `27477205...`, `ab19f36d...`, `c5bd8d01...`, `8ba25828...`
 
-### 1. Migration SQL
-- Criar coluna `tipos_viagem_habilitados TEXT[] DEFAULT '{missao}'`
-- Script de migracao para popular baseado nos dados atuais
+### 2. Corrigir edge function `delete-user`
 
-### 2. `src/components/eventos/CreateEventoWizard.tsx`
-- Substituir o RadioGroup de tipo_operacao (transfer/shuttle/ambos) por um grupo de checkboxes multi-selecao com 3 opcoes: Missao, Transfer, Shuttle
-- Remover o toggle separado `habilitar_missoes` do step 4 (agora esta integrado no step 1)
-- Ao salvar, gravar o array `tipos_viagem_habilitados` na tabela
-- Manter `tipo_operacao` e `habilitar_missoes` sincronizados para compatibilidade
+- Remover referencia a tabela `staff_credenciais` (nao existe)
+- Garantir que a exclusao global (sem evento_id) sempre deleta: profile, user_roles, user_permissions, evento_usuarios, e auth.users
+- Remover a logica condicional que verifica "outras associacoes" antes de deletar - quando o admin exclui um usuario da tela global de Usuarios, deve ser exclusao completa
 
-### 3. `src/components/eventos/EditEventoModal.tsx`
-- Na aba Config, substituir o Select de tipo_operacao + toggle de missoes por checkboxes multi-selecao
-- Mesma logica de sincronizacao com campos legados
+### 3. Criar edge function de limpeza de orfaos
 
-### 4. `src/components/layout/OperationTabs.tsx`
-- Adicionar prop opcional `tiposHabilitados?: string[]`
-- Renderizar apenas as abas cujos tipos estao no array
-- Se so 1 tipo habilitado, nao renderizar abas (exibir direto)
-- Auto-selecionar o primeiro tipo habilitado como default
+Criar uma funcao `cleanup-orphans` que:
+- Identifica profiles sem auth.users e os remove
+- Identifica evento_usuarios sem auth.users e os remove
+- Identifica auth.users sem profiles e cria os profiles faltantes (ou deleta se forem lixo)
+- Pode ser chamada manualmente pelo admin ou via cron
 
-### 5. `src/pages/Dashboard.tsx`
-- Buscar `tipos_viagem_habilitados` do evento
-- Passar para OperationTabs e DashboardMobile
-- Default do `tipoOperacao` = primeiro tipo habilitado
+### 4. Ajustar frontend (Usuarios.tsx)
 
-### 6. `src/pages/Auditoria.tsx`
-- Mesma logica: buscar tipos habilitados, passar para OperationTabs
+- Apos deletar usuario, forcar refetch dos dados para garantir sincronia
+- Ja esta funcionando corretamente (chama edge function sem evento_id = exclusao total)
 
-### 7. `src/pages/ViagensAtivas.tsx` e `src/pages/ViagensFinalizadas.tsx`
-- Mesma logica de filtrar abas por tipos habilitados
+## Resumo tecnico de arquivos
 
-### 8. `src/components/app/NewActionModal.tsx` (Supervisor)
-- Receber `tiposHabilitados` como prop
-- Mostrar apenas os botoes de tipos habilitados para o evento
-- Missao e Deslocamento aparecem juntos (se missao habilitada)
+| Arquivo | Acao |
+|---|---|
+| SQL (limpeza) | Deletar profiles, evento_usuarios e dados orfaos |
+| `supabase/functions/delete-user/index.ts` | Remover ref a staff_credenciais, simplificar exclusao global |
+| `supabase/functions/cleanup-orphans/index.ts` | Nova funcao para limpeza periodica |
+| `supabase/config.toml` | Adicionar config da nova funcao |
 
-### 9. `src/pages/app/AppSupervisor.tsx`
-- Buscar `tipos_viagem_habilitados` do evento
-- Passar para NewActionModal
-
-### 10. `src/pages/app/AppOperador.tsx`
-- Condicionar criacao de shuttle apenas se shuttle estiver habilitado
-- Se evento tiver transfer habilitado, permitir criar transfer tambem
-
-### 11. `src/pages/Motoristas.tsx`
-- Confirmar que NAO tem OperationTabs (ja confirmado - nao tem)
-- Motoristas continuam exclusivos do modulo de Missoes, sem filtro por tipo
-
-### 12. `src/components/auditoria/AuditoriaMotoristasTab.tsx` e `AuditoriaVeiculosTab.tsx`
-- Filtrar abas OperationTabs pelos tipos habilitados do evento
-
-### 13. `src/lib/types/viagem.ts`
-- Adicionar campo `tipos_viagem_habilitados?: string[] | null` na interface Evento
-
-### 14. `src/integrations/supabase/types.ts`
-- Sera atualizado automaticamente apos migration
-
-## Regras de Negocio
-
-- Pelo menos 1 tipo deve estar selecionado ao criar/editar evento
-- Missao = motorista aceita/inicia. Transfer e Shuttle = operador/supervisor/admin criam
-- Shuttle: confirma chegada e confirma retorno (lifecycle completo, nao mais registro instantaneo)
-- As abas Missao/Transfer/Shuttle so aparecem se habilitadas no evento
-- Se apenas 1 tipo habilitado, as abas nao aparecem (desnecessario)
-
-## Ordem de Implementacao
-
-1. Migration SQL (nova coluna + populacao)
-2. Types (viagem.ts)
-3. OperationTabs (prop tiposHabilitados)
-4. CreateEventoWizard e EditEventoModal
-5. Dashboard, Auditoria, ViagensAtivas, ViagensFinalizadas
-6. NewActionModal + AppSupervisor + AppOperador
-7. Auditorias internas (MotoristasAuditoria, VeiculosAuditoria)
