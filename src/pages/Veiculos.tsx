@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useViagensAuditoria } from '@/hooks/useViagensAuditoria';
 import { useVeiculos, useMotoristas } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { useUserNames } from '@/hooks/useUserNames';
@@ -43,6 +44,7 @@ export default function Veiculos() {
   const [selectedVeiculoId, setSelectedVeiculoId] = useState<string | null>(null);
   
   const { viagens, loading: loadingViagens, lastUpdate, refetch } = useViagens(eventoId);
+  const { viagens: viagensAuditoria } = useViagensAuditoria(eventoId);
   const { viagensAtivas } = useCalculos(viagens);
   const { veiculos, loading: loadingVeiculos, createVeiculo, updateVeiculo, deleteVeiculo, refetch: refetchVeiculos } = useVeiculos(eventoId);
   const { motoristas } = useMotoristas(eventoId);
@@ -268,10 +270,10 @@ export default function Veiculos() {
   const veiculosStatsMap = useMemo(() => {
     const statsMap = new Map<string, { totalViagens: number; totalPax: number; tempoMedio: number; ativo: boolean }>();
     
-    const placas = [...new Set(viagens.map(v => v.placa))];
+    const placas = [...new Set(viagensAuditoria.map(v => v.placa))];
     placas.forEach(placa => {
       if (!placa) return;
-      const viagensVeiculo = viagens.filter(v => v.placa === placa);
+      const viagensVeiculo = viagensAuditoria.filter(v => v.placa === placa);
       const tempos = viagensVeiculo
         .filter(v => v.h_chegada && v.h_pickup)
         .map(v => calcularTempoViagem(v.h_pickup!, v.h_chegada!));
@@ -289,7 +291,7 @@ export default function Veiculos() {
     });
 
     return statsMap;
-  }, [viagens, viagensAtivas]);
+  }, [viagensAuditoria, viagensAtivas]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -555,7 +557,7 @@ export default function Veiculos() {
         <div className="flex-1 p-6 overflow-auto min-h-0">
           <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
             <VeiculosAuditoria 
-              viagens={viagens} 
+              viagens={viagensAuditoria} 
               veiculosCadastrados={veiculos} 
               motoristas={motoristas}
               onViewDetails={setSelectedVeiculoId}
@@ -582,7 +584,7 @@ export default function Veiculos() {
         veiculo={selectedVeiculo}
         open={!!selectedVeiculoId}
         onClose={() => setSelectedVeiculoId(null)}
-        viagens={viagens}
+        viagens={viagensAuditoria}
         motoristas={motoristas}
         eventoId={eventoId}
         onUpdate={refetchVeiculos}

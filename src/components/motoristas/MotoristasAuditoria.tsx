@@ -21,6 +21,7 @@ import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { useMotoristaPresencaHistorico } from '@/hooks/useMotoristaPresencaHistorico';
 import { MotoristaAuditoriaCard } from './MotoristaAuditoriaCard';
 import { useEventos } from '@/hooks/useEventos';
+import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -38,6 +39,19 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
   const [dataFim, setDataFim] = useState<string>('');
   const [openCardId, setOpenCardId] = useState<string | null>(null);
   const [diasHistorico, setDiasHistorico] = useState<number>(0);
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
+
+  // Filtrar viagens por tipo de operação
+  const viagensFiltradas = useMemo(() => {
+    if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);
+    return viagens.filter(v => v.tipo_operacao === tipoOperacao && !v.origem_missao_id);
+  }, [viagens, tipoOperacao]);
+
+  const contadores = useMemo(() => ({
+    transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: viagens.filter(v => v.origem_missao_id).length,
+  }), [viagens]);
 
   // Buscar data de início do evento
   const { getEventoById } = useEventos();
@@ -94,21 +108,21 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
     }>();
 
     // Filtrar viagens por data
-    let viagensFiltradas = [...viagens];
+    let viagensCalc = [...viagensFiltradas];
     if (dataInicio) {
-      viagensFiltradas = viagensFiltradas.filter(v => v.data_criacao >= dataInicio);
+      viagensCalc = viagensCalc.filter(v => v.data_criacao >= dataInicio);
     }
     if (dataFim) {
-      viagensFiltradas = viagensFiltradas.filter(v => v.data_criacao <= dataFim + 'T23:59:59');
+      viagensCalc = viagensCalc.filter(v => v.data_criacao <= dataFim + 'T23:59:59');
     }
     if (filtroMotorista !== 'all') {
-      viagensFiltradas = viagensFiltradas.filter(v => v.motorista === filtroMotorista);
+      viagensCalc = viagensCalc.filter(v => v.motorista === filtroMotorista);
     }
     if (filtroTipoVeiculo !== 'all') {
-      viagensFiltradas = viagensFiltradas.filter(v => v.tipo_veiculo === filtroTipoVeiculo);
+      viagensCalc = viagensCalc.filter(v => v.tipo_veiculo === filtroTipoVeiculo);
     }
 
-    viagensFiltradas.forEach(v => {
+    viagensCalc.forEach(v => {
       const nome = v.motorista;
       if (!nome) return;
 
@@ -146,7 +160,7 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
 
     return Array.from(motoristasMap.values())
       .sort((a, b) => b.totalViagens - a.totalViagens);
-  }, [viagens, filtroMotorista, filtroTipoVeiculo, dataInicio, dataFim]);
+  }, [viagensFiltradas, filtroMotorista, filtroTipoVeiculo, dataInicio, dataFim]);
 
   // Totais
   const totais = useMemo(() => ({
@@ -191,6 +205,9 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
 
   return (
     <div className="space-y-6">
+      {/* Filtro por tipo de operação */}
+      <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+
       {/* Filtros */}
       <Card>
         <CardHeader className="pb-3">
@@ -394,7 +411,7 @@ export function MotoristasAuditoria({ viagens, motoristasCadastrados, veiculos }
             <MotoristaAuditoriaCard
               key={motorista.motorista_id}
               motorista={motorista}
-              viagens={viagens}
+              viagens={viagensFiltradas}
               isOpen={openCardId === motorista.motorista_id}
               onToggle={() => setOpenCardId(
                 openCardId === motorista.motorista_id ? null : motorista.motorista_id

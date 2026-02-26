@@ -53,7 +53,7 @@ function applyFilters(drivers: MotoristaComVeiculo[], filters: FilterState): Mot
 }
 
 // --- Auto-refresh interval ---
-const REFRESH_INTERVAL = 30_000;
+const REFRESH_INTERVAL = 120_000;
 
 export default function MapaServico() {
   const { eventoId } = useParams<{ eventoId: string }>();
@@ -105,7 +105,7 @@ export default function MapaServico() {
         setRefreshCycle(c => c + 1);
         clearInterval(tick);
       }
-    }, 200);
+    }, 1000);
     return () => clearInterval(tick);
   }, [refreshCycle, refetch]);
 

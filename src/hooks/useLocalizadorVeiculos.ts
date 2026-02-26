@@ -157,7 +157,7 @@ export function useLocalizadorVeiculos(eventoId: string | undefined) {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchVeiculos(), 2000);
+      debounceTimer = setTimeout(() => fetchVeiculos(), 3000);
     };
 
     const channel = supabase
