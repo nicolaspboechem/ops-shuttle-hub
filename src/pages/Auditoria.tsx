@@ -91,7 +91,7 @@ export default function Auditoria() {
           </TabsContent>
 
           <TabsContent value="abastecimento">
-            <AuditoriaAbastecimentoTab alertasTotais={alertasTotais} alertasResolvidos={alertasResolvidos} />
+            <AuditoriaAbastecimentoTab alertasTotais={alertasTotais} alertasResolvidos={alertasResolvidos} eventoId={eventoId} />
           </TabsContent>
         </Tabs>
       </div>
