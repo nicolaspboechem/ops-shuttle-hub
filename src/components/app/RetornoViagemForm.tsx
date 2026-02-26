@@ -113,21 +113,18 @@ export function RetornoViagemForm({
       // Para origem, usar ponto_desembarque_id da viagem original se disponível
       const pontoOrigemId = viagemOriginal.ponto_desembarque_id || viagemOriginal.ponto_embarque_id;
 
+      // Trigger no banco preenche automaticamente: motorista, placa, tipo_veiculo via FKs
       const novaViagem = {
         evento_id: eventoId,
-        // Campos FK normalizados
         motorista_id: viagemOriginal.motorista_id,
         veiculo_id: viagemOriginal.veiculo_id,
         ponto_embarque_id: pontoOrigemId || null,
         ponto_desembarque_id: pontoDestinoData?.id || null,
-        // Campos de texto (compatibilidade)
-        motorista: viagemOriginal.motorista,
-        placa: viagemOriginal.placa,
-        tipo_veiculo: viagemOriginal.tipo_veiculo,
+        motorista: viagemOriginal.motorista, // NOT NULL - trigger sobrescreve via FK
         tipo_operacao: viagemOriginal.tipo_operacao,
         coordenador: viagemOriginal.coordenador,
-        ponto_embarque: origem, // Onde está agora
-        ponto_desembarque: pontoDestino, // Para onde vai
+        ponto_embarque: origem,
+        ponto_desembarque: pontoDestino,
         qtd_pax: parseInt(qtdPax),
         status: 'em_andamento',
         h_pickup: horaPickup,
@@ -136,7 +133,7 @@ export function RetornoViagemForm({
         criado_por: userId,
         atualizado_por: userId,
         observacao: `Retorno - Rota continuação`,
-        viagem_pai_id: viagemOriginal.id // Vincula à viagem anterior para rastreamento
+        viagem_pai_id: viagemOriginal.id
       };
 
       const { error } = await supabase

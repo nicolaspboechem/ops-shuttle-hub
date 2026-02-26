@@ -164,21 +164,8 @@ export function useMotoristas(eventoId?: string) {
 
     if (error) throw error;
 
-    // Sincronização bidirecional: atualizar viagens com o nome antigo
-    if (oldNome && updates.nome && oldNome !== updates.nome) {
-      // Atualizar campo texto (compatibilidade)
-      const { error: viagensError } = await supabase
-        .from('viagens')
-        .update({ motorista: updates.nome, atualizado_por: user?.id || null })
-        .eq('motorista', oldNome);
-
-      if (viagensError) {
-        console.error('Erro ao sincronizar viagens com novo nome do motorista:', viagensError);
-        toast.error('Erro ao sincronizar viagens com o novo nome do motorista');
-      } else {
-        toast.success('Viagens atualizadas com o novo nome do motorista');
-      }
-    }
+    // Trigger sync_viagem_legado no banco atualiza campos varchar automaticamente
+    // Não é mais necessário sincronizar manualmente viagens ao renomear motorista
 
     setMotoristas(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
   };
@@ -328,32 +315,8 @@ export function useVeiculos(eventoId?: string) {
 
     if (error) throw error;
 
-    // Sincronização bidirecional: atualizar viagens com a placa/tipo antigo
-    if (oldPlaca) {
-      const syncUpdates: { placa?: string; tipo_veiculo?: string; atualizado_por?: string | null } = {};
-      
-      if (updates.placa && oldPlaca !== updates.placa) {
-        syncUpdates.placa = updates.placa;
-      }
-      if (updates.tipo_veiculo) {
-        syncUpdates.tipo_veiculo = updates.tipo_veiculo;
-      }
-
-      if (Object.keys(syncUpdates).length > 0) {
-        syncUpdates.atualizado_por = user?.id || null;
-        const { error: viagensError } = await supabase
-          .from('viagens')
-          .update(syncUpdates)
-          .eq('placa', oldPlaca);
-
-        if (viagensError) {
-          console.error('Erro ao sincronizar viagens com novos dados do veículo:', viagensError);
-          toast.error('Erro ao sincronizar viagens com os novos dados do veículo');
-        } else {
-          toast.success('Viagens atualizadas com os novos dados do veículo');
-        }
-      }
-    }
+    // Trigger sync_viagem_legado no banco atualiza campos varchar automaticamente
+    // Não é mais necessário sincronizar manualmente viagens ao alterar placa/tipo
 
     await fetchVeiculos();
   };

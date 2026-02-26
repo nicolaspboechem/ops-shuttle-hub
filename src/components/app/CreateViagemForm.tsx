@@ -145,19 +145,17 @@ export function CreateViagemForm({
       const pontoEmbarqueData = pontos.find(p => p.nome === pontoEmbarque);
       const pontoDesembarqueData = pontos.find(p => p.nome === pontoDesembarque);
 
-      const { error } = await supabase
+      // Trigger no banco preenche automaticamente: motorista, placa, tipo_veiculo
+      const { data: viagemCriada, error } = await supabase
         .from('viagens')
         .insert([{
           evento_id: eventoId,
-          // Campos FK normalizados
           motorista_id: motoristaData?.id || null,
           veiculo_id: veiculoData?.id || null,
           ponto_embarque_id: pontoEmbarqueData?.id || null,
           ponto_desembarque_id: pontoDesembarqueData?.id || null,
-          // Campos de texto (mantidos para compatibilidade)
-          motorista,
-          placa: placa || null,
-          tipo_veiculo: tipoVeiculo,
+          // motorista é NOT NULL no banco - trigger preenche via motorista_id, mas fallback manual
+          motorista: motoristaData?.id ? motorista : motorista,
           ponto_embarque: pontoEmbarque,
           ponto_desembarque: pontoDesembarque || null,
           qtd_pax: qtdPax ? parseInt(qtdPax) : 0,
@@ -169,7 +167,9 @@ export function CreateViagemForm({
           iniciado_por: userId,
           criado_por: userId,
           atualizado_por: userId
-        }]);
+        }])
+        .select('id')
+        .single();
 
       if (error) {
         console.error('Erro ao criar viagem:', error);
@@ -177,20 +177,10 @@ export function CreateViagemForm({
         return;
       }
 
-      // Registrar log
-      const { data: viagemData } = await supabase
-        .from('viagens')
-        .select('id')
-        .eq('evento_id', eventoId)
-        .eq('motorista', motorista)
-        .eq('h_pickup', horaPickup)
-        .order('data_criacao', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (viagemData) {
+      // Registrar log usando ID retornado diretamente
+      if (viagemCriada) {
         await supabase.from('viagem_logs').insert([{
-          viagem_id: viagemData.id,
+          viagem_id: viagemCriada.id,
           user_id: userId,
           acao: 'inicio',
           detalhes: { motorista, placa, ponto_embarque: pontoEmbarque, ponto_desembarque: pontoDesembarque, nome_usuario: userName }
