@@ -159,7 +159,7 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
         await supabase.from('missoes').delete().eq('evento_id', evento.id);
         await supabase.from('motorista_presenca').delete().eq('evento_id', evento.id);
         await supabase.from('veiculo_vistoria_historico').delete().eq('evento_id', evento.id);
-        await supabase.from('staff_credenciais').delete().eq('evento_id', evento.id);
+        // staff_credenciais removed in cleanup
         
         // 2. Tabelas principais
         await supabase.from('viagens').delete().eq('evento_id', evento.id);
