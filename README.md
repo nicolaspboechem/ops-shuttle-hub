@@ -1,73 +1,97 @@
-# Welcome to your Lovable project
+# 🚌 CCO AS Brasil
 
-## Project info
+**Centro de Controle Operacional** — Sistema de gestão de frotas e operações de transporte para eventos.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![Version](https://img.shields.io/badge/version-2.2.0-blue)
+![Status](https://img.shields.io/badge/status-production-green)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)
 
-## How can I edit this code?
+## 📋 Sobre
 
-There are several ways of editing your application.
+O CCO AS Brasil é uma plataforma web/PWA para gerenciamento em tempo real de operações de transporte em eventos. Suporta operações de **Transfer** (ponto a ponto), **Shuttle** (rotas circulares) e **Missões** (deslocamentos avulsos).
 
-**Use Lovable**
+**Deploy:** [cco-asbrasil.lovable.app](https://cco-asbrasil.lovable.app)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## 🛠 Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+| Camada | Tecnologia |
+|--------|-----------|
+| Frontend | React 18, TypeScript, Vite |
+| UI | Tailwind CSS, shadcn/ui, Radix UI |
+| Estado | TanStack React Query |
+| Gráficos | Recharts |
+| Backend | Supabase (Auth, Database, Edge Functions, Storage) |
+| Animações | Framer Motion |
+| PWA | Service Worker, Web App Manifest |
 
-**Use your preferred IDE**
+## 👥 Roles do Sistema
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+| Role | Acesso |
+|------|--------|
+| **Admin** | Painel completo, gestão de usuários e eventos |
+| **Supervisor** | Frota, motoristas, localizador, alertas |
+| **Operador** | Operação de viagens, criação de shuttles/transfers |
+| **Motorista** | App mobile — check-in, viagens, veículo |
+| **Cliente** | App mobile — painel público, localizador |
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📁 Estrutura de Pastas
 
-Follow these steps:
+```
+src/
+├── components/
+│   ├── app/          # Componentes do app mobile (motorista, operador, cliente, supervisor)
+│   ├── auditoria/    # Relatórios e gráficos de auditoria
+│   ├── dashboard/    # Cards e painéis do dashboard
+│   ├── eventos/      # Gestão de eventos
+│   ├── layout/       # Sidebar, header, navegação
+│   ├── localizador/  # Localização de motoristas e veículos
+│   ├── mapa-servico/ # Mapa de serviço operacional
+│   ├── motoristas/   # Gestão de motoristas e escalas
+│   ├── rotas/        # Pontos de embarque e rotas
+│   ├── shuttle/      # Métricas e tabelas de shuttle
+│   ├── transfer/     # Métricas e tabelas de transfer
+│   ├── ui/           # Componentes base (shadcn/ui)
+│   ├── veiculos/     # Gestão e vistoria de veículos
+│   └── viagens/      # Tabelas e filtros de viagens
+├── hooks/            # Custom hooks (dados, auth, real-time)
+├── lib/              # Utilitários, types, auth context
+├── pages/            # Páginas da aplicação
+└── integrations/     # Cliente e types do Supabase
+supabase/
+└── functions/        # Edge Functions (auto-checkout, sync, user management)
+docs/                 # Documentação técnica complementar
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## ⚡ Edge Functions
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+| Função | Descrição |
+|--------|-----------|
+| `auto-checkout` | Checkout automático de motoristas |
+| `close-open-trips` | Encerramento de viagens abertas |
+| `create-user` | Criação de usuários com role |
+| `delete-user` | Remoção de usuários |
+| `import-all-vehicles` | Importação em lote de veículos |
+| `reset-password` | Reset de senha |
+| `sync-data` | Sincronização com Google Sheets |
+| `update-user-phone` | Atualização de telefone |
 
-# Step 3: Install the necessary dependencies.
-npm i
+## 🚀 Setup Local
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+# Clonar o repositório
+git clone <URL_DO_REPOSITORIO>
+cd cco-as-brasil
+
+# Instalar dependências
+npm install
+
+# Iniciar servidor de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Requisitos: Node.js 18+ e npm (ou bun).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📄 Licença
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Projeto proprietário — AS Brasil. Todos os direitos reservados.
