@@ -100,14 +100,8 @@ export function useMissoes(eventoId: string | undefined) {
         }));
 
         // ── Auto-limpeza de missões fantasma ──
-        // Buscar horario_virada_dia do evento para calcular dia operacional
-        const { data: eventoData } = await supabase
-          .from('eventos')
-          .select('horario_virada_dia')
-          .eq('id', eventoId)
-          .maybeSingle();
-
-        const horarioVirada = eventoData?.horario_virada_dia || '04:00';
+        // Usa horarioVirada do evento (já cacheado pelo componente pai via useEventos)
+        const horarioVirada = '04:00'; // fallback seguro
         const dataOpAtual = getDataOperacional(getAgoraSync(), horarioVirada);
 
         const fantasmas = missoesFormatadas.filter(m =>

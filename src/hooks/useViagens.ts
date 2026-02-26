@@ -74,7 +74,7 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
         .lte('data_criacao', fim.toISOString());
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.limit(500);
 
     if (error) {
       console.error('Erro ao buscar viagens:', error);
