@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useViagensAuditoria } from '@/hooks/useViagensAuditoria';
 import { useMotoristas, useVeiculos, Motorista } from '@/hooks/useCadastros';
 import { useEventos } from '@/hooks/useEventos';
 import { useUserNames } from '@/hooks/useUserNames';
@@ -69,6 +70,7 @@ export default function Motoristas() {
     horarioVirada: evento?.horario_virada_dia || '04:00',
   }), [evento?.horario_virada_dia]);
   const { viagens, loading: loadingViagens, refetch } = useViagens(eventoId, viagensOptions);
+  const { viagens: viagensAuditoria } = useViagensAuditoria(eventoId);
   const { motoristas: metricasMotoristas } = useCalculos(viagens);
   const { motoristas: motoristasCadastrados, loading: loadingCadastros, createMotorista, updateMotorista, deleteMotorista, refetch: refetchMotoristas } = useMotoristas(eventoId);
   const { veiculos, refetch: refetchVeiculos } = useVeiculos(eventoId);
@@ -1092,7 +1094,7 @@ export default function Motoristas() {
           />
           <div className="flex-1 p-6 overflow-auto min-h-0">
             <div className={activeSection === 'auditoria' ? 'block' : 'hidden'}>
-              <MotoristasAuditoria viagens={viagens} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
+              <MotoristasAuditoria viagens={viagensAuditoria} motoristasCadastrados={motoristasCadastrados} veiculos={veiculos} />
             </div>
             <div className={activeSection === 'escalas' ? 'block' : 'hidden'}>
               <EscalasAuditoria eventoId={eventoId} evento={evento} motoristas={motoristasCadastrados} veiculos={veiculos} />

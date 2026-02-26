@@ -108,15 +108,15 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
 
     // Global throttled refetch to prevent cascade
     const throttleKey = `useViagens-${eventoId || 'all'}`;
-    const throttledFetch = createThrottledRefetch(throttleKey, () => fetchViagens(false), 3000);
+    const throttledFetch = createThrottledRefetch(throttleKey, () => fetchViagens(false), 5000);
 
     const channel = supabase
       .channel(`viagens-changes-${eventoId || 'all'}`)
       .on('postgres_changes', channelConfig, throttledFetch)
       .subscribe();
 
-    // Polling fallback every 5 minutes
-    const interval = setInterval(() => fetchViagens(false), 300000);
+    // Polling fallback every 2 minutes
+    const interval = setInterval(() => fetchViagens(false), 120000);
 
     return () => {
       clearThrottleKey(throttleKey);

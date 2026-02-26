@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Viagem } from '@/lib/types/viagem';
 import { formatarMinutos, calcularTempoViagem } from '@/lib/utils/calculadores';
 import { cn } from '@/lib/utils';
+import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { VeiculoAuditoriaDiaModal } from './VeiculoAuditoriaDiaModal';
@@ -57,6 +58,19 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
   const [busca, setBusca] = useState('');
   const [filtroMotorista, setFiltroMotorista] = useState<string>('all');
   const [filtroUso, setFiltroUso] = useState<string>('all');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
+
+  // Filtrar viagens por tipo de operação
+  const viagensPorTipo = useMemo(() => {
+    if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);
+    return viagens.filter(v => v.tipo_operacao === tipoOperacao && !v.origem_missao_id);
+  }, [viagens, tipoOperacao]);
+
+  const contadores = useMemo(() => ({
+    transfer: viagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: viagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: viagens.filter(v => v.origem_missao_id).length,
+  }), [viagens]);
 
   // Buscar histórico de vistorias quando seleciona um veículo para ver vistorias
   const { data: vistoriasHistorico, isLoading: vistoriasLoading } = useVistoriaHistoricoByPlaca(
@@ -81,7 +95,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
 
   // Viagens filtradas
   const viagensFiltradas = useMemo(() => {
-    let filtered = [...viagens];
+    let filtered = [...viagensPorTipo];
 
     if (filtroTipoVeiculo !== 'all') {
       filtered = filtered.filter(v => v.tipo_veiculo === filtroTipoVeiculo);
@@ -103,7 +117,7 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
     }
 
     return filtered;
-  }, [viagens, filtroTipoVeiculo, filtroFornecedor, dataInicio, dataFim, veiculosCadastrados]);
+  }, [viagensPorTipo, filtroTipoVeiculo, filtroFornecedor, dataInicio, dataFim, veiculosCadastrados]);
 
   // Métricas consolidadas por veículo
   const metricasConsolidadas = useMemo(() => {
@@ -288,6 +302,9 @@ export function VeiculosAuditoria({ viagens, veiculosCadastrados, motoristas, on
 
   return (
     <div className="space-y-6">
+      {/* Filtro por tipo de operação */}
+      <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+
       {/* Filtros */}
       <Card>
         <CardHeader className="pb-3">

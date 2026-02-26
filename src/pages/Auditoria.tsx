@@ -5,7 +5,8 @@ import { EventLayout } from '@/components/layout/EventLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
-import { useViagens, useCalculos } from '@/hooks/useViagens';
+import { useCalculos } from '@/hooks/useViagens';
+import { useViagensAuditoria } from '@/hooks/useViagensAuditoria';
 import { useMotoristas } from '@/hooks/useCadastros';
 import { useAlertasFrotaConsolidado } from '@/hooks/useAlertasFrotaConsolidado';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +17,7 @@ import { AuditoriaAbastecimentoTab } from '@/components/auditoria/AuditoriaAbast
 
 export default function Auditoria() {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { viagens, loading: loadingViagens } = useViagens(eventoId);
+  const { viagens, loading: loadingViagens } = useViagensAuditoria(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { metricasPorHora } = useCalculos(viagens);
   const { total: alertasTotais, resolvidos: alertasResolvidos } = useAlertasFrotaConsolidado(eventoId);

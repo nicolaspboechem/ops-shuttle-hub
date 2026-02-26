@@ -112,13 +112,13 @@ export default function PainelLocalizador() {
     return () => clearInterval(interval);
   }, [offset]);
 
-  // Auto-refresh every 60 seconds (was 30s - Realtime handles instant updates)
+  // Auto-refresh every 2 minutes (Realtime handles instant updates)
   useEffect(() => {
     if (!selectedEvento) return;
     
     const interval = setInterval(() => {
       refetch();
-    }, 60000);
+    }, 120000);
 
     return () => clearInterval(interval);
   }, [refetch, selectedEvento]);

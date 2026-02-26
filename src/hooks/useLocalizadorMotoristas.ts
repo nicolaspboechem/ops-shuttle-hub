@@ -131,7 +131,7 @@ export function useLocalizadorMotoristas(eventoId: string | undefined) {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       fetchMotoristas();
-    }, 2000);
+    }, 3000);
   }, [fetchMotoristas]);
 
   // Cleanup debounce on unmount
