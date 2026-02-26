@@ -15,18 +15,14 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 import { useEquipe, EquipeMembro } from '@/hooks/useEquipe';
-import { useVeiculos } from '@/hooks/useCadastros';
-import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function EventoUsuarios() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const { membros, loading, stats, refetch, handleCheckin, handleCheckout, handleRemoveMembro } = useEquipe(eventoId);
-  const { veiculos } = useVeiculos(eventoId);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
-  const [showMotoristaWizard, setShowMotoristaWizard] = useState(false);
   
   // Modal vincular equipe
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
@@ -370,16 +366,10 @@ export default function EventoUsuarios() {
             </p>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowMotoristaWizard(true)}>
-              <Car className="w-4 h-4 mr-2" />
-              Adicionar Motorista
-            </Button>
-            <Button onClick={openAddTeamModal}>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Adicionar Equipe
-            </Button>
-          </div>
+          <Button onClick={openAddTeamModal}>
+            <UserPlus className="w-4 h-4 mr-2" />
+            Vincular Equipe
+          </Button>
         </div>
 
         {/* Stats */}
@@ -491,19 +481,13 @@ export default function EventoUsuarios() {
             <p className="text-muted-foreground mb-6">
               {searchTerm || filterRole !== 'all'
                 ? 'Tente ajustar os filtros de busca'
-                : 'Adicione motoristas e equipe para começar'}
+                : 'Vincule membros cadastrados na aba Usuários para começar'}
             </p>
             {!searchTerm && filterRole === 'all' && (
-              <div className="flex gap-3 justify-center">
-                <Button variant="outline" onClick={() => setShowMotoristaWizard(true)}>
-                  <Car className="w-4 h-4 mr-2" />
-                  Adicionar Motorista
-                </Button>
-                <Button onClick={openAddTeamModal}>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Adicionar Equipe
-                </Button>
-              </div>
+              <Button onClick={openAddTeamModal}>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Vincular Equipe
+              </Button>
             )}
           </Card>
         ) : (
@@ -514,16 +498,8 @@ export default function EventoUsuarios() {
           </div>
         )}
 
-        {/* Wizard Motorista */}
-        <CreateMotoristaWizard
-          open={showMotoristaWizard}
-          onOpenChange={setShowMotoristaWizard}
-          veiculos={veiculos}
-          eventoId={eventoId}
-          onSubmit={handleCreateMotorista}
-        />
 
-        {/* Modal Adicionar Equipe (vincular usuários existentes) */}
+        {/* Modal Vincular Equipe (vincular usuários existentes) */}
         <Dialog open={showAddTeamModal} onOpenChange={setShowAddTeamModal}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
