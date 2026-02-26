@@ -77,6 +77,7 @@ export default function Auditoria() {
           <TabsContent value="resumo">
             <AuditoriaResumoTab
               viagensFiltradas={viagensFiltradas}
+              todasViagens={viagens}
               metricasPorHora={metricasPorHora}
               alertasTotais={alertasTotais}
               alertasResolvidos={alertasResolvidos}
