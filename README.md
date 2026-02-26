@@ -6,6 +6,7 @@
 ![Status](https://img.shields.io/badge/status-production-green)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)
+[![Contribuição](https://img.shields.io/badge/contribuição-guia-orange)](./CONTRIBUTING.md)
 
 ## 📋 Sobre
 
