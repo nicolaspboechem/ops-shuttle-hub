@@ -125,15 +125,41 @@ export default function EventoUsuarios() {
     setAddingUserId(userProfile.user_id);
     try {
       if (userProfile.role === 'motorista') {
-        // Motoristas: criar entrada na tabela motoristas com user_id linkado
-        const { error } = await supabase.from('motoristas').insert({
-          nome: userProfile.full_name || 'Sem nome',
-          telefone: userProfile.telefone || null,
-          user_id: userProfile.user_id,
+        // Motoristas: upsert na tabela motoristas (idempotente)
+        const { data: existing } = await supabase
+          .from('motoristas')
+          .select('id')
+          .eq('evento_id', eventoId)
+          .eq('user_id', userProfile.user_id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('motoristas').update({
+            nome: userProfile.full_name || 'Sem nome',
+            telefone: userProfile.telefone || null,
+            ativo: true,
+          }).eq('id', existing.id);
+        } else {
+          const { error } = await supabase.from('motoristas').insert({
+            nome: userProfile.full_name || 'Sem nome',
+            telefone: userProfile.telefone || null,
+            user_id: userProfile.user_id,
+            evento_id: eventoId,
+            ativo: true,
+          });
+          if (error) throw error;
+        }
+
+        // Garantir vínculo em evento_usuarios também (unique index previne duplicatas)
+        const { error: euError } = await supabase.from('evento_usuarios').insert({
           evento_id: eventoId,
-          ativo: true,
+          user_id: userProfile.user_id,
+          role: 'motorista',
         });
-        if (error) throw error;
+        // Ignorar erro de duplicata (unique constraint)
+        if (euError && !euError.message?.includes('duplicate') && !euError.message?.includes('unique')) {
+          throw euError;
+        }
       } else {
         // Staff: inserir em evento_usuarios
         const { error } = await supabase.from('evento_usuarios').insert({

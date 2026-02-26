@@ -130,7 +130,8 @@ export function useMotoristas(eventoId?: string) {
   useEffect(() => {
     const cached = motoristasCache.get(eventoId || '__all__');
     if (cached && (Date.now() - cached.fetchedAt < STALE_TIME_MS)) {
-      // Data is fresh, skip fetch
+      // Stale-while-revalidate: serve cached data but refetch silently
+      fetchMotoristas(false);
       return;
     }
     fetchMotoristas(true); // Carregamento inicial com loading

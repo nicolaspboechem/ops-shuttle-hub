@@ -134,12 +134,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (identifier: string, password: string, type: 'email' | 'phone' = 'email') => {
+    let signInResult;
     if (type === 'phone') {
-      const { error } = await supabase.auth.signInWithPassword({ phone: identifier, password });
-      return { error: error as Error | null };
+      signInResult = await supabase.auth.signInWithPassword({ phone: identifier, password });
+    } else {
+      signInResult = await supabase.auth.signInWithPassword({ email: identifier, password });
     }
-    const { error } = await supabase.auth.signInWithPassword({ email: identifier, password });
-    return { error: error as Error | null };
+
+    if (signInResult.error) {
+      return { error: signInResult.error as Error | null };
+    }
+
+    // Validar role vs modo de login
+    const userId = signInResult.data.user?.id;
+    if (userId) {
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+
+      const userRole = roleData?.role;
+      const isMotorista = userRole === 'motorista';
+      const isAdminRole = userRole === 'admin';
+
+      // Motorista só pode entrar por telefone; não-motorista (exceto admin que pode tudo) só por email
+      if (type === 'phone' && !isMotorista && !isAdminRole) {
+        await supabase.auth.signOut();
+        return { error: new Error('Este usuário deve acessar com e-mail, não telefone.') };
+      }
+      if (type === 'email' && isMotorista) {
+        await supabase.auth.signOut();
+        return { error: new Error('Motoristas devem acessar com telefone, não e-mail.') };
+      }
+    }
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {

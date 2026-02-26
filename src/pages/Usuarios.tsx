@@ -95,8 +95,8 @@ export default function Usuarios() {
   const [resettingPassword, setResettingPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
 
-  // Login type derived from user type
-  const isPhoneLogin = newUserType !== 'admin';
+  // Login type derived from user type: only motorista uses phone
+  const isPhoneLogin = newUserType === 'motorista';
 
   useEffect(() => {
     fetchUsers();
@@ -220,7 +220,7 @@ export default function Usuarios() {
             login_type: 'email',
             password: newPassword,
             full_name: newFullName,
-            user_type: 'admin' as const,
+            user_type: newUserType,
           };
 
       const { data, error } = await supabase.functions.invoke('create-user', { body });

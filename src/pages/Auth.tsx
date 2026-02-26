@@ -214,8 +214,8 @@ export default function Auth() {
           <div className="mt-6 pt-5 border-t border-[#2a3f6f]/40">
             <p className="text-center text-[13px] text-gray-500">
               {mode === 'email' 
-                ? 'Administradores acessam com e-mail' 
-                : 'Motoristas e equipe acessam com telefone'}
+                ? 'Admins, supervisores e operadores acessam com e-mail' 
+                : 'Somente motoristas acessam com telefone'}
             </p>
           </div>
         </div>
