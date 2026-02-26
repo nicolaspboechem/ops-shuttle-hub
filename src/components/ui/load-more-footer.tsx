@@ -7,7 +7,8 @@ interface LoadMoreFooterProps {
   hasMore: boolean;
   onLoadMore: () => void;
   pageSize: number;
-  onPageSizeChange: (n: number) => void;
+  onPageSizeChange?: (n: number) => void;
+  showPageSizeSelector?: boolean;
 }
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
@@ -19,6 +20,7 @@ export function LoadMoreFooter({
   onLoadMore,
   pageSize,
   onPageSizeChange,
+  showPageSizeSelector = true,
 }: LoadMoreFooterProps) {
   if (total <= 0) return null;
 
@@ -29,21 +31,23 @@ export function LoadMoreFooter({
       </span>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 text-xs">
-          {PAGE_SIZE_OPTIONS.map(opt => (
-            <button
-              key={opt}
-              onClick={() => onPageSizeChange(opt)}
-              className={`px-1.5 py-0.5 rounded transition-colors ${
-                pageSize === opt
-                  ? 'bg-primary text-primary-foreground font-medium'
-                  : 'hover:bg-muted'
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
+        {showPageSizeSelector && onPageSizeChange && (
+          <div className="flex items-center gap-1 text-xs">
+            {PAGE_SIZE_OPTIONS.map(opt => (
+              <button
+                key={opt}
+                onClick={() => onPageSizeChange(opt)}
+                className={`px-1.5 py-0.5 rounded transition-colors ${
+                  pageSize === opt
+                    ? 'bg-primary text-primary-foreground font-medium'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
 
         {hasMore && (
           <Button

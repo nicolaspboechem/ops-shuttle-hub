@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -27,7 +27,14 @@ import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { DiaSeletor } from '@/components/app/DiaSeletor';
 import { OperadorBottomNav, OperadorTabId } from '@/components/app/OperadorBottomNav';
 import { OperadorHistoricoTab } from '@/components/app/OperadorHistoricoTab';
-import { OperadorMaisTab } from '@/components/app/OperadorMaisTab';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   ArrowLeft, 
   Loader2,
@@ -37,13 +44,16 @@ import {
   ArrowUp,
   ArrowDown,
   Target,
-  ArrowRightLeft
+  ArrowRightLeft,
+  MoreVertical,
+  LogOut,
+  HelpCircle,
+  Shield,
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { format } from 'date-fns';
 
-const MemoizedHistoricoTab = memo(OperadorHistoricoTab);
-const MemoizedMaisTab = memo(OperadorMaisTab);
+const MemoizedHistoricoTab = OperadorHistoricoTab;
 
 // Card simples para viagem encerrada (shuttle ou transfer)
 function ViagemEncerradaCard({ viagem, getName }: { viagem: Viagem; getName: (id: string) => string }) {
@@ -266,8 +276,10 @@ export default function AppOperador() {
     ), [viagensEncerradas]
   );
 
-  const { visibleItems: ativasVisiveis, hasMore: hasMoreAtivas, loadMore: loadMoreAtivas, total: totalAtivas, pageSize: pageSizeAtivas, setPageSize: setPageSizeAtivas } = usePaginatedList(sortedAtivas);
-  const { visibleItems: encerradasVisiveis, hasMore: hasMoreEnc, loadMore: loadMoreEnc, total: totalEnc, pageSize: pageSizeEnc, setPageSize: setPageSizeEnc } = usePaginatedList(sortedEncerradas);
+  const { visibleItems: ativasVisiveis, hasMore: hasMoreAtivas, loadMore: loadMoreAtivas, total: totalAtivas, pageSize: pageSizeAtivas } = usePaginatedList(sortedAtivas, { defaultPageSize: 10 });
+  const { visibleItems: encerradasVisiveis, hasMore: hasMoreEnc, loadMore: loadMoreEnc, total: totalEnc, pageSize: pageSizeEnc } = usePaginatedList(sortedEncerradas, { defaultPageSize: 10 });
+  const { visibleItems: missoesAtivasVisiveis, hasMore: hasMoreMissAtivas, loadMore: loadMoreMissAtivas, total: totalMissAtivas, pageSize: pageSizeMissAtivas } = usePaginatedList(missoesAtivasFiltradas, { defaultPageSize: 10 });
+  const { visibleItems: missoesFinVisiveis, hasMore: hasMoreMissFin, loadMore: loadMoreMissFin, total: totalMissFin, pageSize: pageSizeMissFin } = usePaginatedList(missoesFinalizadasFiltradas, { defaultPageSize: 10 });
 
   const handleRefresh = async () => {
     await Promise.all([
@@ -320,12 +332,6 @@ export default function AppOperador() {
       setShowViagemForm(true);
     }
   };
-
-  const maisTabProps = useMemo(() => ({
-    userName: profile?.full_name || user?.email || '',
-    eventoNome: evento?.nome_planilha,
-    onLogout: handleLogout,
-  }), [profile?.full_name, user?.email, evento?.nome_planilha, handleLogout]);
 
   useEffect(() => {
     if (!user) {
@@ -400,7 +406,7 @@ export default function AppOperador() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Missões Ativas ({missoesAtivasFiltradas.length})
               </h2>
-              {missoesAtivasFiltradas.map(missao => (
+              {missoesAtivasVisiveis.map(missao => (
                 <MissaoCardMobile
                   key={missao.id}
                   missao={missao}
@@ -410,6 +416,14 @@ export default function AppOperador() {
                   onFinalizar={() => concluirMissao(missao.id)}
                 />
               ))}
+              <LoadMoreFooter
+                total={totalMissAtivas}
+                visible={missoesAtivasVisiveis.length}
+                hasMore={hasMoreMissAtivas}
+                onLoadMore={loadMoreMissAtivas}
+                pageSize={pageSizeMissAtivas}
+                showPageSizeSelector={false}
+              />
             </div>
           )}
 
@@ -432,7 +446,7 @@ export default function AppOperador() {
                 hasMore={hasMoreAtivas}
                 onLoadMore={loadMoreAtivas}
                 pageSize={pageSizeAtivas}
-                onPageSizeChange={setPageSizeAtivas}
+                showPageSizeSelector={false}
               />
             </div>
           )}
@@ -459,13 +473,21 @@ export default function AppOperador() {
                     getName={getName}
                   />
                 ))}
+                {/* Missões finalizadas */}
+                {missoesFinVisiveis.map(missao => (
+                  <MissaoCardMobile
+                    key={missao.id}
+                    missao={missao}
+                    dataOperacional={dataOperacional}
+                  />
+                ))}
                 <LoadMoreFooter
-                  total={totalEnc}
-                  visible={encerradasVisiveis.length}
-                  hasMore={hasMoreEnc}
-                  onLoadMore={loadMoreEnc}
+                  total={totalEnc + totalMissFin}
+                  visible={encerradasVisiveis.length + missoesFinVisiveis.length}
+                  hasMore={hasMoreEnc || hasMoreMissFin}
+                  onLoadMore={() => { if (hasMoreEnc) loadMoreEnc(); if (hasMoreMissFin) loadMoreMissFin(); }}
                   pageSize={pageSizeEnc}
-                  onPageSizeChange={setPageSizeEnc}
+                  showPageSizeSelector={false}
                 />
               </>
             )}
@@ -478,10 +500,6 @@ export default function AppOperador() {
         <MemoizedHistoricoTab viagens={viagens} />
       </div>
 
-      {/* Tab: Mais */}
-      <div className={activeTab === 'mais' ? 'block' : 'hidden'}>
-        <MemoizedMaisTab {...maisTabProps} />
-      </div>
     </>
   );
 
@@ -508,15 +526,44 @@ export default function AppOperador() {
               </div>
             </div>
 
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="text-primary-foreground hover:bg-white/10"
-            >
-              <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-primary-foreground hover:bg-white/10"
+              >
+                <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-white/10">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">{profile?.full_name || user?.email}</p>
+                      <p className="text-xs text-muted-foreground truncate">{evento?.nome_planilha}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/app')}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Trocar Evento
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </header>
