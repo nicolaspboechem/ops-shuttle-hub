@@ -29,7 +29,7 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
         const motoristaVinculado = motoristas.find(m => m.veiculo?.placa === v.placa);
         return { ...v, motoristaNome: motoristaVinculado?.nome || '-' };
       })
-      .sort((a, b) => b.viagens - a.viagens);
+      .sort((a, b) => b.viagens - a.viagens || b.pax - a.pax);
   }, [viagensFiltradas, motoristas]);
 
   const handleExport = () => {
@@ -58,6 +58,7 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 text-center">#</TableHead>
               <TableHead>Placa</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead className="text-right">Total Viagens</TableHead>
@@ -68,11 +69,12 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
           <TableBody>
             {veiculosData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum dado</TableCell>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum dado</TableCell>
               </TableRow>
             ) : (
-              veiculosData.map((v) => (
+              veiculosData.map((v, idx) => (
                 <TableRow key={v.placa}>
+                  <TableCell className="text-center font-bold">{idx + 1}</TableCell>
                   <TableCell className="font-mono font-medium">{v.placa}</TableCell>
                   <TableCell><Badge variant="outline">{v.tipo}</Badge></TableCell>
                   <TableCell className="text-right">{v.viagens}</TableCell>
