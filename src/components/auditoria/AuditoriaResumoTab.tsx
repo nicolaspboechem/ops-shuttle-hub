@@ -222,6 +222,8 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
         </Card>
       </div>
 
+      {/* Rankings lado a lado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Ranking Motoristas */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -301,7 +303,7 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
           </Table>
         </CardContent>
       </Card>
-
+      </div>
       {/* Tabela Pontos */}
       <Card>
         <CardHeader>
