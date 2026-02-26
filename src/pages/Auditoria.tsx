@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { FileBarChart, Download } from 'lucide-react';
 import { EventLayout } from '@/components/layout/EventLayout';
 import { Button } from '@/components/ui/button';
+import { useEventos } from '@/hooks/useEventos';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { useCalculos } from '@/hooks/useViagens';
@@ -17,12 +18,20 @@ import { AuditoriaAbastecimentoTab } from '@/components/auditoria/AuditoriaAbast
 
 export default function Auditoria() {
   const { eventoId } = useParams<{ eventoId: string }>();
+  const { getEventoById } = useEventos();
+  const evento = eventoId ? getEventoById(eventoId) : null;
+  const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
+  
   const { viagens, loading: loadingViagens } = useViagensAuditoria(eventoId);
   const { motoristas } = useMotoristas(eventoId);
   const { metricasPorHora } = useCalculos(viagens);
   const { total: alertasTotais, resolvidos: alertasResolvidos } = useAlertasFrotaConsolidado(eventoId);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>(() => {
+    const tipos = tiposHabilitados;
+    if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
+    return 'missao';
+  });
 
   const viagensFiltradas = useMemo(() => {
     if (tipoOperacao === 'missao') return viagens.filter(v => !!v.origem_missao_id);
@@ -64,7 +73,7 @@ export default function Auditoria() {
           </div>
         </div>
 
-        <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+        <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} tiposHabilitados={tiposHabilitados} />
 
         <Tabs defaultValue="resumo" className="space-y-4">
           <TabsList>

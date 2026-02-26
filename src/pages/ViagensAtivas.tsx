@@ -43,7 +43,12 @@ export default function ViagensAtivas() {
   const { viagens, loading, updateViagem } = useViagens(eventoId, viagensOptions);
   const { kpis, viagensAtivas } = useCalculos(viagens);
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
+  const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>(() => {
+    const tipos = tiposHabilitados;
+    if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
+    return 'missao';
+  });
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
@@ -107,7 +112,7 @@ export default function ViagensAtivas() {
               verTodosDias={verTodosDias}
               onToggleTodosDias={setVerTodosDias}
             />
-            <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+            <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} tiposHabilitados={tiposHabilitados} />
           </div>
           <Badge variant="outline">{viagensFiltradas.length} resultados</Badge>
         </div>

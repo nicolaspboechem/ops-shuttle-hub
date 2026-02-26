@@ -82,7 +82,12 @@ export default function Dashboard() {
     }
   };
   
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('missao');
+  const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>(() => {
+    const tipos = tiposHabilitados;
+    if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
+    return 'missao';
+  });
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
   const [showHelp, setShowHelp] = useState(false);
   
@@ -234,7 +239,7 @@ export default function Dashboard() {
             onToggleTodosDias={setVerTodosDias}
           />
           
-          <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} />
+          <OperationTabs value={tipoOperacao} onChange={setTipoOperacao} contadores={contadores} tiposHabilitados={tiposHabilitados} />
           
           {pontosEmbarque.length > 0 && (
             <div className="flex items-center gap-2 w-full sm:w-auto">

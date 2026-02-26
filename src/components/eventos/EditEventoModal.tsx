@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CalendarIcon, Loader2, Pencil, X, Image as ImageIcon, UserCheck, Eye } from 'lucide-react';
+import { CalendarIcon, Loader2, Pencil, X, Image as ImageIcon, UserCheck, Eye, Car, Bus, Target } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -39,7 +40,9 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   // General
   const [nome, setNome] = useState(evento.nome_planilha);
   const [local, setLocal] = useState(evento.local || '');
-  const [tipoOperacao, setTipoOperacao] = useState(evento.tipo_operacao || 'transfer');
+  const [tiposViagem, setTiposViagem] = useState<string[]>(
+    (evento as any).tipos_viagem_habilitados || ['missao']
+  );
   const [status, setStatus] = useState(evento.status || 'ativo');
   const [descricao, setDescricao] = useState(evento.descricao || '');
 
@@ -57,7 +60,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Configurations
-  const [habilitarMissoes, setHabilitarMissoes] = useState(evento.habilitar_missoes ?? false);
   const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico ?? true);
 
   useEffect(() => {
@@ -132,10 +134,20 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
 
     setLoading(true);
     try {
+      // Derive legacy fields
+      const habilitarMissoes = tiposViagem.includes('missao');
+      const temTransfer = tiposViagem.includes('transfer');
+      const temShuttle = tiposViagem.includes('shuttle');
+      let tipoOperacao = 'transfer';
+      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
+      else if (temShuttle) tipoOperacao = 'shuttle';
+      else if (temTransfer) tipoOperacao = 'transfer';
+
       const updateData: Record<string, any> = {
         nome_planilha: nome,
         local: local.trim() || null,
         tipo_operacao: tipoOperacao,
+        tipos_viagem_habilitados: tiposViagem,
         status: status,
         descricao: descricao.trim() || null,
         imagem_banner: imagemBanner,
@@ -231,33 +243,48 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tipos de Viagem Habilitados</Label>
               <div className="space-y-2">
-                <Label>Tipo de Operação</Label>
-                <Select value={tipoOperacao || 'transfer'} onValueChange={setTipoOperacao}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="transfer">Transfer</SelectItem>
-                    <SelectItem value="shuttle">Shuttle</SelectItem>
-                  </SelectContent>
-                </Select>
+                {[
+                  { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" /> },
+                  { value: 'transfer', label: 'Transfer', icon: <Car className="h-4 w-4 text-amber-600" /> },
+                  { value: 'shuttle', label: 'Shuttle', icon: <Bus className="h-4 w-4 text-emerald-600" /> },
+                ].map(tipo => {
+                  const checked = tiposViagem.includes(tipo.value);
+                  return (
+                    <label key={tipo.value} className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                      checked ? "border-primary bg-primary/5" : "border-border"
+                    )}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(c) => {
+                          setTiposViagem(prev =>
+                            c ? [...prev, tipo.value] : prev.filter(t => t !== tipo.value)
+                          );
+                        }}
+                      />
+                      {tipo.icon}
+                      <span className="font-medium text-sm">{tipo.label}</span>
+                    </label>
+                  );
+                })}
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={status || 'ativo'} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="finalizado">Finalizado</SelectItem>
-                    <SelectItem value="processando">Processando</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={status || 'ativo'} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="finalizado">Finalizado</SelectItem>
+                  <SelectItem value="processando">Processando</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -434,26 +461,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
 
           {/* Tab: Configurações */}
           <TabsContent value="config" className="space-y-4 mt-4">
-            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-3">
-                  <UserCheck className="h-5 w-5 text-purple-600 mt-0.5" />
-                  <div>
-                    <Label className="font-medium text-purple-900">Módulo de Missões</Label>
-                    <p className="text-xs text-purple-700/80 mt-1">
-                      Permite designar tarefas para motoristas.
-                      Motoristas precisam fazer check-in/vistoria diária.
-                      Evento aparece no Localizador.
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={habilitarMissoes}
-                  onCheckedChange={setHabilitarMissoes}
-                />
-              </div>
-            </div>
-            
             <div className="p-4 rounded-lg border border-green-200 bg-green-50/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-start gap-3">

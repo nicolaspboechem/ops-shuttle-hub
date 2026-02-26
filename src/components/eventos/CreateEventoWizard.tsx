@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon, Clock, UserCheck, Eye, Car, Bus, LayoutGrid, Radio } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, ChevronRight, Loader2, X, Image as ImageIcon, Clock, UserCheck, Eye, Car, Bus, Target } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   // Form data - Step 1
   const [nome, setNome] = useState('');
   const [local, setLocal] = useState('');
-  const [tipoOperacao, setTipoOperacao] = useState<'transfer' | 'shuttle' | 'ambos'>('transfer');
+  const [tiposViagem, setTiposViagem] = useState<string[]>(['missao']);
   
   // Step 2 - Dates
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
@@ -46,7 +46,6 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   const logoInputRef = useRef<HTMLInputElement>(null);
   
   // Step 4 - Configurations
-  const [habilitarMissoes, setHabilitarMissoes] = useState(false);
   const [visivelPublico, setVisivelPublico] = useState(true);
   
   // Step 5 - Description
@@ -56,7 +55,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setStep(1);
     setNome('');
     setLocal('');
-    setTipoOperacao('transfer');
+    setTiposViagem(['missao']);
     setDataInicio(undefined);
     setDataFim(undefined);
     setHorarioVirada('04:00');
@@ -65,7 +64,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setDescricao('');
     setImagemBanner(null);
     setImagemLogo(null);
-    setHabilitarMissoes(false);
+    setVisivelPublico(true);
     setVisivelPublico(true);
   };
 
@@ -117,17 +116,27 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   };
 
   const handleCreate = async () => {
-    if (!nome || !dataInicio || !dataFim) {
+    if (!nome || !dataInicio || !dataFim || tiposViagem.length === 0) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
     setLoading(true);
     try {
+      // Derive legacy fields for compatibility
+      const habilitarMissoes = tiposViagem.includes('missao');
+      const temTransfer = tiposViagem.includes('transfer');
+      const temShuttle = tiposViagem.includes('shuttle');
+      let tipoOperacao = 'transfer';
+      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
+      else if (temShuttle) tipoOperacao = 'shuttle';
+      else if (temTransfer) tipoOperacao = 'transfer';
+
       const { error } = await supabase.from('eventos').insert({
         nome_planilha: nome,
         local: local.trim() || null,
-        tipo_operacao: tipoOperacao === 'ambos' ? 'transfer' : tipoOperacao,
+        tipo_operacao: tipoOperacao,
+        tipos_viagem_habilitados: tiposViagem,
         data_inicio: format(dataInicio, 'yyyy-MM-dd'),
         data_fim: format(dataFim, 'yyyy-MM-dd'),
         horario_virada_dia: horarioVirada,
@@ -156,7 +165,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   };
 
   const canProceed = () => {
-    if (step === 1) return nome.trim().length > 0;
+    if (step === 1) return nome.trim().length > 0 && tiposViagem.length > 0;
     if (step === 2) return dataInicio && dataFim && dataFim >= dataInicio;
     return true;
   };
@@ -223,60 +232,42 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
             </div>
 
             <div className="space-y-2">
-              <Label>Tipo de Operação *</Label>
-              <RadioGroup value={tipoOperacao} onValueChange={(v) => setTipoOperacao(v as any)} className="space-y-2">
-                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-amber-400 hover:bg-amber-50/50 transition-colors cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
-                  <RadioGroupItem value="transfer" id="transfer" className="mt-1" />
-                  <Label htmlFor="transfer" className="flex-1 cursor-pointer">
-                    <span className="font-medium flex items-center gap-2">
-                      <Car className="h-4 w-4 text-amber-600" />
-                      Transfer Executivo
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Viagens privativas ponto a ponto. O horário é definido pelo cliente.
-                      Ideal para VIPs, diretores e convidados especiais.
-                    </p>
-                  </Label>
-                </div>
-                
-                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-green-400 hover:bg-green-50/50 transition-colors cursor-pointer has-[:checked]:border-green-500 has-[:checked]:bg-green-50">
-                  <RadioGroupItem value="shuttle" id="shuttle" className="mt-1" />
-                  <Label htmlFor="shuttle" className="flex-1 cursor-pointer">
-                    <span className="font-medium flex items-center gap-2">
-                      <Bus className="h-4 w-4 text-green-600" />
-                      Shuttle (Circular)
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Rotas fixas com grade de horários. O passageiro se adapta ao veículo.
-                      Ideal para alto volume e transporte de funcionários.
-                    </p>
-                  </Label>
-                </div>
-                
-                <div className="flex items-start space-x-3 p-4 rounded-lg border border-border hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-                  <RadioGroupItem value="ambos" id="ambos" className="mt-1" />
-                  <Label htmlFor="ambos" className="flex-1 cursor-pointer">
-                    <span className="font-medium flex items-center gap-2">
-                      <LayoutGrid className="h-4 w-4 text-blue-600" />
-                      Transfer + Shuttle
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Evento que combina ambas as operações. Gerencie frota completa
-                      com viagens executivas e rotas circulares.
-                    </p>
-                  </Label>
-                </div>
-              </RadioGroup>
-              
-              <div className="p-3 rounded-lg bg-purple-50 border border-purple-200 text-sm mt-4">
-                <strong className="flex items-center gap-2 text-purple-700">
-                  <Radio className="h-4 w-4" />
-                  Sobre Missões:
-                </strong>
-                <p className="text-purple-600 mt-1">
-                  Designações internas para staff são criadas pelo CCO na aba 
-                  "Motoristas → Missões" durante a operação.
-                </p>
+              <Label>Tipos de Viagem Habilitados *</Label>
+              <p className="text-xs text-muted-foreground mb-2">Selecione pelo menos 1 tipo de viagem para este evento.</p>
+              <div className="space-y-2">
+                {[
+                  { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" />, desc: 'Tarefas designadas pelo CCO. Motorista aceita, inicia e conclui.', border: 'purple' },
+                  { value: 'transfer', label: 'Transfer Executivo', icon: <Car className="h-4 w-4 text-amber-600" />, desc: 'Viagens privativas ponto a ponto. Ideal para VIPs e convidados.', border: 'amber' },
+                  { value: 'shuttle', label: 'Shuttle (Circular)', icon: <Bus className="h-4 w-4 text-emerald-600" />, desc: 'Rotas fixas com grade de horários. Ideal para alto volume.', border: 'emerald' },
+                ].map(tipo => {
+                  const checked = tiposViagem.includes(tipo.value);
+                  return (
+                    <label
+                      key={tipo.value}
+                      className={cn(
+                        "flex items-start space-x-3 p-4 rounded-lg border transition-colors cursor-pointer",
+                        checked ? `border-${tipo.border}-500 bg-${tipo.border}-50` : "border-border hover:border-muted-foreground/50"
+                      )}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(c) => {
+                          setTiposViagem(prev =>
+                            c ? [...prev, tipo.value] : prev.filter(t => t !== tipo.value)
+                          );
+                        }}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <span className="font-medium flex items-center gap-2">
+                          {tipo.icon}
+                          {tipo.label}
+                        </span>
+                        <p className="text-xs text-muted-foreground mt-1">{tipo.desc}</p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -491,30 +482,6 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         {/* Step 4: Configurations */}
         {step === 4 && (
           <div className="space-y-4">
-            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-3">
-                  <Radio className="h-5 w-5 text-purple-600 mt-0.5" />
-                  <div>
-                    <Label className="font-medium text-purple-900">Habilitar Módulo de Missões</Label>
-                    <p className="text-xs text-purple-700/80 mt-1">
-                      Quando ativo:
-                    </p>
-                    <ul className="text-xs text-purple-700/80 mt-1 space-y-0.5 list-disc list-inside">
-                      <li>CCO pode designar tarefas para motoristas</li>
-                      <li>Motoristas precisam fazer check-in/vistoria diária</li>
-                      <li>Motoristas aceitam ou recusam missões designadas</li>
-                      <li>Evento aparece no Painel Localizador</li>
-                    </ul>
-                  </div>
-                </div>
-                <Switch
-                  checked={habilitarMissoes}
-                  onCheckedChange={setHabilitarMissoes}
-                />
-              </div>
-            </div>
-            
             <div className="p-4 rounded-lg border border-green-200 bg-green-50/50">
               <div className="flex items-center justify-between">
                 <div className="flex items-start gap-3">
@@ -586,25 +553,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tipo:</span>
-                <span className="font-medium capitalize">{tipoOperacao}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Período:</span>
-                <span className="font-medium">
-                  {dataInicio && format(dataInicio, 'dd/MM')} {horarioInicio} - {dataFim && format(dataFim, 'dd/MM')} {horarioFim}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Virada do Dia:</span>
-                <span className="font-medium">{horarioVirada}</span>
-              </div>
-              
-              <div className="pt-2 border-t flex justify-between items-center">
-                <span className="text-muted-foreground">Módulo de Missões:</span>
-                <Badge variant={habilitarMissoes ? 'default' : 'secondary'} className={habilitarMissoes ? 'bg-purple-600' : ''}>
-                  {habilitarMissoes ? 'Ativo' : 'Desativado'}
-                </Badge>
+                <span className="text-muted-foreground">Tipos de Viagem:</span>
+                <div className="flex gap-1">
+                  {tiposViagem.map(t => (
+                    <Badge key={t} variant="default" className="capitalize">{t}</Badge>
+                  ))}
+                </div>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Painel Público:</span>
