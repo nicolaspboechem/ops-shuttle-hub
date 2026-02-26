@@ -82,17 +82,40 @@ export default function EventoUsuarios() {
   const fetchAvailableUsers = async () => {
     setLoadingUsers(true);
     try {
-      // Buscar profiles de usuários que NÃO são admin e que têm user_type de campo
-      const { data: profiles, error } = await supabase
+      // Buscar todos os user_roles que não são admin
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .neq('role', 'admin');
+
+      if (rolesError) throw rolesError;
+
+      const userIds = (roles || []).map(r => r.user_id);
+      if (userIds.length === 0) {
+        setAvailableUsers([]);
+        return;
+      }
+
+      // Buscar profiles desses usuários
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, telefone, email, user_type')
-        .in('user_type', ['operador', 'supervisor', 'cliente']);
+        .select('user_id, full_name, telefone, email')
+        .in('user_id', userIds);
 
-      if (error) throw error;
+      if (profilesError) throw profilesError;
 
-      // Filtrar quem já está no evento
-      const existingUserIds = new Set(membros.filter(m => m.user_id).map(m => m.user_id));
-      const available = (profiles || []).filter(p => !existingUserIds.has(p.user_id));
+      // Filtrar quem já está no evento (staff via evento_usuarios OU motorista via motoristas)
+      const existingStaffUserIds = new Set(membros.filter(m => m.tipo === 'staff' && m.user_id).map(m => m.user_id));
+      const existingMotoristaUserIds = new Set(membros.filter(m => m.tipo === 'motorista' && m.user_id).map(m => m.user_id));
+      const existingUserIds = new Set([...existingStaffUserIds, ...existingMotoristaUserIds]);
+
+      const available = (profiles || [])
+        .filter(p => !existingUserIds.has(p.user_id))
+        .map(p => {
+          const roleEntry = roles?.find(r => r.user_id === p.user_id);
+          return { ...p, role: roleEntry?.role || 'user' };
+        });
+
       setAvailableUsers(available);
     } catch (error) {
       toast.error('Erro ao carregar usuários disponíveis');
@@ -105,16 +128,27 @@ export default function EventoUsuarios() {
     if (!eventoId) return;
     setAddingUserId(userProfile.user_id);
     try {
-      const { error } = await supabase.from('evento_usuarios').insert({
-        evento_id: eventoId,
-        user_id: userProfile.user_id,
-        role: userProfile.user_type || 'operador',
-      });
-
-      if (error) throw error;
+      if (userProfile.role === 'motorista') {
+        // Motoristas: criar entrada na tabela motoristas com user_id linkado
+        const { error } = await supabase.from('motoristas').insert({
+          nome: userProfile.full_name || 'Sem nome',
+          telefone: userProfile.telefone || null,
+          user_id: userProfile.user_id,
+          evento_id: eventoId,
+          ativo: true,
+        });
+        if (error) throw error;
+      } else {
+        // Staff: inserir em evento_usuarios
+        const { error } = await supabase.from('evento_usuarios').insert({
+          evento_id: eventoId,
+          user_id: userProfile.user_id,
+          role: userProfile.role || 'operador',
+        });
+        if (error) throw error;
+      }
 
       toast.success(`${userProfile.full_name || 'Usuário'} adicionado à equipe!`);
-      // Remove from available list
       setAvailableUsers(prev => prev.filter(u => u.user_id !== userProfile.user_id));
       refetch();
     } catch (error: any) {
@@ -534,9 +568,9 @@ export default function EventoUsuarios() {
                         <div>
                           <p className="font-medium text-sm">{u.full_name || 'Sem nome'}</p>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={cn("text-xs", getRoleBadgeClass(u.user_type))}>
-                              {getRoleIcon(u.user_type)}
-                              <span className="ml-1 capitalize">{u.user_type}</span>
+                            <Badge variant="outline" className={cn("text-xs", getRoleBadgeClass(u.role))}>
+                              {getRoleIcon(u.role)}
+                              <span className="ml-1 capitalize">{u.role}</span>
                             </Badge>
                             {u.telefone && (
                               <span className="text-xs text-muted-foreground">{u.telefone}</span>
