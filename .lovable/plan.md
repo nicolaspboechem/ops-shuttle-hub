@@ -1,113 +1,124 @@
 
-# Padronizar Viagens e Definir Roles
 
-## Resumo
+# Auditoria Completa do Backend - Seguranca e Performance
 
-Tres mudancas principais:
-1. O App Supervisor passa a gerenciar viagens da mesma forma que o Operador (cards inline com acoes, filtros por tipo, metricas de PAX, paginacao de 10)
-2. O App Motorista perde o botao "+" (Corrida) -- motorista so recebe missoes
-3. Definicao clara das roles do sistema
+## Diagnostico Atual
 
----
+### PROBLEMAS CRITICOS DE SEGURANCA
 
-## 1. Definicao de Roles
+O linter do Supabase encontrou **18 alertas de seguranca**. O problema principal: **7 tabelas operacionais** usam politicas RLS `USING(true)` para INSERT, UPDATE e DELETE, significando que **qualquer usuario autenticado pode modificar dados de qualquer evento**.
 
-| Role | Pode criar viagens? | Pode criar missoes? | Controle de viagens | Interface |
-|------|---------------------|---------------------|---------------------|-----------|
-| **Admin** | Sim (CCO desktop) | Sim | Total | /evento |
-| **Supervisor** | Sim (app mobile) | Sim | Total (igual Operador) | /app/supervisor |
-| **Operador** | Sim (app mobile) | Sim | Total | /app/operador |
-| **Motorista** | Nao | Nao (recebe) | Apenas missoes designadas | /app/motorista |
-| **Cliente** | Nao | Nao | Apenas visualiza | /app/cliente |
+Tabelas vulneraveis:
+- `viagens` - qualquer usuario pode criar/editar/deletar viagens de qualquer evento
+- `missoes` - dados de missoes VIP expostos (nomes de clientes, horarios, localizacoes)
+- `alertas_frota` - alertas podem ser manipulados
+- `motorista_presenca` - checkin/checkout podem ser fraudados
+- `veiculo_fotos` - fotos podem ser deletadas
+- `veiculo_vistoria_historico` - historico de vistorias pode ser alterado
+- `viagem_logs` - logs de auditoria sem protecao de escrita
 
----
+Dados sensiveis expostos:
+- `motoristas` - telefone, CNH, localizacao em tempo real legiveis por qualquer pessoa
+- `missoes` - detalhes de transporte VIP (nomes, horarios, rotas)
 
-## 2. App Supervisor: Aba Viagens igual ao Operador
+### PROBLEMAS DE PERFORMANCE
 
-**Problema atual**: A aba Viagens do Supervisor usa `SupervisorViagensTab` que so mostra viagens ativas com filtro de status (agendado/em_andamento/standby). Nao tem:
-- Shuttle inline cards
-- Filtro por tipo (Transfer/Shuttle/Missao pills)
-- Metricas resumo (PAX ida/volta, total operacoes)
-- Missoes ativas/finalizadas
-- Cards de viagens encerradas
-- Paginacao de 10
-
-**Solucao**: Refatorar `AppSupervisor` para renderizar a aba Viagens inline (como faz o `AppOperador`) em vez de delegar ao `SupervisorViagensTab`. Isso inclui:
-
-### Arquivos modificados:
-
-**`src/pages/app/AppSupervisor.tsx`**
-- Importar e usar os mesmos hooks do Operador: `usePaginatedList`, `LoadMoreFooter`, `useMissoes`, `useVeiculos`, `useUserNames`, `ViagemCardOperador`, `ShuttleCardOperador`, `MissaoCardMobile`, `CreateShuttleForm`, `ShuttleEncerrarModal`, `OperadorHistoricoTab`, `EditViagemMobileModal`
-- Adicionar `FiltroTipoPills` (copiar do Operador ou extrair para componente compartilhado)
-- Adicionar `ViagemEncerradaCard` (copiar do Operador)
-- Na aba Viagens, renderizar: DiaSeletor + FiltroTipoPills + metricas resumo (grid 2x2) + missoes ativas + viagens ativas + viagens encerradas + missoes finalizadas, tudo com `usePaginatedList({ defaultPageSize: 10 })` e `LoadMoreFooter({ showPageSizeSelector: false })`
-- Adicionar tab `historico` no bottom nav (igual operador) para viagens de dias anteriores
-- Mover "Mais" para o header (DropdownMenu com tres pontinhos, igual ja feito no Operador)
-
-**`src/components/app/SupervisorBottomNav.tsx`**
-- Remover aba "mais"
-- Adicionar aba "historico" (icone ClipboardList)
-- Tabs finais: Frota | Viagens | + Nova | Localizador | Historico
+1. **Sem indices otimizados** - queries filtram por `evento_id` + `status` + `data_criacao` sem indices compostos
+2. **useViagens** busca TODAS as viagens do evento (pode atingir limite de 1000 rows do Supabase)
+3. **useMissoes** faz query extra ao evento a cada fetch para buscar `horario_virada_dia`
+4. **useLocalizadorMotoristas** faz 3 queries paralelas + escuta 3 canais Realtime no mesmo hook
 
 ---
 
-## 3. App Motorista: Remover botao "+"
+## PLANO DE CORRECAO
 
-**`src/components/app/MotoristaBottomNav.tsx`**
-- Remover a aba `corrida` (botao central "+") do array de tabs
-- Tabs finais: Inicio | Veiculo | Historico | Mais
+### Fase 1: Seguranca RLS (Migracao SQL)
 
-**`src/pages/app/AppMotorista.tsx`**
-- Remover o `case 'corrida'` do `renderTabContent`
-- Remover import de `CreateViagemMotoristaForm`
-- Motorista continua recebendo e gerenciando missoes na aba Inicio
+Substituir todas as politicas `USING(true)` por politicas que usam a funcao `has_event_access()` ja existente no banco.
 
----
+**Principio**: Cada usuario so pode ler/modificar dados dos eventos aos quais esta vinculado em `evento_usuarios`. Admins tem acesso total via `is_admin()`.
 
-## Detalhes Tecnicos
+```sql
+-- VIAGENS: Restringir por evento_id via has_event_access
+DROP POLICY "Allow all insert on viagens" ON viagens;
+DROP POLICY "Allow all update on viagens" ON viagens;
+DROP POLICY "Allow all delete on viagens" ON viagens;
+DROP POLICY "Allow all read on viagens" ON viagens;
 
-### Supervisor - Aba Viagens (inline como Operador)
+CREATE POLICY "viagens_select" ON viagens FOR SELECT
+  TO authenticated USING (has_event_access(auth.uid(), evento_id));
+CREATE POLICY "viagens_insert" ON viagens FOR INSERT
+  TO authenticated WITH CHECK (has_event_access(auth.uid(), evento_id));
+CREATE POLICY "viagens_update" ON viagens FOR UPDATE
+  TO authenticated USING (has_event_access(auth.uid(), evento_id));
+CREATE POLICY "viagens_delete" ON viagens FOR DELETE
+  TO authenticated USING (has_event_access(auth.uid(), evento_id));
 
-```text
-Viagens tab layout:
-+---------------------------+
-| DiaSeletor                |
-| [Todos] [Shuttle] [Transfer] [Missao]  <- FiltroTipoPills
-| [Operacoes: 12] [PAX: 45]|
-| [PAX Ida: 30] [PAX Volta: 15]|
-|                           |
-| MISSOES ATIVAS (3)        |
-|  MissaoCardMobile x3      |
-|  [Ver mais]               |
-|                           |
-| EM ANDAMENTO (5)          |
-|  ViagemCardOperador x5    |
-|  + botao Editar overlay   |
-|  + acoes missao (concluir/cancelar)
-|  [Ver mais]               |
-|                           |
-| ENCERRADAS (20)           |
-|  ViagemEncerradaCard x10  |
-|  [Ver mais]               |
-|                           |
-| MISSOES FINALIZADAS       |
-|  MissaoCardMobile x10     |
-|  [Ver mais]               |
-+---------------------------+
+-- Mesmo padrao para: missoes, alertas_frota, motorista_presenca,
+-- veiculo_fotos, veiculo_vistoria_historico, viagem_logs
 ```
 
-### Supervisor - Header com menu "Mais"
-Usar o mesmo padrao do Operador: `DropdownMenu` com tres pontinhos contendo nome do usuario, nome do evento, "Trocar Evento" e "Sair".
+Total: ~28 politicas substituidas em 7 tabelas.
 
-### Motorista - Bottom Nav simplificado
+### Fase 2: Indices de Performance (Migracao SQL)
 
-```text
-Antes:  [Inicio] [Veiculo] [+Corrida] [Historico] [Mais]
-Depois: [Inicio] [Veiculo] [Historico] [Mais]
+Criar indices compostos para as queries mais frequentes:
+
+```sql
+-- Viagens: filtro principal de todas as telas
+CREATE INDEX idx_viagens_evento_status ON viagens(evento_id, status);
+CREATE INDEX idx_viagens_evento_criacao ON viagens(evento_id, data_criacao);
+CREATE INDEX idx_viagens_evento_motorista ON viagens(evento_id, motorista_id);
+CREATE INDEX idx_viagens_missao ON viagens(origem_missao_id) WHERE origem_missao_id IS NOT NULL;
+
+-- Missoes: listagem por evento + status
+CREATE INDEX idx_missoes_evento_status ON missoes(evento_id, status);
+
+-- Presenca: consulta diaria
+CREATE INDEX idx_presenca_evento_data ON motorista_presenca(evento_id, data);
+
+-- Alertas: filtro por evento + status
+CREATE INDEX idx_alertas_evento_status ON alertas_frota(evento_id, status);
+
+-- Motoristas: listagem ativa por evento
+CREATE INDEX idx_motoristas_evento_ativo ON motoristas(evento_id) WHERE ativo = true;
 ```
 
-### Arquivos alterados (resumo)
-1. `src/pages/app/AppSupervisor.tsx` - aba viagens inline, header com menu, historico
-2. `src/components/app/SupervisorBottomNav.tsx` - remover "mais", adicionar "historico"
-3. `src/components/app/MotoristaBottomNav.tsx` - remover "corrida"
-4. `src/pages/app/AppMotorista.tsx` - remover case corrida e import
+### Fase 3: Otimizacao de Hooks (Frontend)
+
+**3a. useViagens - Adicionar limite server-side**
+- Problema: busca todas as viagens sem `limit`, pode atingir 1000 rows
+- Solucao: adicionar `.limit(500)` como safety net (dia operacional ja filtra naturalmente)
+
+**3b. useMissoes - Eliminar query extra ao evento**
+- Problema: a cada `fetchMissoes()`, faz uma query separada `SELECT horario_virada_dia FROM eventos`
+- Solucao: receber `horarioVirada` como parametro do hook (ja disponivel no componente pai)
+
+**3c. useLocalizadorMotoristas - Reduzir queries**
+- Problema: 3 queries paralelas (motoristas + presenca + viagens) + 3 canais Realtime
+- Solucao: manter as 3 queries paralelas (ja e eficiente), mas consolidar os 3 canais Realtime em 1 unico canal que escuta as 3 tabelas (ja esta assim, OK)
+
+**3d. useCadastros - Cache ja implementado**
+- Cache de 60s com `Map` ja funciona bem. Sem alteracao necessaria.
+
+### Fase 4: Habilitar Leaked Password Protection
+
+No dashboard do Supabase: Authentication > Settings > habilitar "Leaked Password Protection".
+
+---
+
+## RESUMO DE ALTERACOES
+
+| Categoria | Arquivos | Impacto |
+|-----------|----------|---------|
+| RLS Seguranca | 1 migracao SQL (28 politicas) | Critico - fecha brechas de acesso |
+| Indices DB | 1 migracao SQL (8 indices) | Alto - queries 5-10x mais rapidas |
+| Hook useMissoes | `src/hooks/useMissoes.ts` | Medio - elimina 1 query por fetch |
+| Hook useViagens | `src/hooks/useViagens.ts` | Baixo - safety net de limite |
+
+### Riscos e Consideracoes
+
+- As novas politicas RLS exigem que **todos os usuarios de campo** estejam cadastrados em `evento_usuarios`. Se algum usuario nao estiver vinculado, perdera acesso.
+- Os indices nao afetam funcionalidade, apenas performance.
+- A funcao `has_event_access()` ja esta pronta e testada no banco - usamos ela como base.
+
