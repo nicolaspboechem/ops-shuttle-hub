@@ -1,54 +1,53 @@
 
 
-# Ranking de Motoristas e Veiculos na Auditoria
+# Auditoria de Abastecimento - Analise Completa por Veiculo
 
-## Objetivo
-Adicionar tabelas de ranking diretamente na aba **Resumo Geral** da Auditoria (como no dashboard), com ordenacao decrescente por numero de viagens e PAX como criterio de desempate. Isso servira como base para a premiacao dos motoristas.
+## Contexto dos Dados
+
+Temos 138 alertas de combustivel no evento, com niveis registrados: `1/4` (28), `1/2` (60), `3/4` (23), `cheio` (26), `vazio` (1). Cada alerta tem veiculo, motorista, nivel e timestamp. Isso permite montar KPIs reais de consumo e comportamento de abastecimento.
 
 ## Alteracoes
 
-### 1. `src/components/auditoria/AuditoriaResumoTab.tsx`
+### 1. Novo hook: `src/hooks/useAlertasFrotaDetalhado.ts`
 
-Adicionar duas novas tabelas apos os graficos e antes da tabela de pontos:
+Busca todos os alertas do evento com JOINs (veiculo nome/placa/tipo, motorista nome), retornando dados completos para analise no frontend.
 
-**Tabela "Ranking de Motoristas":**
-- Coluna `#` (posicao no ranking, comecando em 1)
-- Coluna `Motorista`
-- Coluna `Total Viagens`
-- Coluna `Total PAX`
-- Coluna `Media PAX/Viagem`
-- Ordenacao: viagens DESC, PAX DESC como desempate
-- Destaque visual nas 3 primeiras posicoes (medalha ou badge dourado/prata/bronze)
+Query: `alertas_frota` com select de `*, veiculo:veiculos!veiculo_id(nome, placa, tipo_veiculo), motorista:motoristas!motorista_id(nome)` filtrado por `evento_id`.
 
-**Tabela "Ranking de Veiculos":**
-- Coluna `#` (posicao)
-- Coluna `Placa`
-- Coluna `Tipo`
-- Coluna `Total Viagens`
-- Coluna `Total PAX`
-- Mesma logica de ordenacao
+### 2. Reestruturar `AuditoriaAbastecimentoTab.tsx`
 
-Ambas com botao de exportar Excel.
+Manter os 4 cards de resumo no topo e adicionar abaixo:
 
-### 2. `src/components/auditoria/AuditoriaMotoristasTab.tsx`
+**Tabela "Abastecimento por Veiculo"** (principal):
+- Coluna `#` (posicao, ordenado por total alertas DESC)
+- Coluna `Veiculo` (nome destaque + placa secundaria)
+- Coluna `Total Alertas`
+- Coluna `Nivel Medio` (media ponderada: reserva=0, 1/4=25, 1/2=50, 3/4=75, cheio=100 - mostrado como %)
+- Coluna `Alertas Criticos` (contagem de niveis 1/4 + reserva/vazio)
+- Coluna `Motoristas` (quantidade de motoristas distintos que reportaram)
+- Coluna `Status` (badge: todos resolvidos = verde, pendentes = vermelho)
+- Medalhas top 3 (veiculos com MAIS alertas = mais consumo)
+- Botao exportar Excel
 
-Corrigir o `.sort()` para usar PAX como criterio de desempate:
-```
-.sort((a, b) => b.viagens - a.viagens || b.pax - a.pax)
-```
-Adicionar coluna `#` com posicao no ranking.
+**Cards de KPIs adicionais** (antes da tabela):
+- `Veiculos Monitorados` - total de veiculos distintos com alertas
+- `Media Alertas/Veiculo` - total alertas / veiculos distintos
+- `Alertas Criticos (1/4 ou menos)` - soma de alertas com nivel 1/4 + vazio/reserva
+- `Distribuicao` - mini resumo: X em 1/4, Y em 1/2, Z em 3/4, W cheio
 
-### 3. `src/components/auditoria/AuditoriaVeiculosTab.tsx`
+### 3. Atualizar `Auditoria.tsx`
 
-Mesma correcao de sort com desempate por PAX e coluna `#`.
-
-## Detalhes visuais
-
-- Top 3 motoristas com icone de medalha (Trophy) ou badge colorido para facilitar identificacao visual na premiacao
-- Posicao 1: dourado, Posicao 2: prata, Posicao 3: bronze
-- As tabelas no Resumo sao versoes compactas (mesmos dados, mesmo layout)
+Passar `eventoId` como prop para `AuditoriaAbastecimentoTab` (alem dos totais ja existentes), para que o componente possa buscar os dados detalhados via hook.
 
 ## Arquivos modificados
-1. `src/components/auditoria/AuditoriaResumoTab.tsx` - adicionar tabelas de ranking de motoristas e veiculos
-2. `src/components/auditoria/AuditoriaMotoristasTab.tsx` - corrigir sort com desempate por PAX, adicionar coluna #
-3. `src/components/auditoria/AuditoriaVeiculosTab.tsx` - corrigir sort com desempate por PAX, adicionar coluna #
+
+1. `src/hooks/useAlertasFrotaDetalhado.ts` - **novo** - hook para buscar alertas completos
+2. `src/components/auditoria/AuditoriaAbastecimentoTab.tsx` - reestruturar com tabela por veiculo e KPIs
+3. `src/pages/Auditoria.tsx` - passar eventoId para AuditoriaAbastecimentoTab
+
+## Detalhes tecnicos
+
+- Calculos de nivel medio feitos no frontend com mapa de conversao: `{ 'vazio': 0, 'reserva': 0, '1/4': 25, '1/2': 50, '3/4': 75, 'cheio': 100 }`
+- Agrupamento por `veiculo_id` usando Map no useMemo
+- Exportacao Excel com xlsx (ja instalado)
+- Ordenacao por total de alertas DESC (veiculos que mais consumiram)
