@@ -104,7 +104,7 @@ export default function AppCliente() {
 
   if (isMobile) {
     return (
-      <div className="min-h-screen bg-background flex flex-col pb-16">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         {/* Tutorial Popover */}
         {tutorial.isActive && tutorial.currentStep && (
           <TutorialPopover
@@ -120,11 +120,13 @@ export default function AppCliente() {
           title={evento?.nome_planilha || 'Cliente'} 
           subtitle="Cliente"
         />
-        <PullToRefresh onRefresh={handleRefresh}>
-          <main className="flex-1 overflow-auto" data-tutorial="dashboard">
-            {renderContent()}
-          </main>
-        </PullToRefresh>
+        <div className="flex-1 overflow-y-auto pb-20">
+          <PullToRefresh onRefresh={handleRefresh}>
+            <main data-tutorial="dashboard">
+              {renderContent()}
+            </main>
+          </PullToRefresh>
+        </div>
         <ClienteBottomNav 
           activeTab={activeTab} 
           onTabChange={setActiveTab}
