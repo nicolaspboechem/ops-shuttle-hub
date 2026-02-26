@@ -1,99 +1,60 @@
 
 
-# AppOperador: Acesso Total com Cards Corretos por Tipo
+# Paginacao com 10 itens e aba "Mais" no Header
 
-## Resumo
+## 1. Paginacao de 10 em 10
 
-Refatorar o AppOperador para suportar todos os tipos de viagem do evento, usando o card correto para cada tipo:
+**Arquivo: `src/pages/app/AppOperador.tsx`**
 
-- **Shuttle e Transfer**: usam `ViagemCardOperador` (lifecycle: iniciar, chegada, retorno, encerrar)
-- **Missao**: usa o sistema de missoes existente (`useMissoes`, `MissaoCardMobile`) - mesmo formato que funciona no Rio Open e no AppSupervisor
+- Alterar o `usePaginatedList` para usar `defaultPageSize: 10` nas listas de viagens ativas e encerradas
+- Remover o seletor de tamanho de pagina (20/50/100) do `LoadMoreFooter` -- no mobile, so precisa do botao "Ver mais" e do contador "Exibindo X de Y"
+- Aplicar tambem nas missoes ativas e finalizadas (adicionar `usePaginatedList` para elas)
 
-## Arquivos Alterados
+**Arquivo: `src/components/ui/load-more-footer.tsx`**
 
-### 1. `src/components/app/NewActionModal.tsx`
+- Tornar o seletor de page size opcional via prop `showPageSizeSelector?: boolean` (default true para desktop, false para mobile)
+- Ou: o AppOperador simplesmente nao passa `onPageSizeChange` / nao renderiza o seletor
 
-- Substituir prop `hideShuttle?: boolean` por `tiposHabilitados?: string[]`
-- Filtrar botoes dinamicamente: so mostra Missao/Deslocamento se `missao` habilitado, Transfer se `transfer` habilitado, Shuttle se `shuttle` habilitado
-- Fallback: se `tiposHabilitados` nao informado, mostra todos (compatibilidade)
+## 2. Mover aba "Mais" para o Header
 
-### 2. `src/pages/app/AppOperador.tsx`
+**Arquivo: `src/components/app/OperadorBottomNav.tsx`**
 
-**Query e dados:**
-- Buscar `tipos_viagem_habilitados` do evento na query de carregamento
-- Remover filtro fixo `tipoOperacao: 'shuttle'` do `useViagens` - carregar todas as viagens
-- Adicionar `useMissoes(eventoId)` para carregar missoes (se missao habilitada)
-- Adicionar `useMotoristas(eventoId)` e `usePontosEmbarque(eventoId)` para os formularios
+- Remover a aba "mais" do array de tabs do bottom nav (ficam apenas: Viagens, Nova, Historico)
 
-**Filtro por abas internas (pills):**
-- Adicionar state `filtroTipo: string | null` (null = todos)
-- Renderizar pills horizontais: `[Todos] [Shuttle] [Transfer] [Missao]`
-- So mostrar pills dos tipos presentes em `tipos_viagem_habilitados`
-- Se apenas 1 tipo habilitado, nao mostrar pills
-- Filtrar viagens e missoes pelo tipo selecionado
+**Arquivo: `src/pages/app/AppOperador.tsx`**
 
-**Botao "+" (nova operacao):**
-- Se 1 tipo habilitado: abrir formulario direto (Shuttle->CreateShuttleForm, Transfer->CreateViagemForm, Missao->MissaoInstantaneaModal)
-- Se 2+ tipos: abrir `NewActionModal` com `tiposHabilitados`
-- Tratar `handleActionSelect`: missao->MissaoInstantaneaModal, deslocamento->MissaoDeslocamentoModal, transfer/shuttle->CreateViagemForm/CreateShuttleForm
+- Adicionar um botao com icone `MoreHorizontal` (tres pontinhos) no header, ao lado do botao de refresh
+- Ao clicar, abre o conteudo da aba "Mais" (pode usar um Drawer/Sheet que sobe de baixo, ou um DropdownMenu com as opcoes de logout/info)
+- Alternativa mais simples: adicionar um `DropdownMenu` no header com as opcoes que estao no `OperadorMaisTab` (nome do usuario, evento, botao sair)
 
-**Renderizacao de cards:**
-- Viagens (transfer/shuttle) ativas: `ViagemCardOperador` (com lifecycle completo via swipe/botoes)
-- Missoes ativas: `MissaoCardMobile` (aceitar, iniciar, concluir - mesmo formato do AppMotorista/AppSupervisor)
-- Viagens encerradas (shuttle): `ShuttleRegistroCard` (card compacto existente)
-- Viagens encerradas (transfer): card compacto similar
-- Missoes concluidas: card compacto de missao
+## Detalhes Tecnicos
 
-**Imports adicionais:**
-- `NewActionModal`, `CreateViagemForm`, `MissaoInstantaneaModal`, `MissaoDeslocamentoModal`
-- `useMissoes`, `useMotoristas`, `usePontosEmbarque`
-- `MissaoCardMobile`
-- `ViagemCardOperador`
+### Paginacao (AppOperador.tsx)
+```
+// Antes (default 20)
+usePaginatedList(sortedAtivas)
 
-**Metricas (summary cards):**
-- Refletir o filtro ativo
-- Se filtro = todos: totais gerais
-- Se filtro = shuttle: PAX ida/volta
-- Se filtro = missao: pendentes/em andamento/concluidas
+// Depois (default 10)
+usePaginatedList(sortedAtivas, { defaultPageSize: 10 })
+usePaginatedList(sortedEncerradas, { defaultPageSize: 10 })
+```
 
-### 3. `src/components/app/CreateShuttleForm.tsx`
+Adicionar paginacao tambem para missoes:
+```
+usePaginatedList(missoesAtivasFiltradas, { defaultPageSize: 10 })
+usePaginatedList(missoesFinalizadasFiltradas, { defaultPageSize: 10 })
+```
 
-Adicionar campos para shuttle com lifecycle completo:
-- **Veiculo** (combobox com busca nos veiculos do evento)
-- **Ponto A / Origem** (combobox dos pontos de embarque)
-- **Ponto B / Destino** (combobox dos pontos de embarque)
-- Manter campos existentes: PAX, observacao
-- Gravar `veiculo_id`, `ponto_embarque`, `ponto_desembarque` na viagem
-- Props adicionais: receber lista de veiculos e pontos do AppOperador
+### Header com "Mais" (AppOperador.tsx)
+- Adicionar `DropdownMenu` no header com: nome do usuario, nome do evento, separador, "Trocar Evento", "Sair"
+- Usar o mesmo pattern do `MobileHeader` que ja existe no projeto
 
-### 4. `src/pages/app/AppSupervisor.tsx`
+### BottomNav (OperadorBottomNav.tsx)
+- Remover entrada `{ id: 'mais', ... }` do array `tabs`
+- Manter tipo `OperadorTabId` sem 'mais' ou manter para compatibilidade
 
-- Buscar `tipos_viagem_habilitados` do evento (ja busca evento, so adicionar o campo)
-- Passar `tiposHabilitados={evento?.tipos_viagem_habilitados}` para `NewActionModal`
+### Arquivos alterados
+1. `src/pages/app/AppOperador.tsx` -- paginacao 10, header com menu "mais"
+2. `src/components/app/OperadorBottomNav.tsx` -- remover aba "mais"
+3. `src/components/ui/load-more-footer.tsx` -- prop opcional para ocultar seletor de tamanho
 
-## Fluxo por Tipo
-
-### Shuttle (no operador)
-1. Operador toca "+"
-2. Abre CreateShuttleForm com: veiculo, ponto A, ponto B, PAX, obs
-3. Viagem criada com status `em_andamento`
-4. Card `ViagemCardOperador` aparece com botoes: Chegou -> Aguardar Retorno/Encerrar -> Retorno -> Encerrar
-5. Ao encerrar, vira `ShuttleRegistroCard` compacto
-
-### Transfer (no operador)
-1. Operador toca "+"
-2. Abre CreateViagemForm (mesmo do supervisor)
-3. Card `ViagemCardOperador` com lifecycle: Iniciar -> Chegou -> Encerrar
-
-### Missao (no operador)
-1. Operador toca "+"
-2. Abre MissaoInstantaneaModal (mesmo do supervisor)
-3. Card `MissaoCardMobile` com lifecycle: aceitar -> iniciar -> concluir
-4. Funciona exatamente como no Rio Open
-
-## Ordem de Implementacao
-
-1. `NewActionModal` - nova prop `tiposHabilitados`
-2. `CreateShuttleForm` - adicionar campos veiculo, ponto A, ponto B
-3. `AppOperador` - refatoracao completa
-4. `AppSupervisor` - passar `tiposHabilitados`
