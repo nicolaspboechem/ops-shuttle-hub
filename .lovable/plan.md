@@ -1,98 +1,87 @@
 
-Objetivo
-- Garantir que, ao vincular um usuário com role motorista na aba Equipe, ele apareça imediatamente na aba Motoristas do mesmo evento.
-- Ajustar autenticação para que supervisor e operador (e demais não-motoristas) usem apenas e-mail; apenas motoristas usam telefone.
+# Rota unica de campo com redirecionamento por role
 
-Diagnóstico encontrado
-1) Inconsistência de vínculo por evento:
-- Hoje, ao vincular motorista em `src/pages/EventoUsuarios.tsx`, é criado registro em `motoristas`, mas não é garantido vínculo em `evento_usuarios`.
-- Como a autorização por evento usa `has_event_access` (baseada em `evento_usuarios`), isso pode quebrar fluxos por evento para usuários de campo.
+## Resumo
 
-2) Sensação de “não apareceu na aba Motoristas”:
-- A aba Motoristas usa `useMotoristas` com cache em memória (60s) em `src/hooks/useCadastros.ts`.
-- Se a aba Motoristas foi aberta recentemente com lista vazia, pode manter cache “fresco” e pular refetch, atrasando a visualização do novo vínculo.
+Criar uma rota unica `/app/:eventoId` que detecta automaticamente a role do usuario e renderiza a view correta (Motorista, Operador, Supervisor ou Cliente). O usuario nunca precisa saber qual URL acessar -- o sistema resolve tudo.
 
-3) Regra de login divergente:
-- Em `src/pages/Usuarios.tsx`, o login por telefone ainda está configurado para todo não-admin.
-- Em `src/pages/Auth.tsx`, o texto e o toggle ainda sugerem telefone para “equipe” também.
+## Fluxo
 
-Plano de implementação
+```text
+/app/:eventoId
+    |
+    +-- role = motorista ----> renderiza AppMotorista
+    +-- role = operador -----> renderiza AppOperador
+    +-- role = supervisor ---> renderiza AppSupervisor
+    +-- role = cliente ------> renderiza AppCliente
+    +-- admin (mobile) ------> renderiza AppSupervisor (com badge Admin)
+    +-- admin (desktop) -----> renderiza AppSupervisor (com badge Admin)
+    +-- sem acesso ----------> tela "Acesso negado"
+```
 
-1) Corrigir o fluxo de vínculo na Equipe (fonte da verdade do evento)
-Arquivos:
-- `src/pages/EventoUsuarios.tsx`
+## Mudancas
 
-Mudanças:
-- No `handleAddUserToEvent`:
-  - Para role `motorista`, trocar `insert` direto por lógica idempotente:
-    - Buscar `motoristas` por (`evento_id`, `user_id`).
-    - Se existir, atualizar dados básicos (nome/telefone/ativo=true).
-    - Se não existir, inserir.
-  - Em seguida, garantir vínculo em `evento_usuarios` para o mesmo usuário/evento com role `motorista` (upsert/insert com tratamento de conflito).
-- Resultado: toda pessoa vinculada ao evento fica consistente nas duas dimensões (cadastro operacional e autorização por evento).
+### 1. Nova pagina: `src/pages/app/AppEvento.tsx`
 
-2) Remover atraso por cache na aba Motoristas
-Arquivos:
-- `src/hooks/useCadastros.ts`
+Componente leve (~40 linhas) que:
+- Le `eventoId` dos params
+- Usa `useAuth()` para obter `isAdmin` e `getEventRole(eventoId)`
+- Se admin: renderiza `<AppSupervisor />` (acesso completo com badge Admin)
+- Se motorista: renderiza `<AppMotorista />`
+- Se operador: renderiza `<AppOperador />`
+- Se supervisor: renderiza `<AppSupervisor />`
+- Se cliente: renderiza `<AppCliente />`
+- Sem role: mostra tela de acesso negado
 
-Mudanças:
-- Ajustar estratégia do `useMotoristas` para “stale-while-revalidate”:
-  - Pode continuar usando cache para render inicial rápida.
-  - Mas sempre disparar um refetch silencioso ao montar (sem spinner), mesmo com cache fresco.
-- Resultado: após vincular na Equipe e abrir Motoristas, a lista atualiza imediatamente sem esperar expirar 60s.
+Nao mistura logica dos apps -- apenas decide qual renderizar.
 
-3) Backfill de consistência para dados já existentes
-Arquivos:
-- nova migration em `supabase/migrations/...sql`
+### 2. Simplificar rotas em `src/App.tsx`
 
-Mudanças SQL:
-- Inserir em `evento_usuarios` todos os motoristas já existentes em `motoristas` com `user_id` e `evento_id` preenchidos, quando ainda não houver vínculo (`ON CONFLICT DO NOTHING`).
-- (Opcional, se quiser endurecer regra): criar índice único parcial para evitar duplicidade de motorista por usuário+evento quando `user_id` não for nulo.
+Antes (5 rotas separadas com AdminRoute):
+```
+/app/:eventoId/motorista  -> AdminRoute -> AppMotorista
+/app/:eventoId/operador   -> AdminRoute -> AppOperador
+/app/:eventoId/supervisor -> AdminRoute -> AppSupervisor
+/app/:eventoId/cliente    -> AdminRoute -> AppCliente
+```
 
-4) Enforce de login por role (somente motorista por telefone)
-Arquivos:
-- `src/pages/Usuarios.tsx`
-- `src/pages/Auth.tsx`
-- `supabase/functions/create-user/index.ts`
-- `src/lib/auth/AuthContext.tsx` (validação final no sign-in)
+Depois (1 rota unica com ProtectedRoute):
+```
+/app/:eventoId            -> ProtectedRoute -> AppEvento (resolve a role)
+```
 
-Mudanças:
-- `Usuarios.tsx`:
-  - Alterar regra de criação: telefone apenas quando `newUserType === 'motorista'`.
-  - Supervisor/operador/cliente/admin: criação com e-mail.
-- `create-user` (edge function):
-  - Validar server-side:
-    - `motorista` => exige `login_type=phone`.
-    - não-motorista => exige `login_type=email`.
-  - Rejeitar combinações inválidas com erro claro (evita bypass por chamada manual).
-- `Auth.tsx`:
-  - Atualizar cópia do login para deixar explícito: “Somente motoristas entram por telefone”.
-- `AuthContext.tsx`:
-  - Após `signIn`, validar role do usuário (`user_roles`) vs modo usado.
-  - Se mismatch (ex.: operador tentando telefone), efetuar `signOut` e retornar erro amigável.
-- Resultado: regra de autenticação alinhada com a nova estrutura e aplicada também no backend.
+As rotas antigas (`/motorista`, `/operador`, etc.) serao mantidas como redirects para `/app/:eventoId` para nao quebrar links existentes.
 
-Validação (E2E)
-1) Em Usuários:
-- Criar supervisor e operador: formulário deve exigir e-mail (não telefone).
-- Criar motorista: formulário deve exigir telefone.
+A rota `/app/:eventoId/vincular-veiculo/:motoristaId` continua separada pois e uma funcionalidade especifica.
 
-2) Em Equipe do evento “teste novo modal”:
-- Vincular motorista via dropdown.
-- Confirmar toast de sucesso.
+### 3. Ajustar `src/pages/app/AppHome.tsx`
 
-3) Em Motoristas do mesmo evento:
-- O motorista deve aparecer sem necessidade de hard refresh/esperar 60s.
+Simplificar os redirects:
+- Admin seleciona evento: navega para `/app/:eventoId` (sem escolher modo)
+- Non-admin seleciona evento: navega para `/app/:eventoId`
+- Auto-redirect com 1 evento: navega para `/app/:eventoId`
 
-4) Login:
-- Motorista: telefone funciona, e-mail bloqueia com mensagem orientativa.
-- Supervisor/Operador: e-mail funciona, telefone bloqueia com mensagem orientativa.
+Remover os botoes de selecao de modo (Motorista, Operador, Supervisor) para admin -- o sistema resolve automaticamente.
 
-Riscos e cuidados
-- Se houver contas antigas de supervisor/operador criadas só com telefone, elas passarão a falhar no login por telefone após o enforce; para esses casos, será necessário cadastrar e-mail e resetar senha.
-- Não vamos mover roles para `profiles`; roles continuam em `user_roles` (modelo seguro atual).
+### 4. Ajustar `src/pages/Auth.tsx`
 
-Critério de pronto
-- Vínculo de motorista pela Equipe refletindo imediatamente na aba Motoristas.
-- Consistência de autorização por evento garantida (`evento_usuarios` + `motoristas`).
-- Login estritamente por role: motorista=telefone, supervisor/operador=email.
+- Admin desktop: redireciona para `/eventos` (CCO)
+- Admin mobile: redireciona para `/app` (hub de eventos)
+- Non-admin: redireciona para `/app` (hub com auto-redirect)
+
+Usa `useIsMobile()` para detectar dispositivo.
+
+## Arquivos afetados
+
+- **Novo**: `src/pages/app/AppEvento.tsx` (componente roteador por role)
+- **Editar**: `src/App.tsx` (simplificar rotas de campo)
+- **Editar**: `src/pages/app/AppHome.tsx` (remover selecao de modo, unificar navegacao)
+- **Editar**: `src/pages/Auth.tsx` (redirect por dispositivo)
+
+## Beneficios
+
+- URL unica e limpa: `/app/:eventoId`
+- Usuario nunca escolhe "modo" manualmente
+- Admin no mobile entra automaticamente como Supervisor
+- Cada app de campo continua sendo um arquivo separado e facil de manter
+- Links antigos continuam funcionando via redirect
