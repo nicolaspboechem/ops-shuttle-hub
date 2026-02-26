@@ -78,6 +78,20 @@ serve(async (req) => {
     let phoneFormatted: string | null = null;
     let existingUser = false;
 
+    // Validar login_type vs user_type (server-side enforcement)
+    if (user_type === 'motorista' && login_type !== 'phone') {
+      return new Response(
+        JSON.stringify({ error: "Motoristas devem ser criados com login por telefone" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (user_type && user_type !== 'motorista' && login_type === 'phone') {
+      return new Response(
+        JSON.stringify({ error: "Apenas motoristas podem usar login por telefone. Use e-mail para este tipo de usuário." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validar campos obrigatórios baseado no tipo de login
     if (login_type === 'phone') {
       if (!telefone || !password) {
