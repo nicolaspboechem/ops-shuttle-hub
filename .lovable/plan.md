@@ -1,124 +1,98 @@
 
+Objetivo
+- Garantir que, ao vincular um usuário com role motorista na aba Equipe, ele apareça imediatamente na aba Motoristas do mesmo evento.
+- Ajustar autenticação para que supervisor e operador (e demais não-motoristas) usem apenas e-mail; apenas motoristas usam telefone.
 
-# Auditoria Completa do Backend - Seguranca e Performance
+Diagnóstico encontrado
+1) Inconsistência de vínculo por evento:
+- Hoje, ao vincular motorista em `src/pages/EventoUsuarios.tsx`, é criado registro em `motoristas`, mas não é garantido vínculo em `evento_usuarios`.
+- Como a autorização por evento usa `has_event_access` (baseada em `evento_usuarios`), isso pode quebrar fluxos por evento para usuários de campo.
 
-## Diagnostico Atual
+2) Sensação de “não apareceu na aba Motoristas”:
+- A aba Motoristas usa `useMotoristas` com cache em memória (60s) em `src/hooks/useCadastros.ts`.
+- Se a aba Motoristas foi aberta recentemente com lista vazia, pode manter cache “fresco” e pular refetch, atrasando a visualização do novo vínculo.
 
-### PROBLEMAS CRITICOS DE SEGURANCA
+3) Regra de login divergente:
+- Em `src/pages/Usuarios.tsx`, o login por telefone ainda está configurado para todo não-admin.
+- Em `src/pages/Auth.tsx`, o texto e o toggle ainda sugerem telefone para “equipe” também.
 
-O linter do Supabase encontrou **18 alertas de seguranca**. O problema principal: **7 tabelas operacionais** usam politicas RLS `USING(true)` para INSERT, UPDATE e DELETE, significando que **qualquer usuario autenticado pode modificar dados de qualquer evento**.
+Plano de implementação
 
-Tabelas vulneraveis:
-- `viagens` - qualquer usuario pode criar/editar/deletar viagens de qualquer evento
-- `missoes` - dados de missoes VIP expostos (nomes de clientes, horarios, localizacoes)
-- `alertas_frota` - alertas podem ser manipulados
-- `motorista_presenca` - checkin/checkout podem ser fraudados
-- `veiculo_fotos` - fotos podem ser deletadas
-- `veiculo_vistoria_historico` - historico de vistorias pode ser alterado
-- `viagem_logs` - logs de auditoria sem protecao de escrita
+1) Corrigir o fluxo de vínculo na Equipe (fonte da verdade do evento)
+Arquivos:
+- `src/pages/EventoUsuarios.tsx`
 
-Dados sensiveis expostos:
-- `motoristas` - telefone, CNH, localizacao em tempo real legiveis por qualquer pessoa
-- `missoes` - detalhes de transporte VIP (nomes, horarios, rotas)
+Mudanças:
+- No `handleAddUserToEvent`:
+  - Para role `motorista`, trocar `insert` direto por lógica idempotente:
+    - Buscar `motoristas` por (`evento_id`, `user_id`).
+    - Se existir, atualizar dados básicos (nome/telefone/ativo=true).
+    - Se não existir, inserir.
+  - Em seguida, garantir vínculo em `evento_usuarios` para o mesmo usuário/evento com role `motorista` (upsert/insert com tratamento de conflito).
+- Resultado: toda pessoa vinculada ao evento fica consistente nas duas dimensões (cadastro operacional e autorização por evento).
 
-### PROBLEMAS DE PERFORMANCE
+2) Remover atraso por cache na aba Motoristas
+Arquivos:
+- `src/hooks/useCadastros.ts`
 
-1. **Sem indices otimizados** - queries filtram por `evento_id` + `status` + `data_criacao` sem indices compostos
-2. **useViagens** busca TODAS as viagens do evento (pode atingir limite de 1000 rows do Supabase)
-3. **useMissoes** faz query extra ao evento a cada fetch para buscar `horario_virada_dia`
-4. **useLocalizadorMotoristas** faz 3 queries paralelas + escuta 3 canais Realtime no mesmo hook
+Mudanças:
+- Ajustar estratégia do `useMotoristas` para “stale-while-revalidate”:
+  - Pode continuar usando cache para render inicial rápida.
+  - Mas sempre disparar um refetch silencioso ao montar (sem spinner), mesmo com cache fresco.
+- Resultado: após vincular na Equipe e abrir Motoristas, a lista atualiza imediatamente sem esperar expirar 60s.
 
----
+3) Backfill de consistência para dados já existentes
+Arquivos:
+- nova migration em `supabase/migrations/...sql`
 
-## PLANO DE CORRECAO
+Mudanças SQL:
+- Inserir em `evento_usuarios` todos os motoristas já existentes em `motoristas` com `user_id` e `evento_id` preenchidos, quando ainda não houver vínculo (`ON CONFLICT DO NOTHING`).
+- (Opcional, se quiser endurecer regra): criar índice único parcial para evitar duplicidade de motorista por usuário+evento quando `user_id` não for nulo.
 
-### Fase 1: Seguranca RLS (Migracao SQL)
+4) Enforce de login por role (somente motorista por telefone)
+Arquivos:
+- `src/pages/Usuarios.tsx`
+- `src/pages/Auth.tsx`
+- `supabase/functions/create-user/index.ts`
+- `src/lib/auth/AuthContext.tsx` (validação final no sign-in)
 
-Substituir todas as politicas `USING(true)` por politicas que usam a funcao `has_event_access()` ja existente no banco.
+Mudanças:
+- `Usuarios.tsx`:
+  - Alterar regra de criação: telefone apenas quando `newUserType === 'motorista'`.
+  - Supervisor/operador/cliente/admin: criação com e-mail.
+- `create-user` (edge function):
+  - Validar server-side:
+    - `motorista` => exige `login_type=phone`.
+    - não-motorista => exige `login_type=email`.
+  - Rejeitar combinações inválidas com erro claro (evita bypass por chamada manual).
+- `Auth.tsx`:
+  - Atualizar cópia do login para deixar explícito: “Somente motoristas entram por telefone”.
+- `AuthContext.tsx`:
+  - Após `signIn`, validar role do usuário (`user_roles`) vs modo usado.
+  - Se mismatch (ex.: operador tentando telefone), efetuar `signOut` e retornar erro amigável.
+- Resultado: regra de autenticação alinhada com a nova estrutura e aplicada também no backend.
 
-**Principio**: Cada usuario so pode ler/modificar dados dos eventos aos quais esta vinculado em `evento_usuarios`. Admins tem acesso total via `is_admin()`.
+Validação (E2E)
+1) Em Usuários:
+- Criar supervisor e operador: formulário deve exigir e-mail (não telefone).
+- Criar motorista: formulário deve exigir telefone.
 
-```sql
--- VIAGENS: Restringir por evento_id via has_event_access
-DROP POLICY "Allow all insert on viagens" ON viagens;
-DROP POLICY "Allow all update on viagens" ON viagens;
-DROP POLICY "Allow all delete on viagens" ON viagens;
-DROP POLICY "Allow all read on viagens" ON viagens;
+2) Em Equipe do evento “teste novo modal”:
+- Vincular motorista via dropdown.
+- Confirmar toast de sucesso.
 
-CREATE POLICY "viagens_select" ON viagens FOR SELECT
-  TO authenticated USING (has_event_access(auth.uid(), evento_id));
-CREATE POLICY "viagens_insert" ON viagens FOR INSERT
-  TO authenticated WITH CHECK (has_event_access(auth.uid(), evento_id));
-CREATE POLICY "viagens_update" ON viagens FOR UPDATE
-  TO authenticated USING (has_event_access(auth.uid(), evento_id));
-CREATE POLICY "viagens_delete" ON viagens FOR DELETE
-  TO authenticated USING (has_event_access(auth.uid(), evento_id));
+3) Em Motoristas do mesmo evento:
+- O motorista deve aparecer sem necessidade de hard refresh/esperar 60s.
 
--- Mesmo padrao para: missoes, alertas_frota, motorista_presenca,
--- veiculo_fotos, veiculo_vistoria_historico, viagem_logs
-```
+4) Login:
+- Motorista: telefone funciona, e-mail bloqueia com mensagem orientativa.
+- Supervisor/Operador: e-mail funciona, telefone bloqueia com mensagem orientativa.
 
-Total: ~28 politicas substituidas em 7 tabelas.
+Riscos e cuidados
+- Se houver contas antigas de supervisor/operador criadas só com telefone, elas passarão a falhar no login por telefone após o enforce; para esses casos, será necessário cadastrar e-mail e resetar senha.
+- Não vamos mover roles para `profiles`; roles continuam em `user_roles` (modelo seguro atual).
 
-### Fase 2: Indices de Performance (Migracao SQL)
-
-Criar indices compostos para as queries mais frequentes:
-
-```sql
--- Viagens: filtro principal de todas as telas
-CREATE INDEX idx_viagens_evento_status ON viagens(evento_id, status);
-CREATE INDEX idx_viagens_evento_criacao ON viagens(evento_id, data_criacao);
-CREATE INDEX idx_viagens_evento_motorista ON viagens(evento_id, motorista_id);
-CREATE INDEX idx_viagens_missao ON viagens(origem_missao_id) WHERE origem_missao_id IS NOT NULL;
-
--- Missoes: listagem por evento + status
-CREATE INDEX idx_missoes_evento_status ON missoes(evento_id, status);
-
--- Presenca: consulta diaria
-CREATE INDEX idx_presenca_evento_data ON motorista_presenca(evento_id, data);
-
--- Alertas: filtro por evento + status
-CREATE INDEX idx_alertas_evento_status ON alertas_frota(evento_id, status);
-
--- Motoristas: listagem ativa por evento
-CREATE INDEX idx_motoristas_evento_ativo ON motoristas(evento_id) WHERE ativo = true;
-```
-
-### Fase 3: Otimizacao de Hooks (Frontend)
-
-**3a. useViagens - Adicionar limite server-side**
-- Problema: busca todas as viagens sem `limit`, pode atingir 1000 rows
-- Solucao: adicionar `.limit(500)` como safety net (dia operacional ja filtra naturalmente)
-
-**3b. useMissoes - Eliminar query extra ao evento**
-- Problema: a cada `fetchMissoes()`, faz uma query separada `SELECT horario_virada_dia FROM eventos`
-- Solucao: receber `horarioVirada` como parametro do hook (ja disponivel no componente pai)
-
-**3c. useLocalizadorMotoristas - Reduzir queries**
-- Problema: 3 queries paralelas (motoristas + presenca + viagens) + 3 canais Realtime
-- Solucao: manter as 3 queries paralelas (ja e eficiente), mas consolidar os 3 canais Realtime em 1 unico canal que escuta as 3 tabelas (ja esta assim, OK)
-
-**3d. useCadastros - Cache ja implementado**
-- Cache de 60s com `Map` ja funciona bem. Sem alteracao necessaria.
-
-### Fase 4: Habilitar Leaked Password Protection
-
-No dashboard do Supabase: Authentication > Settings > habilitar "Leaked Password Protection".
-
----
-
-## RESUMO DE ALTERACOES
-
-| Categoria | Arquivos | Impacto |
-|-----------|----------|---------|
-| RLS Seguranca | 1 migracao SQL (28 politicas) | Critico - fecha brechas de acesso |
-| Indices DB | 1 migracao SQL (8 indices) | Alto - queries 5-10x mais rapidas |
-| Hook useMissoes | `src/hooks/useMissoes.ts` | Medio - elimina 1 query por fetch |
-| Hook useViagens | `src/hooks/useViagens.ts` | Baixo - safety net de limite |
-
-### Riscos e Consideracoes
-
-- As novas politicas RLS exigem que **todos os usuarios de campo** estejam cadastrados em `evento_usuarios`. Se algum usuario nao estiver vinculado, perdera acesso.
-- Os indices nao afetam funcionalidade, apenas performance.
-- A funcao `has_event_access()` ja esta pronta e testada no banco - usamos ela como base.
-
+Critério de pronto
+- Vínculo de motorista pela Equipe refletindo imediatamente na aba Motoristas.
+- Consistência de autorização por evento garantida (`evento_usuarios` + `motoristas`).
+- Login estritamente por role: motorista=telefone, supervisor/operador=email.
