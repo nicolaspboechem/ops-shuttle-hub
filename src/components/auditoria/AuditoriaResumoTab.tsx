@@ -70,10 +70,11 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
   }, [viagensFiltradas]);
 
   const rankingVeiculos = useMemo(() => {
-    const map = new Map<string, { placa: string; tipo: string; viagens: number; pax: number }>();
+    const map = new Map<string, { placa: string; nome: string; tipo: string; viagens: number; pax: number }>();
     viagensFiltradas.forEach(v => {
       const placa = v.placa || 'Sem placa';
-      const existing = map.get(placa) || { placa, tipo: v.tipo_veiculo || 'Outro', viagens: 0, pax: 0 };
+      const nome = v.veiculo?.nome || placa;
+      const existing = map.get(placa) || { placa, nome, tipo: v.tipo_veiculo || 'Outro', viagens: 0, pax: 0 };
       existing.viagens += 1;
       existing.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
       map.set(placa, existing);
@@ -99,7 +100,7 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
 
   const exportRankingVeiculos = () => {
     const ws = XLSX.utils.json_to_sheet(rankingVeiculos.map((v, i) => ({
-      '#': i + 1, 'Placa': v.placa, 'Tipo': v.tipo, 'Total Viagens': v.viagens, 'Total PAX': v.pax,
+      '#': i + 1, 'Veículo': v.nome, 'Placa': v.placa, 'Tipo': v.tipo, 'Total Viagens': v.viagens, 'Total PAX': v.pax,
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Ranking Veículos');
@@ -281,7 +282,7 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12 text-center">#</TableHead>
-                <TableHead>Placa</TableHead>
+                <TableHead>Veículo</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">Total Viagens</TableHead>
                 <TableHead className="text-right">Total PAX</TableHead>
@@ -293,7 +294,10 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
                   <TableCell className="text-center">
                     {idx < 3 ? <Medal className={`w-5 h-5 mx-auto ${getMedalColor(idx)}`} /> : <span className="font-bold">{idx + 1}</span>}
                   </TableCell>
-                  <TableCell className="font-mono font-medium">{v.placa}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{v.nome}</div>
+                    <div className="text-xs text-muted-foreground font-mono">({v.placa})</div>
+                  </TableCell>
                   <TableCell>{v.tipo}</TableCell>
                   <TableCell className="text-right">{v.viagens}</TableCell>
                   <TableCell className="text-right">{v.pax}</TableCell>

@@ -15,10 +15,11 @@ interface Props {
 
 export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
   const veiculosData = useMemo(() => {
-    const map = new Map<string, { placa: string; tipo: string; viagens: number; pax: number }>();
+    const map = new Map<string, { placa: string; nome: string; tipo: string; viagens: number; pax: number }>();
     viagensFiltradas.forEach(v => {
       const placa = v.placa || 'Sem placa';
-      const existing = map.get(placa) || { placa, tipo: v.tipo_veiculo || 'Outro', viagens: 0, pax: 0 };
+      const nome = v.veiculo?.nome || placa;
+      const existing = map.get(placa) || { placa, nome, tipo: v.tipo_veiculo || 'Outro', viagens: 0, pax: 0 };
       existing.viagens += 1;
       existing.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
       map.set(placa, existing);
@@ -34,6 +35,7 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
 
   const handleExport = () => {
     const ws = XLSX.utils.json_to_sheet(veiculosData.map(v => ({
+      'Veículo': v.nome,
       'Placa': v.placa,
       'Tipo': v.tipo,
       'Total Viagens': v.viagens,
@@ -59,7 +61,7 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-12 text-center">#</TableHead>
-              <TableHead>Placa</TableHead>
+              <TableHead>Veículo</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead className="text-right">Total Viagens</TableHead>
               <TableHead className="text-right">Total PAX</TableHead>
@@ -75,7 +77,10 @@ export function AuditoriaVeiculosTab({ viagensFiltradas, motoristas }: Props) {
               veiculosData.map((v, idx) => (
                 <TableRow key={v.placa}>
                   <TableCell className="text-center font-bold">{idx + 1}</TableCell>
-                  <TableCell className="font-mono font-medium">{v.placa}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{v.nome}</div>
+                    <div className="text-xs text-muted-foreground font-mono">({v.placa})</div>
+                  </TableCell>
                   <TableCell><Badge variant="outline">{v.tipo}</Badge></TableCell>
                   <TableCell className="text-right">{v.viagens}</TableCell>
                   <TableCell className="text-right">{v.pax}</TableCell>
