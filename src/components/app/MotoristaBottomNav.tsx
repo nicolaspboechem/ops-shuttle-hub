@@ -1,7 +1,7 @@
-import { Home, Car, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
+import { Home, Car, ClipboardList, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type MotoristaTabId = 'inicio' | 'veiculo' | 'corrida' | 'historico' | 'mais';
+export type MotoristaTabId = 'inicio' | 'veiculo' | 'historico' | 'mais';
 
 interface NavTab {
   id: MotoristaTabId;
@@ -12,7 +12,6 @@ interface NavTab {
 const tabs: NavTab[] = [
   { id: 'inicio', label: 'Início', icon: Home },
   { id: 'veiculo', label: 'Veículo', icon: Car },
-  { id: 'corrida', label: 'Corrida', icon: Plus },
   { id: 'historico', label: 'Histórico', icon: ClipboardList },
   { id: 'mais', label: 'Mais', icon: MoreHorizontal },
 ];
@@ -29,21 +28,6 @@ export function MotoristaBottomNav({ activeTab, onTabChange }: MotoristaBottomNa
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
-          
-          // Special styling for the center "Corrida" button
-          if (tab.id === 'corrida') {
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
-              >
-                <div className="w-12 h-12 rounded-full flex items-center justify-center -mt-4 shadow-lg transition-colors bg-white text-primary">
-                  <Icon className="w-6 h-6" />
-                </div>
-              </button>
-            );
-          }
           
           return (
             <button
