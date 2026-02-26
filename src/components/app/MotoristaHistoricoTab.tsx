@@ -67,7 +67,7 @@ export function MotoristaHistoricoTab({
     });
   }, [viagensFinalizadas, dataSelecionada, horarioVirada]);
 
-  const { visibleItems: viagensVisiveis, hasMore, loadMore, total: pTotal, pageSize: pSize, setPageSize: setPSize } = usePaginatedList(viagensDoDia);
+  const { visibleItems: viagensVisiveis, hasMore, loadMore, total: pTotal, pageSize: pSize, setPageSize: setPSize } = usePaginatedList(viagensDoDia, { defaultPageSize: 10 });
 
   // Calcular estatísticas do dia
   const estatisticas = useMemo(() => {
