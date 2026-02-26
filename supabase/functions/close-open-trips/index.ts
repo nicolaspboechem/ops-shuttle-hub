@@ -55,10 +55,10 @@ Deno.serve(async (req) => {
 
     console.log(`[close-open-trips] Running at ${serverTimeISO} (SP parsed: ${dataHojeSP} ${horaAtualSP}:${minAtualSP})`)
 
-    // Fetch all active events with their virada time
-    const { data: eventos, error: eventosError } = await supabase
+    // Fetch all active events with their virada time and data_fim
+    const { data: eventosRaw, error: eventosError } = await supabase
       .from('eventos')
-      .select('id, horario_virada_dia, nome_planilha')
+      .select('id, horario_virada_dia, nome_planilha, data_fim')
       .eq('status', 'ativo')
 
     if (eventosError) {
@@ -68,6 +68,115 @@ Deno.serve(async (req) => {
 
     let totalClosed = 0
     const details: { evento: string; closed: number }[] = []
+    let totalEventosFinalizados = 0
+
+    // ======== BLOCO 0: Auto-finalizar eventos pela data de término ========
+    const eventosFinalizadosIds = new Set<string>()
+
+    for (const evento of (eventosRaw || [])) {
+      if (!evento.data_fim) continue
+
+      const virada = evento.horario_virada_dia || '04:00:00'
+      const dataOpAtual = calcDataOperacional(horaAtualSP, minAtualSP, dataHojeSP, virada)
+
+      // Evento só é finalizado quando data operacional atual > data_fim
+      if (dataOpAtual <= evento.data_fim) continue
+
+      console.log(`[close-open-trips] BLOCO 0: Finalizando evento "${evento.nome_planilha}" (data_fim=${evento.data_fim}, dataOp=${dataOpAtual})`)
+      eventosFinalizadosIds.add(evento.id)
+
+      // 1. Encerrar TODAS as viagens abertas do evento
+      const { data: openTrips } = await supabase
+        .from('viagens')
+        .select('id')
+        .eq('evento_id', evento.id)
+        .eq('encerrado', false)
+
+      if (openTrips && openTrips.length > 0) {
+        const tripIds = openTrips.map(t => t.id)
+        const { error: closeErr } = await supabase
+          .from('viagens')
+          .update({
+            encerrado: true,
+            status: 'encerrado',
+            h_fim_real: serverTimeISO,
+            observacao: `Encerrada automaticamente - evento "${evento.nome_planilha}" finalizado (data_fim=${evento.data_fim})`,
+          })
+          .in('id', tripIds)
+
+        if (!closeErr) {
+          totalClosed += tripIds.length
+          details.push({ evento: evento.nome_planilha, closed: tripIds.length })
+          console.log(`[close-open-trips] BLOCO 0: Closed ${tripIds.length} trips for event "${evento.nome_planilha}"`)
+        } else {
+          console.error(`[close-open-trips] BLOCO 0: Error closing trips:`, closeErr)
+        }
+      }
+
+      // 2. Desvincular TODOS os veículos de motoristas (bidirecional)
+      const { data: motoristasComVeiculo } = await supabase
+        .from('motoristas')
+        .select('id, nome, veiculo_id')
+        .eq('evento_id', evento.id)
+        .not('veiculo_id', 'is', null)
+
+      if (motoristasComVeiculo && motoristasComVeiculo.length > 0) {
+        for (const mot of motoristasComVeiculo) {
+          await Promise.all([
+            supabase.from('motoristas').update({ veiculo_id: null }).eq('id', mot.id),
+            supabase.from('veiculos').update({ motorista_id: null }).eq('id', mot.veiculo_id!),
+            supabase.from('veiculo_vistoria_historico').insert({
+              veiculo_id: mot.veiculo_id!,
+              evento_id: evento.id,
+              tipo_vistoria: 'desvinculacao',
+              status_anterior: 'vinculado',
+              status_novo: 'disponivel',
+              motorista_id: mot.id,
+              motorista_nome: mot.nome,
+              observacoes: `Desvinculado automaticamente - evento "${evento.nome_planilha}" finalizado`,
+            }),
+          ])
+        }
+        console.log(`[close-open-trips] BLOCO 0: Unlinked ${motoristasComVeiculo.length} vehicles for event "${evento.nome_planilha}"`)
+      }
+
+      // 3. Checkout automático de todas as presenças ativas
+      const { error: checkoutErr } = await supabase
+        .from('motorista_presenca')
+        .update({
+          checkout_at: serverTimeISO,
+          observacao_checkout: `Checkout automático - evento "${evento.nome_planilha}" finalizado`,
+        })
+        .eq('evento_id', evento.id)
+        .not('checkin_at', 'is', null)
+        .is('checkout_at', null)
+
+      if (checkoutErr) {
+        console.error(`[close-open-trips] BLOCO 0: Error auto-checkout:`, checkoutErr)
+      }
+
+      // 4. Atualizar status dos motoristas
+      await supabase
+        .from('motoristas')
+        .update({ status: 'indisponivel' })
+        .eq('evento_id', evento.id)
+
+      // 5. Finalizar o evento
+      const { error: finalizeErr } = await supabase
+        .from('eventos')
+        .update({ status: 'finalizado' })
+        .eq('id', evento.id)
+
+      if (!finalizeErr) {
+        totalEventosFinalizados++
+        console.log(`[close-open-trips] BLOCO 0: Event "${evento.nome_planilha}" finalized successfully`)
+      } else {
+        console.error(`[close-open-trips] BLOCO 0: Error finalizing event:`, finalizeErr)
+      }
+    }
+
+    // Filtrar eventos finalizados para não processar nos blocos seguintes
+    const eventos = (eventosRaw || []).filter(e => !eventosFinalizadosIds.has(e.id))
 
     // ======== BLOCO 1: Event-aware - fechar viagens de dias operacionais anteriores ========
     for (const evento of (eventos || [])) {
@@ -335,13 +444,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[close-open-trips] Total closed trips: ${totalClosed}, orphan vinculações closed: ${totalOrphansClosed}`)
+    console.log(`[close-open-trips] Total closed trips: ${totalClosed}, orphan vinculações closed: ${totalOrphansClosed}, eventos finalizados: ${totalEventosFinalizados}`)
 
     return new Response(JSON.stringify({ 
       success: true, 
       closed: totalClosed,
       orphanVinculacoesClosed: totalOrphansClosed,
       unlinked: totalUnlinked,
+      eventosFinalizados: totalEventosFinalizados,
       details,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
