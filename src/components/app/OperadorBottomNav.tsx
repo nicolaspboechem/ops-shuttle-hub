@@ -1,4 +1,4 @@
-import { Bus, Plus, ClipboardList, MoreHorizontal } from 'lucide-react';
+import { Bus, Plus, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type OperadorTabId = 'viagens' | 'nova' | 'historico' | 'mais';
@@ -13,7 +13,6 @@ const tabs: NavTab[] = [
   { id: 'viagens', label: 'Viagens', icon: Bus },
   { id: 'nova', label: 'Nova', icon: Plus },
   { id: 'historico', label: 'Histórico', icon: ClipboardList },
-  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
 ];
 
 interface OperadorBottomNavProps {
