@@ -23,7 +23,7 @@ import { MotoristaModal } from '@/components/cadastros/CadastroModals';
 import { MotoristaViagensModal } from '@/components/motoristas/MotoristaViagensModal';
 import { MotoristaKanbanColumn } from '@/components/motoristas/MotoristaKanbanColumn';
 import { MotoristaKanbanCard } from '@/components/motoristas/MotoristaKanbanCard';
-import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
+
 
 import { MotoristasAuditoria } from '@/components/motoristas/MotoristasAuditoria';
 import { EscalasAuditoria } from '@/components/motoristas/EscalasAuditoria';
@@ -352,7 +352,6 @@ export default function Motoristas() {
 
   // Estados para modal de edição e wizard
   const [editingMotorista, setEditingMotorista] = useState<Motorista | null>(null);
-  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [selectedMotoristaForViagens, setSelectedMotoristaForViagens] = useState<Motorista | null>(null);
   const [editLocMotorista, setEditLocMotorista] = useState<Motorista | null>(null);
   
@@ -547,21 +546,7 @@ export default function Motoristas() {
               </AlertDialogContent>
             </AlertDialog>
           </>
-        ) : (
-          <MotoristaModal 
-            defaultName={motoristaNome}
-            veiculosDisponiveis={veiculos}
-            eventoId={eventoId}
-            onSave={handleSaveMotorista}
-            onUpdate={handleUpdateMotorista}
-            trigger={
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Cadastrar Motorista
-              </DropdownMenuItem>
-            }
-          />
-        )}
+        ) : null}
         {/* Liberar Check-in: só aparece quando tem checkout (jornada encerrada) */}
         {motoristaCadastrado && presencaData?.checkin_at && presencaData?.checkout_at && onLiberarCheckin && (
           <>
@@ -745,21 +730,13 @@ export default function Motoristas() {
               <p className="text-sm text-muted-foreground mb-4">
                 {hasActiveFilters 
                   ? 'Tente ajustar os filtros de busca.' 
-                  : 'Cadastre motoristas ou importe das viagens existentes.'}
+                  : 'Adicione motoristas pela aba Equipe do evento.'}
               </p>
               {!hasActiveFilters && (
-                <MotoristaModal 
-                  veiculosDisponiveis={veiculos}
-                  eventoId={eventoId}
-                  onSave={handleSaveMotorista}
-                  onUpdate={handleUpdateMotorista}
-                  trigger={
-                    <span className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md cursor-pointer hover:bg-primary/90">
-                      <Plus className="w-4 h-4" />
-                      Cadastrar Motorista
-                    </span>
-                  }
-                />
+                <Button variant="outline" onClick={() => navigate(`/evento/${eventoId}/equipe`)}>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Ir para Equipe
+                </Button>
               )}
             </Card>
           ) : viewMode === 'card' ? (
@@ -1105,24 +1082,6 @@ export default function Motoristas() {
           </div>
         </div>
       )}
-
-      {/* Wizard de criação de motorista */}
-      <CreateMotoristaWizard
-        open={showCreateWizard}
-        onOpenChange={setShowCreateWizard}
-        veiculos={veiculos}
-        eventoId={eventoId || ''}
-        onSubmit={async (data) => {
-          const id = await handleSaveMotorista({
-            nome: data.nome,
-            telefone: data.telefone || null,
-            veiculo_id: data.veiculo_id || null,
-            ativo: true,
-            evento_id: eventoId,
-          });
-          return id;
-        }}
-      />
 
       {/* Modal para editar localização */}
       <EditarLocalizacaoModal
