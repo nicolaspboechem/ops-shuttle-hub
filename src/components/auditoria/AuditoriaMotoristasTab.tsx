@@ -22,7 +22,7 @@ export function AuditoriaMotoristasTab({ viagensFiltradas }: Props) {
     });
     return Array.from(map.values())
       .map(m => ({ ...m, mediaPax: m.viagens > 0 ? (m.pax / m.viagens).toFixed(1) : '0' }))
-      .sort((a, b) => b.viagens - a.viagens);
+      .sort((a, b) => b.viagens - a.viagens || b.pax - a.pax);
   }, [viagensFiltradas]);
 
   const handleExport = () => {
@@ -50,6 +50,7 @@ export function AuditoriaMotoristasTab({ viagensFiltradas }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 text-center">#</TableHead>
               <TableHead>Motorista</TableHead>
               <TableHead className="text-right">Total Viagens</TableHead>
               <TableHead className="text-right">Total PAX</TableHead>
@@ -59,11 +60,12 @@ export function AuditoriaMotoristasTab({ viagensFiltradas }: Props) {
           <TableBody>
             {motoristasData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nenhum dado</TableCell>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum dado</TableCell>
               </TableRow>
             ) : (
-              motoristasData.map((m) => (
+              motoristasData.map((m, idx) => (
                 <TableRow key={m.nome}>
+                  <TableCell className="text-center font-bold">{idx + 1}</TableCell>
                   <TableCell className="font-medium">{m.nome}</TableCell>
                   <TableCell className="text-right">{m.viagens}</TableCell>
                   <TableCell className="text-right">{m.pax}</TableCell>

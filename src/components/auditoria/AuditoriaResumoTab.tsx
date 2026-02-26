@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { Bus, Users, Truck, TrendingUp, Fuel } from 'lucide-react';
+import { Bus, Users, Truck, TrendingUp, Fuel, Trophy, Medal, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Viagem } from '@/lib/types/viagem';
 import { calcularTempoViagem } from '@/lib/utils/calculadores';
 import { formatarMinutos } from '@/lib/utils/calculadores';
+import * as XLSX from 'xlsx';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--status-ok))', 'hsl(var(--status-alert))', 'hsl(var(--status-critical))'];
 
@@ -52,6 +54,57 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
     });
     return Array.from(tipos.entries()).map(([name, value]) => ({ name, value }));
   }, [viagensFiltradas]);
+
+  const rankingMotoristas = useMemo(() => {
+    const map = new Map<string, { nome: string; viagens: number; pax: number }>();
+    viagensFiltradas.forEach(v => {
+      const nome = v.motorista || 'Não informado';
+      const existing = map.get(nome) || { nome, viagens: 0, pax: 0 };
+      existing.viagens += 1;
+      existing.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
+      map.set(nome, existing);
+    });
+    return Array.from(map.values())
+      .map(m => ({ ...m, mediaPax: m.viagens > 0 ? (m.pax / m.viagens).toFixed(1) : '0' }))
+      .sort((a, b) => b.viagens - a.viagens || b.pax - a.pax);
+  }, [viagensFiltradas]);
+
+  const rankingVeiculos = useMemo(() => {
+    const map = new Map<string, { placa: string; tipo: string; viagens: number; pax: number }>();
+    viagensFiltradas.forEach(v => {
+      const placa = v.placa || 'Sem placa';
+      const existing = map.get(placa) || { placa, tipo: v.tipo_veiculo || 'Outro', viagens: 0, pax: 0 };
+      existing.viagens += 1;
+      existing.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
+      map.set(placa, existing);
+    });
+    return Array.from(map.values()).sort((a, b) => b.viagens - a.viagens || b.pax - a.pax);
+  }, [viagensFiltradas]);
+
+  const getMedalColor = (pos: number) => {
+    if (pos === 0) return 'text-yellow-500';
+    if (pos === 1) return 'text-gray-400';
+    if (pos === 2) return 'text-amber-700';
+    return '';
+  };
+
+  const exportRankingMotoristas = () => {
+    const ws = XLSX.utils.json_to_sheet(rankingMotoristas.map((m, i) => ({
+      '#': i + 1, 'Motorista': m.nome, 'Total Viagens': m.viagens, 'Total PAX': m.pax, 'Média PAX/Viagem': m.mediaPax,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ranking Motoristas');
+    XLSX.writeFile(wb, 'ranking_motoristas.xlsx');
+  };
+
+  const exportRankingVeiculos = () => {
+    const ws = XLSX.utils.json_to_sheet(rankingVeiculos.map((v, i) => ({
+      '#': i + 1, 'Placa': v.placa, 'Tipo': v.tipo, 'Total Viagens': v.viagens, 'Total PAX': v.pax,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ranking Veículos');
+    XLSX.writeFile(wb, 'ranking_veiculos.xlsx');
+  };
 
   return (
     <div className="space-y-6">
@@ -168,6 +221,86 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
           </CardContent>
         </Card>
       </div>
+
+      {/* Ranking Motoristas */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            Ranking de Motoristas
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={exportRankingMotoristas}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12 text-center">#</TableHead>
+                <TableHead>Motorista</TableHead>
+                <TableHead className="text-right">Total Viagens</TableHead>
+                <TableHead className="text-right">Total PAX</TableHead>
+                <TableHead className="text-right">Média PAX/Viagem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rankingMotoristas.map((m, idx) => (
+                <TableRow key={m.nome} className={idx < 3 ? 'bg-muted/30' : ''}>
+                  <TableCell className="text-center">
+                    {idx < 3 ? <Medal className={`w-5 h-5 mx-auto ${getMedalColor(idx)}`} /> : <span className="font-bold">{idx + 1}</span>}
+                  </TableCell>
+                  <TableCell className="font-medium">{m.nome}</TableCell>
+                  <TableCell className="text-right">{m.viagens}</TableCell>
+                  <TableCell className="text-right">{m.pax}</TableCell>
+                  <TableCell className="text-right">{m.mediaPax}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Ranking Veículos */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Truck className="w-5 h-5" />
+            Ranking de Veículos
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={exportRankingVeiculos}>
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12 text-center">#</TableHead>
+                <TableHead>Placa</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Total Viagens</TableHead>
+                <TableHead className="text-right">Total PAX</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rankingVeiculos.map((v, idx) => (
+                <TableRow key={v.placa} className={idx < 3 ? 'bg-muted/30' : ''}>
+                  <TableCell className="text-center">
+                    {idx < 3 ? <Medal className={`w-5 h-5 mx-auto ${getMedalColor(idx)}`} /> : <span className="font-bold">{idx + 1}</span>}
+                  </TableCell>
+                  <TableCell className="font-mono font-medium">{v.placa}</TableCell>
+                  <TableCell>{v.tipo}</TableCell>
+                  <TableCell className="text-right">{v.viagens}</TableCell>
+                  <TableCell className="text-right">{v.pax}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Tabela Pontos */}
       <Card>
