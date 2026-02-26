@@ -1,211 +1,186 @@
 
-# Fase 2: Migrar Staff e Motoristas para Supabase Auth + Fechar RLS
 
-## Resumo da Situacao Atual
+# Plano: Limpeza Geral + Refatoracao da Aba Usuarios
 
-### Como funciona hoje (3 sistemas de auth separados)
+## Resumo
 
-```text
-ADMIN:      Email + Senha -> supabase.auth.signInWithPassword -> sessao Supabase Auth -> queries como "authenticated"
-STAFF:      Telefone + Senha -> edge function staff-login -> JWT custom -> localStorage -> queries como "anon"
-MOTORISTA:  Telefone + Senha -> edge function driver-login -> JWT custom -> localStorage -> queries como "anon"
+O sistema sera simplificado: todo cadastro de usuarios (Admin, Supervisor, Operador, Motorista, Cliente) sera feito na aba **Usuarios** (`/usuarios`). Dentro dos eventos, a pagina de Equipe apenas **vincula usuarios ja cadastrados** ao evento. A role "coordenador" sera eliminada. Tabelas e edge functions legadas de login de campo serao removidas.
+
+---
+
+## Fase 1: Refatorar a Pagina Usuarios (`/usuarios`)
+
+### 1.1 Exibir TODOS os usuarios (nao apenas admins)
+
+Atualmente a pagina filtra apenas admins (linha 107-109). Mudar para exibir todos os profiles.
+
+- Remover o filtro `adminUsers` que mostra apenas `user_type === 'admin'`
+- `filteredUsers` passa a usar `users` direto (todos)
+
+### 1.2 Adicionar filtros por tipo
+
+Adicionar abas ou Select de filtro acima da lista:
+- **Todos** | **Admin** | **Supervisor** | **Operador** | **Motorista** | **Cliente**
+- Integrar com a busca por texto ja existente
+
+### 1.3 Expandir modal "Criar Usuario" para todos os tipos
+
+Atualmente o modal so cria admins (email). Expandir:
+- Adicionar RadioGroup para selecionar tipo: Admin, Supervisor, Operador, Motorista, Cliente
+- **Admin**: login por email (manter comportamento atual)
+- **Outros tipos**: login por telefone + senha
+  - Campos: Nome, Telefone (com mascara ja existente), Senha, Confirmar Senha
+- Chamar edge function `create-user` com `login_type: 'phone'`, `user_type` correto
+- Apos criacao, exibir credenciais no modal existente
+
+### 1.4 Atualizar header e alerta
+
+- Titulo: "Usuarios do Sistema" (em vez de "Administradores do Sistema")
+- Botao: "Novo Usuario" (em vez de "Criar Admin")
+- Remover o alerta azul que diz "Para cadastrar equipe, va aos Eventos" (linhas 584-601)
+- Remover mencao a "Coordenador" em todo o arquivo
+
+### 1.5 Remover role "coordenador"
+
+- Remover `'coordenador'` do type `UserType` (linha 22)
+- Remover entrada `coordenador` de `USER_TYPE_CONFIG` (linha 49)
+- Remover opcao "Coordenador" do RadioGroup no modal de edicao (linhas 1044-1053)
+
+---
+
+## Fase 2: Refatorar Equipe do Evento (`EventoUsuarios.tsx`)
+
+### 2.1 Mudar "Adicionar Motorista" e "Adicionar Staff" para "Adicionar Equipe"
+
+Em vez de criar usuarios inline (com wizards de cadastro), a pagina deve:
+- Ter um unico botao **"Adicionar Equipe"**
+- Abrir um modal que lista **usuarios ja cadastrados** na aba Usuarios (buscar de `profiles`)
+- Permitir selecionar um usuario e vincular ao evento via `evento_usuarios` (ou `motoristas` se tipo motorista)
+- A role ja esta definida no cadastro do usuario
+
+### 2.2 Remover wizards de criacao inline
+
+- Remover `CreateMotoristaWizard` e `AddStaffWizard` da pagina
+- Remover `EditMotoristaLoginModal` e `EditStaffLoginModal` (login de campo nao existe mais)
+- Remover referencias a `has_login`, `KeyRound`, botoes "Criar Login"
+
+### 2.3 Simplificar `useEquipe.ts`
+
+- Remover busca de `motorista_credenciais` e `staff_credenciais`
+- Remover campo `has_login` do `EquipeMembro`
+- Stats: remover "Com Login"
+
+---
+
+## Fase 3: Limpeza do Banco de Dados (SQL)
+
+### 3.1 Limpar dados de credenciais
+
+```sql
+DELETE FROM motorista_credenciais;
+DELETE FROM staff_credenciais;
 ```
 
-### Dados existentes
-- 51 motoristas com credenciais (SHA-256 custom hash, senhas nao recuperaveis)
-- 8 staff (7 supervisores + 1 operador) com credenciais (SHA-256 custom hash)
-- 25 admins ja em `auth.users`
-- Enum `app_role` atual: apenas `admin` e `user`
-- Staff e motoristas cadastrados pela aba "Equipe do Evento" (`/evento/:id/equipe`)
+### 3.2 Remover tabelas legadas
 
-### O que o usuario pediu
-1. Migrar TODOS para Supabase Auth oficial (sem login paralelo)
-2. Cadastro centralizado na aba **Usuarios** do painel principal (`/usuarios`)
-3. Ao cadastrar, escolher role: motorista, supervisor, cliente
-4. Usar os filtros ja existentes na pagina para definir permissoes
+```sql
+DROP TABLE IF EXISTS motorista_credenciais;
+DROP TABLE IF EXISTS staff_credenciais;
+```
 
----
+### 3.3 Remover policies `_field_temp` desnecessarias
 
-## Plano de Implementacao (9 etapas)
-
-### Etapa 1: Expandir enum `app_role` e criar funcoes auxiliares (Migration SQL)
-
-Adicionar novos valores ao enum `app_role`:
-- `motorista`
-- `supervisor`
-- `operador`
-- `cliente`
-
-Criar funcao auxiliar `has_event_access(user_id uuid, evento_id uuid)` que retorna `true` se:
-- O usuario e admin (`is_admin()`)
-- Existe registro em `evento_usuarios` vinculando esse usuario ao evento
-
-Criar funcao `get_user_role(user_id uuid)` que retorna o `app_role` do usuario.
-
-### Etapa 2: Atualizar edge function `create-user`
-
-A edge function `create-user` ja suporta criacao por telefone (`login_type: 'phone'`). Ajustes:
-- Ao criar usuario com `user_type` de campo (motorista/supervisor/operador/cliente), inserir o role correto no `user_roles` (usar os novos valores do enum expandido: `motorista`, `supervisor`, `operador`, `cliente` em vez de apenas `user`)
-- Manter criacao automatica de `motorista_credenciais` / `staff_credenciais` como backup durante transicao (sera removido depois)
-
-### Etapa 3: Atualizar edge functions `driver-register` e `staff-register`
-
-**`driver-register`**: Em vez de apenas criar credenciais na tabela custom:
-- Criar usuario em `auth.users` via `auth.admin.createUser({ phone, password, phone_confirm: true })`
-- Inserir role `motorista` em `user_roles`
-- Inserir em `evento_usuarios` com role `motorista`
-- Atualizar `motoristas.user_id` com o novo auth user id
-- Manter insert em `motorista_credenciais` como backup temporario
-
-**`staff-register`**: Mesmo padrao:
-- Criar usuario em `auth.users` via `auth.admin.createUser({ phone, password })`
-- Inserir role no `user_roles` (supervisor/operador/cliente)
-- Inserir em `evento_usuarios`
-- Manter insert em `staff_credenciais` como backup temporario
-
-### Etapa 4: Criar edge function `migrate-field-users`
-
-Edge function executada UMA VEZ para migrar os 59 usuarios existentes:
-
-Para cada `motorista_credenciais` e `staff_credenciais` ativo:
-1. Criar usuario em `auth.users` com telefone e senha temporaria: `As@` + ultimos 4 digitos do telefone
-2. Inserir em `user_roles` com role correto
-3. Inserir/atualizar `profiles` com dados existentes
-4. Inserir em `evento_usuarios` se nao existir
-5. Atualizar `motoristas.user_id` com novo auth user id
-6. Retornar relatorio com lista de usuarios migrados e suas senhas temporarias
-
-**Importante**: As senhas SHA-256 NAO podem ser revertidas. Os usuarios recebem senha temporaria e o admin comunica as novas credenciais.
-
-### Etapa 5: Atualizar pagina Usuarios (`/usuarios`)
-
-Atualmente a pagina `Usuarios.tsx`:
-- Mostra apenas admins (`adminUsers` filtra por `user_type === 'admin' || role === 'admin'`)
-- Permite criar apenas admins (email obrigatorio)
-
-**Alteracoes**:
-- Remover filtro que mostra apenas admins -- exibir TODOS os usuarios
-- Adicionar abas/filtro por tipo: Admin, Supervisor, Operador, Motorista, Cliente (usar os filtros ja existentes na interface)
-- No modal de criacao ("Novo Usuario"), adicionar:
-  - Selecao de role (Admin, Supervisor, Operador, Motorista, Cliente)
-  - Se role = Admin: login por email (manter comportamento atual)
-  - Se role != Admin: login por telefone + selecao de evento para vincular
-- Chamar `create-user` com `login_type: 'phone'`, `user_type`, e `evento_id`
-- Exibir credenciais apos criacao (telefone + senha)
-- Adicionar acoes: editar role, resetar senha, vincular/desvincular de evento
-
-### Etapa 6: Atualizar AuthContext para suportar roles de campo
-
-Expandir `AuthContext.tsx`:
-- Adicionar `fieldRole: string | null` (motorista/supervisor/operador/cliente)
-- Adicionar `motoristaId: string | null` (se role = motorista, buscar de `motoristas.user_id`)
-- Em `fetchUserData`, buscar tambem:
-  - Role real de `user_roles` (agora pode ser motorista/supervisor/etc)
-  - Se motorista, buscar `motorista_id` de `motoristas` onde `user_id` = auth user id
-- Adicionar metodos auxiliares: `isFieldUser`, `isMotorist`, `isSupervisor`
-
-### Etapa 7: Atualizar login pages e routes
-
-**`LoginMotorista.tsx`**:
-- Substituir `useDriverAuth().signIn()` por `supabase.auth.signInWithPassword({ phone: '+55' + phoneDigits, password })`
-- Apos login, buscar `motoristas` onde `user_id` = auth user id para obter `evento_id` e `motorista_id`
-- Redirecionar para `/app/{eventoId}/motorista`
-
-**`LoginEquipe.tsx`**:
-- Substituir `useStaffAuth().signIn()` por `supabase.auth.signInWithPassword({ phone: '+55' + phoneDigits, password })`
-- Apos login, buscar `evento_usuarios` para obter `evento_id` e `role`
-- Redirecionar para `/app/{eventoId}/{role}`
-
-**`DriverRoute.tsx`**:
-- Substituir verificacao de `useDriverAuth()` por `useAuth()` + verificar role = motorista
-
-**`StaffRoute.tsx`**:
-- Substituir verificacao de `useStaffAuth()` por `useAuth()` + verificar role em allowedRoles
-
-**`App.tsx`**:
-- Remover `DriverAuthProvider` e `StaffAuthProvider` do wrapper
-- Mover rota `/app/:eventoId/motorista` para dentro do `AuthLayout`
-- Todas as rotas de campo agora usam Supabase Auth
-
-### Etapa 8: Atualizar componentes de campo
-
-| Arquivo | Alteracao |
-|---|---|
-| `AppMotorista.tsx` | `useDriverAuth()` -> `useAuth()` + `motoristaId` do context |
-| `AppOperador.tsx` | `useStaffAuth()` -> `useAuth()` |
-| `AppSupervisor.tsx` | `useStaffAuth()` -> `useAuth()` |
-| `useViagemOperacaoMotorista.ts` | `useDriverAuth()` -> `useAuth()` |
-| `CreateViagemMotoristaForm.tsx` | `useDriverAuth()` -> `useAuth()` |
-| `useCurrentUser.ts` | Remover consumo de StaffAuthContext e DriverAuthContext |
-
-### Etapa 9: Fechar RLS completamente (Migration SQL final)
-
-Com todos os usuarios em `auth.users`, remover TODAS as politicas `USING (true)` restantes e aplicar:
-
-| Tabela | SELECT | INSERT | UPDATE | DELETE |
-|---|---|---|---|---|
-| viagens | `authenticated + has_event_access` | `authenticated + has_event_access` | `authenticated + has_event_access` | `is_admin` |
-| missoes | `authenticated + has_event_access` | `authenticated + has_event_access` | `authenticated + has_event_access` | `is_admin` |
-| viagem_logs | `authenticated` | `authenticated` | - | - |
-| motorista_presenca | `authenticated + has_event_access` | `authenticated + has_event_access` | `authenticated + has_event_access` | `is_admin` |
-| alertas_frota | `authenticated + has_event_access` | `authenticated + has_event_access` | `authenticated + has_event_access` | `is_admin` |
-| veiculo_fotos | `authenticated` | `authenticated` | `authenticated` | `is_admin` |
-| veiculo_vistoria_historico | `authenticated` | `authenticated` | `authenticated` | `is_admin` |
-| motoristas | `authenticated + has_event_access` | `is_admin` | `authenticated + has_event_access` | `is_admin` |
-| veiculos | `authenticated + has_event_access` | `is_admin` | `authenticated + has_event_access` | `is_admin` |
-| motorista_credenciais | `is_admin` | `is_admin` | `is_admin` | `is_admin` |
-| staff_credenciais | `is_admin` | `is_admin` | `is_admin` | `is_admin` |
-
-Remover politicas `_field_temp` criadas na Fase 1.
+```sql
+DROP POLICY IF EXISTS "motoristas_update_field_temp" ON motoristas;
+DROP POLICY IF EXISTS "veiculos_update_field_temp" ON veiculos;
+```
 
 ---
 
-## Arquivos afetados
+## Fase 4: Remover Edge Functions Legadas
 
-### Novos (2)
-- `supabase/functions/migrate-field-users/index.ts`
-- 2 migrations SQL (enum + funcoes auxiliares + RLS final)
+### Funcoes a deletar (5):
+1. `driver-login`
+2. `driver-register`
+3. `staff-login`
+4. `staff-register`
+5. `migrate-field-users`
 
-### Modificados (~15)
-- `supabase/functions/create-user/index.ts` -- roles expandidos
-- `supabase/functions/driver-register/index.ts` -- criar em auth.users
-- `supabase/functions/staff-register/index.ts` -- criar em auth.users
-- `supabase/config.toml` -- adicionar migrate-field-users
-- `src/pages/Usuarios.tsx` -- mostrar todos usuarios, cadastro com role
-- `src/lib/auth/AuthContext.tsx` -- suportar roles de campo
-- `src/hooks/useCurrentUser.ts` -- simplificar
-- `src/pages/LoginMotorista.tsx` -- usar Supabase Auth
-- `src/pages/LoginEquipe.tsx` -- usar Supabase Auth
-- `src/components/auth/DriverRoute.tsx` -- usar useAuth()
-- `src/components/auth/StaffRoute.tsx` -- usar useAuth()
-- `src/App.tsx` -- remover providers custom
-- `src/pages/app/AppMotorista.tsx` -- usar useAuth()
-- `src/pages/app/AppOperador.tsx` -- usar useAuth()
-- `src/pages/app/AppSupervisor.tsx` -- usar useAuth()
-- `src/hooks/useViagemOperacaoMotorista.ts` -- usar useAuth()
-- `src/components/app/CreateViagemMotoristaForm.tsx` -- usar useAuth()
+### Atualizar `supabase/config.toml`:
+- Remover entradas dessas 5 funcoes
 
-### Removidos (2 arquivos, edge functions desativadas)
-- `src/lib/auth/DriverAuthContext.tsx` -- substituido por AuthContext
-- `src/lib/auth/StaffAuthContext.tsx` -- substituido por AuthContext
-- Edge functions `driver-login` e `staff-login` serao desativadas no `config.toml`
+### Remover secret:
+- `DRIVER_JWT_SECRET` (nao mais necessario)
 
 ---
 
-## Sequencia de execucao
+## Fase 5: Remover Paginas e Rotas de Login de Campo
+
+### Arquivos a deletar:
+- `src/pages/LoginMotorista.tsx`
+- `src/pages/LoginEquipe.tsx`
+- `src/components/auth/DriverRoute.tsx`
+- `src/components/auth/StaffRoute.tsx`
+- `src/components/equipe/EditMotoristaLoginModal.tsx`
+- `src/components/equipe/EditStaffLoginModal.tsx`
+
+### Atualizar `src/App.tsx`:
+- Remover imports e rotas de `/login/motorista`, `/login/equipe`
+- Remover imports de `DriverRoute` e `StaffRoute`
+- Rotas de campo (`/app/:eventoId/*`) protegidas apenas com `AdminRoute`
+
+---
+
+## Fase 6: Limpar AuthContext
+
+- Remover campos de campo (`fieldRole`, `motoristaId`, `isFieldUser`, etc.) se existirem
+- Simplificar para focar em admin auth + role check
+
+---
+
+## Fase 7: Limpar Documentacao
+
+- Deletar `RELATORIO_OTIMIZACAO.md`
+- Atualizar `.lovable/plan.md` com resumo da arquitetura atual simplificada
+
+---
+
+## Resumo de Impacto
+
+```text
+DELETAR:
+  Paginas: LoginMotorista, LoginEquipe
+  Componentes: DriverRoute, StaffRoute, EditMotoristaLoginModal, EditStaffLoginModal
+  Edge Functions: driver-login, driver-register, staff-login, staff-register, migrate-field-users
+  Tabelas DB: motorista_credenciais, staff_credenciais
+  Doc: RELATORIO_OTIMIZACAO.md
+
+MODIFICAR:
+  Usuarios.tsx - cadastro universal com filtros + remover coordenador
+  EventoUsuarios.tsx - vincular usuarios existentes em vez de criar
+  useEquipe.ts - remover busca de credenciais
+  App.tsx - remover rotas e imports legados
+  AuthContext.tsx - simplificar
+  config.toml - remover funcoes
+  create-user (edge function) - remover referencia a coordenador
+  .lovable/plan.md - atualizar
+
+PRESERVAR (dados operacionais intactos):
+  motoristas (69 registros de dados)
+  veiculos, viagens, evento_usuarios
+  Coluna viagens.coordenador (varchar, dado historico)
+```
+
+### Sequencia de execucao
 
 | Passo | Acao | Risco |
 |---|---|---|
-| 1 | Migration SQL: expandir enum + criar funcoes auxiliares | Nenhum (aditivo) |
-| 2 | Atualizar `create-user` para usar roles expandidos | Baixo |
-| 3 | Atualizar `driver-register` e `staff-register` para criar em auth.users | Baixo (novos cadastros) |
-| 4 | Criar `migrate-field-users` e executar migracao | Alto (irreversivel) |
-| 5 | Atualizar `Usuarios.tsx` com cadastro centralizado | Medio |
-| 6 | Atualizar `AuthContext` com suporte a roles de campo | Medio (core auth) |
-| 7 | Atualizar login pages e routes | Alto (quebra login antigo) |
-| 8 | Atualizar componentes de campo | Medio |
-| 9 | Migration SQL: fechar RLS completo | Alto (deve ser apos migracao) |
+| 1 | Refatorar Usuarios.tsx (cadastro universal + filtros) | Medio |
+| 2 | Refatorar EventoUsuarios.tsx (vincular em vez de criar) | Medio |
+| 3 | Simplificar useEquipe.ts | Baixo |
+| 4 | Migration SQL: limpar credenciais + drop tables + remover policies temp | Baixo |
+| 5 | Deletar edge functions legadas | Baixo |
+| 6 | Deletar paginas/componentes de login de campo | Baixo |
+| 7 | Atualizar App.tsx e AuthContext | Medio |
+| 8 | Limpar documentacao | Nenhum |
 
-## Nota sobre senhas
-
-As senhas existentes estao em hash SHA-256 custom e NAO podem ser revertidas. A migracao define senha temporaria padrao (`As@` + ultimos 4 digitos do telefone) para todos os usuarios de campo. O admin devera comunicar as novas credenciais a equipe. Apos o primeiro login, cada usuario pode manter a senha temporaria ou o admin pode resetar individualmente via a pagina Usuarios.
