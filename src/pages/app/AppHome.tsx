@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Evento } from '@/lib/types/viagem';
-import { Bus, LogOut, Loader2, Radio, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity, ClipboardCheck, ShieldCheck, BarChart3 } from 'lucide-react';
+import { Bus, LogOut, Loader2, ChevronRight, MapPin, Calendar, LayoutDashboard, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
@@ -19,7 +19,6 @@ export default function AppHome() {
   const { user, signOut, profile, isAdmin, getEventRole } = useAuth();
   const navigate = useNavigate();
   const [eventos, setEventos] = useState<EventoWithCount[]>([]);
-  const [selectedEvento, setSelectedEvento] = useState<EventoWithCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'motorista' | 'operador' | 'supervisor' | 'cliente' | null>(null);
 
@@ -45,9 +44,6 @@ export default function AppHome() {
       const eventosWithCounts = await fetchViagensCount(data || []);
       
       setEventos(eventosWithCounts);
-      if (eventosWithCounts && eventosWithCounts.length === 1) {
-        setSelectedEvento(eventosWithCounts[0]);
-      }
       setLoading(false);
     } else {
       const { data: linkedEvents, error } = await supabase
@@ -81,22 +77,8 @@ export default function AppHome() {
       
       // Auto-redirect for non-admin with 1 event
       if (eventosWithCounts && eventosWithCounts.length === 1) {
-        const evento = eventosWithCounts[0];
-        const role = getEventRole(evento.id);
-        
-        if (role === 'motorista') {
-          navigate(`/app/${evento.id}/motorista`);
-          return;
-        } else if (role === 'operador') {
-          navigate(`/app/${evento.id}/operador`);
-          return;
-        } else if (role === 'supervisor') {
-          navigate(`/app/${evento.id}/supervisor`);
-          return;
-        } else if (role === 'cliente') {
-          navigate(`/app/${evento.id}/cliente`);
-          return;
-        }
+        navigate(`/app/${eventosWithCounts[0].id}`);
+        return;
       }
       
       setLoading(false);
@@ -130,51 +112,11 @@ export default function AppHome() {
   };
 
   const handleSelectEvento = (evento: Evento) => {
-    // Admin can choose mode
-    if (isAdmin) {
-      setSelectedEvento(evento);
-      return;
-    }
-
-    // Non-admin: redirect directly based on role
-    const role = getEventRole(evento.id);
-    if (role === 'operador') {
-      navigate(`/app/${evento.id}/operador`);
-    } else if (role === 'motorista') {
-      navigate(`/app/${evento.id}/motorista`);
-    } else if (role === 'supervisor') {
-      navigate(`/app/${evento.id}/supervisor`);
-    } else if (role === 'cliente') {
-      navigate(`/app/${evento.id}/cliente`);
-    }
-  };
-
-  const handleMotorista = () => {
-    if (selectedEvento) {
-      navigate(`/app/${selectedEvento.id}/motorista`);
-    }
-  };
-
-  const handleOperador = () => {
-    if (selectedEvento) {
-      navigate(`/app/${selectedEvento.id}/operador`);
-    }
+    navigate(`/app/${evento.id}`);
   };
 
   const handleCCO = () => {
     navigate('/eventos');
-  };
-
-  const handleSupervisor = () => {
-    if (selectedEvento) {
-      navigate(`/app/${selectedEvento.id}/supervisor`);
-    }
-  };
-
-  const handleCliente = () => {
-    if (selectedEvento) {
-      navigate(`/app/${selectedEvento.id}/cliente`);
-    }
   };
 
   const getDateRange = (evento: Evento) => {
@@ -251,7 +193,7 @@ export default function AppHome() {
               </Button>
             )}
           </div>
-        ) : !selectedEvento && !isAdmin ? (
+        ) : !isAdmin ? (
           /* Painel de Eventos para Operadores/Motoristas (múltiplos eventos) */
           <div className="space-y-6">
             <div className="text-center space-y-2">
@@ -306,11 +248,7 @@ export default function AppHome() {
                         </div>
                         <div className="flex flex-col items-end gap-2">
                           <Badge variant={role === 'operador' ? 'default' : 'secondary'} className="text-xs">
-                            {role === 'operador' ? (
-                              <><Radio className="h-3 w-3 mr-1" />Operador</>
-                            ) : (
-                              <><Bus className="h-3 w-3 mr-1" />Motorista</>
-                            )}
+                            {role || 'motorista'}
                           </Badge>
                           {evento.viagensAtivas !== undefined && evento.viagensAtivas > 0 && (
                             <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
@@ -327,7 +265,7 @@ export default function AppHome() {
               })}
             </div>
           </div>
-        ) : !selectedEvento && isAdmin ? (
+        ) : isAdmin ? (
           /* Grid de Eventos para Admin */
           <div className="space-y-6">
             <div className="text-center space-y-2">
@@ -396,135 +334,6 @@ export default function AppHome() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          </div>
-        ) : selectedEvento && isAdmin ? (
-          /* Modo de Operação - Apenas para Admin */
-          <div className="space-y-6">
-            {/* Hero do Evento */}
-            {selectedEvento.imagem_banner && (
-              <div className="aspect-[3/1] rounded-xl overflow-hidden">
-                <img
-                  src={selectedEvento.imagem_banner}
-                  alt={selectedEvento.nome_planilha}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              {eventos.length > 1 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-muted-foreground -ml-2 mb-2"
-                  onClick={() => setSelectedEvento(null)}
-                >
-                  ← Trocar evento
-                </Button>
-              )}
-              <h2 className="text-2xl font-bold">{selectedEvento.nome_planilha}</h2>
-              {selectedEvento.local && (
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span>{selectedEvento.local}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Modos de Operação */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold">Selecione o modo</h3>
-
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={handleMotorista}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Bus className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Motorista</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Registrar minhas viagens
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
-                onClick={handleOperador}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Radio className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Operador</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Criar e controlar viagens
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:border-amber-500/50 hover:shadow-md transition-all"
-                onClick={handleSupervisor}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-                    <ShieldCheck className="h-6 w-6 text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Supervisor</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Vistoria e gestão de veículos
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:border-cyan-500/50 hover:shadow-md transition-all"
-                onClick={handleCliente}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                    <BarChart3 className="h-6 w-6 text-cyan-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Cliente</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Dashboard estratégico
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all border-primary/30 bg-primary/5"
-                onClick={() => navigate(`/evento/${selectedEvento.id}/dashboard`)}
-              >
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                    <LayoutDashboard className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">Painel CCO</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Dashboard e controle completo
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
             </div>
           </div>
         ) : null}

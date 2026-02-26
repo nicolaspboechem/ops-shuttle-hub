@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
 import { NotificationsProvider } from "@/hooks/useNotifications";
@@ -84,10 +84,7 @@ const Operacao = lazyRetry(() => import("./pages/Operacao"));
 const Auditoria = lazyRetry(() => import("./pages/Auditoria"));
 const MapaServico = lazyRetry(() => import("./pages/MapaServico"));
 const AppHome = lazyRetry(() => import("./pages/app/AppHome"));
-const AppMotorista = lazyRetry(() => import("./pages/app/AppMotorista"));
-const AppCliente = lazyRetry(() => import("./pages/app/AppCliente"));
-const AppOperador = lazyRetry(() => import("./pages/app/AppOperador"));
-const AppSupervisor = lazyRetry(() => import("./pages/app/AppSupervisor"));
+const AppEvento = lazyRetry(() => import("./pages/app/AppEvento"));
 const PainelPublico = lazyRetry(() => import("./pages/PainelPublico"));
 const PainelLocalizador = lazyRetry(() => import("./pages/PainelLocalizador"));
 const Suporte = lazyRetry(() => import("./pages/Suporte"));
@@ -133,6 +130,12 @@ function AuthLayout() {
   );
 }
 
+// Redirect legacy /app/:eventoId/motorista etc. to /app/:eventoId
+function LegacyAppRedirect() {
+  const { eventoId } = useParams();
+  return <Navigate to={`/app/${eventoId}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -161,21 +164,17 @@ const App = () => (
               {/* App Hub */}
               <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
 
-              {/* Field apps — Admin only now */}
-              <Route path="/app/:eventoId/motorista" element={
-                <AdminRoute><AppMotorista /></AdminRoute>
-              } />
-              <Route path="/app/:eventoId/operador" element={
-                <AdminRoute><AppOperador /></AdminRoute>
-              } />
-              <Route path="/app/:eventoId/supervisor" element={
-                <AdminRoute><AppSupervisor /></AdminRoute>
-              } />
-              <Route path="/app/:eventoId/cliente" element={
-                <AdminRoute><AppCliente /></AdminRoute>
-              } />
+              {/* Unified field app — resolves role automatically */}
+              <Route path="/app/:eventoId" element={<ProtectedRoute><AppEvento /></ProtectedRoute>} />
+
+              {/* Legacy field routes — redirect to unified path */}
+              <Route path="/app/:eventoId/motorista" element={<LegacyAppRedirect />} />
+              <Route path="/app/:eventoId/operador" element={<LegacyAppRedirect />} />
+              <Route path="/app/:eventoId/supervisor" element={<LegacyAppRedirect />} />
+              <Route path="/app/:eventoId/cliente" element={<LegacyAppRedirect />} />
+
               <Route path="/app/:eventoId/vincular-veiculo/:motoristaId" element={
-                <AdminRoute><VincularVeiculo /></AdminRoute>
+                <ProtectedRoute><VincularVeiculo /></ProtectedRoute>
               } />
 
               {/* Admin Routes (CCO) */}
