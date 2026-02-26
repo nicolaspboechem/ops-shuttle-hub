@@ -1,55 +1,99 @@
 
 
-# Limpeza bidirecional de usuarios e dados orfaos
+# AppOperador: Acesso Total com Cards Corretos por Tipo
 
-## Problema encontrado
+## Resumo
 
-Ao investigar o banco, encontrei dados orfaos significativos:
+Refatorar o AppOperador para suportar todos os tipos de viagem do evento, usando o card correto para cada tipo:
 
-- **10 profiles** sem usuario correspondente no Supabase Auth (foram deletados do Auth mas ficaram na tabela profiles)
-- **5 usuarios no Auth** sem profile correspondente (criados mas profile nao foi gerado)
-- **6 registros em evento_usuarios** referenciando usuarios que nao existem mais no Auth
+- **Shuttle e Transfer**: usam `ViagemCardOperador` (lifecycle: iniciar, chegada, retorno, encerrar)
+- **Missao**: usa o sistema de missoes existente (`useMissoes`, `MissaoCardMobile`) - mesmo formato que funciona no Rio Open e no AppSupervisor
 
-A edge function `delete-user` ja deleta do Supabase Auth, mas referencia uma tabela `staff_credenciais` que nao existe (erro silencioso).
+## Arquivos Alterados
 
-## Plano de acao
+### 1. `src/components/app/NewActionModal.tsx`
 
-### 1. Limpeza imediata dos dados orfaos (SQL direto)
+- Substituir prop `hideShuttle?: boolean` por `tiposHabilitados?: string[]`
+- Filtrar botoes dinamicamente: so mostra Missao/Deslocamento se `missao` habilitado, Transfer se `transfer` habilitado, Shuttle se `shuttle` habilitado
+- Fallback: se `tiposHabilitados` nao informado, mostra todos (compatibilidade)
 
-Executar queries para limpar:
-- Deletar os 10 profiles orfaos (sem auth.users correspondente)
-- Deletar os 6 evento_usuarios orfaos
-- Deletar user_roles e user_permissions orfaos (se houver)
-- Os 5 auth.users sem profile serao tratados na edge function (criando profile ou deletando)
+### 2. `src/pages/app/AppOperador.tsx`
 
-IDs dos profiles orfaos a remover:
-- `2bf77817...`, `5909cfe2...`, `c3e2c2c3...`, `62162a57...`, `ba2fad6e...`, `551c8825...`, `27477205...`, `ab19f36d...`, `c5bd8d01...`, `8ba25828...`
+**Query e dados:**
+- Buscar `tipos_viagem_habilitados` do evento na query de carregamento
+- Remover filtro fixo `tipoOperacao: 'shuttle'` do `useViagens` - carregar todas as viagens
+- Adicionar `useMissoes(eventoId)` para carregar missoes (se missao habilitada)
+- Adicionar `useMotoristas(eventoId)` e `usePontosEmbarque(eventoId)` para os formularios
 
-### 2. Corrigir edge function `delete-user`
+**Filtro por abas internas (pills):**
+- Adicionar state `filtroTipo: string | null` (null = todos)
+- Renderizar pills horizontais: `[Todos] [Shuttle] [Transfer] [Missao]`
+- So mostrar pills dos tipos presentes em `tipos_viagem_habilitados`
+- Se apenas 1 tipo habilitado, nao mostrar pills
+- Filtrar viagens e missoes pelo tipo selecionado
 
-- Remover referencia a tabela `staff_credenciais` (nao existe)
-- Garantir que a exclusao global (sem evento_id) sempre deleta: profile, user_roles, user_permissions, evento_usuarios, e auth.users
-- Remover a logica condicional que verifica "outras associacoes" antes de deletar - quando o admin exclui um usuario da tela global de Usuarios, deve ser exclusao completa
+**Botao "+" (nova operacao):**
+- Se 1 tipo habilitado: abrir formulario direto (Shuttle->CreateShuttleForm, Transfer->CreateViagemForm, Missao->MissaoInstantaneaModal)
+- Se 2+ tipos: abrir `NewActionModal` com `tiposHabilitados`
+- Tratar `handleActionSelect`: missao->MissaoInstantaneaModal, deslocamento->MissaoDeslocamentoModal, transfer/shuttle->CreateViagemForm/CreateShuttleForm
 
-### 3. Criar edge function de limpeza de orfaos
+**Renderizacao de cards:**
+- Viagens (transfer/shuttle) ativas: `ViagemCardOperador` (com lifecycle completo via swipe/botoes)
+- Missoes ativas: `MissaoCardMobile` (aceitar, iniciar, concluir - mesmo formato do AppMotorista/AppSupervisor)
+- Viagens encerradas (shuttle): `ShuttleRegistroCard` (card compacto existente)
+- Viagens encerradas (transfer): card compacto similar
+- Missoes concluidas: card compacto de missao
 
-Criar uma funcao `cleanup-orphans` que:
-- Identifica profiles sem auth.users e os remove
-- Identifica evento_usuarios sem auth.users e os remove
-- Identifica auth.users sem profiles e cria os profiles faltantes (ou deleta se forem lixo)
-- Pode ser chamada manualmente pelo admin ou via cron
+**Imports adicionais:**
+- `NewActionModal`, `CreateViagemForm`, `MissaoInstantaneaModal`, `MissaoDeslocamentoModal`
+- `useMissoes`, `useMotoristas`, `usePontosEmbarque`
+- `MissaoCardMobile`
+- `ViagemCardOperador`
 
-### 4. Ajustar frontend (Usuarios.tsx)
+**Metricas (summary cards):**
+- Refletir o filtro ativo
+- Se filtro = todos: totais gerais
+- Se filtro = shuttle: PAX ida/volta
+- Se filtro = missao: pendentes/em andamento/concluidas
 
-- Apos deletar usuario, forcar refetch dos dados para garantir sincronia
-- Ja esta funcionando corretamente (chama edge function sem evento_id = exclusao total)
+### 3. `src/components/app/CreateShuttleForm.tsx`
 
-## Resumo tecnico de arquivos
+Adicionar campos para shuttle com lifecycle completo:
+- **Veiculo** (combobox com busca nos veiculos do evento)
+- **Ponto A / Origem** (combobox dos pontos de embarque)
+- **Ponto B / Destino** (combobox dos pontos de embarque)
+- Manter campos existentes: PAX, observacao
+- Gravar `veiculo_id`, `ponto_embarque`, `ponto_desembarque` na viagem
+- Props adicionais: receber lista de veiculos e pontos do AppOperador
 
-| Arquivo | Acao |
-|---|---|
-| SQL (limpeza) | Deletar profiles, evento_usuarios e dados orfaos |
-| `supabase/functions/delete-user/index.ts` | Remover ref a staff_credenciais, simplificar exclusao global |
-| `supabase/functions/cleanup-orphans/index.ts` | Nova funcao para limpeza periodica |
-| `supabase/config.toml` | Adicionar config da nova funcao |
+### 4. `src/pages/app/AppSupervisor.tsx`
 
+- Buscar `tipos_viagem_habilitados` do evento (ja busca evento, so adicionar o campo)
+- Passar `tiposHabilitados={evento?.tipos_viagem_habilitados}` para `NewActionModal`
+
+## Fluxo por Tipo
+
+### Shuttle (no operador)
+1. Operador toca "+"
+2. Abre CreateShuttleForm com: veiculo, ponto A, ponto B, PAX, obs
+3. Viagem criada com status `em_andamento`
+4. Card `ViagemCardOperador` aparece com botoes: Chegou -> Aguardar Retorno/Encerrar -> Retorno -> Encerrar
+5. Ao encerrar, vira `ShuttleRegistroCard` compacto
+
+### Transfer (no operador)
+1. Operador toca "+"
+2. Abre CreateViagemForm (mesmo do supervisor)
+3. Card `ViagemCardOperador` com lifecycle: Iniciar -> Chegou -> Encerrar
+
+### Missao (no operador)
+1. Operador toca "+"
+2. Abre MissaoInstantaneaModal (mesmo do supervisor)
+3. Card `MissaoCardMobile` com lifecycle: aceitar -> iniciar -> concluir
+4. Funciona exatamente como no Rio Open
+
+## Ordem de Implementacao
+
+1. `NewActionModal` - nova prop `tiposHabilitados`
+2. `CreateShuttleForm` - adicionar campos veiculo, ponto A, ponto B
+3. `AppOperador` - refatoracao completa
+4. `AppSupervisor` - passar `tiposHabilitados`
