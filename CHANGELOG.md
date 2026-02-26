@@ -5,6 +5,14 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [3.0.0] - 2026-02-26
+
+### Alterado
+- Rota única de campo `/app/:eventoId` com redirecionamento automático por role
+- Layout fixo estilo app nativo (header e bottom nav fixos, conteúdo com scroll isolado)
+- Redirecionamento inteligente pós-login por dispositivo e role
+- Remoção da seleção manual de modo para admins no hub de eventos
+
 ## [2.2.0] - 2026-02-26
 
 ### Alterado
