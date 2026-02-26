@@ -1,7 +1,7 @@
-import { Car, Bus, Plus, MapPin, MoreHorizontal } from 'lucide-react';
+import { Car, Bus, Plus, MapPin, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type SupervisorTabId = 'frota' | 'viagens' | 'nova' | 'localizador' | 'mais';
+export type SupervisorTabId = 'frota' | 'viagens' | 'nova' | 'localizador' | 'historico';
 
 interface NavTab {
   id: SupervisorTabId;
@@ -15,7 +15,7 @@ const tabs: NavTab[] = [
   { id: 'viagens', label: 'Viagens', icon: Bus },
   { id: 'nova', label: 'Nova', icon: Plus, isAction: true },
   { id: 'localizador', label: 'Local', icon: MapPin },
-  { id: 'mais', label: 'Mais', icon: MoreHorizontal },
+  { id: 'historico', label: 'Histórico', icon: ClipboardList },
 ];
 
 interface SupervisorBottomNavProps {

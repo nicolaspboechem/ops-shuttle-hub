@@ -28,7 +28,7 @@ import {
 
 
 import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
-import { CreateViagemMotoristaForm } from '@/components/app/CreateViagemMotoristaForm';
+// CreateViagemMotoristaForm removed - motorista only receives missions
 import { CheckinCheckoutCard } from '@/components/app/CheckinCheckoutCard';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
 import { TutorialPopover } from '@/components/app/TutorialPopover';
@@ -522,22 +522,7 @@ export default function AppMotorista() {
       case 'veiculo':
         return <MotoristaVeiculoTab veiculo={veiculoExibir} eventoId={eventoId} motoristaId={motoristaData?.id} />;
 
-      case 'corrida':
-        return (
-          <CreateViagemMotoristaForm
-            open={true}
-            onOpenChange={(open) => {
-              if (!open) setActiveTab('inicio');
-            }}
-            eventoId={eventoId!}
-            motoristaName={nomeMotorista}
-            onCreated={() => {
-              refetch();
-              setActiveTab('inicio');
-            }}
-            embedded // Nova prop para renderizar inline
-          />
-        );
+      // 'corrida' tab removed - motorista only receives missions
 
       case 'historico':
         return (
