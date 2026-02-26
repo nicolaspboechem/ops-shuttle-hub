@@ -4,13 +4,23 @@ import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
+import { useMissoes } from '@/hooks/useMissoes';
+import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
+import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useServerTime } from '@/hooks/useServerTime';
 import { useUserNames } from '@/hooks/useUserNames';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Evento, Viagem } from '@/lib/types/viagem';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { CreateShuttleForm } from '@/components/app/CreateShuttleForm';
+import { CreateViagemForm } from '@/components/app/CreateViagemForm';
+import { NewActionModal, ActionType } from '@/components/app/NewActionModal';
+import { MissaoInstantaneaModal } from '@/components/motoristas/MissaoInstantaneaModal';
+import { MissaoDeslocamentoModal } from '@/components/motoristas/MissaoDeslocamentoModal';
+import { MissaoCardMobile } from '@/components/app/MissaoCardMobile';
+import { ViagemCardOperador } from '@/components/app/ViagemCardOperador';
 import { ShuttleCardOperador } from '@/components/app/ShuttleCardOperador';
 import { ShuttleEncerrarModal } from '@/components/app/ShuttleEncerrarModal';
 import { PullToRefresh } from '@/components/app/PullToRefresh';
@@ -25,7 +35,9 @@ import {
   Users,
   RefreshCw,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Target,
+  ArrowRightLeft
 } from 'lucide-react';
 import logoAS from '@/assets/as_logo_reduzida_branca.png';
 import { format } from 'date-fns';
@@ -33,26 +45,39 @@ import { format } from 'date-fns';
 const MemoizedHistoricoTab = memo(OperadorHistoricoTab);
 const MemoizedMaisTab = memo(OperadorMaisTab);
 
-// Card simples para shuttle encerrado
-function ShuttleRegistroCard({ viagem, getName }: { viagem: Viagem; getName: (id: string) => string }) {
+// Card simples para viagem encerrada (shuttle ou transfer)
+function ViagemEncerradaCard({ viagem, getName }: { viagem: Viagem; getName: (id: string) => string }) {
   const horario = viagem.h_inicio_real 
     ? format(new Date(viagem.h_inicio_real), 'HH:mm')
     : '--:--';
   const criador = viagem.criado_por ? getName(viagem.criado_por) : '';
   const nomeViagem = viagem.coordenador;
+  const isShuttle = viagem.tipo_operacao === 'shuttle';
 
   return (
     <div className="bg-card border rounded-lg px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <div className="bg-primary/10 rounded-full p-1.5 shrink-0">
-            <Users className="h-4 w-4 text-primary" />
+            {isShuttle ? (
+              <Users className="h-4 w-4 text-primary" />
+            ) : (
+              <ArrowRightLeft className="h-4 w-4 text-primary" />
+            )}
           </div>
           <div className="min-w-0">
             {nomeViagem && <p className="text-sm font-medium truncate">{nomeViagem}</p>}
+            {!nomeViagem && viagem.ponto_embarque && (
+              <p className="text-sm font-medium truncate">{viagem.ponto_embarque} → {viagem.ponto_desembarque || '?'}</p>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-base font-bold">{viagem.qtd_pax || 0}↑</span>
-              <span className="text-base font-bold text-muted-foreground">{viagem.qtd_pax_retorno || 0}↓</span>
+              {isShuttle && (
+                <span className="text-base font-bold text-muted-foreground">{viagem.qtd_pax_retorno || 0}↓</span>
+              )}
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {viagem.tipo_operacao}
+              </Badge>
             </div>
           </div>
         </div>
@@ -72,30 +97,87 @@ function ShuttleRegistroCard({ viagem, getName }: { viagem: Viagem; getName: (id
   );
 }
 
+// Filter pills component
+function FiltroTipoPills({ tipos, filtroAtivo, onChange }: {
+  tipos: string[];
+  filtroAtivo: string | null;
+  onChange: (tipo: string | null) => void;
+}) {
+  if (tipos.length <= 1) return null;
+
+  const labels: Record<string, string> = {
+    shuttle: 'Shuttle',
+    transfer: 'Transfer',
+    missao: 'Missão',
+  };
+
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      <button
+        onClick={() => onChange(null)}
+        className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+          filtroAtivo === null
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-muted-foreground hover:bg-accent'
+        }`}
+      >
+        Todos
+      </button>
+      {tipos.map(tipo => (
+        <button
+          key={tipo}
+          onClick={() => onChange(tipo)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            filtroAtivo === tipo
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-accent'
+          }`}
+        >
+          {labels[tipo] || tipo}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function AppOperador() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const { getAgoraSync } = useServerTime();
   
-  const [evento, setEvento] = useState<Evento | null>(null);
-  const [showShuttleForm, setShowShuttleForm] = useState(false);
+  const [evento, setEvento] = useState<(Evento & { tipos_viagem_habilitados?: string[] | null }) | null>(null);
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   const [viagemParaEncerrar, setViagemParaEncerrar] = useState<Viagem | null>(null);
+  const [filtroTipo, setFiltroTipo] = useState<string | null>(null);
+  
+  // Modals
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showShuttleForm, setShowShuttleForm] = useState(false);
+  const [showViagemForm, setShowViagemForm] = useState(false);
+  const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
+  const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
     getDataOperacional(getAgoraSync(), '04:00')
   );
   const [verTodosDias, setVerTodosDias] = useState(false);
   
+  const tiposHabilitados = useMemo(() => 
+    evento?.tipos_viagem_habilitados || ['shuttle'],
+    [evento?.tipos_viagem_habilitados]
+  );
+
   useEffect(() => {
     if (evento?.horario_virada_dia) {
       setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
     }
   }, [evento?.horario_virada_dia, getAgoraSync]);
 
+  // No more shuttle-only filter
   const viagensOptions = useMemo(() => {
-    const opts: any = { tipoOperacao: 'shuttle' };
+    const opts: any = {};
     if (!verTodosDias) {
       opts.dataOperacional = dataOperacional;
       opts.horarioVirada = evento?.horario_virada_dia || '04:00';
@@ -103,18 +185,53 @@ export default function AppOperador() {
     return opts;
   }, [dataOperacional, evento?.horario_virada_dia, verTodosDias]);
 
-  const { viagens, loading, refreshing, refetch } = useViagens(eventoId, viagensOptions);
+  const { viagens, loading, refreshing, refetch: refetchViagens } = useViagens(eventoId, viagensOptions);
 
-  // Separar ativas vs encerradas
+  // Missões (only if missao is enabled)
+  const hasMissao = tiposHabilitados.includes('missao');
+  const { 
+    missoesAtivas, 
+    missoesConcluidas,
+    missoesCanceladas,
+    createMissao, 
+    aceitarMissao, 
+    iniciarMissao, 
+    concluirMissao,
+    refetch: refetchMissoes,
+  } = useMissoes(hasMissao ? eventoId : undefined);
+
+  // Motoristas, veículos e pontos para formulários
+  const { motoristas } = useMotoristas(eventoId);
+  const { veiculos } = useVeiculos(eventoId);
+  const { pontos } = usePontosEmbarque(eventoId);
+
+  // Filter viagens by selected tipo
+  const viagensFiltradas = useMemo(() => {
+    if (!filtroTipo || filtroTipo === 'missao') return viagens;
+    return viagens.filter(v => v.tipo_operacao === filtroTipo);
+  }, [viagens, filtroTipo]);
+
+  // Separate active vs finished
   const viagensAtivas = useMemo(() => 
-    viagens.filter(v => !v.encerrado && v.status !== 'cancelado' && v.status !== 'encerrado'),
-    [viagens]
+    viagensFiltradas.filter(v => !v.encerrado && v.status !== 'cancelado' && v.status !== 'encerrado'),
+    [viagensFiltradas]
   );
 
   const viagensEncerradas = useMemo(() => 
-    viagens.filter(v => v.encerrado || v.status === 'encerrado' || v.status === 'cancelado'),
-    [viagens]
+    viagensFiltradas.filter(v => v.encerrado || v.status === 'encerrado' || v.status === 'cancelado'),
+    [viagensFiltradas]
   );
+
+  // Missões filtradas
+  const missoesAtivasFiltradas = useMemo(() => {
+    if (filtroTipo && filtroTipo !== 'missao') return [];
+    return missoesAtivas;
+  }, [missoesAtivas, filtroTipo]);
+
+  const missoesFinalizadasFiltradas = useMemo(() => {
+    if (filtroTipo && filtroTipo !== 'missao') return [];
+    return [...missoesConcluidas, ...missoesCanceladas];
+  }, [missoesConcluidas, missoesCanceladas, filtroTipo]);
 
   // Get creator names
   const creatorIds = useMemo(() => 
@@ -125,16 +242,16 @@ export default function AppOperador() {
 
   // Summary metrics
   const summary = useMemo(() => {
-    const totalPaxIda = viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
-    const totalPaxVolta = viagens.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0);
+    const totalPaxIda = viagensFiltradas.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
+    const totalPaxVolta = viagensFiltradas.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0);
     return {
-      total: viagens.length,
-      ativas: viagensAtivas.length,
+      total: viagensFiltradas.length + missoesAtivasFiltradas.length + missoesFinalizadasFiltradas.length,
+      ativas: viagensAtivas.length + missoesAtivasFiltradas.length,
       totalPaxIda,
       totalPaxVolta,
       totalPax: totalPaxIda + totalPaxVolta,
     };
-  }, [viagens, viagensAtivas]);
+  }, [viagensFiltradas, viagensAtivas, missoesAtivasFiltradas, missoesFinalizadasFiltradas]);
 
   // Sort by most recent first
   const sortedAtivas = useMemo(() => 
@@ -153,14 +270,17 @@ export default function AppOperador() {
   const { visibleItems: encerradasVisiveis, hasMore: hasMoreEnc, loadMore: loadMoreEnc, total: totalEnc, pageSize: pageSizeEnc, setPageSize: setPageSizeEnc } = usePaginatedList(sortedEncerradas);
 
   const handleRefresh = async () => {
-    await refetch();
+    await Promise.all([
+      refetchViagens(),
+      hasMissao ? refetchMissoes() : Promise.resolve(),
+    ]);
   };
 
   useEffect(() => {
     if (eventoId) {
       supabase
         .from('eventos')
-        .select('*')
+        .select('*, tipos_viagem_habilitados')
         .eq('id', eventoId)
         .single()
         .then(({ data }) => setEvento(data));
@@ -174,9 +294,30 @@ export default function AppOperador() {
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
-      setShowShuttleForm(true);
+      // If only 1 type enabled, open its form directly
+      if (tiposHabilitados.length === 1) {
+        const tipo = tiposHabilitados[0];
+        if (tipo === 'shuttle') setShowShuttleForm(true);
+        else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowViagemForm(true); }
+        else if (tipo === 'missao') setShowMissaoInstantanea(true);
+      } else {
+        setShowActionModal(true);
+      }
     } else {
       setActiveTab(tab);
+    }
+  };
+
+  const handleActionSelect = (tipo: ActionType) => {
+    if (tipo === 'missao') {
+      setShowMissaoInstantanea(true);
+    } else if (tipo === 'deslocamento') {
+      setShowMissaoDeslocamento(true);
+    } else if (tipo === 'shuttle') {
+      setShowShuttleForm(true);
+    } else {
+      setPreselectedTipo(tipo);
+      setShowViagemForm(true);
     }
   };
 
@@ -204,6 +345,9 @@ export default function AppOperador() {
     );
   }
 
+  const hasNoData = sortedAtivas.length === 0 && sortedEncerradas.length === 0 
+    && missoesAtivasFiltradas.length === 0 && missoesFinalizadasFiltradas.length === 0;
+
   const renderAllTabs = () => (
     <>
       {/* Tab: Viagens */}
@@ -219,12 +363,19 @@ export default function AppOperador() {
             onToggleTodosDias={setVerTodosDias}
           />
 
+          {/* Filter pills */}
+          <FiltroTipoPills
+            tipos={tiposHabilitados}
+            filtroAtivo={filtroTipo}
+            onChange={setFiltroTipo}
+          />
+
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-card border rounded-lg p-4 text-center">
               <Bus className="h-5 w-5 mx-auto mb-1 text-primary" />
               <p className="text-2xl font-bold">{summary.total}</p>
-              <p className="text-xs text-muted-foreground">{summary.ativas > 0 ? `${summary.ativas} ativas` : 'Viagens'}</p>
+              <p className="text-xs text-muted-foreground">{summary.ativas > 0 ? `${summary.ativas} ativas` : 'Operações'}</p>
             </div>
             <div className="bg-card border rounded-lg p-4 text-center">
               <Users className="h-5 w-5 mx-auto mb-1 text-primary" />
@@ -243,18 +394,36 @@ export default function AppOperador() {
             </div>
           </div>
 
-  {/* Viagens ativas */}
+          {/* Missões ativas (only when showing missao filter or all) */}
+          {missoesAtivasFiltradas.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Missões Ativas ({missoesAtivasFiltradas.length})
+              </h2>
+              {missoesAtivasFiltradas.map(missao => (
+                <MissaoCardMobile
+                  key={missao.id}
+                  missao={missao}
+                  dataOperacional={dataOperacional}
+                  onAceitar={() => aceitarMissao(missao.id)}
+                  onIniciar={() => iniciarMissao(missao.id)}
+                  onFinalizar={() => concluirMissao(missao.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Viagens ativas (shuttle/transfer) */}
           {sortedAtivas.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Em andamento ({sortedAtivas.length})
               </h2>
               {ativasVisiveis.map(viagem => (
-                <ShuttleCardOperador
+                <ViagemCardOperador
                   key={viagem.id}
                   viagem={viagem}
-                  getName={getName}
-                  onEncerrar={setViagemParaEncerrar}
+                  onUpdate={refetchViagens}
                 />
               ))}
               <LoadMoreFooter
@@ -268,23 +437,23 @@ export default function AppOperador() {
             </div>
           )}
 
-          {/* Viagens encerradas */}
+          {/* Encerradas */}
           <div className="space-y-2">
-            {sortedEncerradas.length > 0 && (
+            {(sortedEncerradas.length > 0 || missoesFinalizadasFiltradas.length > 0) && (
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Encerradas ({sortedEncerradas.length})
+                Encerradas ({sortedEncerradas.length + missoesFinalizadasFiltradas.length})
               </h2>
             )}
-            {sortedAtivas.length === 0 && sortedEncerradas.length === 0 ? (
+            {hasNoData ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Bus className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">Nenhum shuttle</p>
+                <p className="text-lg font-medium">Nenhuma operação</p>
                 <p className="text-sm mb-4">Toque em + para registrar</p>
               </div>
             ) : (
               <>
                 {encerradasVisiveis.map(viagem => (
-                  <ShuttleRegistroCard 
+                  <ViagemEncerradaCard 
                     key={viagem.id} 
                     viagem={viagem}
                     getName={getName}
@@ -363,23 +532,80 @@ export default function AppOperador() {
         onTabChange={handleTabChange} 
       />
 
+      {/* Action Type Modal */}
+      <NewActionModal
+        open={showActionModal}
+        onOpenChange={setShowActionModal}
+        onSelect={handleActionSelect}
+        tiposHabilitados={tiposHabilitados}
+      />
+
+      {/* Shuttle Form */}
       <CreateShuttleForm
         open={showShuttleForm}
         onOpenChange={setShowShuttleForm}
         eventoId={eventoId!}
+        veiculos={veiculos}
+        pontos={pontos}
         onCreated={() => {
-          refetch();
+          refetchViagens();
           setActiveTab('viagens');
         }}
       />
 
+      {/* Transfer/Viagem Form */}
+      <CreateViagemForm
+        open={showViagemForm}
+        onOpenChange={setShowViagemForm}
+        eventoId={eventoId!}
+        defaultTipoOperacao={preselectedTipo}
+        onCreated={() => {
+          setShowViagemForm(false);
+          refetchViagens();
+          setActiveTab('viagens');
+        }}
+      />
+
+      {/* Missão Instantânea */}
+      {hasMissao && (
+        <MissaoInstantaneaModal
+          open={showMissaoInstantanea}
+          onOpenChange={setShowMissaoInstantanea}
+          motoristas={motoristas}
+          pontos={pontos}
+          horarioVirada={evento?.horario_virada_dia || undefined}
+          onSave={async (data) => {
+            await createMissao(data);
+          }}
+        />
+      )}
+
+      {/* Missão Deslocamento */}
+      {hasMissao && (
+        <MissaoDeslocamentoModal
+          open={showMissaoDeslocamento}
+          onOpenChange={setShowMissaoDeslocamento}
+          motoristas={motoristas}
+          pontos={pontos}
+          horarioVirada={evento?.horario_virada_dia || undefined}
+          onSave={async (data) => {
+            const missao = await createMissao(data);
+            if (missao?.id) {
+              await aceitarMissao(missao.id);
+              await iniciarMissao(missao.id);
+            }
+          }}
+        />
+      )}
+
+      {/* Shuttle Encerrar (legacy) */}
       <ShuttleEncerrarModal
         open={!!viagemParaEncerrar}
         onOpenChange={(val) => { if (!val) setViagemParaEncerrar(null); }}
         viagem={viagemParaEncerrar}
         onEncerrado={() => {
           setViagemParaEncerrar(null);
-          refetch();
+          refetchViagens();
         }}
       />
     </div>
