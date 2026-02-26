@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Loader2, LogIn, Phone, Mail } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
 
 type LoginMode = 'email' | 'phone';
@@ -16,18 +17,18 @@ export default function Auth() {
   
   const { signIn, user, loading: authLoading, isAdmin, eventRoles } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (user && !authLoading) {
       if (isAdmin) {
-        navigate('/eventos', { replace: true });
-      } else if (eventRoles.length > 0) {
-        navigate('/app', { replace: true });
+        // Admin desktop -> CCO, Admin mobile -> hub de eventos
+        navigate(isMobile ? '/app' : '/eventos', { replace: true });
       } else {
         navigate('/app', { replace: true });
       }
     }
-  }, [user, authLoading, navigate, isAdmin, eventRoles]);
+  }, [user, authLoading, navigate, isAdmin, isMobile]);
 
   const formatPhoneForAuth = (phone: string): string => {
     const digits = phone.replace(/\D/g, '');
