@@ -1,53 +1,51 @@
 
 
-# Auditoria de Abastecimento - Analise Completa por Veiculo
+# Auto-Finalizar Eventos pela Data de Termino
 
-## Contexto dos Dados
+## Problema
 
-Temos 138 alertas de combustivel no evento, com niveis registrados: `1/4` (28), `1/2` (60), `3/4` (23), `cheio` (26), `vazio` (1). Cada alerta tem veiculo, motorista, nivel e timestamp. Isso permite montar KPIs reais de consumo e comportamento de abastecimento.
+O evento Rio Open 2026 tem `data_fim = 2026-02-25` mas continua com status `ativo`. A edge function `close-open-trips` nao verifica a data de termino do evento, portanto nunca o encerra automaticamente. Isso deixa viagens abertas, veiculos vinculados e motoristas com presenca ativa apos o fim do evento.
 
-## Alteracoes
+## Solucao
 
-### 1. Novo hook: `src/hooks/useAlertasFrotaDetalhado.ts`
+Adicionar um **Bloco 0** (executado ANTES dos outros blocos) na edge function `close-open-trips` que:
 
-Busca todos os alertas do evento com JOINs (veiculo nome/placa/tipo, motorista nome), retornando dados completos para analise no frontend.
+1. Busca eventos ativos que possuem `data_fim` definida
+2. Para cada evento onde `data_fim < data operacional atual` (ja passou):
+   - Encerra TODAS as viagens abertas do evento
+   - Desvincula TODOS os veiculos de motoristas (bidirecional)
+   - Fecha TODAS as presencas ativas (checkout automatico)
+   - Altera o status do evento para `finalizado`
+   - Registra desvinculacoes no historico de vistoria
 
-Query: `alertas_frota` com select de `*, veiculo:veiculos!veiculo_id(nome, placa, tipo_veiculo), motorista:motoristas!motorista_id(nome)` filtrado por `evento_id`.
+3. Eventos finalizados sao removidos do array de eventos ativos, evitando processamento duplicado nos blocos seguintes
 
-### 2. Reestruturar `AuditoriaAbastecimentoTab.tsx`
+## Logica de verificacao
 
-Manter os 4 cards de resumo no topo e adicionar abaixo:
+A condicao para finalizar considera o horario de virada: o evento so e considerado encerrado apos a virada do dia seguinte ao `data_fim`. Exemplo: se `data_fim = 2026-02-25` e virada = `04:50`, o evento sera finalizado a partir de `2026-02-26 04:50`.
 
-**Tabela "Abastecimento por Veiculo"** (principal):
-- Coluna `#` (posicao, ordenado por total alertas DESC)
-- Coluna `Veiculo` (nome destaque + placa secundaria)
-- Coluna `Total Alertas`
-- Coluna `Nivel Medio` (media ponderada: reserva=0, 1/4=25, 1/2=50, 3/4=75, cheio=100 - mostrado como %)
-- Coluna `Alertas Criticos` (contagem de niveis 1/4 + reserva/vazio)
-- Coluna `Motoristas` (quantidade de motoristas distintos que reportaram)
-- Coluna `Status` (badge: todos resolvidos = verde, pendentes = vermelho)
-- Medalhas top 3 (veiculos com MAIS alertas = mais consumo)
-- Botao exportar Excel
+```text
+data_fim = 2026-02-25
+virada   = 04:50
+agora    = 2026-02-26 10:00 (SP)
+data_op  = 2026-02-26
 
-**Cards de KPIs adicionais** (antes da tabela):
-- `Veiculos Monitorados` - total de veiculos distintos com alertas
-- `Media Alertas/Veiculo` - total alertas / veiculos distintos
-- `Alertas Criticos (1/4 ou menos)` - soma de alertas com nivel 1/4 + vazio/reserva
-- `Distribuicao` - mini resumo: X em 1/4, Y em 1/2, Z em 3/4, W cheio
+2026-02-26 > 2026-02-25 --> FINALIZAR
+```
 
-### 3. Atualizar `Auditoria.tsx`
+## Arquivo modificado
 
-Passar `eventoId` como prop para `AuditoriaAbastecimentoTab` (alem dos totais ja existentes), para que o componente possa buscar os dados detalhados via hook.
+`supabase/functions/close-open-trips/index.ts` - Adicionar Bloco 0 antes do Bloco 1, incluindo:
+- Fetch de `data_fim` no select de eventos (ja busca `id, horario_virada_dia, nome_planilha`, adicionar `data_fim`)
+- Loop que identifica eventos expirados
+- Para cada evento expirado:
+  - UPDATE viagens SET encerrado=true, status='encerrado' WHERE evento_id=X AND encerrado=false
+  - SELECT motoristas com veiculo_id != null, e para cada um: limpar motorista.veiculo_id e veiculo.motorista_id + inserir historico
+  - UPDATE motorista_presenca SET checkout_at=now WHERE evento_id=X AND checkout_at IS NULL
+  - UPDATE motoristas SET status='indisponivel' WHERE evento_id=X
+  - UPDATE eventos SET status='finalizado' WHERE id=X
+- Filtrar esses eventos do array antes de passar para os blocos 1-4
 
-## Arquivos modificados
+## Efeito imediato
 
-1. `src/hooks/useAlertasFrotaDetalhado.ts` - **novo** - hook para buscar alertas completos
-2. `src/components/auditoria/AuditoriaAbastecimentoTab.tsx` - reestruturar com tabela por veiculo e KPIs
-3. `src/pages/Auditoria.tsx` - passar eventoId para AuditoriaAbastecimentoTab
-
-## Detalhes tecnicos
-
-- Calculos de nivel medio feitos no frontend com mapa de conversao: `{ 'vazio': 0, 'reserva': 0, '1/4': 25, '1/2': 50, '3/4': 75, 'cheio': 100 }`
-- Agrupamento por `veiculo_id` usando Map no useMemo
-- Exportacao Excel com xlsx (ja instalado)
-- Ordenacao por total de alertas DESC (veiculos que mais consumiram)
+Ao chamar a function apos o deploy, o Rio Open 2026 sera automaticamente finalizado, todas as viagens encerradas, veiculos desvinculados e motoristas liberados.
