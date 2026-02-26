@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.auto-checkout]
 verify_jwt = false
+
+[functions.migrate-field-users]
+verify_jwt = false

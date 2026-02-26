@@ -241,8 +241,15 @@ serve(async (req) => {
       }, { onConflict: 'user_id' });
     }
 
-    // Definir role baseado no tipo de usuário (upsert para evitar conflito com trigger)
-    const role = user_type === 'admin' ? 'admin' : 'user';
+    // Definir role baseado no tipo de usuário usando enum expandido
+    const roleMap: Record<string, string> = {
+      admin: 'admin',
+      motorista: 'motorista',
+      supervisor: 'supervisor',
+      operador: 'operador',
+      cliente: 'cliente',
+    };
+    const role = roleMap[user_type] || 'user';
     await supabaseAdmin.from('user_roles').upsert({
       user_id: newUserId,
       role: role,
