@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, Loader2, Mail, Truck, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, AlertCircle, Loader2, LogIn, Phone, Mail } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
 
+type LoginMode = 'email' | 'phone';
+
 export default function Auth() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<LoginMode>('email');
   
   const { signIn, user, loading: authLoading, isAdmin, eventRoles } = useAuth();
   const navigate = useNavigate();
@@ -26,16 +29,23 @@ export default function Auth() {
     }
   }, [user, authLoading, navigate, isAdmin, eventRoles]);
 
+  const formatPhoneForAuth = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('55')) return `+${digits}`;
+    return `+55${digits}`;
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const { error } = await signIn(email, password, 'email');
+    const loginIdentifier = mode === 'phone' ? formatPhoneForAuth(identifier) : identifier;
+    const { error } = await signIn(loginIdentifier, password, mode);
     
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
-        setError('Email ou senha inválidos');
+        setError(mode === 'phone' ? 'Telefone ou senha inválidos' : 'Email ou senha inválidos');
       } else if (error.message.includes('Email not confirmed')) {
         setError('Email não confirmado. Verifique sua caixa de entrada.');
       } else {
@@ -44,6 +54,12 @@ export default function Auth() {
     }
     
     setLoading(false);
+  };
+
+  const switchMode = (newMode: LoginMode) => {
+    setMode(newMode);
+    setIdentifier('');
+    setError('');
   };
 
   if (authLoading) {
@@ -75,7 +91,7 @@ export default function Auth() {
         />
       </div>
 
-      {/* Card with glowing border */}
+      {/* Card */}
       <div className="w-full max-w-[420px] relative z-10">
         <div 
           className="relative rounded-2xl p-8 border border-[#2a3f6f]/60"
@@ -84,24 +100,51 @@ export default function Auth() {
             boxShadow: '0 0 30px rgba(67, 97, 238, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
           }}
         >
-          {/* Subtle inner glow */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
             
           {/* Header */}
           <div className="relative mb-6">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-full bg-[#4361ee]/20 flex items-center justify-center">
-                <Mail className="w-5 h-5 text-[#4361ee]" />
+                <LogIn className="w-5 h-5 text-[#4361ee]" />
               </div>
               <div>
                 <h2 className="text-[22px] font-bold text-white">
-                  Área Administrativa
+                  Acesso ao Sistema
                 </h2>
                 <p className="text-sm text-gray-400">
-                  Centro de Controle Operacional
+                  CCO - Centro de Controle Operacional
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="relative flex rounded-lg bg-[#1a2340] p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => switchMode('email')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-[13px] font-medium transition-all ${
+                mode === 'email'
+                  ? 'bg-[#4361ee] text-white shadow-md'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <Mail className="w-4 h-4" />
+              E-mail
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('phone')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-[13px] font-medium transition-all ${
+                mode === 'phone'
+                  ? 'bg-[#4361ee] text-white shadow-md'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <Phone className="w-4 h-4" />
+              Telefone
+            </button>
           </div>
 
           {error && (
@@ -113,18 +156,18 @@ export default function Auth() {
 
           <form onSubmit={handleSignIn} className="space-y-5 relative">
             <div className="space-y-2">
-              <label htmlFor="email-login" className="block text-[13px] font-medium text-gray-400">
-                E-mail
+              <label htmlFor="identifier-login" className="block text-[13px] font-medium text-gray-400">
+                {mode === 'email' ? 'E-mail' : 'Telefone'}
               </label>
               <input
-                id="email-login"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier-login"
+                type={mode === 'email' ? 'email' : 'tel'}
+                placeholder={mode === 'email' ? 'seu@email.com' : '(11) 99999-9999'}
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 style={{ boxShadow: '0 0 10px rgba(67, 97, 238, 0.1)' }}
                 required
-                autoComplete="email"
+                autoComplete={mode === 'email' ? 'email' : 'tel'}
                 disabled={loading}
                 className="w-full h-11 px-4 rounded-lg bg-[#f0f4ff] text-[#0a0e1a] border border-[#3b5998]/30 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4361ee] transition-all disabled:opacity-50"
               />
@@ -167,22 +210,13 @@ export default function Auth() {
             </button>
           </form>
 
-          {/* Other login options */}
-          <div className="mt-6 pt-5 border-t border-[#2a3f6f]/40 space-y-3">
-            <Link 
-              to="/login/equipe" 
-              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-[#4361ee] transition-colors"
-            >
-              <Users className="w-4 h-4" />
-              Equipe de campo (Supervisores/Operadores)
-            </Link>
-            <Link 
-              to="/login/motorista" 
-              className="flex items-center justify-center gap-2 text-[13px] text-gray-400 hover:text-[#22c55e] transition-colors"
-            >
-              <Truck className="w-4 h-4" />
-              Sou motorista
-            </Link>
+          {/* Hint */}
+          <div className="mt-6 pt-5 border-t border-[#2a3f6f]/40">
+            <p className="text-center text-[13px] text-gray-500">
+              {mode === 'email' 
+                ? 'Administradores acessam com e-mail' 
+                : 'Motoristas e equipe acessam com telefone'}
+            </p>
           </div>
         </div>
       </div>

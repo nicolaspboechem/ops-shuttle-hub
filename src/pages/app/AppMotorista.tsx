@@ -213,7 +213,7 @@ export default function AppMotorista() {
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/login/motorista');
+    navigate('/auth');
   };
 
   const handleMissaoAction = async (missaoId: string, action: 'aceitar' | 'iniciar' | 'recusar' | 'finalizar') => {
@@ -643,7 +643,7 @@ export default function AppMotorista() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/login/motorista')} className="text-primary-foreground hover:bg-white/10">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/auth')} className="text-primary-foreground hover:bg-white/10">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <img 

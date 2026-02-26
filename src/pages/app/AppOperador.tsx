@@ -301,7 +301,7 @@ export default function AppOperador() {
 
   const handleLogout = useCallback(async () => {
     await signOut();
-    navigate('/login/equipe');
+    navigate('/auth');
   }, [signOut, navigate]);
 
   const handleTabChange = (tab: OperadorTabId) => {
@@ -335,7 +335,7 @@ export default function AppOperador() {
 
   useEffect(() => {
     if (!user) {
-      navigate('/login/equipe');
+      navigate('/auth');
     }
   }, [user, navigate]);
 
