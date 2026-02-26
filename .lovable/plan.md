@@ -1,71 +1,77 @@
 
-# Corrigir bug de turnos com duracao impossivel (114h)
 
-## Problema raiz
+# Fechamento do Evento - Consolidacao da Auditoria
 
-O registro do Cassio em 11/02 tem:
-- `checkin_at`: 2026-02-11 19:46
-- `checkout_at`: 2026-02-16 14:02 (5 dias depois!)
+## Visao Geral
 
-Isso resulta em 114h calculadas para um unico turno. Ha tambem um segundo registro problematico:
-- data 14/02, checkin 15/02 07:58, checkout 16/02 14:02 (~30h)
+O plano consiste em duas acoes principais:
+1. **Encerrar as 11 viagens ainda "em_andamento"** no banco de dados (fechamento operacional)
+2. **Reestruturar a pagina Auditoria** (`src/pages/Auditoria.tsx`) para incluir abas com consolidacao de Viagens, Veiculos, Motoristas e Abastecimento
 
-Ambos parecem ser registros orfaos que receberam checkout tardio em massa.
+---
 
-## Correcao em 2 partes
+## Parte 1: Encerrar Viagens Pendentes (SQL)
 
-### Parte 1: Validacao no calculo (codigo)
+Existem **11 viagens** com status `em_andamento` que precisam ser encerradas para fechar o evento. Serao atualizadas para `status = 'encerrado'` e `encerrado = true`, com observacao de fechamento administrativo.
 
-**Arquivo: `src/hooks/useMotoristaPresencaHistorico.ts`**
+---
 
-Adicionar constante de duracao maxima razoavel:
-```
-const DURACAO_MAXIMA_TURNO_MINUTOS = 1440; // 24h - limite de sanidade
-```
+## Parte 2: Reestruturar a Pagina de Auditoria
 
-No loop de calculo (linhas 111-123), apos calcular `duracaoMin`, verificar se excede 24h:
-- Se `duracaoMin > 1440`: marcar como turno **anomalo**
-  - NAO somar nas horas trabalhadas
-  - NAO somar no saldo
-  - Incrementar novo contador `turnosAnomalos`
-- Se `duracaoMin <= 1440`: comportamento normal (turno completo)
+A pagina atual (`src/pages/Auditoria.tsx`) ja tem cards de totais, graficos e tabelas de pontos. O plano e:
 
-Adicionar campo `turnosAnomalos: number` na interface `MotoristaPresencaAgregado`.
+### 2.1 Adicionar sistema de abas (Tabs)
 
-Na secao de estatisticas gerais, aplicar a mesma validacao.
+Criar 4 abas dentro da pagina de Auditoria:
+- **Resumo Geral** (aba atual, com os cards de totais, graficos e tabela por pontos)
+- **Motoristas** (tabela consolidada com viagens e PAX por motorista)
+- **Veiculos** (tabela consolidada com viagens e PAX por veiculo, sem KM)
+- **Abastecimento** (resumo de alertas de combustivel)
 
-**Arquivo: `src/components/motoristas/MotoristaAuditoriaCard.tsx`**
+### 2.2 Aba "Resumo Geral" (reestruturar a existente)
 
-No card expandido (detalhamento dia a dia):
-- Para turnos com duracao > 24h: exibir badge **"ANOMALIA"** em vermelho/roxo
-- Mostrar a duracao calculada mas com indicador visual claro de que esta fora do padrao
-- NAO incluir na soma do card fechado
+Manter:
+- Cards de totais: Total Viagens, Total PAX, Veiculos utilizados, Motoristas ativos
+- Substituir card de "KM Total" por card de **"Alertas Combustivel"** (138 total, 134 resolvidos)
+- Graficos: Viagens/PAX por Hora e Viagens por Tipo de Veiculo (mantidos)
+- Tabela de Totais por Ponto de Embarque (mantida)
 
-No card fechado:
-- Se houver `turnosAnomalos > 0`, exibir contador como alerta adicional
+### 2.3 Aba "Motoristas"
 
-**Arquivo: `src/components/motoristas/MotoristasAuditoria.tsx`**
+Tabela ordenada por total de viagens:
+- Colunas: Motorista | Total Viagens | Total PAX | Media PAX/Viagem
+- Dados calculados a partir das viagens filtradas pelo tipo de operacao
+- Botao de exportar Excel
 
-- Adicionar metrica global de turnos anomalos nas estatisticas do topo
+### 2.4 Aba "Veiculos"
 
-### Parte 2: Limpeza dos dados (SQL)
+Tabela ordenada por total de viagens:
+- Colunas: Placa | Tipo | Total Viagens | Total PAX | Motorista vinculado
+- Sem KM (conforme solicitado)
+- Botao de exportar Excel
 
-Os 2 registros problematicos do Cassio precisam ser corrigidos manualmente. Apresentarei a query SQL separadamente para execucao no Cloud View, pois o plano proibe alteracao de dados pelo codigo.
+### 2.5 Aba "Abastecimento"
 
-Registros a corrigir:
-1. ID `3e3a5fdc` (data 11/02): checkout em 16/02 -- setar `checkout_at = NULL` e `observacao_checkout = 'Checkout removido - registro orfao fechado incorretamente'`
-2. ID `877c1ecd` (data 14/02, checkin 15/02): registro duplicado/orfao -- setar `checkout_at = NULL` e `observacao_checkout = 'Checkout removido - registro orfao fechado incorretamente'`
+Cards de resumo:
+- Total de alertas emitidos
+- Alertas resolvidos
+- Alertas ainda abertos
+- Taxa de resolucao (%)
 
-## Ordem de execucao
+Utiliza o hook `useAlertasFrota` ja existente, adicionando query para buscar alertas resolvidos (atualmente o hook so busca abertos/pendentes). Sera feita uma query direta para contagem consolidada.
 
-1. Alterar `useMotoristaPresencaHistorico.ts` -- adicionar validacao de duracao maxima e campo `turnosAnomalos`
-2. Alterar `MotoristaAuditoriaCard.tsx` -- badge de anomalia e exclusao da soma
-3. Alterar `MotoristasAuditoria.tsx` -- metrica global de anomalias
-4. Fornecer SQL de limpeza para execucao manual
+---
 
-## Resultado esperado
+## Arquivos a modificar
 
-- Turnos com duracao > 24h sao sinalizados como anomalias e NUNCA somados
-- O total de horas do Cassio reflete apenas os turnos reais (~12h cada)
-- Os registros orfaos sao limpos no banco
-- Qualquer novo registro orfao que receba checkout tardio sera automaticamente detectado
+1. **`src/pages/Auditoria.tsx`** - Reestruturar com Tabs (Resumo, Motoristas, Veiculos, Abastecimento), remover tabela de KM, adicionar tabelas de motoristas e veiculos, adicionar secao de abastecimento
+2. **SQL (insert tool)** - Encerrar 11 viagens pendentes
+
+## Detalhes tecnicos
+
+- Tabs usando `@radix-ui/react-tabs` (ja instalado e disponivel em `src/components/ui/tabs.tsx`)
+- Dados de abastecimento via query direta no Supabase (contagem total incluindo resolvidos)
+- Tabela de motoristas e veiculos calculadas no frontend a partir dos dados ja carregados (`useViagens`, `useCadastros`)
+- OperationTabs mantido para filtrar por tipo de operacao em todas as abas
+- Exportacao Excel com `xlsx` (ja instalado)
+
