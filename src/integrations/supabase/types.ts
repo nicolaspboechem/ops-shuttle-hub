@@ -1318,6 +1318,14 @@ export type Database = {
         Returns: Json
       }
       get_server_time: { Args: never; Returns: string }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_event_access: {
+        Args: { _evento_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["app_permission"]
@@ -1333,7 +1341,13 @@ export type Database = {
         | "edit_trips"
         | "manage_drivers_vehicles"
         | "export_data"
-      app_role: "admin" | "user"
+      app_role:
+        | "admin"
+        | "user"
+        | "motorista"
+        | "supervisor"
+        | "operador"
+        | "cliente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1467,7 +1481,14 @@ export const Constants = {
         "manage_drivers_vehicles",
         "export_data",
       ],
-      app_role: ["admin", "user"],
+      app_role: [
+        "admin",
+        "user",
+        "motorista",
+        "supervisor",
+        "operador",
+        "cliente",
+      ],
     },
   },
 } as const

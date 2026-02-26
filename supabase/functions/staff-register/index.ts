@@ -6,23 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Edge Runtime compatible password hashing using Web Crypto API
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password + saltHex);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  // Return format: $sha256$salt$hash
-  return `$sha256$${saltHex}$${hashHex}`;
-}
-
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -44,44 +28,96 @@ serve(async (req) => {
       );
     }
 
-    // Normalize phone number - keep only digits
     const phoneDigits = telefone.replace(/\D/g, '');
-    
-    // Create Supabase client with service role
+    const phoneFormatted = phoneDigits.startsWith('55') ? `+${phoneDigits}` : `+55${phoneDigits}`;
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { persistSession: false } }
     );
 
-    // Check if profile exists, if not create it
-    const { data: existingProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('user_id')
-      .eq('user_id', user_id)
-      .maybeSingle();
+    // Check if phone already exists in auth.users
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingAuthUser = existingUsers?.users?.find(u => u.phone === phoneFormatted);
 
-    if (!existingProfile) {
-      // Create profile
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          user_id,
-          full_name: full_name || 'Staff',
-          telefone: phoneDigits,
-          user_type: role,
-        });
+    let authUserId: string;
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
+    if (existingAuthUser) {
+      // Phone already exists - update password
+      authUserId = existingAuthUser.id;
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+        password: senha,
+      });
+      if (updateError) {
+        console.error('Error updating auth user:', updateError);
         return new Response(
-          JSON.stringify({ error: 'Erro ao criar perfil' }),
+          JSON.stringify({ error: 'Erro ao atualizar credenciais' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } else {
+      // Create new auth user
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        phone: phoneFormatted,
+        password: senha,
+        phone_confirm: true,
+        user_metadata: {
+          full_name: full_name || 'Staff',
+          role: role,
+        },
+      });
+
+      if (createError) {
+        console.error('Error creating auth user:', createError);
+        return new Response(
+          JSON.stringify({ error: `Erro ao criar usuário: ${createError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      authUserId = newUser.user.id;
     }
 
-    // Check if credentials already exist for this user+event
+    // Map role to app_role enum value
+    const roleMap: Record<string, string> = {
+      supervisor: 'supervisor',
+      operador: 'operador',
+      cliente: 'cliente',
+    };
+    const appRole = roleMap[role] || 'operador';
+
+    // Upsert role in user_roles
+    await supabaseAdmin.from('user_roles').upsert({
+      user_id: authUserId,
+      role: appRole,
+    }, { onConflict: 'user_id' });
+
+    // Upsert profile
+    await supabaseAdmin.from('profiles').upsert({
+      user_id: authUserId,
+      full_name: full_name || 'Staff',
+      telefone: phoneFormatted,
+      login_type: 'phone',
+      user_type: role,
+    }, { onConflict: 'user_id' });
+
+    // Link to event
+    const { data: existingLink } = await supabaseAdmin
+      .from('evento_usuarios')
+      .select('id')
+      .eq('user_id', authUserId)
+      .eq('evento_id', evento_id)
+      .maybeSingle();
+
+    if (!existingLink) {
+      await supabaseAdmin.from('evento_usuarios').insert({
+        evento_id,
+        user_id: authUserId,
+        role: role,
+      });
+    }
+
+    // Also maintain staff_credenciais as backup
     const { data: existingCred } = await supabaseAdmin
       .from('staff_credenciais')
       .select('id')
@@ -89,80 +125,32 @@ serve(async (req) => {
       .eq('evento_id', evento_id)
       .maybeSingle();
 
-    // Hash password using Edge-compatible method
-    const senhaHash = await hashPassword(senha);
+    const encoder = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+    const data = encoder.encode(senha + saltHex);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const senhaHash = `$sha256$${saltHex}$${hashHex}`;
 
     if (existingCred) {
-      // Update existing credentials
-      const { error: updateError } = await supabaseAdmin
+      await supabaseAdmin
         .from('staff_credenciais')
-        .update({
-          telefone: phoneDigits,
-          senha_hash: senhaHash,
-          role,
-          ativo: true,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ telefone: phoneDigits, senha_hash: senhaHash, role, ativo: true, updated_at: new Date().toISOString() })
         .eq('id', existingCred.id);
-
-      if (updateError) {
-        console.error('Error updating credentials:', updateError);
-        return new Response(
-          JSON.stringify({ error: 'Erro ao atualizar credenciais' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Credenciais atualizadas com sucesso',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if phone is already in use by another user in this event
-    const { data: phoneExists } = await supabaseAdmin
-      .from('staff_credenciais')
-      .select('id')
-      .eq('telefone', phoneDigits)
-      .eq('evento_id', evento_id)
-      .maybeSingle();
-
-    if (phoneExists) {
-      return new Response(
-        JSON.stringify({ error: 'Este telefone já está em uso neste evento' }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create new credentials
-    const { error: insertError } = await supabaseAdmin
-      .from('staff_credenciais')
-      .insert({
-        user_id,
-        evento_id,
-        telefone: phoneDigits,
-        senha_hash: senhaHash,
-        role,
-        ativo: true,
-      });
-
-    if (insertError) {
-      console.error('Error creating credentials:', insertError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao criar credenciais' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    } else {
+      await supabaseAdmin
+        .from('staff_credenciais')
+        .insert({ user_id, evento_id, telefone: phoneDigits, senha_hash: senhaHash, role, ativo: true });
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Credenciais criadas com sucesso',
+      JSON.stringify({
+        success: true,
+        message: existingAuthUser ? 'Credenciais atualizadas com sucesso' : 'Credenciais criadas com sucesso',
+        auth_user_id: authUserId,
       }),
-      { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: existingAuthUser ? 200 : 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
