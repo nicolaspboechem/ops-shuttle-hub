@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
@@ -434,6 +436,10 @@ export default function AppMotorista() {
   const hasContent = minhasMissoes.length > 0;
   const isIdentified = !!motoristaData;
 
+  // Pagination for missions and finalized trips
+  const { visibleItems: missoesVisiveis, hasMore: hasMoreMissoes, loadMore: loadMoreMissoes, total: totalMissoes, pageSize: pageSizeMissoes } = usePaginatedList(minhasMissoes, { defaultPageSize: 10 });
+  const { visibleItems: finalizadasVisiveis, hasMore: hasMoreFin, loadMore: loadMoreFin, total: totalFin, pageSize: pageSizeFin } = usePaginatedList(minhasViagensFinalizadas, { defaultPageSize: 10 });
+
   // Driver status indicator
   const getStatusInfo = () => {
     if (!motoristaData) return { label: 'Offline', color: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' };
@@ -477,7 +483,7 @@ export default function AppMotorista() {
                   <ClipboardList className="h-4 w-4 text-primary" />
                   <span>Missões Designadas ({minhasMissoes.length})</span>
                 </div>
-                {minhasMissoes.map(missao => {
+                {missoesVisiveis.map(missao => {
                   const temOutraAtiva = minhasMissoes.some(m =>
                     (m.status === 'aceita' || m.status === 'em_andamento') &&
                     m.id !== missao.id
@@ -496,6 +502,14 @@ export default function AppMotorista() {
                     />
                   );
                 })}
+                <LoadMoreFooter
+                  total={totalMissoes}
+                  visible={missoesVisiveis.length}
+                  hasMore={hasMoreMissoes}
+                  onLoadMore={loadMoreMissoes}
+                  pageSize={pageSizeMissoes}
+                  showPageSizeSelector={false}
+                />
               </div>
             )}
 
