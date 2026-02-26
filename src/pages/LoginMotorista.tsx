@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Loader2, Phone, ArrowLeft } from 'lucide-react';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
 import { maskPhone } from '@/lib/utils/formatPhone';
 
@@ -11,16 +11,37 @@ export default function LoginMotorista() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { signIn, isAuthenticated, driverSession, loading: authLoading } = useDriverAuth();
+  const [checkingSession, setCheckingSession] = useState(true);
   const navigate = useNavigate();
 
+  // Check existing session on mount
   useEffect(() => {
-    if (isAuthenticated && driverSession) {
-      // Redirect to driver app
-      navigate(`/app/${driverSession.evento_id}/motorista`, { replace: true });
-    }
-  }, [isAuthenticated, driverSession, navigate]);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        // Check if this user is a motorista
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+        
+        if (roleData?.role === 'motorista') {
+          const { data: eventoData } = await supabase
+            .from('evento_usuarios')
+            .select('evento_id')
+            .eq('user_id', session.user.id)
+            .limit(1)
+            .single();
+          
+          if (eventoData) {
+            navigate(`/app/${eventoData.evento_id}/motorista`, { replace: true });
+            return;
+          }
+        }
+      }
+      setCheckingSession(false);
+    });
+  }, [navigate]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTelefone(maskPhone(e.target.value));
@@ -38,16 +59,39 @@ export default function LoginMotorista() {
       return;
     }
 
-    const { error } = await signIn(phoneDigits, password);
+    const phone = '+55' + phoneDigits;
+    const { error: authError } = await supabase.auth.signInWithPassword({ phone, password });
     
-    if (error) {
-      setError(error.message || 'Celular ou senha inválidos');
+    if (authError) {
+      setError(authError.message || 'Celular ou senha inválidos');
+      setLoading(false);
+      return;
     }
-    
-    setLoading(false);
+
+    // After login, find evento and redirect
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Erro ao obter dados do usuário');
+      setLoading(false);
+      return;
+    }
+
+    const { data: eventoData } = await supabase
+      .from('evento_usuarios')
+      .select('evento_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
+
+    if (eventoData) {
+      navigate(`/app/${eventoData.evento_id}/motorista`, { replace: true });
+    } else {
+      setError('Nenhum evento vinculado ao seu usuário');
+      setLoading(false);
+    }
   };
 
-  if (authLoading) {
+  if (checkingSession) {
     return (
       <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#4361ee]" />

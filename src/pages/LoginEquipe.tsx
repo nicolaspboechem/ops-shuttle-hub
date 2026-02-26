@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Loader2, Phone, ArrowLeft, Users } from 'lucide-react';
-import { useStaffAuth } from '@/lib/auth/StaffAuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import logoASHorizontal from '@/assets/logo_as_horizontal.png';
 import { maskPhone } from '@/lib/utils/formatPhone';
 
@@ -11,16 +11,37 @@ export default function LoginEquipe() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const { signIn, isAuthenticated, staffSession, loading: authLoading } = useStaffAuth();
+  const [checkingSession, setCheckingSession] = useState(true);
   const navigate = useNavigate();
 
+  // Check existing session on mount
   useEffect(() => {
-    if (isAuthenticated && staffSession) {
-      // Redirect to appropriate app based on role
-      navigate(`/app/${staffSession.evento_id}/${staffSession.role}`, { replace: true });
-    }
-  }, [isAuthenticated, staffSession, navigate]);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+        
+        const role = roleData?.role;
+        if (role && ['supervisor', 'operador', 'cliente'].includes(role)) {
+          const { data: eventoData } = await supabase
+            .from('evento_usuarios')
+            .select('evento_id')
+            .eq('user_id', session.user.id)
+            .limit(1)
+            .single();
+          
+          if (eventoData) {
+            navigate(`/app/${eventoData.evento_id}/${role}`, { replace: true });
+            return;
+          }
+        }
+      }
+      setCheckingSession(false);
+    });
+  }, [navigate]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTelefone(maskPhone(e.target.value));
@@ -38,16 +59,39 @@ export default function LoginEquipe() {
       return;
     }
 
-    const { error } = await signIn(phoneDigits, password);
+    const phone = '+55' + phoneDigits;
+    const { error: authError } = await supabase.auth.signInWithPassword({ phone, password });
     
-    if (error) {
-      setError(error.message || 'Celular ou senha inválidos');
+    if (authError) {
+      setError(authError.message || 'Celular ou senha inválidos');
+      setLoading(false);
+      return;
     }
-    
-    setLoading(false);
+
+    // After login, find role and evento
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('Erro ao obter dados do usuário');
+      setLoading(false);
+      return;
+    }
+
+    const [{ data: roleData }, { data: eventoData }] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+      supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', user.id).limit(1).single(),
+    ]);
+
+    const role = eventoData?.role || roleData?.role || 'operador';
+
+    if (eventoData) {
+      navigate(`/app/${eventoData.evento_id}/${role}`, { replace: true });
+    } else {
+      setError('Nenhum evento vinculado ao seu usuário');
+      setLoading(false);
+    }
   };
 
-  if (authLoading) {
+  if (checkingSession) {
     return (
       <div className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-[#4361ee]" />

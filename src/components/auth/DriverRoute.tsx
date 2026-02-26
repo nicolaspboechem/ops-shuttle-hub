@@ -1,5 +1,5 @@
 import { Navigate, useParams } from 'react-router-dom';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 interface DriverRouteProps {
@@ -8,7 +8,7 @@ interface DriverRouteProps {
 
 export function DriverRoute({ children }: DriverRouteProps) {
   const { eventoId } = useParams<{ eventoId: string }>();
-  const { driverSession, loading, isAuthenticated } = useDriverAuth();
+  const { user, loading, isAdmin, fieldRole, fieldEventoId } = useAuth();
 
   if (loading) {
     return (
@@ -18,14 +18,24 @@ export function DriverRoute({ children }: DriverRouteProps) {
     );
   }
 
-  // Not authenticated - redirect to driver login
-  if (!isAuthenticated || !driverSession) {
+  // Not authenticated
+  if (!user) {
     return <Navigate to="/login/motorista" replace />;
   }
 
-  // Authenticated but wrong event - redirect to correct event
-  if (eventoId && driverSession.evento_id !== eventoId) {
-    return <Navigate to={`/app/${driverSession.evento_id}/motorista`} replace />;
+  // Admin can access any driver route
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
+  // Must be a motorista
+  if (fieldRole !== 'motorista') {
+    return <Navigate to="/login/motorista" replace />;
+  }
+
+  // Wrong event - redirect to correct event
+  if (eventoId && fieldEventoId && fieldEventoId !== eventoId) {
+    return <Navigate to={`/app/${fieldEventoId}/motorista`} replace />;
   }
 
   return <>{children}</>;

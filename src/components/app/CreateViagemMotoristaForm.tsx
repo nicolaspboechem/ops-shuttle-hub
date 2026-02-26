@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { usePontosEmbarque } from '@/hooks/usePontosEmbarque';
 import { useServerTime } from '@/hooks/useServerTime';
@@ -56,7 +56,7 @@ export function CreateViagemMotoristaForm({
   onCreated,
   embedded = false
 }: CreateViagemMotoristaFormProps) {
-  const { driverSession } = useDriverAuth();
+  const { user, motoristaId: authMotoristaId } = useAuth();
   const { motoristas } = useMotoristas(eventoId);
   const { veiculos } = useVeiculos(eventoId);
   const { pontos } = usePontosEmbarque(eventoId);
@@ -103,19 +103,19 @@ export function CreateViagemMotoristaForm({
     // Log de diagnóstico
     console.log('[CreateViagemMotoristaForm] Tentando criar viagem:', {
       eventoId,
-      motoristaId: driverSession?.motorista_id,
+      motoristaId: authMotoristaId,
       motoristaName,
       pontoEmbarque,
       pontoDesembarque,
       tipoOperacao,
       qtdPax,
-      sessionValid: !!driverSession
+      sessionValid: !!user
     });
     
     // Validar sessão do motorista
-    if (!driverSession?.motorista_id) {
+    if (!user || !authMotoristaId) {
       toast.error('Sessão expirada. Faça login novamente.');
-      console.error('[CreateViagemMotoristaForm] Sessão inválida:', driverSession);
+      console.error('[CreateViagemMotoristaForm] Sessão inválida');
       submittingRef.current = false;
       return;
     }
@@ -165,8 +165,8 @@ export function CreateViagemMotoristaForm({
           status: 'em_andamento',
           h_pickup: horaPickup,
           h_inicio_real: agora.toISOString(),
-          iniciado_por: driverSession?.motorista_id || null,
-          criado_por: driverSession?.motorista_id || null
+          iniciado_por: authMotoristaId || null,
+          criado_por: authMotoristaId || null
         }])
         .select('id')
         .single();
@@ -191,10 +191,10 @@ export function CreateViagemMotoristaForm({
       }
 
       // Registrar log usando ID retornado diretamente
-      if (viagemCriada && driverSession?.motorista_id) {
+      if (viagemCriada && authMotoristaId) {
         await supabase.from('viagem_logs').insert([{
           viagem_id: viagemCriada.id,
-          user_id: driverSession.motorista_id,
+          user_id: authMotoristaId,
           acao: 'inicio',
           detalhes: { 
             motorista: motoristaName, 

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useDriverAuth } from '@/lib/auth/DriverAuthContext';
+import { useAuth } from '@/lib/auth/AuthContext';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -46,9 +46,8 @@ export default function AppMotorista() {
   const { eventoId } = useParams<{ eventoId: string }>();
   const navigate = useNavigate();
   
-  // Use driver auth instead of Supabase auth
-  const { driverSession, signOut } = useDriverAuth();
-  const motoristaId = driverSession?.motorista_id;
+  // Use unified Supabase auth
+  const { user, profile, signOut, motoristaId } = useAuth();
   
   // Hooks filtrados por motorista - carrega apenas dados do motorista logado
   const { viagens, loading, refetch } = useViagensPorMotorista(eventoId, motoristaId);
@@ -105,7 +104,7 @@ export default function AppMotorista() {
     return () => clearInterval(interval);
   }, [motoristaId, fetchMotorista]);
 
-  const nomeMotorista = driverSession?.motorista_nome || motoristaData?.nome || '';
+  const nomeMotorista = profile?.full_name || motoristaData?.nome || '';
 
   // Hook de presença (check-in/check-out)
   const {
@@ -210,8 +209,8 @@ export default function AppMotorista() {
     await Promise.all([refetch(), refetchMissoes(), refetchPresenca()]);
   };
 
-  const handleLogout = () => {
-    signOut();
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login/motorista');
   };
 
@@ -374,7 +373,7 @@ export default function AppMotorista() {
               h_chegada: horaChegada,
               h_fim_real: now.toISOString(),
               encerrado: true,
-              finalizado_por: driverSession?.motorista_id || null,
+              finalizado_por: motoristaId || null,
             })
             .eq('id', viagemId);
         }
