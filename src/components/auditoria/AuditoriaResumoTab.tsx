@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Bus, Users, Truck, TrendingUp, Fuel, Trophy, Medal, Download, CalendarDays } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Viagem } from '@/lib/types/viagem';
@@ -14,25 +13,14 @@ import * as XLSX from 'xlsx';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--status-ok))', 'hsl(var(--status-alert))', 'hsl(var(--status-critical))'];
 
-type FiltroTipoGrafico = 'todos' | 'transfer' | 'shuttle' | 'missao';
-
 interface Props {
   viagensFiltradas: Viagem[];
-  todasViagens: Viagem[];
   metricasPorHora: any[];
   alertasTotais: number;
   alertasResolvidos: number;
 }
 
-export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPorHora, alertasTotais, alertasResolvidos }: Props) {
-  const [filtroGrafico, setFiltroGrafico] = useState<FiltroTipoGrafico>('todos');
-
-  // Viagens filtradas para os gráficos (filtro local por tipo)
-  const viagensGrafico = useMemo(() => {
-    if (filtroGrafico === 'todos') return todasViagens;
-    if (filtroGrafico === 'missao') return todasViagens.filter(v => !!v.origem_missao_id);
-    return todasViagens.filter(v => v.tipo_operacao === filtroGrafico && !v.origem_missao_id);
-  }, [todasViagens, filtroGrafico]);
+export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasTotais, alertasResolvidos }: Props) {
 
   const stats = useMemo(() => {
     const totalPax = viagensFiltradas.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
@@ -44,11 +32,11 @@ export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPor
     };
   }, [viagensFiltradas]);
 
-  // Viagens por dia (usando filtro local dos gráficos)
+  // Viagens por dia
   const viagensPorDia = useMemo(() => {
     const diasMap = new Map<string, { dia: string; diaLabel: string; viagens: number; pax: number }>();
 
-    viagensGrafico.forEach(v => {
+    viagensFiltradas.forEach(v => {
       const dataCriacao = new Date(v.data_criacao);
       const diaKey = format(dataCriacao, 'yyyy-MM-dd');
       const diaLabel = format(dataCriacao, 'dd/MM', { locale: ptBR });
@@ -60,13 +48,13 @@ export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPor
     });
 
     return Array.from(diasMap.values()).sort((a, b) => a.dia.localeCompare(b.dia));
-  }, [viagensGrafico]);
+  }, [viagensFiltradas]);
 
-  // Viagens e PAX por hora (recalculado com filtro local)
+  // Viagens e PAX por hora
   const metricasPorHoraFiltradas = useMemo(() => {
     const horasMap = new Map<string, { hora: string; totalViagens: number; totalPax: number }>();
 
-    viagensGrafico.forEach(v => {
+    viagensFiltradas.forEach(v => {
       const hora = v.h_pickup ? v.h_pickup.slice(0, 2) + 'h' : null;
       if (!hora) return;
 
@@ -77,17 +65,17 @@ export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPor
     });
 
     return Array.from(horasMap.values()).sort((a, b) => a.hora.localeCompare(b.hora));
-  }, [viagensGrafico]);
+  }, [viagensFiltradas]);
 
-  // Veículos por tipo (usando filtro local)
+  // Veículos por tipo
   const veiculosPorTipo = useMemo(() => {
     const tipos = new Map<string, number>();
-    viagensGrafico.forEach(v => {
+    viagensFiltradas.forEach(v => {
       const tipo = v.tipo_veiculo || 'Outro';
       tipos.set(tipo, (tipos.get(tipo) || 0) + 1);
     });
     return Array.from(tipos.entries()).map(([name, value]) => ({ name, value }));
-  }, [viagensGrafico]);
+  }, [viagensFiltradas]);
 
   const totaisPorPonto = useMemo(() => {
     const pontos = new Map<string, { ponto: string; viagens: number; pax: number; tempos: number[] }>();
@@ -158,12 +146,6 @@ export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPor
     XLSX.writeFile(wb, 'ranking_veiculos.xlsx');
   };
 
-  const contadoresGrafico = useMemo(() => ({
-    todos: todasViagens.length,
-    transfer: todasViagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
-    shuttle: todasViagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
-    missao: todasViagens.filter(v => !!v.origem_missao_id).length,
-  }), [todasViagens]);
 
   return (
     <div className="space-y-6">
@@ -234,22 +216,6 @@ export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPor
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Filtro por tipo de viagem para gráficos */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">Filtrar gráficos por tipo:</span>
-        <Select value={filtroGrafico} onValueChange={(v) => setFiltroGrafico(v as FiltroTipoGrafico)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos ({contadoresGrafico.todos})</SelectItem>
-            <SelectItem value="transfer">Transfer ({contadoresGrafico.transfer})</SelectItem>
-            <SelectItem value="shuttle">Shuttle ({contadoresGrafico.shuttle})</SelectItem>
-            <SelectItem value="missao">Missão ({contadoresGrafico.missao})</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Gráficos */}
