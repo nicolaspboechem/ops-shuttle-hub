@@ -1,60 +1,113 @@
 
+# Padronizar Viagens e Definir Roles
 
-# Paginacao com 10 itens e aba "Mais" no Header
+## Resumo
 
-## 1. Paginacao de 10 em 10
+Tres mudancas principais:
+1. O App Supervisor passa a gerenciar viagens da mesma forma que o Operador (cards inline com acoes, filtros por tipo, metricas de PAX, paginacao de 10)
+2. O App Motorista perde o botao "+" (Corrida) -- motorista so recebe missoes
+3. Definicao clara das roles do sistema
 
-**Arquivo: `src/pages/app/AppOperador.tsx`**
+---
 
-- Alterar o `usePaginatedList` para usar `defaultPageSize: 10` nas listas de viagens ativas e encerradas
-- Remover o seletor de tamanho de pagina (20/50/100) do `LoadMoreFooter` -- no mobile, so precisa do botao "Ver mais" e do contador "Exibindo X de Y"
-- Aplicar tambem nas missoes ativas e finalizadas (adicionar `usePaginatedList` para elas)
+## 1. Definicao de Roles
 
-**Arquivo: `src/components/ui/load-more-footer.tsx`**
+| Role | Pode criar viagens? | Pode criar missoes? | Controle de viagens | Interface |
+|------|---------------------|---------------------|---------------------|-----------|
+| **Admin** | Sim (CCO desktop) | Sim | Total | /evento |
+| **Supervisor** | Sim (app mobile) | Sim | Total (igual Operador) | /app/supervisor |
+| **Operador** | Sim (app mobile) | Sim | Total | /app/operador |
+| **Motorista** | Nao | Nao (recebe) | Apenas missoes designadas | /app/motorista |
+| **Cliente** | Nao | Nao | Apenas visualiza | /app/cliente |
 
-- Tornar o seletor de page size opcional via prop `showPageSizeSelector?: boolean` (default true para desktop, false para mobile)
-- Ou: o AppOperador simplesmente nao passa `onPageSizeChange` / nao renderiza o seletor
+---
 
-## 2. Mover aba "Mais" para o Header
+## 2. App Supervisor: Aba Viagens igual ao Operador
 
-**Arquivo: `src/components/app/OperadorBottomNav.tsx`**
+**Problema atual**: A aba Viagens do Supervisor usa `SupervisorViagensTab` que so mostra viagens ativas com filtro de status (agendado/em_andamento/standby). Nao tem:
+- Shuttle inline cards
+- Filtro por tipo (Transfer/Shuttle/Missao pills)
+- Metricas resumo (PAX ida/volta, total operacoes)
+- Missoes ativas/finalizadas
+- Cards de viagens encerradas
+- Paginacao de 10
 
-- Remover a aba "mais" do array de tabs do bottom nav (ficam apenas: Viagens, Nova, Historico)
+**Solucao**: Refatorar `AppSupervisor` para renderizar a aba Viagens inline (como faz o `AppOperador`) em vez de delegar ao `SupervisorViagensTab`. Isso inclui:
 
-**Arquivo: `src/pages/app/AppOperador.tsx`**
+### Arquivos modificados:
 
-- Adicionar um botao com icone `MoreHorizontal` (tres pontinhos) no header, ao lado do botao de refresh
-- Ao clicar, abre o conteudo da aba "Mais" (pode usar um Drawer/Sheet que sobe de baixo, ou um DropdownMenu com as opcoes de logout/info)
-- Alternativa mais simples: adicionar um `DropdownMenu` no header com as opcoes que estao no `OperadorMaisTab` (nome do usuario, evento, botao sair)
+**`src/pages/app/AppSupervisor.tsx`**
+- Importar e usar os mesmos hooks do Operador: `usePaginatedList`, `LoadMoreFooter`, `useMissoes`, `useVeiculos`, `useUserNames`, `ViagemCardOperador`, `ShuttleCardOperador`, `MissaoCardMobile`, `CreateShuttleForm`, `ShuttleEncerrarModal`, `OperadorHistoricoTab`, `EditViagemMobileModal`
+- Adicionar `FiltroTipoPills` (copiar do Operador ou extrair para componente compartilhado)
+- Adicionar `ViagemEncerradaCard` (copiar do Operador)
+- Na aba Viagens, renderizar: DiaSeletor + FiltroTipoPills + metricas resumo (grid 2x2) + missoes ativas + viagens ativas + viagens encerradas + missoes finalizadas, tudo com `usePaginatedList({ defaultPageSize: 10 })` e `LoadMoreFooter({ showPageSizeSelector: false })`
+- Adicionar tab `historico` no bottom nav (igual operador) para viagens de dias anteriores
+- Mover "Mais" para o header (DropdownMenu com tres pontinhos, igual ja feito no Operador)
+
+**`src/components/app/SupervisorBottomNav.tsx`**
+- Remover aba "mais"
+- Adicionar aba "historico" (icone ClipboardList)
+- Tabs finais: Frota | Viagens | + Nova | Localizador | Historico
+
+---
+
+## 3. App Motorista: Remover botao "+"
+
+**`src/components/app/MotoristaBottomNav.tsx`**
+- Remover a aba `corrida` (botao central "+") do array de tabs
+- Tabs finais: Inicio | Veiculo | Historico | Mais
+
+**`src/pages/app/AppMotorista.tsx`**
+- Remover o `case 'corrida'` do `renderTabContent`
+- Remover import de `CreateViagemMotoristaForm`
+- Motorista continua recebendo e gerenciando missoes na aba Inicio
+
+---
 
 ## Detalhes Tecnicos
 
-### Paginacao (AppOperador.tsx)
+### Supervisor - Aba Viagens (inline como Operador)
+
+```text
+Viagens tab layout:
++---------------------------+
+| DiaSeletor                |
+| [Todos] [Shuttle] [Transfer] [Missao]  <- FiltroTipoPills
+| [Operacoes: 12] [PAX: 45]|
+| [PAX Ida: 30] [PAX Volta: 15]|
+|                           |
+| MISSOES ATIVAS (3)        |
+|  MissaoCardMobile x3      |
+|  [Ver mais]               |
+|                           |
+| EM ANDAMENTO (5)          |
+|  ViagemCardOperador x5    |
+|  + botao Editar overlay   |
+|  + acoes missao (concluir/cancelar)
+|  [Ver mais]               |
+|                           |
+| ENCERRADAS (20)           |
+|  ViagemEncerradaCard x10  |
+|  [Ver mais]               |
+|                           |
+| MISSOES FINALIZADAS       |
+|  MissaoCardMobile x10     |
+|  [Ver mais]               |
++---------------------------+
 ```
-// Antes (default 20)
-usePaginatedList(sortedAtivas)
 
-// Depois (default 10)
-usePaginatedList(sortedAtivas, { defaultPageSize: 10 })
-usePaginatedList(sortedEncerradas, { defaultPageSize: 10 })
+### Supervisor - Header com menu "Mais"
+Usar o mesmo padrao do Operador: `DropdownMenu` com tres pontinhos contendo nome do usuario, nome do evento, "Trocar Evento" e "Sair".
+
+### Motorista - Bottom Nav simplificado
+
+```text
+Antes:  [Inicio] [Veiculo] [+Corrida] [Historico] [Mais]
+Depois: [Inicio] [Veiculo] [Historico] [Mais]
 ```
 
-Adicionar paginacao tambem para missoes:
-```
-usePaginatedList(missoesAtivasFiltradas, { defaultPageSize: 10 })
-usePaginatedList(missoesFinalizadasFiltradas, { defaultPageSize: 10 })
-```
-
-### Header com "Mais" (AppOperador.tsx)
-- Adicionar `DropdownMenu` no header com: nome do usuario, nome do evento, separador, "Trocar Evento", "Sair"
-- Usar o mesmo pattern do `MobileHeader` que ja existe no projeto
-
-### BottomNav (OperadorBottomNav.tsx)
-- Remover entrada `{ id: 'mais', ... }` do array `tabs`
-- Manter tipo `OperadorTabId` sem 'mais' ou manter para compatibilidade
-
-### Arquivos alterados
-1. `src/pages/app/AppOperador.tsx` -- paginacao 10, header com menu "mais"
-2. `src/components/app/OperadorBottomNav.tsx` -- remover aba "mais"
-3. `src/components/ui/load-more-footer.tsx` -- prop opcional para ocultar seletor de tamanho
-
+### Arquivos alterados (resumo)
+1. `src/pages/app/AppSupervisor.tsx` - aba viagens inline, header com menu, historico
+2. `src/components/app/SupervisorBottomNav.tsx` - remover "mais", adicionar "historico"
+3. `src/components/app/MotoristaBottomNav.tsx` - remover "corrida"
+4. `src/pages/app/AppMotorista.tsx` - remover case corrida e import
