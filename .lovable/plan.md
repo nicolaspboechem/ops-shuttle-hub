@@ -1,149 +1,180 @@
 
+# Otimizacao Completa: Abas Estaticas + Abas Dinamicas
 
-# Plano de Melhoria do Schema e Limpeza do Codigo
+## Mapa atual de requisicoes por pagina
 
-## Diagnostico Atual (dados reais)
-
-| Metrica | Valor |
-|---------|-------|
-| Total viagens | 4.715 (todas encerradas) |
-| Viagens sem `motorista_id` (legado) | 2.971 (63%) |
-| Viagens sem `veiculo_id` (legado) | 474 |
-| Vinculos motorista-veiculo inconsistentes | 0 |
-| Presencas duplicadas ativas | 0 |
-| Status motoristas | `indisponivel` (51), `disponivel` (18) |
-| Status veiculos | `liberado` (41), `em_inspecao` (16) |
-
-O banco esta saudavel neste momento, mas ha debito tecnico acumulado que precisa ser resolvido para evitar problemas futuros.
-
----
-
-## Fase 1 - Migrations de Schema (Banco de Dados)
-
-### 1.1 Trigger de Sincronizacao Legado para FK (viagens)
-
-Criar trigger `BEFORE INSERT OR UPDATE` em `viagens` que preenche automaticamente os campos varchar (`motorista`, `placa`, `tipo_veiculo`) a partir das FKs (`motorista_id`, `veiculo_id`). Isso garante que qualquer insert feito com FKs tambem popula os campos legados, eliminando divergencias.
-
-### 1.2 Backfill de FKs em viagens historicas
-
-Rodar UPDATE para preencher `motorista_id` e `veiculo_id` nas 2.971 + 474 viagens que so tem dados legados, cruzando pelo campo `motorista` (nome) e `placa` dentro do mesmo `evento_id`.
-
-### 1.3 Constraint parcial para presenca ativa unica
-
-```sql
-CREATE UNIQUE INDEX idx_presenca_ativa_unica
-  ON motorista_presenca (motorista_id, evento_id, data)
-  WHERE checkout_at IS NULL;
+```text
+PAGINA                  | HOOKS DE DADOS                    | REALTIME  | POLLING     | LIMITE 1000
+------------------------|-----------------------------------|-----------|-------------|------------
+Motoristas (cadastro)   | useViagens(dia), useCadastros     | Sim (3s)  | 5min        | Sim (viagens)
+Motoristas (auditoria)  | useViagens(dia) [MESMO]           | Sim (3s)  | 5min        | Sim
+Veiculos (cadastro)     | useViagens(sem dia), useCadastros  | Sim (3s)  | 5min        | Sim
+Veiculos (auditoria)    | useViagens [MESMO]                | Sim (3s)  | 5min        | Sim
+Auditoria               | useViagens(sem dia)               | Sim (3s)  | 5min        | Sim
+Dashboard               | useViagens(dia)                   | Sim (3s)  | 5min        | Sim (viagens)
+Viagens Ativas          | useViagens(dia)                   | Sim (3s)  | 5min        | Sim
+Viagens Finalizadas     | useViagens(dia)                   | Sim (3s)  | 5min        | Sim
+Localizador             | useLocalizadorMotoristas          | Sim (2s)  | 60s         | Nao (3 queries pequenas)
+Mapa de Servico         | useLocalizadorMotoristas          | Sim (2s)  | 30s         | Nao
 ```
 
-Previne duplicatas de check-in ativo sem impedir multiplos shifts (registros com checkout preenchido).
+### Problemas identificados
 
-### 1.4 CHECK constraints para status
+1. **Motoristas.tsx**: `useViagens` com filtro de dia operacional = auditoria vazia quando evento encerrou
+2. **Veiculos.tsx e Auditoria.tsx**: `useViagens` sem filtro mas com limite de 1000 rows = dados truncados (3.762 viagens, so mostra 1.000)
+3. **Abas estaticas com realtime**: Motoristas/Veiculos/Auditoria tem realtime + polling em dados que so mudam quando ha operacao ativa - desperdicio
+4. **Viagens Ativas/Finalizadas**: Cada uma cria sua propria instancia de `useViagens` com realtime separado
+5. **Localizador**: Polling de 60s + realtime com debounce de 2s -- ok para tempo real
+6. **Mapa de Servico**: Polling de 30s com progress bar + realtime -- ok mas o ticker de 200ms para progress bar e excessivo
+7. **useViagens nao diferencia por tipo de operacao no fetch**: Traz tudo e filtra client-side
 
-```sql
-ALTER TABLE motoristas ADD CONSTRAINT chk_motorista_status
-  CHECK (status IN ('disponivel','em_viagem','indisponivel','inativo'));
+---
 
-ALTER TABLE veiculos ADD CONSTRAINT chk_veiculo_status
-  CHECK (status IN ('em_inspecao','liberado','abastecimento','manutencao'));
+## PARTE A: Abas Estaticas (Motoristas, Veiculos, Auditoria)
 
-ALTER TABLE viagens ADD CONSTRAINT chk_viagem_status
-  CHECK (status IN ('agendado','em_andamento','aguardando_retorno','encerrado','cancelado'));
+### A1. Novo hook `useViagensAuditoria`
+
+**Arquivo**: `src/hooks/useViagensAuditoria.ts` (novo)
+
+- Busca TODAS as viagens do evento usando paginacao automatica (blocos de 1000 via `.range()`)
+- Sem realtime, sem polling (dados historicos)
+- Cache via `useRef` por `eventoId` -- carrega 1 vez por sessao
+- Inclui JOIN com veiculos: `veiculo:veiculos!veiculo_id (nome, placa, tipo_veiculo)`
+- Retorna `{ viagens, loading, refetch }`
+- Botao manual de "Atualizar" disponivel caso o usuario queira forcar
+
+### A2. Atualizar `Motoristas.tsx`
+
+- Chamar `useViagensAuditoria(eventoId)` 
+- Passar `viagensAuditoria` para `MotoristasAuditoria` (linha 1095) ao inves de `viagens`
+- Manter `useViagens(eventoId, viagensOptions)` apenas para o kanban de cadastro (status ativo dos motoristas)
+
+### A3. Atualizar `Veiculos.tsx`
+
+- Chamar `useViagensAuditoria(eventoId)`
+- Usar `viagensAuditoria` para `VeiculosAuditoria`, `VeiculosUsoAuditoria` e calculo de `veiculosStatsMap`
+- Manter `useViagens(eventoId)` para `viagensAtivas` no kanban
+
+### A4. Atualizar `Auditoria.tsx`
+
+- Substituir `useViagens(eventoId)` por `useViagensAuditoria(eventoId)`
+- Todas as 4 abas (Resumo, Motoristas, Veiculos, Abastecimento) recebem dataset completo
+
+### A5. Adicionar `OperationTabs` em `MotoristasAuditoria` e `VeiculosAuditoria`
+
+- Filtro por tipo de operacao (transfer/shuttle/missao) -- feito client-side com `useMemo`
+- Contadores por tipo nos tabs
+- Sem query adicional -- o dataset ja esta completo em memoria
+
+---
+
+## PARTE B: Abas Dinamicas (Localizador, Mapa Servico, Viagens Ativas/Finalizadas, Dashboard)
+
+### B1. Estrategia unificada de refresh
+
+Em vez de cada pagina ter sua propria combinacao de realtime + polling, padronizar:
+
+**Regra**: Realtime como trigger principal (throttled 5s) + polling como fallback de seguranca a cada 2 minutos (120s). Sem polling agressivo de 30s.
+
+### B2. Otimizar `useViagens` para abas dinamicas
+
+Atualmente o `useViagens` tem:
+- Realtime com throttle de 3s
+- Polling de 5min (300s)
+
+Alteracao:
+- Manter realtime com throttle de 5s (ja implementado via `refetchThrottle`)
+- Reduzir polling de 5min para 2min (120s) conforme solicitado
+- Isso afeta: Dashboard, Viagens Ativas, Viagens Finalizadas
+
+### B3. Otimizar `useLocalizadorMotoristas`
+
+Atualmente:
+- Realtime com debounce de 2s
+- PainelLocalizador: polling de 60s
+- MapaServico: polling de 30s com ticker de 200ms
+
+Alteracao:
+- Aumentar debounce do realtime de 2s para 3s (reduz bursts)
+- Unificar polling para 120s (2 min) em ambas as paginas
+- MapaServico: Manter progress bar visual mas com ticker de 1s em vez de 200ms (5x menos re-renders)
+
+### B4. Otimizar `useLocalizadorVeiculos`
+
+Mesmo padrao do motoristas:
+- Debounce de 3s no realtime
+- Sem polling proprio (quem chama controla)
+
+### B5. Otimizar `PainelLocalizador.tsx`
+
+- Mudar polling de 60s para 120s
+- Missoes: realtime ja cobre atualizacoes instantaneas, polling desnecessario
+
+### B6. Otimizar `MapaServico.tsx`
+
+- Mudar `REFRESH_INTERVAL` de 30s para 120s
+- Ticker da progress bar: de 200ms para 1000ms
+- Resultado: ~150 re-renders a menos por ciclo de refresh
+
+### B7. Dashboard e Viagens -- sem mudanca estrutural
+
+Ja usam `useViagens` que sera ajustado em B2. O polling passara de 5min para 2min automaticamente.
+
+---
+
+## Resumo de economia de requisicoes
+
+```text
+PAGINA              | ANTES (req/hora)           | DEPOIS (req/hora)
+--------------------|----------------------------|---------------------------
+Motoristas (audit)  | ~720 (realtime) + 12 (poll)| 0 (cache, sem realtime)
+Veiculos (audit)    | ~720 + 12                  | 0
+Auditoria           | ~720 + 12                  | 0
+Dashboard           | ~720 + 12                  | ~720 (RT) + 30 (poll 2min)
+Viagens Ativas      | ~720 + 12                  | ~720 + 30
+Viagens Finalizadas | ~720 + 12                  | ~720 + 30
+Localizador         | ~720 + 60                  | ~720 + 30
+Mapa de Servico     | ~720 + 120                 | ~720 + 30
 ```
 
-### 1.5 alertas_frota.motorista_id tornado nullable
-
-Permitir alertas de veiculo sem motorista vinculado (ex: alerta de manutencao sem motorista).
+As abas de auditoria passam de ~1.400 req/hora para 1 (carga inicial). As abas dinamicas mantem realtime mas com polling mais esparcado.
 
 ---
 
-## Fase 2 - Limpeza do Frontend (Codigo)
+## Tabela de cache por pagina
 
-### 2.1 Formularios de criacao de viagem - usar `.select('id')` no insert
-
-Atualmente `CreateViagemForm` e `CreateViagemMotoristaForm` fazem um segundo SELECT para buscar o ID da viagem recem-criada (filtro por nome + h_pickup). Isso e fragil. Alterar para usar `.insert().select('id').single()` que retorna o ID diretamente.
-
-**Arquivos afetados:**
-- `src/components/app/CreateViagemForm.tsx` (linhas 148-200)
-- `src/components/app/CreateViagemMotoristaForm.tsx` (linhas 150-215)
-
-### 2.2 Remover escrita legada redundante nos inserts
-
-Com o trigger da Fase 1.1, os campos `motorista`, `placa`, `tipo_veiculo` serao preenchidos automaticamente pelo banco. Remover essas linhas dos inserts no frontend para simplificar o codigo.
-
-**Arquivos afetados (6 pontos de insert):**
-- `src/components/app/CreateViagemForm.tsx`
-- `src/components/app/CreateViagemMotoristaForm.tsx`
-- `src/components/app/RetornoViagemForm.tsx`
-- `src/components/app/CreateShuttleForm.tsx`
-- `src/hooks/useMissoes.ts`
-- `src/pages/app/AppMotorista.tsx`
-
-### 2.3 Remover sync legado em useCadastros
-
-O hook `useCadastros` faz `UPDATE viagens SET motorista = X WHERE motorista = oldNome` e equivalente para placa ao renomear motorista/veiculo. Com o trigger, isso se torna desnecessario (os campos legados derivam das FKs). Remover essas queries de sincronizacao.
-
-**Arquivo:** `src/hooks/useCadastros.ts`
-
-### 2.4 Corrigir queries que filtram por campo legado
-
-- `useViagemOperacao.ts` (linha 86): fallback `.eq('motorista', motoristaNome)` - remover o fallback, usar apenas `motorista_id`
-- `VeiculoDetalheModal.tsx` (linha 166): busca por `.eq('placa', ...)` como fallback - simplificar para usar apenas `veiculo_id`
-
-### 2.5 CreateShuttleForm - adicionar motorista_id para shuttle
-
-O `CreateShuttleForm` insere `motorista: 'Shuttle'` como texto fixo sem FK. Manter esse comportamento (shuttle nao tem motorista real), mas adicionar um comentario explicativo.
-
----
-
-## Fase 3 - Indices de Performance
-
-Criar indices para as queries mais frequentes que nao tem indice dedicado:
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_viagens_evento_encerrado 
-  ON viagens (evento_id, encerrado) WHERE encerrado = false;
-
-CREATE INDEX IF NOT EXISTS idx_viagens_motorista_id 
-  ON viagens (motorista_id) WHERE motorista_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_viagens_veiculo_id 
-  ON viagens (veiculo_id) WHERE veiculo_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_presenca_ativa 
-  ON motorista_presenca (motorista_id, evento_id, data) 
-  WHERE checkout_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_vistoria_evento_tipo 
-  ON veiculo_vistoria_historico (evento_id, tipo_vistoria);
+```text
+PAGINA                  | CACHE         | REALTIME | POLLING  | PAGINACAO
+------------------------|---------------|----------|----------|----------
+Motoristas (cadastro)   | 60s (existente)| Sim (5s) | 2min     | Nao (< 200 rows)
+Motoristas (auditoria)  | useRef sessao | Nao      | Nao      | Sim (1000/bloco)
+Veiculos (cadastro)     | 60s (existente)| Sim (5s) | 2min     | Nao (< 200 rows)
+Veiculos (auditoria)    | useRef sessao | Nao      | Nao      | Sim (1000/bloco)
+Auditoria               | useRef sessao | Nao      | Nao      | Sim (1000/bloco)
+Dashboard               | Nenhum        | Sim (5s) | 2min     | Nao (filtro dia)
+Viagens Ativas          | Nenhum        | Sim (5s) | 2min     | Nao (filtro dia)
+Viagens Finalizadas     | Nenhum        | Sim (5s) | 2min     | Nao (filtro dia)
+Localizador             | Nenhum        | Sim (3s) | 2min     | Nao (3 queries)
+Mapa de Servico         | Nenhum        | Sim (3s) | 2min     | Nao (3 queries)
 ```
 
 ---
 
-## Sequencia de Execucao
+## Sequencia de execucao
 
-| Ordem | Acao | Risco |
-|-------|------|-------|
-| 1 | Migration: Trigger sync legado (1.1) | Nenhum - aditivo |
-| 2 | Migration: Indices de performance (Fase 3) | Nenhum - aditivo |
-| 3 | Migration: Constraint presenca unica (1.3) | Baixo - ja verificado sem duplicatas |
-| 4 | Migration: CHECK constraints status (1.4) | Baixo - valores ja validados |
-| 5 | Migration: motorista_id nullable em alertas (1.5) | Nenhum |
-| 6 | Data: Backfill FKs historicas (1.2) | Nenhum - UPDATE em dados encerrados |
-| 7 | Codigo: Simplificar inserts (2.1, 2.2) | Baixo - trigger garante compatibilidade |
-| 8 | Codigo: Remover syncs legados (2.3, 2.4) | Baixo |
+| Ordem | Acao | Arquivos |
+|-------|------|----------|
+| 1 | Criar `useViagensAuditoria` com paginacao e cache | `src/hooks/useViagensAuditoria.ts` (novo) |
+| 2 | Atualizar Motoristas para usar hook de auditoria | `src/pages/Motoristas.tsx` |
+| 3 | Atualizar Veiculos para usar hook de auditoria | `src/pages/Veiculos.tsx` |
+| 4 | Atualizar Auditoria para usar hook de auditoria | `src/pages/Auditoria.tsx` |
+| 5 | Adicionar OperationTabs nas auditorias | `src/components/motoristas/MotoristasAuditoria.tsx`, `src/components/veiculos/VeiculosAuditoria.tsx` |
+| 6 | Ajustar polling do useViagens (5min para 2min) | `src/hooks/useViagens.ts` |
+| 7 | Ajustar debounce/polling do Localizador | `src/hooks/useLocalizadorMotoristas.ts`, `src/hooks/useLocalizadorVeiculos.ts` |
+| 8 | Ajustar polling do PainelLocalizador | `src/pages/PainelLocalizador.tsx` |
+| 9 | Ajustar polling e ticker do MapaServico | `src/pages/MapaServico.tsx` |
 
-## Arquivos modificados no total
+## Total de arquivos modificados: 10
 
-**Migrations (SQL):** 1 migration com todas as alteracoes de schema
-
-**Frontend (6 arquivos):**
-- `src/components/app/CreateViagemForm.tsx`
-- `src/components/app/CreateViagemMotoristaForm.tsx`
-- `src/components/app/RetornoViagemForm.tsx`
-- `src/hooks/useMissoes.ts`
-- `src/pages/app/AppMotorista.tsx`
-- `src/hooks/useCadastros.ts`
-- `src/hooks/useViagemOperacao.ts`
-- `src/components/veiculos/VeiculoDetalheModal.tsx`
-
+**Novo**: 1 (`useViagensAuditoria.ts`)
+**Modificados**: 9
