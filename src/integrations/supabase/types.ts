@@ -211,6 +211,7 @@ export type Database = {
           nome_planilha: string
           status: string | null
           tipo_operacao: string | null
+          tipos_viagem_habilitados: string[] | null
           total_viagens: number | null
           visivel_publico: boolean | null
         }
@@ -234,6 +235,7 @@ export type Database = {
           nome_planilha: string
           status?: string | null
           tipo_operacao?: string | null
+          tipos_viagem_habilitados?: string[] | null
           total_viagens?: number | null
           visivel_publico?: boolean | null
         }
@@ -257,6 +259,7 @@ export type Database = {
           nome_planilha?: string
           status?: string | null
           tipo_operacao?: string | null
+          tipos_viagem_habilitados?: string[] | null
           total_viagens?: number | null
           visivel_publico?: boolean | null
         }

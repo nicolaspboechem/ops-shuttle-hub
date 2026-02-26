@@ -26,6 +26,7 @@ export interface Evento {
   habilitar_missoes?: boolean | null;
   horario_inicio_evento?: string | null;
   horario_fim_evento?: string | null;
+  tipos_viagem_habilitados?: string[] | null;
 }
 
 export interface EventoUsuario {
