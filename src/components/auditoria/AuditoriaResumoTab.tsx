@@ -1,24 +1,39 @@
-import { useMemo } from 'react';
-import { Bus, Users, Truck, TrendingUp, Fuel, Trophy, Medal, Download } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Bus, Users, Truck, TrendingUp, Fuel, Trophy, Medal, Download, CalendarDays } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Viagem } from '@/lib/types/viagem';
 import { calcularTempoViagem } from '@/lib/utils/calculadores';
 import { formatarMinutos } from '@/lib/utils/calculadores';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--status-ok))', 'hsl(var(--status-alert))', 'hsl(var(--status-critical))'];
 
+type FiltroTipoGrafico = 'todos' | 'transfer' | 'shuttle' | 'missao';
+
 interface Props {
   viagensFiltradas: Viagem[];
+  todasViagens: Viagem[];
   metricasPorHora: any[];
   alertasTotais: number;
   alertasResolvidos: number;
 }
 
-export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasTotais, alertasResolvidos }: Props) {
+export function AuditoriaResumoTab({ viagensFiltradas, todasViagens, metricasPorHora, alertasTotais, alertasResolvidos }: Props) {
+  const [filtroGrafico, setFiltroGrafico] = useState<FiltroTipoGrafico>('todos');
+
+  // Viagens filtradas para os gráficos (filtro local por tipo)
+  const viagensGrafico = useMemo(() => {
+    if (filtroGrafico === 'todos') return todasViagens;
+    if (filtroGrafico === 'missao') return todasViagens.filter(v => !!v.origem_missao_id);
+    return todasViagens.filter(v => v.tipo_operacao === filtroGrafico && !v.origem_missao_id);
+  }, [todasViagens, filtroGrafico]);
+
   const stats = useMemo(() => {
     const totalPax = viagensFiltradas.reduce((sum, v) => sum + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
     return {
@@ -28,6 +43,51 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
       motoristasAtivos: new Set(viagensFiltradas.map(v => v.motorista)).size,
     };
   }, [viagensFiltradas]);
+
+  // Viagens por dia (usando filtro local dos gráficos)
+  const viagensPorDia = useMemo(() => {
+    const diasMap = new Map<string, { dia: string; diaLabel: string; viagens: number; pax: number }>();
+
+    viagensGrafico.forEach(v => {
+      const dataCriacao = new Date(v.data_criacao);
+      const diaKey = format(dataCriacao, 'yyyy-MM-dd');
+      const diaLabel = format(dataCriacao, 'dd/MM', { locale: ptBR });
+
+      const existing = diasMap.get(diaKey) || { dia: diaKey, diaLabel, viagens: 0, pax: 0 };
+      existing.viagens += 1;
+      existing.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
+      diasMap.set(diaKey, existing);
+    });
+
+    return Array.from(diasMap.values()).sort((a, b) => a.dia.localeCompare(b.dia));
+  }, [viagensGrafico]);
+
+  // Viagens e PAX por hora (recalculado com filtro local)
+  const metricasPorHoraFiltradas = useMemo(() => {
+    const horasMap = new Map<string, { hora: string; totalViagens: number; totalPax: number }>();
+
+    viagensGrafico.forEach(v => {
+      const hora = v.h_pickup ? v.h_pickup.slice(0, 2) + 'h' : null;
+      if (!hora) return;
+
+      const existing = horasMap.get(hora) || { hora, totalViagens: 0, totalPax: 0 };
+      existing.totalViagens += 1;
+      existing.totalPax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
+      horasMap.set(hora, existing);
+    });
+
+    return Array.from(horasMap.values()).sort((a, b) => a.hora.localeCompare(b.hora));
+  }, [viagensGrafico]);
+
+  // Veículos por tipo (usando filtro local)
+  const veiculosPorTipo = useMemo(() => {
+    const tipos = new Map<string, number>();
+    viagensGrafico.forEach(v => {
+      const tipo = v.tipo_veiculo || 'Outro';
+      tipos.set(tipo, (tipos.get(tipo) || 0) + 1);
+    });
+    return Array.from(tipos.entries()).map(([name, value]) => ({ name, value }));
+  }, [viagensGrafico]);
 
   const totaisPorPonto = useMemo(() => {
     const pontos = new Map<string, { ponto: string; viagens: number; pax: number; tempos: number[] }>();
@@ -44,15 +104,6 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
     return Array.from(pontos.values())
       .map(p => ({ ...p, tempoMedio: p.tempos.length > 0 ? p.tempos.reduce((a, b) => a + b, 0) / p.tempos.length : 0 }))
       .sort((a, b) => b.viagens - a.viagens);
-  }, [viagensFiltradas]);
-
-  const veiculosPorTipo = useMemo(() => {
-    const tipos = new Map<string, number>();
-    viagensFiltradas.forEach(v => {
-      const tipo = v.tipo_veiculo || 'Outro';
-      tipos.set(tipo, (tipos.get(tipo) || 0) + 1);
-    });
-    return Array.from(tipos.entries()).map(([name, value]) => ({ name, value }));
   }, [viagensFiltradas]);
 
   const rankingMotoristas = useMemo(() => {
@@ -106,6 +157,13 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
     XLSX.utils.book_append_sheet(wb, ws, 'Ranking Veículos');
     XLSX.writeFile(wb, 'ranking_veiculos.xlsx');
   };
+
+  const contadoresGrafico = useMemo(() => ({
+    todos: todasViagens.length,
+    transfer: todasViagens.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: todasViagens.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: todasViagens.filter(v => !!v.origem_missao_id).length,
+  }), [todasViagens]);
 
   return (
     <div className="space-y-6">
@@ -178,49 +236,107 @@ export function AuditoriaResumoTab({ viagensFiltradas, metricasPorHora, alertasT
         </Card>
       </div>
 
+      {/* Filtro por tipo de viagem para gráficos */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-muted-foreground">Filtrar gráficos por tipo:</span>
+        <Select value={filtroGrafico} onValueChange={(v) => setFiltroGrafico(v as FiltroTipoGrafico)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos ({contadoresGrafico.todos})</SelectItem>
+            <SelectItem value="transfer">Transfer ({contadoresGrafico.transfer})</SelectItem>
+            <SelectItem value="shuttle">Shuttle ({contadoresGrafico.shuttle})</SelectItem>
+            <SelectItem value="missao">Missão ({contadoresGrafico.missao})</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
+        {/* Viagens por Dia - Full width */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Viagens e PAX por Hora
+              <CalendarDays className="w-5 h-5" />
+              Viagens por Dia
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={metricasPorHora}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="hora" className="text-xs" />
-                <YAxis className="text-xs" />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
-                <Bar dataKey="totalViagens" name="Viagens" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="totalPax" name="PAX" fill="hsl(var(--status-ok))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {viagensPorDia.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={viagensPorDia}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="diaLabel" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--popover))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number, name: string) => [
+                      value,
+                      name === 'viagens' ? 'Viagens' : 'PAX',
+                    ]}
+                  />
+                  <Legend />
+                  <Bar dataKey="viagens" name="Viagens" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pax" name="PAX" fill="hsl(var(--status-ok))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[200px] text-muted-foreground text-sm">
+                Nenhuma viagem encontrada para este filtro
+              </div>
+            )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Truck className="w-5 h-5" />
-              Viagens por Tipo de Veículo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={veiculosPorTipo} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                  {veiculosPorTipo.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+
+        {/* Viagens por Hora + Tipo de Veículo */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Viagens e PAX por Hora
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={metricasPorHoraFiltradas}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="hora" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
+                  <Bar dataKey="totalViagens" name="Viagens" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="totalPax" name="PAX" fill="hsl(var(--status-ok))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Truck className="w-5 h-5" />
+                Viagens por Tipo de Veículo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={veiculosPorTipo} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                    {veiculosPorTipo.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Rankings lado a lado */}
