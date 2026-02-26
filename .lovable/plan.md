@@ -1,27 +1,65 @@
 
 
-# Usar as OperationTabs como filtro dos graficos da Auditoria
+# Limpeza e Padronizacao da Documentacao (Padrao GitHub)
 
-## O que muda
+## Contexto
 
-As abas Missao/Transfer/Shuttle que ja existem no topo da pagina de Auditoria passarao a filtrar tambem os graficos. O dropdown "Filtrar graficos por tipo" dentro do componente `AuditoriaResumoTab` sera removido.
+O repositorio possui documentacao desatualizada e fora do padrao mundial do GitHub. O README.md e generico (template Lovable com placeholders), o `.lovable/plan.md` contem um plano ja executado, e faltam arquivos padrao de projetos bem organizados.
+
+## Padrao GitHub recomendado
+
+Repositorios bem organizados possuem:
+- **README.md** - Descricao do projeto, tech stack, setup, estrutura
+- **LICENSE** - Licenca do software
+- **CHANGELOG.md** - Historico de versoes
+- **.gitignore** - Ja existe, ok
+- Pasta `docs/` - Documentacao tecnica complementar
 
 ## Alteracoes
 
-### `src/components/auditoria/AuditoriaResumoTab.tsx`
+### 1. Reescrever `README.md`
 
-1. Remover o state `filtroGrafico` e o `useMemo` de `viagensGrafico` (que fazia filtragem local)
-2. Remover o dropdown Select de filtro por tipo e o `contadoresGrafico`
-3. Todos os graficos (Viagens por Dia, Viagens por Hora, Tipo de Veiculo) passam a usar `viagensFiltradas` em vez de `viagensGrafico`
-4. Remover a prop `todasViagens` da interface (nao sera mais necessaria)
+Substituir o template generico por um README profissional contendo:
+- Nome e descricao do projeto (CCO AS Brasil - Centro de Controle Operacional)
+- Badges (versao, status)
+- Screenshot ou descricao visual
+- Tech Stack (React, Vite, TypeScript, Tailwind, Supabase, shadcn/ui, Recharts)
+- Arquitetura do sistema (roles: Admin, Supervisor, Operador, Motorista, Cliente)
+- Estrutura de pastas principal
+- Como rodar localmente (setup com npm/bun)
+- Edge Functions disponiveis
+- Link do deploy
 
-### `src/pages/Auditoria.tsx`
+### 2. Criar `CHANGELOG.md`
 
-1. Remover a prop `todasViagens={viagens}` da chamada do `AuditoriaResumoTab`
+Historico de versoes baseado no que ja existe em `src/lib/version.ts`:
+- v2.1.0 (2026-02-17) - Limpeza geral, remocao login de campo, cadastro unificado
+- v2.0.0 - Redesign com Supabase Auth unificado
+- Formato: Keep a Changelog (keepachangelog.com)
 
-### Resultado
+### 3. Limpar `.lovable/plan.md`
 
-- Interface mais limpa, sem dropdown redundante
-- Os graficos respondem diretamente as abas Missao/Transfer/Shuttle do topo
-- KPIs e rankings continuam usando `viagensFiltradas` (mesmo comportamento)
+O conteudo atual e um plano ja executado (filtro de graficos da auditoria). Substituir por uma descricao breve da arquitetura atual do sistema, util como referencia interna.
+
+### 4. Manter `docs/apps-script-sync.js`
+
+Este arquivo e documentacao util (script de integracao Google Sheets). Permanece.
+
+### 5. Atualizar `package.json`
+
+Corrigir o campo `name` de `vite_react_shadcn_ts` para `cco-as-brasil`.
+
+### 6. Atualizar `src/lib/version.ts`
+
+Bump para v2.2.0 com data atual (2026-02-26) refletindo a limpeza de documentacao e organizacao.
+
+## Resumo de arquivos
+
+| Arquivo | Acao |
+|---|---|
+| README.md | Reescrever completo |
+| CHANGELOG.md | Criar novo |
+| .lovable/plan.md | Substituir conteudo |
+| package.json | Corrigir campo name |
+| src/lib/version.ts | Bump versao |
 
