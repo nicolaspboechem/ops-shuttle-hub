@@ -43,7 +43,7 @@ export function useViagemOperacaoStaff() {
     return true;
   }, [userId, getAgoraSync]);
 
-  const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean) => {
+  const registrarChegada = useCallback(async (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean, observacao?: string) => {
     if (!userId) {
       toast.error('Você precisa estar logado');
       return false;
@@ -65,7 +65,8 @@ export function useViagemOperacaoStaff() {
         finalizado_por: novoStatus === 'encerrado' ? userId : null,
         atualizado_por: userId,
         encerrado: novoStatus === 'encerrado',
-        qtd_pax: qtdPax ?? viagem.qtd_pax
+        qtd_pax: qtdPax ?? viagem.qtd_pax,
+        observacao: observacao || viagem.observacao
       })
       .eq('id', viagem.id);
 
@@ -79,7 +80,7 @@ export function useViagemOperacaoStaff() {
     return true;
   }, [userId, getAgoraSync]);
 
-  const encerrarViagem = useCallback(async (viagem: Viagem) => {
+  const encerrarViagem = useCallback(async (viagem: Viagem, observacao?: string) => {
     if (!userId) {
       toast.error('Você precisa estar logado');
       return false;
@@ -94,7 +95,8 @@ export function useViagemOperacaoStaff() {
         h_fim_real: now.toISOString(),
         finalizado_por: userId,
         atualizado_por: userId,
-        encerrado: true
+        encerrado: true,
+        observacao: observacao || viagem.observacao
       })
       .eq('id', viagem.id);
 
@@ -191,11 +193,46 @@ export function useViagemOperacaoStaff() {
     return novaViagem;
   }, [userId, getAgoraSync]);
 
+  // Marcar retorno na mesma viagem (inverte origem/destino, mantém em_andamento)
+  const marcarRetorno = useCallback(async (viagem: Viagem, qtdPax: number, observacao?: string) => {
+    if (!userId) {
+      toast.error('Você precisa estar logado');
+      return false;
+    }
+
+    const now = getAgoraSync();
+
+    const { error } = await supabase
+      .from('viagens')
+      .update({
+        ponto_embarque: viagem.ponto_desembarque,
+        ponto_embarque_id: viagem.ponto_desembarque_id,
+        ponto_desembarque: viagem.ponto_embarque,
+        ponto_desembarque_id: viagem.ponto_embarque_id,
+        qtd_pax: qtdPax,
+        observacao: observacao || viagem.observacao,
+        viagem_pai_id: viagem.id,
+        h_chegada: now.toTimeString().slice(0, 8),
+        atualizado_por: userId
+      })
+      .eq('id', viagem.id);
+
+    if (error) {
+      console.error('Erro ao marcar retorno:', error);
+      toast.error('Erro ao marcar retorno');
+      return false;
+    }
+
+    toast.success('Retornando à base!');
+    return true;
+  }, [userId, getAgoraSync]);
+
   return {
     iniciarViagem,
     registrarChegada,
     encerrarViagem,
     cancelarViagem,
-    iniciarRetorno
+    iniciarRetorno,
+    marcarRetorno
   };
 }

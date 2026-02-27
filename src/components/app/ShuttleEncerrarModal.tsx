@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CheckCircle } from 'lucide-react';
 import { Viagem } from '@/lib/types/viagem';
 
@@ -22,10 +23,12 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
   const { getAgoraSync } = useServerTime();
 
   const [paxRetorno, setPaxRetorno] = useState('');
+  const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
 
   const resetForm = () => {
     setPaxRetorno('');
+    setObservacao('');
   };
 
   const handleEncerrar = async () => {
@@ -41,6 +44,7 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
         qtd_pax_retorno: paxRetorno ? Number(paxRetorno) : 0,
         h_fim_real: agora,
         finalizado_por: userId,
+        observacao: observacao || viagem.observacao,
       }).eq('id', viagem.id);
 
       if (error) throw error;
@@ -87,6 +91,17 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
             <p className="text-xs text-muted-foreground text-center">
               Quantos passageiros voltaram nesta viagem?
             </p>
+          </div>
+
+          {/* Observação */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Observação</Label>
+            <Textarea
+              value={observacao}
+              onChange={e => setObservacao(e.target.value)}
+              placeholder="Observação opcional..."
+              className="min-h-[60px] text-sm"
+            />
           </div>
 
           {/* Botão confirmar */}
