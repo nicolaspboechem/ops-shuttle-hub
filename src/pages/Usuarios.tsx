@@ -331,8 +331,14 @@ export default function Usuarios() {
 
     setDeleting(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+
       const { data, error } = await supabase.functions.invoke('delete-user', {
-        body: { user_id: deletingUser.user_id }
+        body: { user_id: deletingUser.user_id },
+        headers: { Authorization: `Bearer ${sessionData.session.access_token}` }
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -373,13 +379,15 @@ export default function Usuarios() {
     setUpdating(`${userId}-${permission}`);
     try {
       if (currentlyHas) {
-        await supabase.from('user_permissions').delete().eq('user_id', userId).eq('permission', permission);
+        const { error } = await supabase.from('user_permissions').delete().eq('user_id', userId).eq('permission', permission);
+        if (error) throw error;
       } else {
-        await supabase.from('user_permissions').insert({
+        const { error } = await supabase.from('user_permissions').insert({
           user_id: userId,
           permission,
           granted_by: currentUser?.id,
         });
+        if (error) throw error;
       }
 
       setUsers(prev => prev.map(u => {
