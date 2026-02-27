@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -42,10 +43,11 @@ import { NavigationLinks } from './NavigationLinks';
 
 interface ViagemOperacoes {
   iniciarViagem: (viagem: Viagem) => Promise<boolean>;
-  registrarChegada: (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean) => Promise<boolean>;
-  encerrarViagem: (viagem: Viagem) => Promise<boolean>;
+  registrarChegada: (viagem: Viagem, qtdPax?: number, aguardarRetorno?: boolean, observacao?: string) => Promise<boolean>;
+  encerrarViagem: (viagem: Viagem, observacao?: string) => Promise<boolean>;
   cancelarViagem: (viagem: Viagem, motivo?: string) => Promise<boolean>;
   iniciarRetorno: (viagem: Viagem) => Promise<any>;
+  marcarRetorno: (viagem: Viagem, qtdPax: number, observacao?: string) => Promise<boolean>;
 }
 
 interface ViagemCardOperadorProps {
@@ -85,13 +87,14 @@ const statusConfig: Record<StatusViagemOperacao, { label: string; className: str
 
 export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes }: ViagemCardOperadorProps) {
   const defaultOps = useViagemOperacao();
-  const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem } = operacoes || defaultOps;
+  const { iniciarViagem, registrarChegada, cancelarViagem, iniciarRetorno, encerrarViagem, marcarRetorno } = operacoes || defaultOps;
   
   const [loading, setLoading] = useState(false);
   const [showPaxDialog, setShowPaxDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [paxInput, setPaxInput] = useState('');
-  const [aguardarRetorno, setAguardarRetorno] = useState(false);
+  const [retornarBase, setRetornarBase] = useState(false);
+  const [observacao, setObservacao] = useState('');
 
   const status = (viagem.status || 'agendado') as StatusViagemOperacao;
   const config = statusConfig[status];
@@ -113,9 +116,13 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
     }
   };
 
+  // Detectar se viagem já está retornando (viagem_pai_id === próprio id)
+  const estaRetornando = viagem.viagem_pai_id === viagem.id;
+
   const handleChegada = () => {
     setPaxInput(viagem.qtd_pax?.toString() || '');
-    setAguardarRetorno(viagem.tipo_operacao === 'shuttle'); // Shuttle default to aguardar
+    setRetornarBase(viagem.tipo_operacao === 'shuttle' && !estaRetornando);
+    setObservacao('');
     setShowPaxDialog(true);
   };
 
@@ -123,10 +130,15 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
     setLoading(true);
     setShowPaxDialog(false);
     
-    const pax = paxInput ? parseInt(paxInput) : undefined;
-    // Apenas shuttle pode aguardar retorno
-    const deveAguardar = viagem.tipo_operacao === 'shuttle' && aguardarRetorno;
-    await registrarChegada(viagem, pax, deveAguardar);
+    const pax = paxInput ? parseInt(paxInput) : 0;
+    
+    if (viagem.tipo_operacao === 'shuttle' && retornarBase && !estaRetornando) {
+      // Marcar retorno na mesma viagem (inverte pontos, mantém em_andamento)
+      await marcarRetorno(viagem, pax, observacao || undefined);
+    } else {
+      // Encerra direto (sem standby)
+      await registrarChegada(viagem, pax, false, observacao || undefined);
+    }
     
     onUpdate();
     setLoading(false);
@@ -471,19 +483,30 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
               />
             </div>
 
-            {/* Opção de aguardar retorno apenas para Shuttle */}
-            {viagem.tipo_operacao === 'shuttle' && (
+            {/* Opção de retornar à base apenas para Shuttle (e se não está já retornando) */}
+            {viagem.tipo_operacao === 'shuttle' && !estaRetornando && (
               <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50">
                 <Checkbox 
-                  id="aguardarRetorno" 
-                  checked={aguardarRetorno}
-                  onCheckedChange={(checked) => setAguardarRetorno(checked === true)}
+                  id="retornarBase" 
+                  checked={retornarBase}
+                  onCheckedChange={(checked) => setRetornarBase(checked === true)}
                 />
-                <label htmlFor="aguardarRetorno" className="text-sm cursor-pointer">
-                  Aguardar retorno (veículo fica em standby)
+                <label htmlFor="retornarBase" className="text-sm cursor-pointer">
+                  Retornar à base
                 </label>
               </div>
             )}
+
+            {/* Campo de observação */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Observação</label>
+              <Textarea
+                value={observacao}
+                onChange={e => setObservacao(e.target.value)}
+                placeholder="Observação opcional..."
+                className="min-h-[60px] text-sm"
+              />
+            </div>
             
             <div className="flex gap-3">
               <Button
@@ -494,7 +517,9 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
                 Cancelar
               </Button>
               <Button onClick={confirmChegada} className="flex-1">
-                {aguardarRetorno && viagem.tipo_operacao === 'shuttle' ? 'Aguardar Retorno' : 'Encerrar Viagem'}
+                {viagem.tipo_operacao === 'shuttle' && retornarBase && !estaRetornando 
+                  ? 'Confirmar e Retornar' 
+                  : 'Encerrar Viagem'}
               </Button>
             </div>
           </div>
