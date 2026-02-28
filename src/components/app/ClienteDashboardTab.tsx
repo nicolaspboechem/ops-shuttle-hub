@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck } from 'lucide-react';
+import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck, Radio, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
@@ -70,6 +70,14 @@ export function ClienteDashboardTab({ eventoId }: ClienteDashboardTabProps) {
   const totalPaxDia = useMemo(() => 
     viagens.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0)
   , [viagens]);
+
+  const paxAtivos = useMemo(() =>
+    viagensAtivas.reduce((acc, v) => acc + (v.qtd_pax || 0), 0)
+  , [viagensAtivas]);
+
+  const paxFinalizados = useMemo(() =>
+    viagensFinalizadas.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0)
+  , [viagensFinalizadas]);
 
   const veiculosAtivos = useMemo(() => {
     const placas = new Set<string>();
@@ -160,79 +168,58 @@ export function ClienteDashboardTab({ eventoId }: ClienteDashboardTabProps) {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-bold">Análise Estratégica</h2>
-          <p className="text-xs text-muted-foreground">Métricas compiladas</p>
+          <h2 className="text-lg font-bold">Painel Estratégico</h2>
+          <p className="text-xs text-muted-foreground">Visão operacional do evento</p>
         </div>
         <Badge variant="outline" className="text-xs">
           {format(lastUpdate, 'HH:mm', { locale: ptBR })}
         </Badge>
       </div>
 
-      {/* KPIs 2x3 grid mobile */}
-      <div className="grid grid-cols-2 gap-3">
-        <MetricCard 
-          title="Total PAX" 
-          value={totalPaxDia} 
-          icon={<Users className="h-4 w-4" />}
-          subtitle="Transportados"
-        />
-        <MetricCard 
-          title="Realizadas" 
-          value={viagensFinalizadas.length} 
-          icon={<CheckCircle className="h-4 w-4" />}
-          subtitle="Viagens"
-        />
-        <MetricCard 
-          title="Em Trânsito" 
-          value={viagensAtivas.length} 
-          icon={<Bus className="h-4 w-4" />}
-          subtitle="Ativas agora"
-          highlight={viagensAtivas.length > 0}
-        />
-        <MetricCard 
-          title="Tempo Médio" 
-          value={formatarMinutos(kpis?.tempoMedioGeral || 0)} 
-          icon={<Clock className="h-4 w-4" />}
-          subtitle="Por viagem"
-        />
-        <MetricCard 
-          title="Veículos Ativos" 
-          value={veiculosAtivos} 
-          icon={<Car className="h-4 w-4" />}
-          subtitle={`de ${veiculos.length} na frota`}
-        />
-        <MetricCard 
-          title="Motoristas" 
-          value={motoristasDash.online} 
-          icon={<UserCheck className="h-4 w-4" />}
-          subtitle={`${motoristasDash.disponiveis} disponíveis`}
-        />
-      </div>
+      {/* ═══════════════════════════════════════════ */}
+      {/* SEÇÃO: OPERAÇÃO AGORA (tempo real) */}
+      {/* ═══════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </div>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+            Operação Agora
+          </h3>
+        </div>
 
-      {/* Insights compilados */}
-      <div className="grid gap-4">
-        {/* Distribuição por tipo de veículo */}
-        {distribuicaoTipo.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Car className="h-4 w-4 text-primary" />
-                Viagens por Tipo de Veículo
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="flex flex-wrap gap-2">
-                {distribuicaoTipo.map(([tipo, count]) => (
-                  <Badge key={tipo} variant="secondary" className="text-xs">
-                    {tipo}: {count}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard 
+            title="Em Trânsito" 
+            value={viagensAtivas.length} 
+            icon={<Bus className="h-4 w-4" />}
+            subtitle="Viagens ativas"
+            highlight={viagensAtivas.length > 0}
+          />
+          <MetricCard 
+            title="PAX em Rota" 
+            value={paxAtivos} 
+            icon={<Users className="h-4 w-4" />}
+            subtitle="Passageiros agora"
+            highlight={paxAtivos > 0}
+          />
+          <MetricCard 
+            title="Veículos Ativos" 
+            value={veiculosAtivos} 
+            icon={<Car className="h-4 w-4" />}
+            subtitle={`de ${veiculos.length} na frota`}
+          />
+          <MetricCard 
+            title="Motoristas Online" 
+            value={motoristasDash.online} 
+            icon={<UserCheck className="h-4 w-4" />}
+            subtitle={`${motoristasDash.disponiveis} disponíveis`}
+          />
+        </div>
 
-        {/* Combustível da frota */}
+        {/* Combustível da frota (tempo real) */}
         {veiculos.length > 0 && (
           <Card>
             <CardHeader className="pb-2 pt-4 px-4">
@@ -267,84 +254,147 @@ export function ClienteDashboardTab({ eventoId }: ClienteDashboardTabProps) {
             </CardContent>
           </Card>
         )}
-
-        {/* Top 3 Rotas */}
-        {topRotas.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Route className="h-4 w-4 text-primary" />
-                Top Rotas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-3">
-              {topRotas.map((rota, i) => (
-                <div key={rota.nome} className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}º</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{rota.nome}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {rota.count} viagens · {rota.tempoMedio > 0 ? `${formatarMinutos(rota.tempoMedio)} médio` : 'sem dados'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Horário de Pico + Rota mais usada */}
-        <div className="grid grid-cols-2 gap-3">
-          {horarioPico && horarioPico.totalPax > 0 && (
-            <Card>
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-xs font-medium flex items-center gap-1">
-                  <TrendingUp className="h-3.5 w-3.5 text-primary" />
-                  Pico
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <p className="text-xl font-bold">{horarioPico.hora}</p>
-                <p className="text-xs text-muted-foreground">{horarioPico.totalPax} PAX</p>
-              </CardContent>
-            </Card>
-          )}
-          {rotaMaisUsada && (
-            <Card>
-              <CardHeader className="pb-1 pt-3 px-4">
-                <CardTitle className="text-xs font-medium flex items-center gap-1">
-                  <Route className="h-3.5 w-3.5 text-primary" />
-                  Top Rota
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <p className="text-sm font-bold truncate">{rotaMaisUsada.nome}</p>
-                <p className="text-xs text-muted-foreground">{rotaMaisUsada.count} viagens</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </div>
 
-      {/* Gráficos */}
-      <div className="space-y-4">
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm">PAX por Hora</CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <PassengersChart data={metricasPorHora} />
-          </CardContent>
-        </Card>
+      {/* ═══════════════════════════════════════════ */}
+      {/* SEÇÃO: CONSOLIDADO (acumulado do dia) */}
+      {/* ═══════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Consolidado do Dia
+          </h3>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm">Desempenho por Rota</CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-4">
-            <RoutePerformanceChart viagens={viagens} />
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard 
+            title="Total PAX" 
+            value={totalPaxDia} 
+            icon={<Users className="h-4 w-4" />}
+            subtitle="Transportados"
+          />
+          <MetricCard 
+            title="Realizadas" 
+            value={viagensFinalizadas.length} 
+            icon={<CheckCircle className="h-4 w-4" />}
+            subtitle="Viagens finalizadas"
+          />
+          <MetricCard 
+            title="Tempo Médio" 
+            value={formatarMinutos(kpis?.tempoMedioGeral || 0)} 
+            icon={<Clock className="h-4 w-4" />}
+            subtitle="Por viagem"
+          />
+          <MetricCard 
+            title="Total Viagens" 
+            value={viagens.length} 
+            icon={<Route className="h-4 w-4" />}
+            subtitle="Ativas + finalizadas"
+          />
+        </div>
+
+        {/* Insights compilados */}
+        <div className="grid gap-4">
+          {/* Distribuição por tipo de veículo */}
+          {distribuicaoTipo.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Car className="h-4 w-4 text-primary" />
+                  Viagens por Tipo de Veículo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="flex flex-wrap gap-2">
+                  {distribuicaoTipo.map(([tipo, count]) => (
+                    <Badge key={tipo} variant="secondary" className="text-xs">
+                      {tipo}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Top 3 Rotas */}
+          {topRotas.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Route className="h-4 w-4 text-primary" />
+                  Top Rotas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-3">
+                {topRotas.map((rota, i) => (
+                  <div key={rota.nome} className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}º</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{rota.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {rota.count} viagens · {rota.tempoMedio > 0 ? `${formatarMinutos(rota.tempoMedio)} médio` : 'sem dados'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Horário de Pico + Rota mais usada */}
+          <div className="grid grid-cols-2 gap-3">
+            {horarioPico && horarioPico.totalPax > 0 && (
+              <Card>
+                <CardHeader className="pb-1 pt-3 px-4">
+                  <CardTitle className="text-xs font-medium flex items-center gap-1">
+                    <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                    Pico
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3">
+                  <p className="text-xl font-bold">{horarioPico.hora}</p>
+                  <p className="text-xs text-muted-foreground">{horarioPico.totalPax} PAX</p>
+                </CardContent>
+              </Card>
+            )}
+            {rotaMaisUsada && (
+              <Card>
+                <CardHeader className="pb-1 pt-3 px-4">
+                  <CardTitle className="text-xs font-medium flex items-center gap-1">
+                    <Route className="h-3.5 w-3.5 text-primary" />
+                    Top Rota
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3">
+                  <p className="text-sm font-bold truncate">{rotaMaisUsada.nome}</p>
+                  <p className="text-xs text-muted-foreground">{rotaMaisUsada.count} viagens</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Gráficos */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm">PAX por Hora</CardTitle>
+            </CardHeader>
+            <CardContent className="px-2 pb-4">
+              <PassengersChart data={metricasPorHora} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm">Desempenho por Rota</CardTitle>
+            </CardHeader>
+            <CardContent className="px-2 pb-4">
+              <RoutePerformanceChart viagens={viagens} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
