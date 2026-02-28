@@ -29,6 +29,8 @@ import {
   ArrowRightLeft,
   ArrowLeft,
   Shield,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -178,6 +180,7 @@ export default function AppSupervisor() {
   const [evento, setEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState<string | null>(null);
+  const [apenasMinhas, setApenasMinhas] = useState(true);
   const [viagemParaEncerrar, setViagemParaEncerrar] = useState<Viagem | null>(null);
   
   // Modals
@@ -241,11 +244,17 @@ export default function AppSupervisor() {
   const { pontos } = usePontosEmbarque(eventoId);
   const { alertas, atualizarStatus: atualizarAlertaStatus } = useAlertasFrota(eventoId);
 
-  // Filter viagens by selected tipo
+  // Filter viagens by selected tipo + "apenas minhas"
   const viagensFiltradas = useMemo(() => {
-    if (!filtroTipo || filtroTipo === 'missao') return viagens;
-    return viagens.filter(v => v.tipo_operacao === filtroTipo);
-  }, [viagens, filtroTipo]);
+    let result = viagens;
+    if (apenasMinhas && user?.id) {
+      result = result.filter(v => v.criado_por === user.id || v.iniciado_por === user.id);
+    }
+    if (filtroTipo && filtroTipo !== 'missao') {
+      result = result.filter(v => v.tipo_operacao === filtroTipo);
+    }
+    return result;
+  }, [viagens, filtroTipo, apenasMinhas, user?.id]);
 
   // Separate active vs finished
   const viagensAtivas = useMemo(() => 
@@ -612,6 +621,10 @@ export default function AppSupervisor() {
                   <DropdownMenuItem onClick={() => navigate('/app')}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Trocar Evento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setApenasMinhas(prev => !prev)}>
+                    {apenasMinhas ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
+                    {apenasMinhas ? 'Ver todas as viagens' : 'Ver apenas minhas'}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
