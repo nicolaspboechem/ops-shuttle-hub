@@ -1,31 +1,52 @@
 
-# Corrigir exclusao de usuarios e toggle de permissoes
 
-## Problema 1: Exclusao de usuario nao funciona
+# Filtro "Minhas Viagens" -- escondido no menu, ativo por padrao
 
-Na pagina Usuarios (`src/pages/Usuarios.tsx`), o `handleDeleteUser` chama `supabase.functions.invoke('delete-user')` sem passar explicitamente o header `Authorization`. Embora o SDK normalmente envie o token automaticamente, em alguns cenarios o header pode nao ser incluido corretamente. Compare com `useEquipe.ts` que passa o header explicitamente e funciona.
+## Resumo
 
-**Correcao**: Obter a sessao ativa e passar o header `Authorization` manualmente, igual ao padrao usado em `useEquipe.ts`.
+Adicionar um filtro silencioso que ja vem **ativado por padrao**, mostrando apenas as viagens criadas/iniciadas pelo usuario logado. O toggle para desativar fica **escondido dentro do menu dropdown** (os tres pontinhos no header), discreto para nao chamar atencao.
 
-## Problema 2: Permissoes nao persistem
+## Como funciona
 
-A funcao `togglePermission` faz `await supabase.from('user_permissions').insert(...)` e `.delete(...)` mas **nao verifica o retorno `{ error }`**. Se a operacao falhar (RLS, rede, etc), o erro e silenciosamente ignorado e o state local e atualizado como se tivesse funcionado. Na proxima vez que a pagina carrega, as permissoes voltam ao estado anterior.
+- Ao abrir o app, o supervisor/operador ve **apenas suas viagens** (filtro ativo)
+- Para ver todas as viagens, o usuario precisa abrir o menu (tres pontinhos) e clicar em "Ver todas as viagens"
+- Os KPIs e contadores refletem apenas as viagens filtradas
+- O filtro se aplica tanto a viagens ativas quanto encerradas
 
-**Correcao**: Desestruturar `{ error }` de cada chamada e lancar excecao se houver erro, impedindo a atualizacao otimista do state local.
+## Mudancas
 
-## Mudancas tecnicas
+### 1. `src/pages/app/AppSupervisor.tsx`
 
-### `src/pages/Usuarios.tsx`
+**Novo state:**
+- `apenasMinhas` (boolean, default `true`)
 
-**handleDeleteUser (linhas 325-350)**:
-- Antes de chamar `supabase.functions.invoke`, obter a sessao com `supabase.auth.getSession()`
-- Passar `headers: { Authorization: \`Bearer ...\` }` na chamada da edge function
-- Adicionar verificacao se a sessao existe
+**Filtro aplicado no memo `viagensFiltradas`:**
+- Apos filtrar por `filtroTipo`, adicionar condicao: se `apenasMinhas`, manter apenas viagens onde `v.criado_por === user?.id || v.iniciado_por === user?.id`
+- Isso afeta automaticamente `viagensAtivas`, `viagensEncerradas`, `summary` e toda a cadeia de memos
 
-**togglePermission (linhas 370-400)**:
-- No bloco `if (currentlyHas)`: desestruturar `{ error }` do `.delete()` e fazer `if (error) throw error`
-- No bloco `else`: desestruturar `{ error }` do `.insert()` e fazer `if (error) throw error`
+**Toggle no DropdownMenu (header):**
+- Adicionar um item no dropdown entre "Trocar Evento" e "Sair" com icone de olho
+- Texto: "Ver todas as viagens" quando filtro ativo, "Ver apenas minhas" quando desativado
+- Sem destaque visual, apenas um item de menu comum
 
-## Arquivo afetado
+### 2. `src/pages/app/AppOperador.tsx`
 
-- `src/pages/Usuarios.tsx` -- corrigir handleDeleteUser e togglePermission
+- Mesma logica: state `apenasMinhas` default `true`
+- Mesmo filtro no memo `viagensFiltradas`
+- Mesmo item no dropdown menu
+
+## Detalhes tecnicos
+
+O filtro verifica dois campos da tabela `viagens`:
+- `criado_por` (uuid): quem criou a viagem
+- `iniciado_por` (uuid): quem iniciou/deu play na viagem
+
+A condicao e `OR` -- se o usuario criou OU iniciou, ele ve a viagem. Isso cobre o caso de um supervisor criar e outro iniciar.
+
+Nenhuma mudanca no backend e necessaria. O RLS continua filtrando por evento normalmente; este filtro e puramente front-end sobre os dados ja carregados.
+
+## Arquivos afetados
+
+- `src/pages/app/AppSupervisor.tsx` -- state + filtro + item no dropdown
+- `src/pages/app/AppOperador.tsx` -- mesma logica
+
