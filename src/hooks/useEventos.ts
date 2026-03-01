@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Evento } from '@/lib/types/viagem';
 
-export function useEventos() {
+export function useEventos(options?: { includeInactive?: boolean }) {
+  const includeInactive = options?.includeInactive ?? false;
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,10 +19,15 @@ export function useEventos() {
       setRefreshing(true);
     }
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('eventos')
-      .select('*')
-      .order('data_criacao', { ascending: false });
+      .select('*');
+    
+    if (!includeInactive) {
+      query = query.eq('status', 'ativo');
+    }
+    
+    const { data, error } = await query.order('data_criacao', { ascending: false });
 
     if (error) {
       console.error('Erro ao buscar eventos:', error);

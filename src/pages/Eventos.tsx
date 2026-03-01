@@ -53,7 +53,7 @@ function groupEventos(eventos: Evento[]): Record<string, Evento[]> {
 }
 
 export default function Eventos() {
-  const { eventos, loading, refreshing, lastUpdate, refetch } = useEventos();
+  const { eventos, loading, refreshing, lastUpdate, refetch } = useEventos({ includeInactive: true });
   const [activeTab, setActiveTab] = useState<'ativos' | 'inativos'>('ativos');
 
   // Filter events by status
