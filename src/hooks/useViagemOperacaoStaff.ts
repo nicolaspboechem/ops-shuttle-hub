@@ -51,6 +51,7 @@ export function useViagemOperacaoStaff() {
 
     const now = getAgoraSync();
     const horaChegada = now.toTimeString().slice(0, 8);
+    const jaTemChegada = !!viagem.h_chegada;
 
     const novoStatus = (aguardarRetorno && viagem.tipo_operacao === 'shuttle')
       ? 'aguardando_retorno'
@@ -60,7 +61,9 @@ export function useViagemOperacaoStaff() {
       .from('viagens')
       .update({
         status: novoStatus as StatusViagemOperacao,
-        h_chegada: horaChegada,
+        ...(jaTemChegada
+          ? { h_retorno: horaChegada }
+          : { h_chegada: horaChegada }),
         h_fim_real: novoStatus === 'encerrado' ? now.toISOString() : null,
         finalizado_por: novoStatus === 'encerrado' ? userId : null,
         atualizado_por: userId,
@@ -212,7 +215,7 @@ export function useViagemOperacaoStaff() {
         qtd_pax: qtdPax,
         observacao: observacao || viagem.observacao,
         viagem_pai_id: viagem.id,
-        h_chegada: now.toTimeString().slice(0, 8),
+        h_retorno: now.toTimeString().slice(0, 8),
         atualizado_por: userId
       })
       .eq('id', viagem.id);

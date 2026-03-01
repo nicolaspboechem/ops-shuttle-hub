@@ -8,14 +8,14 @@
 
 const lastFetchTimes = new Map<string, number>();
 
-const DEFAULT_INTERVAL_MS = 5000; // 5 seconds (increased from 3s)
+const DEFAULT_INTERVAL_MS = 3000; // 3 seconds
 
 // Burst detection: track trigger counts per key
 const burstCounters = new Map<string, { count: number; windowStart: number; boostedUntil: number }>();
 const BURST_WINDOW_MS = 10000; // 10 second window
 const BURST_THRESHOLD = 3; // more than 3 triggers in window
-const BURST_BOOST_DURATION_MS = 30000; // boost lasts 30 seconds
-const BURST_INTERVAL_MS = 10000; // boosted interval: 10 seconds
+const BURST_BOOST_DURATION_MS = 15000; // boost lasts 15 seconds
+const BURST_INTERVAL_MS = 5000; // boosted interval: 5 seconds
 
 /**
  * Get effective interval considering burst detection.
