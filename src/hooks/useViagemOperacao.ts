@@ -175,11 +175,16 @@ export function useViagemOperacao() {
       ? 'aguardando_retorno' 
       : 'encerrado';
 
+    // Se já tem h_chegada, esta é a segunda chegada (retorno) → gravar em h_retorno
+    const jaTemChegada = !!viagem.h_chegada;
+
     const { error } = await supabase
       .from('viagens')
       .update({
         status: novoStatus as StatusViagemOperacao,
-        h_chegada: horaChegada,
+        ...(jaTemChegada
+          ? { h_retorno: horaChegada }
+          : { h_chegada: horaChegada }),
         h_fim_real: novoStatus === 'encerrado' ? now.toISOString() : null,
         finalizado_por: novoStatus === 'encerrado' ? user.id : null,
         atualizado_por: user.id,
@@ -406,7 +411,7 @@ export function useViagemOperacao() {
         qtd_pax: qtdPax,
         observacao: observacao || viagem.observacao,
         viagem_pai_id: viagem.id, // sinaliza que está retornando
-        h_chegada: now.toTimeString().slice(0, 8),
+        h_retorno: now.toTimeString().slice(0, 8), // hora que iniciou retorno (preserva h_chegada)
         atualizado_por: user.id
       })
       .eq('id', viagem.id);
