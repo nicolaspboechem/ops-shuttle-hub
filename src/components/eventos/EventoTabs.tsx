@@ -23,6 +23,7 @@ interface EventoTabsProps {
   eventoNome?: string;
   onUpdate?: () => void;
   selectedDate?: string;
+  totalVeiculos?: number;
 }
 
 interface MetricCardProps {
@@ -80,7 +81,7 @@ function StatusCard({ title, value, icon, variant }: { title: string; value: num
   );
 }
 
-export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpdate, selectedDate }: EventoTabsProps) {
+export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpdate, selectedDate, totalVeiculos }: EventoTabsProps) {
   const [activeTab, setActiveTab] = useState<'geral' | 'transfer' | 'shuttle'>('geral');
 
   // Detectar modalidades disponíveis
@@ -117,7 +118,7 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpda
         )}
         {temShuttle && (
           <>
-            <ShuttleMetrics viagens={viagensShuttle} />
+            <ShuttleMetrics viagens={viagensShuttle} totalVeiculos={totalVeiculos} />
             <ShuttleTable viagens={viagensShuttle} onUpdate={onUpdate} />
           </>
         )}
@@ -241,7 +242,7 @@ export function EventoTabs({ viagensTransfer, viagensShuttle, eventoNome, onUpda
       </TabsContent>
 
       <TabsContent value="shuttle" className="space-y-6 mt-0">
-        <ShuttleMetrics viagens={viagensShuttle} />
+        <ShuttleMetrics viagens={viagensShuttle} totalVeiculos={totalVeiculos} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ShuttlePaxChart viagens={viagensShuttle} />
           <ShuttleViagensDiaChart viagens={viagensShuttle} />

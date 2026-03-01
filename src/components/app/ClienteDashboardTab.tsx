@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface ClienteDashboardTabProps {
   eventoId: string;
+  tiposViagem?: string[] | null;
 }
 
 interface VeiculoFrota {
@@ -34,7 +35,11 @@ const FUEL_COLORS: Record<string, string> = {
   'reserva': 'bg-red-500',
 };
 
-export function ClienteDashboardTab({ eventoId }: ClienteDashboardTabProps) {
+export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardTabProps) {
+  const isShuttle = useMemo(() => {
+    if (!tiposViagem?.length) return false;
+    return tiposViagem.includes('shuttle') && !tiposViagem.includes('missao');
+  }, [tiposViagem]);
   const { viagens, loading, lastUpdate } = useViagens(eventoId);
   const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas } = useCalculos(viagens);
   const { getAgoraSync } = useServerTime();
@@ -211,12 +216,21 @@ export function ClienteDashboardTab({ eventoId }: ClienteDashboardTabProps) {
             icon={<Car className="h-4 w-4" />}
             subtitle={`de ${veiculos.length} na frota`}
           />
-          <MetricCard 
-            title="Motoristas Online" 
-            value={motoristasDash.online} 
-            icon={<UserCheck className="h-4 w-4" />}
-            subtitle={`${motoristasDash.disponiveis} disponíveis`}
-          />
+          {isShuttle ? (
+            <MetricCard 
+              title="Frota Total" 
+              value={veiculos.length} 
+              icon={<Car className="h-4 w-4" />}
+              subtitle="Veículos cadastrados"
+            />
+          ) : (
+            <MetricCard 
+              title="Motoristas Online" 
+              value={motoristasDash.online} 
+              icon={<UserCheck className="h-4 w-4" />}
+              subtitle={`${motoristasDash.disponiveis} disponíveis`}
+            />
+          )}
         </div>
 
         {/* Combustível da frota (tempo real) */}

@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Bus, Users, ArrowUp, ArrowDown } from 'lucide-react';
+import { Bus, Users, ArrowUp, ArrowDown, Car } from 'lucide-react';
 import { Viagem } from '@/lib/types/viagem';
 
 interface ShuttleMetricsProps {
   viagens: Viagem[];
+  totalVeiculos?: number;
 }
 
 function KpiCard({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: React.ReactNode }) {
@@ -26,22 +27,24 @@ function KpiCard({ title, value, subtitle, icon }: { title: string; value: strin
   );
 }
 
-export function ShuttleMetrics({ viagens }: ShuttleMetricsProps) {
+export function ShuttleMetrics({ viagens, totalVeiculos }: ShuttleMetricsProps) {
   const metrics = useMemo(() => {
     const paxIda = viagens.reduce((sum, v) => sum + (v.qtd_pax || 0), 0);
     const paxVolta = viagens.reduce((sum, v) => sum + (v.qtd_pax_retorno || 0), 0);
-    const ativas = viagens.filter(v => !v.encerrado && v.status !== 'encerrado' && v.status !== 'cancelado').length;
+    const ativas = viagens.filter(v => !v.encerrado && v.status !== 'encerrado' && v.status !== 'cancelado');
+    const veiculosEmOperacao = new Set(ativas.map(v => v.veiculo_id).filter(Boolean)).size;
     return {
       totalViagens: viagens.length,
       paxIda,
       paxVolta,
       paxTotal: paxIda + paxVolta,
-      ativas,
+      ativas: ativas.length,
+      veiculosEmOperacao,
     };
   }, [viagens]);
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
       <KpiCard
         title="Passageiros Total"
         value={metrics.paxTotal.toLocaleString('pt-BR')}
@@ -53,6 +56,12 @@ export function ShuttleMetrics({ viagens }: ShuttleMetricsProps) {
         value={metrics.totalViagens}
         subtitle={metrics.ativas > 0 ? `${metrics.ativas} ativas` : 'Registradas'}
         icon={<Bus className="w-5 h-5" />}
+      />
+      <KpiCard
+        title="Veículos em Op."
+        value={metrics.veiculosEmOperacao}
+        subtitle={totalVeiculos != null ? `de ${totalVeiculos} na frota` : 'Em viagens ativas'}
+        icon={<Car className="w-5 h-5" />}
       />
       <KpiCard
         title="PAX Ida"

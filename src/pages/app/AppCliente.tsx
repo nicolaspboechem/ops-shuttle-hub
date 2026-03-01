@@ -19,6 +19,7 @@ interface EventoConfig {
   nome_planilha: string;
   habilitar_localizador: boolean | null;
   visivel_publico: boolean | null;
+  tipos_viagem_habilitados: string[] | null;
 }
 
 export default function AppCliente() {
@@ -41,7 +42,7 @@ export default function AppCliente() {
 
     supabase
       .from('eventos')
-      .select('nome_planilha, habilitar_localizador, visivel_publico')
+      .select('nome_planilha, habilitar_localizador, visivel_publico, tipos_viagem_habilitados')
       .eq('id', eventoId)
       .maybeSingle()
       .then(({ data }) => {
@@ -76,13 +77,13 @@ export default function AppCliente() {
     
     switch (activeTab) {
       case 'dashboard':
-        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} />;
       case 'localizador':
         return <ClienteLocalizadorTab key={refreshKey} eventoId={eventoId} />;
       case 'painel':
         return <ClientePainelTab key={refreshKey} eventoId={eventoId} />;
       default:
-        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} />;
     }
   };
 
