@@ -39,9 +39,9 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
   const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
   
-  // Collect iniciado_por IDs for name resolution
-  const iniciadoPorIds = useMemo(() => viagens.map(v => v.iniciado_por), [viagens]);
-  const { getName } = useUserNames(iniciadoPorIds);
+  // Collect responsável IDs: preferir iniciado_por, fallback criado_por
+  const responsavelIds = useMemo(() => viagens.map(v => v.iniciado_por || v.criado_por), [viagens]);
+  const { getName } = useUserNames(responsavelIds);
 
   const getAlertaStatus = (viagemId: string) => {
     const alerta = alertas.find(a => a.viagemId === viagemId);
@@ -153,7 +153,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground truncate max-w-[120px] block">
-                      {getName(viagem.iniciado_por)}
+                      {getName(viagem.iniciado_por || viagem.criado_por)}
                     </span>
                   </TableCell>
                   <TableCell>
