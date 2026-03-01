@@ -1,77 +1,80 @@
 
 
-# Adicionar aba "Geral" ao filtro de operacoes e corrigir visibilidade
+# Corrigir divergencia de dados no dashboard do cliente
 
-## Problema
+## Problema verificado no evento "Routes Hotel 2026 - Galeao"
 
-1. **Viagens de shuttle nao aparecem em "Viagens Ativas"**: A pagina inicia na primeira aba habilitada (ex: `missao`), e shuttle so aparece ao clicar manualmente na aba Shuttle. Nao existe uma visao consolidada de todas as operacoes.
-2. **Dashboard do cliente nao tem filtro por tipo**: O `ClienteDashboardTab` mostra todas as viagens misturadas sem possibilidade de filtrar por tipo de operacao.
-3. **Localizador**: A logica de visibilidade ja esta implementada corretamente (`habilitar_localizador` controla a aba). Se o botao ainda aparece quando desabilitado, pode ser um problema de cache do estado do evento. Sera verificado e reforcado.
+O evento tem 2 viagens shuttle ativas com 22 pax no dia operacional de hoje. A configuracao e `tipos_viagem_habilitados: [missao, shuttle]`, `horario_virada_dia: 04:00`.
+
+O `ClienteDashboardTab` (linha 43) chama `useViagens(eventoId)` **sem filtro de dia operacional**. Para este evento com apenas 2 viagens, os numeros coincidem por sorte. Mas em eventos maiores (com centenas de viagens), o hook retorna no maximo 500 registros aleatorios de todos os dias, causando a divergencia relatada.
+
+Alem disso, o `horarioVirada` do evento nao e passado ao dashboard -- ele usa hardcoded `'04:00'` para calcular `dataOperacional` dos motoristas, mas nao aplica esse filtro nas viagens.
 
 ## Mudancas
 
-### 1. Adicionar tipo "todos" ao `OperationTabs`
-
-**Arquivo:** `src/components/layout/OperationTabs.tsx`
-
-- Expandir `TipoOperacaoFiltro` para incluir `'todos'`
-- Adicionar uma aba "Geral" como primeira opcao, sempre visivel, com cor neutra (azul/slate)
-- O contador de "Geral" sera a soma de todos os tipos
-- Remover a logica que esconde as tabs quando so ha 1 tipo (para que "Geral" + tipo unico ainda aparecam)
-
-### 2. Atualizar `ViagensAtivas` para iniciar em "todos"
-
-**Arquivo:** `src/pages/ViagensAtivas.tsx`
-
-- Alterar o estado inicial de `tipoOperacao` para `'todos'`
-- Atualizar os filtros de `viagensFiltradas` e `contadores` para suportar `'todos'` (nao filtrar por tipo quando "todos" esta selecionado)
-- Adicionar contador total para a aba "Geral"
-
-### 3. Adicionar filtro de operacao ao `ClienteDashboardTab`
-
-**Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
-
-- Importar e renderizar `OperationTabs` no topo do dashboard, logo abaixo do header
-- Adicionar estado `tipoOperacao` (inicializado em `'todos'`)
-- Filtrar `viagens`, `viagensAtivas` e `viagensFinalizadas` pelo tipo selecionado antes de calcular as metricas
-- Quando `'todos'` esta selecionado, mostrar todas as viagens (comportamento atual)
-- Calcular `contadores` para as tabs a partir das viagens do evento
-- Passar `tiposHabilitados` do evento para o `OperationTabs`
-
-### 4. Reforcar visibilidade do localizador no app cliente
+### 1. Passar `horarioVirada` do evento ao dashboard
 
 **Arquivo:** `src/pages/app/AppCliente.tsx`
 
-A logica ja existe na linha 56 (`if (evento?.habilitar_localizador) tabs.push('localizador')`). Sera reforcada adicionando um log de debug temporario e garantindo que o estado `evento` nao mantem dados stale entre navegacoes (reset ao mudar de evento).
-
-## Detalhes tecnicos
-
-### Novo tipo exportado
+- Adicionar prop `horarioVirada` na chamada do `ClienteDashboardTab`:
 
 ```typescript
-export type TipoOperacaoFiltro = 'todos' | 'transfer' | 'shuttle' | 'missao';
+return <ClienteDashboardTab 
+  key={refreshKey} 
+  eventoId={eventoId} 
+  tiposViagem={evento?.tipos_viagem_habilitados} 
+  horarioVirada={evento?.horario_virada_dia || undefined}
+/>;
 ```
 
-### Logica de filtragem para "todos"
+### 2. Filtrar viagens por dia operacional no dashboard
 
-Quando `tipoOperacao === 'todos'`:
-- Viagens Ativas: mostrar todas (sem filtro por `tipo_operacao` ou `origem_missao_id`)
-- Contadores: somar transfer + shuttle + missao
-- Motoristas no FilterBar: listar de todas as viagens
+**Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
 
-### Visual da aba "Geral"
+- Adicionar `horarioVirada?: string` a interface `ClienteDashboardTabProps`
+- Calcular `dataOperacional` usando o `horarioVirada` recebido (em vez do hardcoded `'04:00'`)
+- Passar `{ dataOperacional, horarioVirada }` como options para `useViagens`:
 
-A aba "Geral" usara:
-- Icone: `LayoutGrid` (lucide)
-- Cor ativa: `bg-blue-500 text-blue-950`
-- Posicao: primeira aba (antes de Missao/Transfer/Shuttle)
+```typescript
+const horarioViradaFinal = horarioVirada || '04:00';
+
+const dataOperacional = useMemo(() => {
+  return getDataOperacional(getAgoraSync(), horarioViradaFinal);
+}, [getAgoraSync, horarioViradaFinal]);
+
+const viagensOptions = useMemo(() => ({
+  dataOperacional,
+  horarioVirada: horarioViradaFinal,
+}), [dataOperacional, horarioViradaFinal]);
+
+const { viagens: todasViagens, loading, lastUpdate } = useViagens(eventoId, viagensOptions);
+```
+
+- Atualizar o `dataOperacional` dos motoristas para usar o mesmo `horarioViradaFinal` (linha 68-71 atualmente usa `'04:00'` hardcoded)
+
+### 3. Unificar logica de contadores
+
+No mesmo arquivo, simplificar `contadoresOperacao` (linha 56-63) para derivar dos dados ja filtrados por `useCalculos`, evitando o filtro duplicado com `!v.encerrado`:
+
+```typescript
+const contadoresOperacao = useMemo(() => {
+  const ativas = todasViagens.filter(v => v.status !== 'encerrado' && v.status !== 'cancelado');
+  return {
+    transfer: ativas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+    shuttle: ativas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+    missao: ativas.filter(v => !!v.origem_missao_id).length,
+  };
+}, [todasViagens]);
+```
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/layout/OperationTabs.tsx` | Adicionar tipo `'todos'` e aba "Geral" |
-| `src/pages/ViagensAtivas.tsx` | Iniciar em `'todos'`, suportar filtro geral |
-| `src/components/app/ClienteDashboardTab.tsx` | Adicionar `OperationTabs` com filtro de metricas |
-| `src/pages/app/AppCliente.tsx` | Reforcar reset de estado ao trocar evento |
+| `src/pages/app/AppCliente.tsx` | Passar `horarioVirada` do evento ao dashboard |
+| `src/components/app/ClienteDashboardTab.tsx` | Filtrar viagens por dia operacional, usar `horarioVirada` do evento, unificar contadores |
+
+## Resultado esperado
+
+No evento "Routes Hotel 2026 - Galeao", a aba "Geral" mostrara as 2 viagens shuttle ativas do dia com 22 pax, e a aba "Shuttle" mostrara os mesmos dados. A aba "Missao" mostrara 0. Eventos com muitos dias de operacao mostrarao apenas os dados do dia operacional atual, sem divergencia.
 
