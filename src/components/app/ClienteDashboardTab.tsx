@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck, Radio, BarChart3 } from 'lucide-react';
+import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck, Radio, BarChart3, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
@@ -13,7 +13,7 @@ import { RoutePerformanceChart } from '@/components/dashboard/RoutePerformanceCh
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 interface ClienteDashboardTabProps {
   eventoId: string;
   tiposViagem?: string[] | null;
@@ -24,6 +24,9 @@ interface VeiculoFrota {
   tipo_veiculo: string;
   nivel_combustivel: string | null;
   placa: string;
+  nome: string | null;
+  status: string | null;
+  capacidade: number | null;
 }
 
 const FUEL_ORDER = ['cheio', '3/4', '1/2', '1/4', 'reserva'];
@@ -65,7 +68,7 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
     if (!eventoId) return;
     supabase
       .from('veiculos')
-      .select('id, tipo_veiculo, nivel_combustivel, placa')
+      .select('id, tipo_veiculo, nivel_combustivel, placa, nome, status, capacidade')
       .eq('evento_id', eventoId)
       .eq('ativo', true)
       .then(({ data }) => setVeiculos(data || []));
@@ -124,6 +127,17 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
       countByNivel[nivel] = (countByNivel[nivel] || 0) + 1;
     });
     return countByNivel;
+  }, [veiculos]);
+
+  // Frota agrupada por tipo de veículo
+  const frotaPorTipo = useMemo(() => {
+    const grouped: Record<string, VeiculoFrota[]> = {};
+    veiculos.forEach(v => {
+      const tipo = v.tipo_veiculo || 'Outro';
+      if (!grouped[tipo]) grouped[tipo] = [];
+      grouped[tipo].push(v);
+    });
+    return Object.entries(grouped).sort(([, a], [, b]) => b.length - a.length);
   }, [veiculos]);
 
   // Top 3 rotas com tempo médio
@@ -308,7 +322,55 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
           />
         </div>
 
-        {/* Insights compilados */}
+        {/* Card Frota por Tipo com Popover */}
+        {frotaPorTipo.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Car className="h-4 w-4 text-primary" />
+                Frota por Tipo ({veiculos.length} veículos)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="space-y-2">
+                {frotaPorTipo.map(([tipo, lista]) => {
+                  const pct = Math.round((lista.length / veiculos.length) * 100);
+                  const IconTipo = tipo === 'Ônibus' || tipo === 'Van' ? Bus : Car;
+                  return (
+                    <Popover key={tipo}>
+                      <PopoverTrigger asChild>
+                        <button className="flex items-center gap-2 text-sm w-full rounded-md px-2 py-1.5 hover:bg-muted transition-colors text-left">
+                          <IconTipo className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1 font-medium">{tipo}</span>
+                          <span className="font-semibold">{lista.length}</span>
+                          <span className="text-muted-foreground text-xs w-10 text-right">({pct}%)</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-0" align="start">
+                        <div className="px-3 py-2 border-b">
+                          <p className="text-sm font-semibold">{tipo} ({lista.length} veículos)</p>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto divide-y">
+                          {lista.map(v => (
+                            <div key={v.id} className="px-3 py-1.5 text-xs flex items-center gap-2">
+                              <span className="font-mono font-medium w-20 shrink-0">{v.placa}</span>
+                              <span className="flex-1 truncate text-muted-foreground">{v.nome || '—'}</span>
+                              {v.capacidade && (
+                                <span className="text-muted-foreground shrink-0">{v.capacidade}lug</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-4">
           {/* Distribuição por tipo de veículo */}
           {distribuicaoTipo.length > 0 && (
