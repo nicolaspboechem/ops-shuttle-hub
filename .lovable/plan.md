@@ -1,69 +1,49 @@
 
-# Corrigir Dashboard geral, adicionar tipo e identificacao de supervisor nas viagens
 
-## Problema 1: Dashboard nao consolida dados quando "Geral" (todos)
+# Corrigir coluna "Iniciado por" para exibir nome real do usuario
 
-No `Dashboard.tsx` (linha 104-108), o filtro `viagensFiltradas` nao trata `tipoOperacao === 'todos'`. Quando o usuario seleciona "Geral", nenhuma viagem passa no filtro porque nenhuma tem `tipo_operacao === 'todos'`.
+## Problema
 
-## Problema 2: Sem identificacao visual de tipo na tabela
-
-A `ViagensTable` nao distingue visualmente shuttle/transfer/missao.
-
-## Problema 3: Sem nome do supervisor que iniciou a viagem
-
-O campo `iniciado_por` (UUID) existe na tabela `viagens` mas nao e exibido na ViagensTable. Precisamos resolver o UUID para nome usando o hook `useUserNames`.
+O campo `iniciado_por` esta NULL em todas as viagens do banco de dados. Porem o campo `criado_por` contem o UUID real do usuario que criou a viagem. A tabela usa `getName(viagem.iniciado_por)` que, por ser null, retorna "Sistema" via o hook `useUserNames`.
 
 ## Solucao
 
-### 1. Corrigir filtro no Dashboard
+### 1. Usar `criado_por` como fallback na ViagensTable
 
-**Arquivo:** `src/pages/Dashboard.tsx`
+**Arquivo:** `src/components/viagens/ViagensTable.tsx`
 
-Alterar `viagensFiltradas` para passar todas as viagens quando `tipoOperacao === 'todos'`:
+Alterar a coleta de IDs e a exibicao para usar `criado_por` quando `iniciado_por` for null:
 
 ```typescript
-const viagensFiltradas = useMemo(() => {
-  let filtered = viagens;
-  if (tipoOperacao !== 'todos') {
-    filtered = viagens.filter(v => {
-      if (tipoOperacao === 'missao') return !!v.origem_missao_id;
-      return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
-    });
-  }
-  if (rotaFiltro !== 'todas') {
-    filtered = filtered.filter(v => v.ponto_embarque === rotaFiltro);
-  }
-  return filtered;
-}, [viagens, tipoOperacao, rotaFiltro]);
+// Coletar IDs: preferir iniciado_por, fallback criado_por
+const responsavelIds = useMemo(
+  () => viagens.map(v => v.iniciado_por || v.criado_por),
+  [viagens]
+);
+const { getName } = useUserNames(responsavelIds);
 ```
 
-Alterar estado inicial de `tipoOperacao` para `'todos'` (o Dashboard e o painel geral).
+Na celula da tabela:
+```typescript
+{getName(viagem.iniciado_por || viagem.criado_por)}
+```
 
-### 2. Adicionar coluna "Tipo" na ViagensTable
+### 2. Gravar `iniciado_por` nas funcoes operacionais (para dados futuros)
 
-**Arquivo:** `src/components/viagens/ViagensTable.tsx`
+**Arquivo:** `src/hooks/useViagemOperacao.ts`
 
-Adicionar coluna com badge colorido:
-- **Missao** (roxo) - quando `origem_missao_id` existe
-- **Transfer** (ambar) - quando `tipo_operacao === 'transfer'`
-- **Shuttle** (verde) - quando `tipo_operacao === 'shuttle'`
+Na funcao `iniciarViagem()`, gravar o `user.id` atual no campo `iniciado_por` ao iniciar a viagem:
 
-### 3. Adicionar coluna "Iniciado por" na ViagensTable
+```typescript
+iniciado_por: user.id,
+```
 
-**Arquivo:** `src/components/viagens/ViagensTable.tsx`
-
-- Coletar todos os `iniciado_por` das viagens visiveis
-- Usar o hook `useUserNames` (ja existe em `src/hooks/useUserNames.ts`) para resolver UUIDs para nomes
-- Exibir o nome na nova coluna "Iniciado por"
-- Quando `iniciado_por` for null, exibir "-"
-
-### 4. Exibir rota resumida na coluna Motorista
-
-Na coluna "Motorista", adicionar uma linha secundaria com a rota (`Embarque > Desembarque`) em texto menor e cor atenuada, para identificar rapidamente a viagem.
+Isso garante que novas viagens iniciadas operacionalmente terao o campo preenchido. Viagens existentes continuarao usando o fallback `criado_por`.
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/pages/Dashboard.tsx` | Corrigir filtro para 'todos', estado inicial 'todos' |
-| `src/components/viagens/ViagensTable.tsx` | Adicionar colunas "Tipo" e "Iniciado por", exibir rota resumida |
+| `src/components/viagens/ViagensTable.tsx` | Usar `criado_por` como fallback quando `iniciado_por` for null |
+| `src/hooks/useViagemOperacao.ts` | Gravar `iniciado_por` ao iniciar viagem |
+
