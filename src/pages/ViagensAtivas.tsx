@@ -44,11 +44,7 @@ export default function ViagensAtivas() {
   const { kpis, viagensAtivas } = useCalculos(viagens);
   
   const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>(() => {
-    const tipos = tiposHabilitados;
-    if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
-    return 'missao';
-  });
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
@@ -59,6 +55,7 @@ export default function ViagensAtivas() {
 
   const motoristas = useMemo(() => {
     const vf = viagens.filter(v => {
+      if (tipoOperacao === 'todos') return true;
       if (tipoOperacao === 'missao') return !!v.origem_missao_id;
       return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
     });
@@ -68,10 +65,12 @@ export default function ViagensAtivas() {
   const viagensFiltradas = useMemo(() => {
     return viagensAtivas.filter(v => {
       // Filtro por tipo de operação ou missão
-      if (tipoOperacao === 'missao') {
-        if (!v.origem_missao_id) return false;
-      } else {
-        if (v.tipo_operacao !== tipoOperacao || v.origem_missao_id) return false;
+      if (tipoOperacao !== 'todos') {
+        if (tipoOperacao === 'missao') {
+          if (!v.origem_missao_id) return false;
+        } else {
+          if (v.tipo_operacao !== tipoOperacao || v.origem_missao_id) return false;
+        }
       }
       if (filtros.tipoVeiculo !== 'todos' && v.tipo_veiculo !== filtros.tipoVeiculo) return false;
       if (filtros.status !== 'todos' && v.status !== filtros.status) return false;

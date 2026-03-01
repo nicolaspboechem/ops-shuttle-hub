@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck, Radio, BarChart3, ChevronRight } from 'lucide-react';
+import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
@@ -39,12 +40,27 @@ const FUEL_COLORS: Record<string, string> = {
 };
 
 export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardTabProps) {
-  const isShuttle = useMemo(() => {
-    if (!tiposViagem?.length) return false;
-    return tiposViagem.includes('shuttle') && !tiposViagem.includes('missao');
-  }, [tiposViagem]);
-  const { viagens, loading, lastUpdate } = useViagens(eventoId);
+  const { viagens: todasViagens, loading, lastUpdate } = useViagens(eventoId);
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
+
+  // Filter viagens by selected operation type
+  const viagens = useMemo(() => {
+    if (tipoOperacao === 'todos') return todasViagens;
+    if (tipoOperacao === 'missao') return todasViagens.filter(v => !!v.origem_missao_id);
+    return todasViagens.filter(v => v.tipo_operacao === tipoOperacao && !v.origem_missao_id);
+  }, [todasViagens, tipoOperacao]);
+
   const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas } = useCalculos(viagens);
+
+  // Contadores always from all viagens (unfiltered)
+  const contadoresOperacao = useMemo(() => {
+    const { viagensAtivas: todasAtivas } = { viagensAtivas: todasViagens.filter(v => !v.encerrado && v.status !== 'encerrado' && v.status !== 'cancelado') };
+    return {
+      transfer: todasAtivas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+      shuttle: todasAtivas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+      missao: todasAtivas.filter(v => !!v.origem_missao_id).length,
+    };
+  }, [todasViagens]);
   const { getAgoraSync } = useServerTime();
   const [veiculos, setVeiculos] = useState<VeiculoFrota[]>([]);
 
@@ -195,6 +211,14 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
         </Badge>
       </div>
 
+      {/* Filtro por tipo de operação */}
+      <OperationTabs
+        value={tipoOperacao}
+        onChange={setTipoOperacao}
+        contadores={contadoresOperacao}
+        tiposHabilitados={tiposViagem}
+      />
+
       {/* ═══════════════════════════════════════════ */}
       {/* SEÇÃO: OPERAÇÃO AGORA (tempo real) */}
       {/* ═══════════════════════════════════════════ */}
@@ -230,7 +254,7 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
             icon={<Car className="h-4 w-4" />}
             subtitle={`de ${veiculos.length} na frota`}
           />
-          {isShuttle ? (
+          {tipoOperacao !== 'missao' ? (
             <MetricCard 
               title="Frota Total" 
               value={veiculos.length} 

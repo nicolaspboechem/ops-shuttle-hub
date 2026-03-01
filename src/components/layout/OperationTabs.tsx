@@ -1,8 +1,8 @@
-import { Car, Bus, Target } from 'lucide-react';
+import { Car, Bus, Target, LayoutGrid } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
-export type TipoOperacaoFiltro = 'transfer' | 'shuttle' | 'missao';
+export type TipoOperacaoFiltro = 'todos' | 'transfer' | 'shuttle' | 'missao';
 
 interface OperationTabsProps {
   value: TipoOperacaoFiltro;
@@ -16,29 +16,43 @@ interface OperationTabsProps {
   className?: string;
 }
 
-const ALL_TYPES: TipoOperacaoFiltro[] = ['missao', 'transfer', 'shuttle'];
+const SPECIFIC_TYPES: TipoOperacaoFiltro[] = ['missao', 'transfer', 'shuttle'];
 
 export function OperationTabs({ value, onChange, contadores, tiposHabilitados, className }: OperationTabsProps) {
-  // Filter to only enabled types
-  const tipos = tiposHabilitados?.length
-    ? ALL_TYPES.filter(t => tiposHabilitados.includes(t))
-    : ALL_TYPES;
+  // Filter to only enabled specific types
+  const tiposEspecificos = tiposHabilitados?.length
+    ? SPECIFIC_TYPES.filter(t => tiposHabilitados.includes(t))
+    : SPECIFIC_TYPES;
 
-  // If only 1 type enabled, don't render tabs
-  if (tipos.length <= 1) return null;
+  // If only 1 type enabled, don't render tabs (no need for filter)
+  if (tiposEspecificos.length <= 1) return null;
 
-  // If current value is not in enabled types, auto-select first
+  // Build full tabs list: "todos" + specific types
+  const tipos: TipoOperacaoFiltro[] = ['todos', ...tiposEspecificos];
+
+  // If current value is not in enabled types, auto-select 'todos'
   if (!tipos.includes(value)) {
-    // Use effect-free approach: call onChange on next tick
-    setTimeout(() => onChange(tipos[0]), 0);
+    setTimeout(() => onChange('todos'), 0);
   }
 
-  const cols = tipos.length === 2 ? 'grid-cols-2' : 'grid-cols-3';
+  const totalGeral = contadores.transfer + contadores.shuttle + contadores.missao;
+  const cols = tipos.length === 3 ? 'grid-cols-3' : tipos.length === 4 ? 'grid-cols-4' : 'grid-cols-2';
 
   return (
     <Tabs value={value} onValueChange={(v) => onChange(v as TipoOperacaoFiltro)} className={className}>
       <TabsList className={cn("grid h-auto p-1", cols)}>
-        {tipos.includes('missao') && (
+        <TabsTrigger 
+          value="todos" 
+          className={cn(
+            "gap-1.5 py-2.5",
+            "data-[state=active]:bg-blue-500 data-[state=active]:text-blue-950"
+          )}
+        >
+          <LayoutGrid className="w-4 h-4" />
+          <span className="hidden sm:inline">Geral</span>
+          <span className="text-xs opacity-75">({totalGeral})</span>
+        </TabsTrigger>
+        {tiposEspecificos.includes('missao') && (
           <TabsTrigger 
             value="missao" 
             className={cn(
@@ -51,7 +65,7 @@ export function OperationTabs({ value, onChange, contadores, tiposHabilitados, c
             <span className="text-xs opacity-75">({contadores.missao})</span>
           </TabsTrigger>
         )}
-        {tipos.includes('transfer') && (
+        {tiposEspecificos.includes('transfer') && (
           <TabsTrigger 
             value="transfer" 
             className={cn(
@@ -64,7 +78,7 @@ export function OperationTabs({ value, onChange, contadores, tiposHabilitados, c
             <span className="text-xs opacity-75">({contadores.transfer})</span>
           </TabsTrigger>
         )}
-        {tipos.includes('shuttle') && (
+        {tiposEspecificos.includes('shuttle') && (
           <TabsTrigger 
             value="shuttle" 
             className={cn(

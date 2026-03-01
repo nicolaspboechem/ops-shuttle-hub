@@ -29,6 +29,12 @@ export default function AppCliente() {
   const [activeTab, setActiveTab] = useState<ClienteTabId>('dashboard');
   const [evento, setEvento] = useState<EventoConfig | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Reset evento state when eventoId changes to prevent stale data
+  useEffect(() => {
+    setEvento(null);
+    setLoading(true);
+  }, [eventoId]);
   const [refreshKey, setRefreshKey] = useState(0);
   
   // Tutorial system
