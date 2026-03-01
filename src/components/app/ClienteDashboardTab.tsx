@@ -18,6 +18,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 interface ClienteDashboardTabProps {
   eventoId: string;
   tiposViagem?: string[] | null;
+  horarioVirada?: string;
 }
 
 interface VeiculoFrota {
@@ -39,8 +40,21 @@ const FUEL_COLORS: Record<string, string> = {
   'reserva': 'bg-red-500',
 };
 
-export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardTabProps) {
-  const { viagens: todasViagens, loading, lastUpdate } = useViagens(eventoId);
+export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: ClienteDashboardTabProps) {
+  const { getAgoraSync } = useServerTime();
+  const horarioViradaFinal = horarioVirada || '04:00';
+
+  // Filtrar viagens pelo dia operacional atual
+  const dataOperacional = useMemo(() => {
+    return getDataOperacional(getAgoraSync(), horarioViradaFinal);
+  }, [getAgoraSync, horarioViradaFinal]);
+
+  const viagensOptions = useMemo(() => ({
+    dataOperacional,
+    horarioVirada: horarioViradaFinal,
+  }), [dataOperacional, horarioViradaFinal]);
+
+  const { viagens: todasViagens, loading, lastUpdate } = useViagens(eventoId, viagensOptions);
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
 
   // Filter viagens by selected operation type
@@ -54,21 +68,14 @@ export function ClienteDashboardTab({ eventoId, tiposViagem }: ClienteDashboardT
 
   // Contadores always from all viagens (unfiltered)
   const contadoresOperacao = useMemo(() => {
-    const { viagensAtivas: todasAtivas } = { viagensAtivas: todasViagens.filter(v => !v.encerrado && v.status !== 'encerrado' && v.status !== 'cancelado') };
+    const ativas = todasViagens.filter(v => v.status !== 'encerrado' && v.status !== 'cancelado');
     return {
-      transfer: todasAtivas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
-      shuttle: todasAtivas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
-      missao: todasAtivas.filter(v => !!v.origem_missao_id).length,
+      transfer: ativas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
+      shuttle: ativas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
+      missao: ativas.filter(v => !!v.origem_missao_id).length,
     };
   }, [todasViagens]);
-  const { getAgoraSync } = useServerTime();
   const [veiculos, setVeiculos] = useState<VeiculoFrota[]>([]);
-
-  // Data operacional for motoristas dashboard
-  const dataOperacional = useMemo(() => {
-    const agora = getAgoraSync();
-    return getDataOperacional(agora, '04:00');
-  }, [getAgoraSync]);
 
   // Motoristas em viagem (IDs)
   const motoristasEmViagem = useMemo(() => {
