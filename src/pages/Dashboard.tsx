@@ -83,11 +83,7 @@ export default function Dashboard() {
   };
   
   const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
-  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>(() => {
-    const tipos = tiposHabilitados;
-    if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
-    return 'missao';
-  });
+  const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
   const [rotaFiltro, setRotaFiltro] = useState<string>('todas');
   const [showHelp, setShowHelp] = useState(false);
   
@@ -102,10 +98,13 @@ export default function Dashboard() {
 
   // Filtrar viagens por tipo de operação e rota
   const viagensFiltradas = useMemo(() => {
-    let filtered = viagens.filter(v => {
-      if (tipoOperacao === 'missao') return !!v.origem_missao_id;
-      return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
-    });
+    let filtered = viagens;
+    if (tipoOperacao !== 'todos') {
+      filtered = viagens.filter(v => {
+        if (tipoOperacao === 'missao') return !!v.origem_missao_id;
+        return v.tipo_operacao === tipoOperacao && !v.origem_missao_id;
+      });
+    }
     if (rotaFiltro !== 'todas') {
       filtered = filtered.filter(v => v.ponto_embarque === rotaFiltro);
     }

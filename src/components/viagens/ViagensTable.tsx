@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
+import { useUserNames } from '@/hooks/useUserNames';
 import { LoadMoreFooter } from '@/components/ui/load-more-footer';
 import { Bus, Users, Edit2, MapPin } from 'lucide-react';
 import {
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Viagem, AlertaViagem } from '@/lib/types/viagem';
 import { StatusBadge, OperationStatusBadge } from './StatusBadge';
 import { MissaoBadge } from './MissaoBadge';
@@ -23,9 +25,24 @@ interface ViagensTableProps {
   onUpdate: (viagem: Viagem) => void;
 }
 
+function getTipoBadge(viagem: Viagem) {
+  if (viagem.origem_missao_id) {
+    return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800 text-[10px] px-1.5 py-0">Missão</Badge>;
+  }
+  if (viagem.tipo_operacao === 'shuttle') {
+    return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[10px] px-1.5 py-0">Shuttle</Badge>;
+  }
+  return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] px-1.5 py-0">Transfer</Badge>;
+}
+
 export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) {
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
   const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
+  
+  // Collect iniciado_por IDs for name resolution
+  const iniciadoPorIds = useMemo(() => viagens.map(v => v.iniciado_por), [viagens]);
+  const { getName } = useUserNames(iniciadoPorIds);
+
   const getAlertaStatus = (viagemId: string) => {
     const alerta = alertas.find(a => a.viagemId === viagemId);
     return alerta?.status || 'ok';
@@ -37,6 +54,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-20">Tipo</TableHead>
               <TableHead className="w-28">Situação</TableHead>
               <TableHead className="w-24">Status</TableHead>
               <TableHead>Motorista</TableHead>
@@ -50,24 +68,27 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
               <TableHead className="w-20 text-center">Tempo</TableHead>
               <TableHead className="w-16 text-center">PAX</TableHead>
               <TableHead className="w-20">Missão</TableHead>
+              <TableHead>Iniciado por</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleItems.map((viagem) => {
               const status = getAlertaStatus(viagem.id);
-              // Tempo total: pickup até retorno (se existir) ou até chegada
               const tempoViagem = viagem.h_retorno
                 ? calcularTempoViagem(viagem.h_pickup, viagem.h_retorno)
                 : viagem.h_chegada
                   ? calcularTempoViagem(viagem.h_pickup, viagem.h_chegada)
                   : null;
 
+              const rota = [viagem.ponto_embarque, viagem.ponto_desembarque].filter(Boolean).join(' → ');
+
               return (
                 <TableRow 
                   key={viagem.id}
                   className="hover:bg-muted/30 transition-colors"
                 >
+                  <TableCell>{getTipoBadge(viagem)}</TableCell>
                   <TableCell>
                     <OperationStatusBadge status={viagem.status} />
                   </TableCell>
@@ -76,6 +97,9 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   </TableCell>
                   <TableCell>
                     <div className="font-medium text-foreground">{viagem.motorista}</div>
+                    {rota && (
+                      <div className="text-[11px] text-muted-foreground truncate max-w-[180px]">{rota}</div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -126,6 +150,11 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   </TableCell>
                   <TableCell>
                     <MissaoBadge missaoId={viagem.origem_missao_id} compact />
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground truncate max-w-[120px] block">
+                      {getName(viagem.iniciado_por)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <Button
