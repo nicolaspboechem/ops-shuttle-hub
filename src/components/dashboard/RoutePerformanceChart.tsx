@@ -21,7 +21,8 @@ export function RoutePerformanceChart({ viagens }: RoutePerformanceChartProps) {
     const routeStats = new Map<string, { pax: number; viagens: number }>();
 
     viagens.forEach(v => {
-      const rota = v.ponto_embarque || 'Não informado';
+      const origem = v.ponto_embarque || 'Não informado';
+      const rota = v.ponto_desembarque ? `${origem} > ${v.ponto_desembarque}` : origem;
       const current = routeStats.get(rota) || { pax: 0, viagens: 0 };
       current.pax += (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0);
       current.viagens++;

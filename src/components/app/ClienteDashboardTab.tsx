@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, Fuel, UserCheck, Radio, BarChart3, ChevronRight } from 'lucide-react';
+import { Users, CheckCircle, Bus, Clock, TrendingUp, Route, Car, UserCheck, Radio, BarChart3, ChevronRight } from 'lucide-react';
 import { OperationTabs, TipoOperacaoFiltro } from '@/components/layout/OperationTabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -31,14 +31,6 @@ interface VeiculoFrota {
   capacidade: number | null;
 }
 
-const FUEL_ORDER = ['cheio', '3/4', '1/2', '1/4', 'reserva'];
-const FUEL_COLORS: Record<string, string> = {
-  'cheio': 'bg-emerald-500',
-  '3/4': 'bg-green-400',
-  '1/2': 'bg-amber-400',
-  '1/4': 'bg-orange-500',
-  'reserva': 'bg-red-500',
-};
 
 export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: ClienteDashboardTabProps) {
   const { getAgoraSync } = useServerTime();
@@ -125,7 +117,8 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
     if (!viagens.length) return null;
     const countByRota: Record<string, number> = {};
     viagens.forEach(v => {
-      const rota = v.ponto_embarque || 'Sem rota';
+      const origem = v.ponto_embarque || 'Sem rota';
+      const rota = v.ponto_desembarque ? `${origem} > ${v.ponto_desembarque}` : origem;
       countByRota[rota] = (countByRota[rota] || 0) + 1;
     });
     const sorted = Object.entries(countByRota).sort(([, a], [, b]) => b - a);
@@ -142,15 +135,6 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
     return Object.entries(countByTipo).sort(([, a], [, b]) => b - a);
   }, [viagens]);
 
-  // Combustível da frota
-  const combustivelFrota = useMemo(() => {
-    const countByNivel: Record<string, number> = {};
-    veiculos.forEach(v => {
-      const nivel = v.nivel_combustivel || 'sem_info';
-      countByNivel[nivel] = (countByNivel[nivel] || 0) + 1;
-    });
-    return countByNivel;
-  }, [veiculos]);
 
   // Frota agrupada por tipo de veículo
   const frotaPorTipo = useMemo(() => {
@@ -167,7 +151,8 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
   const topRotas = useMemo(() => {
     const rotaMap: Record<string, { count: number; totalMin: number }> = {};
     viagens.forEach(v => {
-      const rota = v.ponto_embarque || 'Sem rota';
+      const origem = v.ponto_embarque || 'Sem rota';
+      const rota = v.ponto_desembarque ? `${origem} > ${v.ponto_desembarque}` : origem;
       if (!rotaMap[rota]) rotaMap[rota] = { count: 0, totalMin: 0 };
       rotaMap[rota].count++;
       if (v.h_inicio_real && v.h_fim_real) {
@@ -278,41 +263,6 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
           )}
         </div>
 
-        {/* Combustível da frota (tempo real) */}
-        {veiculos.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Fuel className="h-4 w-4 text-primary" />
-                Combustível da Frota ({veiculos.length} veículos)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="space-y-2">
-                {FUEL_ORDER.map(nivel => {
-                  const count = combustivelFrota[nivel] || 0;
-                  if (count === 0) return null;
-                  const pct = Math.round((count / veiculos.length) * 100);
-                  return (
-                    <div key={nivel} className="flex items-center gap-2 text-sm">
-                      <div className={`w-3 h-3 rounded-full ${FUEL_COLORS[nivel]}`} />
-                      <span className="capitalize flex-1">{nivel}</span>
-                      <span className="font-medium">{count}</span>
-                      <span className="text-muted-foreground text-xs">({pct}%)</span>
-                    </div>
-                  );
-                })}
-                {combustivelFrota['sem_info'] > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <div className="w-3 h-3 rounded-full bg-muted" />
-                    <span className="flex-1">Sem registro</span>
-                    <span className="font-medium">{combustivelFrota['sem_info']}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* ═══════════════════════════════════════════ */}
