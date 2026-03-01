@@ -1,80 +1,45 @@
 
 
-# Corrigir divergencia de dados no dashboard do cliente
-
-## Problema verificado no evento "Routes Hotel 2026 - Galeao"
-
-O evento tem 2 viagens shuttle ativas com 22 pax no dia operacional de hoje. A configuracao e `tipos_viagem_habilitados: [missao, shuttle]`, `horario_virada_dia: 04:00`.
-
-O `ClienteDashboardTab` (linha 43) chama `useViagens(eventoId)` **sem filtro de dia operacional**. Para este evento com apenas 2 viagens, os numeros coincidem por sorte. Mas em eventos maiores (com centenas de viagens), o hook retorna no maximo 500 registros aleatorios de todos os dias, causando a divergencia relatada.
-
-Alem disso, o `horarioVirada` do evento nao e passado ao dashboard -- ele usa hardcoded `'04:00'` para calcular `dataOperacional` dos motoristas, mas nao aplica esse filtro nas viagens.
+# Remover card combustivel e melhorar KPI de rotas
 
 ## Mudancas
 
-### 1. Passar `horarioVirada` do evento ao dashboard
-
-**Arquivo:** `src/pages/app/AppCliente.tsx`
-
-- Adicionar prop `horarioVirada` na chamada do `ClienteDashboardTab`:
-
-```typescript
-return <ClienteDashboardTab 
-  key={refreshKey} 
-  eventoId={eventoId} 
-  tiposViagem={evento?.tipos_viagem_habilitados} 
-  horarioVirada={evento?.horario_virada_dia || undefined}
-/>;
-```
-
-### 2. Filtrar viagens por dia operacional no dashboard
+### 1. Remover card "Combustivel da Frota" do app cliente
 
 **Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
 
-- Adicionar `horarioVirada?: string` a interface `ClienteDashboardTabProps`
-- Calcular `dataOperacional` usando o `horarioVirada` recebido (em vez do hardcoded `'04:00'`)
-- Passar `{ dataOperacional, horarioVirada }` como options para `useViagens`:
+- Remover o bloco do card de combustivel (linhas 281-315)
+- Remover variaveis nao mais usadas: `combustivelFrota`, `FUEL_ORDER`, `FUEL_COLORS`
+- Remover import do icone `Fuel`
 
-```typescript
-const horarioViradaFinal = horarioVirada || '04:00';
+### 2. Corrigir "Top Rotas" no app cliente para exibir Origem + Destino
 
-const dataOperacional = useMemo(() => {
-  return getDataOperacional(getAgoraSync(), horarioViradaFinal);
-}, [getAgoraSync, horarioViradaFinal]);
+**Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
 
-const viagensOptions = useMemo(() => ({
-  dataOperacional,
-  horarioVirada: horarioViradaFinal,
-}), [dataOperacional, horarioViradaFinal]);
+O `topRotas` (linha 167-186) agrupa apenas por `ponto_embarque`. Sera atualizado para usar `ponto_embarque + " > " + ponto_desembarque` como chave, formando a rota completa.
 
-const { viagens: todasViagens, loading, lastUpdate } = useViagens(eventoId, viagensOptions);
+O card "Top Rota" (linha 468-481) e a lista "Top Rotas" (linhas 427-449) tambem serao atualizados para exibir a rota completa (origem > destino).
+
+O `rotaMaisUsada` (linha 124-133) tambem agrupa so por `ponto_embarque` -- sera corrigido da mesma forma.
+
+### 3. Corrigir RoutePerformanceChart (grafico usado no CCO e app cliente)
+
+**Arquivo:** `src/components/dashboard/RoutePerformanceChart.tsx`
+
+O grafico agrupa por `v.ponto_embarque` (linha 24). Sera atualizado para usar `ponto_embarque + " > " + ponto_desembarque` como chave da rota. O tooltip ja mostra `rotaCompleta`, entao continuara funcionando. O eixo Y truncara nomes longos para caber.
+
+### Formato da rota completa
+
+```
+"Hotel Fasano > Aeroporto GIG"
 ```
 
-- Atualizar o `dataOperacional` dos motoristas para usar o mesmo `horarioViradaFinal` (linha 68-71 atualmente usa `'04:00'` hardcoded)
-
-### 3. Unificar logica de contadores
-
-No mesmo arquivo, simplificar `contadoresOperacao` (linha 56-63) para derivar dos dados ja filtrados por `useCalculos`, evitando o filtro duplicado com `!v.encerrado`:
-
-```typescript
-const contadoresOperacao = useMemo(() => {
-  const ativas = todasViagens.filter(v => v.status !== 'encerrado' && v.status !== 'cancelado');
-  return {
-    transfer: ativas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
-    shuttle: ativas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
-    missao: ativas.filter(v => !!v.origem_missao_id).length,
-  };
-}, [todasViagens]);
-```
+Quando `ponto_desembarque` for `null` ou vazio, exibir apenas o `ponto_embarque` (comportamento atual como fallback).
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/pages/app/AppCliente.tsx` | Passar `horarioVirada` do evento ao dashboard |
-| `src/components/app/ClienteDashboardTab.tsx` | Filtrar viagens por dia operacional, usar `horarioVirada` do evento, unificar contadores |
-
-## Resultado esperado
-
-No evento "Routes Hotel 2026 - Galeao", a aba "Geral" mostrara as 2 viagens shuttle ativas do dia com 22 pax, e a aba "Shuttle" mostrara os mesmos dados. A aba "Missao" mostrara 0. Eventos com muitos dias de operacao mostrarao apenas os dados do dia operacional atual, sem divergencia.
+| `src/components/app/ClienteDashboardTab.tsx` | Remover card combustivel, corrigir topRotas e rotaMaisUsada para usar origem+destino |
+| `src/components/dashboard/RoutePerformanceChart.tsx` | Agrupar por origem+destino em vez de so origem |
 
