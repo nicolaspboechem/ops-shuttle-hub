@@ -1,69 +1,99 @@
 
-# Ajustar Dashboard Shuttle e Visibilidade do Localizador
+# Adicionar card "Frota por Tipo" com hover detalhado
 
-## Diagnostico
+## O que sera feito
 
-### Problema 1: Veiculos cadastrados nao aparecem no dashboard de shuttle
-O `ShuttleMetrics` (CCO) exibe apenas PAX e contagem de viagens. Nao mostra quantos veiculos estao cadastrados ou em operacao. O `ClienteDashboardTab` conta "Veiculos Ativos" a partir de placas em viagens ativas, mas shuttles frequentemente nao tem `veiculo_id` preenchido, resultando em contagem zero.
+Na secao "Consolidado do Dia" do `ClienteDashboardTab`, adicionar um card que mostra a distribuicao real da frota cadastrada (tabela `veiculos`) agrupada por `tipo_veiculo`. Cada tipo tera um hover/popover que exibe os detalhes dos veiculos daquele tipo (placa, nome, status, capacidade).
 
-### Problema 2: Metricas de motorista irrelevantes para shuttle
-O dashboard do cliente mostra "Motoristas Online" usando o sistema de presenca (`motorista_presenca`), mas operacoes shuttle nao usam motoristas cadastrados -- usam o texto generico "Shuttle". Essas metricas ficam zeradas e confundem.
+## Mudancas
 
-### Problema 3: Localizador ja esta condicionalmente visivel (OK)
-O codigo em `AppCliente.tsx` (linha 55) ja verifica `evento?.habilitar_localizador` antes de adicionar a aba. Tanto o `ClienteBottomNav` quanto o `ClienteHeaderNav` usam `availableTabs` para filtrar. **Isso ja funciona corretamente** -- nenhuma mudanca necessaria.
-
-### Problema 4: Auditoria de shuttle ja funciona (OK)
-A pagina `Auditoria.tsx` usa `OperationTabs` com filtro por tipo de operacao. Ao selecionar "Shuttle", todas as abas (Resumo, Motoristas, Veiculos, Abastecimento) ja filtram por `tipo_operacao === 'shuttle'`. **Funciona corretamente**.
-
-## Mudancas propostas
-
-### 1. Adicionar contagem de veiculos ao `ShuttleMetrics` (CCO)
-
-**Arquivo:** `src/components/shuttle/ShuttleMetrics.tsx`
-
-Adicionar um novo KPI card mostrando:
-- **Veiculos em Operacao**: contagem de `veiculo_id` unicos nas viagens ativas do shuttle
-- Subtitle mostrando total de veiculos cadastrados no evento (recebido via nova prop `totalVeiculos`)
-
-O componente passara a receber uma prop opcional `totalVeiculos` para contextualizar (ex: "3 de 8 na frota").
-
-### 2. Adaptar `ClienteDashboardTab` para operacao shuttle
+### 1. Expandir a query de veiculos para incluir campos extras
 
 **Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
 
-Detectar o tipo de operacao dominante do evento (via `tipos_viagem_habilitados`). Quando o evento for predominantemente shuttle:
+A interface `VeiculoFrota` e a query de veiculos serao expandidas para incluir os campos `nome`, `status` e `capacidade`, necessarios para o balao de detalhes:
 
-- **Secao "Operacao Agora"**: Substituir "Motoristas Online" por "Veiculos na Frota" (total de veiculos cadastrados). Manter "Veiculos Ativos" contando veiculos em viagens ativas.
-- **Secao "Consolidado"**: Manter como esta (PAX total, viagens finalizadas, tempo medio).
-- Buscar `tipos_viagem_habilitados` do evento para determinar se deve mostrar metricas de motorista ou de frota.
+```typescript
+interface VeiculoFrota {
+  id: string;
+  tipo_veiculo: string;
+  nivel_combustivel: string | null;
+  placa: string;
+  nome: string | null;
+  status: string | null;
+  capacidade: number | null;
+}
+```
 
-Mudancas tecnicas:
-- Buscar `tipos_viagem_habilitados` junto com a query do evento (ja existe no `AppCliente.tsx`, so precisa propagar como prop)
-- Condicionar a renderizacao do card "Motoristas Online" vs "Veiculos na Frota" baseado no tipo habilitado
+A query passara a ser:
+```typescript
+.select('id, tipo_veiculo, nivel_combustivel, placa, nome, status, capacidade')
+```
 
-### 3. Propagar `tipos_viagem_habilitados` para o dashboard do cliente
+### 2. Adicionar computed `frotaPorTipo`
 
-**Arquivo:** `src/pages/app/AppCliente.tsx`
+Novo `useMemo` que agrupa os veiculos cadastrados por `tipo_veiculo`, retornando para cada tipo a lista de veiculos e a contagem:
 
-Adicionar `tipos_viagem_habilitados` a query de busca do evento e propagar como prop para `ClienteDashboardTab`.
+```typescript
+const frotaPorTipo = useMemo(() => {
+  const grouped: Record<string, VeiculoFrota[]> = {};
+  veiculos.forEach(v => {
+    const tipo = v.tipo_veiculo || 'Outro';
+    if (!grouped[tipo]) grouped[tipo] = [];
+    grouped[tipo].push(v);
+  });
+  return Object.entries(grouped).sort(([,a], [,b]) => b.length - a.length);
+}, [veiculos]);
+```
 
-### 4. Passar `totalVeiculos` para `ShuttleMetrics` no CCO
+### 3. Adicionar card "Frota por Tipo" com Popover
 
-**Arquivo:** `src/components/eventos/EventoTabs.tsx`
+Na secao "Consolidado do Dia", logo apos os 4 MetricCards e antes do bloco de insights, adicionar um novo `Card` com:
 
-Receber e propagar a contagem de veiculos do evento para o `ShuttleMetrics`. O componente pai (`EventLayout` ou a pagina que monta `EventoTabs`) ja tem acesso ao `eventoId` -- bastara adicionar uma query simples ou receber como prop.
+- Titulo: "Frota por Tipo" com icone de Car
+- Para cada tipo de veiculo, uma linha com: icone, nome do tipo, contagem, e percentual
+- Cada linha sera envolvida por um `Popover` (ja disponivel no projeto via `@radix-ui/react-popover`)
+- Ao clicar/hover na linha, o popover exibe uma lista com os detalhes de cada veiculo daquele tipo:
+  - Placa
+  - Nome (se disponivel)
+  - Status (em_inspecao, disponivel, em_viagem, etc.)
+  - Capacidade (lugares)
+
+O Popover sera usado ao inves de Tooltip porque permite conteudo mais rico e funciona melhor em mobile (ativado por toque).
+
+### 4. Imports adicionais
+
+Adicionar import do `Popover, PopoverTrigger, PopoverContent` de `@/components/ui/popover`.
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/shuttle/ShuttleMetrics.tsx` | Adicionar KPI de veiculos em operacao |
-| `src/components/app/ClienteDashboardTab.tsx` | Condicionar metricas por tipo de operacao (shuttle vs missao) |
-| `src/pages/app/AppCliente.tsx` | Propagar `tipos_viagem_habilitados` para o dashboard |
-| `src/components/eventos/EventoTabs.tsx` | Passar `totalVeiculos` para ShuttleMetrics |
+| `src/components/app/ClienteDashboardTab.tsx` | Expandir query de veiculos, adicionar `frotaPorTipo`, renderizar card com popover detalhado |
 
-## Nota: O que ja funciona e NAO sera alterado
+Nenhum arquivo novo sera criado. O componente `Popover` ja existe no projeto.
 
-- **Localizador**: A visibilidade da aba ja e controlada por `habilitar_localizador`. Quando desabilitado, o botao/aba ja nao aparece.
-- **Auditoria**: O filtro por tipo de operacao ja funciona para shuttle, com todos os graficos e rankings respondendo ao filtro.
-- **Criacao de shuttle**: O `CreateShuttleForm` ja permite selecionar veiculo, pontos de embarque/desembarque e PAX. O registro na tabela `viagens` ja inclui `veiculo_id`.
+## Detalhes visuais
+
+O card tera o mesmo estilo dos cards existentes (como "Combustivel da Frota"). Cada linha de tipo sera clicavel e ao tocar/hover aparece o popover com uma tabela compacta mostrando:
+
+```text
++----------------------------------+
+| Frota por Tipo (8 veiculos)      |
+|----------------------------------|
+| [Bus] Van         5   (63%)  [>] |
+| [Bus] Onibus      2   (25%)  [>] |
+| [Car] SUV         1   (13%)  [>] |
++----------------------------------+
+
+Popover ao clicar em "Van":
++---------------------------+
+| Van (5 veiculos)          |
+|---------------------------|
+| ABC-1234 | Van 01 | 15lug |
+| DEF-5678 | Van 02 | 15lug |
+| GHI-9012 | Van 03 | 12lug |
+| JKL-3456 | --     | 15lug |
+| MNO-7890 | Van 05 | 15lug |
++---------------------------+
+```
