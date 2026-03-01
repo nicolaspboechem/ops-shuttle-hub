@@ -56,9 +56,12 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
           <TableBody>
             {visibleItems.map((viagem) => {
               const status = getAlertaStatus(viagem.id);
-              const tempoViagem = viagem.h_chegada 
-                ? calcularTempoViagem(viagem.h_pickup, viagem.h_chegada)
-                : null;
+              // Tempo total: pickup até retorno (se existir) ou até chegada
+              const tempoViagem = viagem.h_retorno
+                ? calcularTempoViagem(viagem.h_pickup, viagem.h_retorno)
+                : viagem.h_chegada
+                  ? calcularTempoViagem(viagem.h_pickup, viagem.h_chegada)
+                  : null;
 
               return (
                 <TableRow 
