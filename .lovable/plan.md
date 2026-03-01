@@ -1,99 +1,77 @@
 
-# Adicionar card "Frota por Tipo" com hover detalhado
 
-## O que sera feito
+# Adicionar aba "Geral" ao filtro de operacoes e corrigir visibilidade
 
-Na secao "Consolidado do Dia" do `ClienteDashboardTab`, adicionar um card que mostra a distribuicao real da frota cadastrada (tabela `veiculos`) agrupada por `tipo_veiculo`. Cada tipo tera um hover/popover que exibe os detalhes dos veiculos daquele tipo (placa, nome, status, capacidade).
+## Problema
+
+1. **Viagens de shuttle nao aparecem em "Viagens Ativas"**: A pagina inicia na primeira aba habilitada (ex: `missao`), e shuttle so aparece ao clicar manualmente na aba Shuttle. Nao existe uma visao consolidada de todas as operacoes.
+2. **Dashboard do cliente nao tem filtro por tipo**: O `ClienteDashboardTab` mostra todas as viagens misturadas sem possibilidade de filtrar por tipo de operacao.
+3. **Localizador**: A logica de visibilidade ja esta implementada corretamente (`habilitar_localizador` controla a aba). Se o botao ainda aparece quando desabilitado, pode ser um problema de cache do estado do evento. Sera verificado e reforcado.
 
 ## Mudancas
 
-### 1. Expandir a query de veiculos para incluir campos extras
+### 1. Adicionar tipo "todos" ao `OperationTabs`
+
+**Arquivo:** `src/components/layout/OperationTabs.tsx`
+
+- Expandir `TipoOperacaoFiltro` para incluir `'todos'`
+- Adicionar uma aba "Geral" como primeira opcao, sempre visivel, com cor neutra (azul/slate)
+- O contador de "Geral" sera a soma de todos os tipos
+- Remover a logica que esconde as tabs quando so ha 1 tipo (para que "Geral" + tipo unico ainda aparecam)
+
+### 2. Atualizar `ViagensAtivas` para iniciar em "todos"
+
+**Arquivo:** `src/pages/ViagensAtivas.tsx`
+
+- Alterar o estado inicial de `tipoOperacao` para `'todos'`
+- Atualizar os filtros de `viagensFiltradas` e `contadores` para suportar `'todos'` (nao filtrar por tipo quando "todos" esta selecionado)
+- Adicionar contador total para a aba "Geral"
+
+### 3. Adicionar filtro de operacao ao `ClienteDashboardTab`
 
 **Arquivo:** `src/components/app/ClienteDashboardTab.tsx`
 
-A interface `VeiculoFrota` e a query de veiculos serao expandidas para incluir os campos `nome`, `status` e `capacidade`, necessarios para o balao de detalhes:
+- Importar e renderizar `OperationTabs` no topo do dashboard, logo abaixo do header
+- Adicionar estado `tipoOperacao` (inicializado em `'todos'`)
+- Filtrar `viagens`, `viagensAtivas` e `viagensFinalizadas` pelo tipo selecionado antes de calcular as metricas
+- Quando `'todos'` esta selecionado, mostrar todas as viagens (comportamento atual)
+- Calcular `contadores` para as tabs a partir das viagens do evento
+- Passar `tiposHabilitados` do evento para o `OperationTabs`
+
+### 4. Reforcar visibilidade do localizador no app cliente
+
+**Arquivo:** `src/pages/app/AppCliente.tsx`
+
+A logica ja existe na linha 56 (`if (evento?.habilitar_localizador) tabs.push('localizador')`). Sera reforcada adicionando um log de debug temporario e garantindo que o estado `evento` nao mantem dados stale entre navegacoes (reset ao mudar de evento).
+
+## Detalhes tecnicos
+
+### Novo tipo exportado
 
 ```typescript
-interface VeiculoFrota {
-  id: string;
-  tipo_veiculo: string;
-  nivel_combustivel: string | null;
-  placa: string;
-  nome: string | null;
-  status: string | null;
-  capacidade: number | null;
-}
+export type TipoOperacaoFiltro = 'todos' | 'transfer' | 'shuttle' | 'missao';
 ```
 
-A query passara a ser:
-```typescript
-.select('id, tipo_veiculo, nivel_combustivel, placa, nome, status, capacidade')
-```
+### Logica de filtragem para "todos"
 
-### 2. Adicionar computed `frotaPorTipo`
+Quando `tipoOperacao === 'todos'`:
+- Viagens Ativas: mostrar todas (sem filtro por `tipo_operacao` ou `origem_missao_id`)
+- Contadores: somar transfer + shuttle + missao
+- Motoristas no FilterBar: listar de todas as viagens
 
-Novo `useMemo` que agrupa os veiculos cadastrados por `tipo_veiculo`, retornando para cada tipo a lista de veiculos e a contagem:
+### Visual da aba "Geral"
 
-```typescript
-const frotaPorTipo = useMemo(() => {
-  const grouped: Record<string, VeiculoFrota[]> = {};
-  veiculos.forEach(v => {
-    const tipo = v.tipo_veiculo || 'Outro';
-    if (!grouped[tipo]) grouped[tipo] = [];
-    grouped[tipo].push(v);
-  });
-  return Object.entries(grouped).sort(([,a], [,b]) => b.length - a.length);
-}, [veiculos]);
-```
-
-### 3. Adicionar card "Frota por Tipo" com Popover
-
-Na secao "Consolidado do Dia", logo apos os 4 MetricCards e antes do bloco de insights, adicionar um novo `Card` com:
-
-- Titulo: "Frota por Tipo" com icone de Car
-- Para cada tipo de veiculo, uma linha com: icone, nome do tipo, contagem, e percentual
-- Cada linha sera envolvida por um `Popover` (ja disponivel no projeto via `@radix-ui/react-popover`)
-- Ao clicar/hover na linha, o popover exibe uma lista com os detalhes de cada veiculo daquele tipo:
-  - Placa
-  - Nome (se disponivel)
-  - Status (em_inspecao, disponivel, em_viagem, etc.)
-  - Capacidade (lugares)
-
-O Popover sera usado ao inves de Tooltip porque permite conteudo mais rico e funciona melhor em mobile (ativado por toque).
-
-### 4. Imports adicionais
-
-Adicionar import do `Popover, PopoverTrigger, PopoverContent` de `@/components/ui/popover`.
+A aba "Geral" usara:
+- Icone: `LayoutGrid` (lucide)
+- Cor ativa: `bg-blue-500 text-blue-950`
+- Posicao: primeira aba (antes de Missao/Transfer/Shuttle)
 
 ## Arquivos afetados
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/app/ClienteDashboardTab.tsx` | Expandir query de veiculos, adicionar `frotaPorTipo`, renderizar card com popover detalhado |
+| `src/components/layout/OperationTabs.tsx` | Adicionar tipo `'todos'` e aba "Geral" |
+| `src/pages/ViagensAtivas.tsx` | Iniciar em `'todos'`, suportar filtro geral |
+| `src/components/app/ClienteDashboardTab.tsx` | Adicionar `OperationTabs` com filtro de metricas |
+| `src/pages/app/AppCliente.tsx` | Reforcar reset de estado ao trocar evento |
 
-Nenhum arquivo novo sera criado. O componente `Popover` ja existe no projeto.
-
-## Detalhes visuais
-
-O card tera o mesmo estilo dos cards existentes (como "Combustivel da Frota"). Cada linha de tipo sera clicavel e ao tocar/hover aparece o popover com uma tabela compacta mostrando:
-
-```text
-+----------------------------------+
-| Frota por Tipo (8 veiculos)      |
-|----------------------------------|
-| [Bus] Van         5   (63%)  [>] |
-| [Bus] Onibus      2   (25%)  [>] |
-| [Car] SUV         1   (13%)  [>] |
-+----------------------------------+
-
-Popover ao clicar em "Van":
-+---------------------------+
-| Van (5 veiculos)          |
-|---------------------------|
-| ABC-1234 | Van 01 | 15lug |
-| DEF-5678 | Van 02 | 15lug |
-| GHI-9012 | Van 03 | 12lug |
-| JKL-3456 | --     | 15lug |
-| MNO-7890 | Van 05 | 15lug |
-+---------------------------+
-```
