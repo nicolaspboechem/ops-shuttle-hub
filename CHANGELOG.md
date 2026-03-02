@@ -5,6 +5,20 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [3.1.0] - 2026-03-02
+
+### Adicionado
+- Edicao de PAX Ida no modal de edicao do CCO Desktop (EditViagemModal)
+- Campo de Observacao editavel no modal de edicao do CCO Desktop
+- Componente ObservacaoUnificada para edicao inline de observacoes no mobile
+- Gravacao do campo `iniciado_por` ao iniciar viagens (auditoria)
+
+### Corrigido
+- Coluna "Iniciado por" nas tabelas de viagens agora exibe nome real (fallback para `criado_por`)
+- Divergencia de status entre supervisores: hook Staff sincronizado com logica do CCO
+- Hook Staff agora grava `h_retorno` corretamente (nao sobrescreve `h_chegada`)
+- Reducao de latencia do throttle de realtime (3s/5s) para propagacao mais rapida de status
+
 ## [3.0.0] - 2026-02-26
 
 ### Alterado
