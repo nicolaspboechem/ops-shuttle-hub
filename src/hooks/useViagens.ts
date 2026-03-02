@@ -129,6 +129,7 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
     const { error } = await supabase
       .from('viagens')
       .update({
+        qtd_pax: updated.qtd_pax,
         h_chegada: updated.h_chegada,
         h_retorno: updated.h_retorno,
         qtd_pax_retorno: updated.qtd_pax_retorno,

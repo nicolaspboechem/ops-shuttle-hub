@@ -40,6 +40,9 @@ import {
 import { cn } from '@/lib/utils';
 import { SwipeableCard } from './SwipeableCard';
 import { NavigationLinks } from './NavigationLinks';
+import { ObservacaoUnificada } from '@/components/viagens/ObservacaoUnificada';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ViagemOperacoes {
   iniciarViagem: (viagem: Viagem) => Promise<boolean>;
@@ -323,11 +326,21 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
           />
 
           {/* Observação */}
-          {viagem.observacao && (
-            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-              {viagem.observacao}
-            </p>
-          )}
+          <ObservacaoUnificada
+            observacaoInicial={viagem.observacao}
+            onSave={async (novaObs) => {
+              const { error } = await supabase
+                .from('viagens')
+                .update({ observacao: novaObs })
+                .eq('id', viagem.id);
+              if (error) {
+                toast.error('Erro ao salvar observação');
+              } else {
+                toast.success('Observação salva');
+                onUpdate();
+              }
+            }}
+          />
 
           {/* Auditoria */}
           {(viagem.criado_por || viagem.iniciado_por || viagem.finalizado_por) && (
