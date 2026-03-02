@@ -1,35 +1,53 @@
 
 
-# Atualizar versao para V3.1.0
+# Fix: Scroll vazando e modal fechando sozinho no mobile
 
-## Mudancas desde V3.0.0
+## Problema
 
-Todas as alteracoes feitas nesta sessao se enquadram como **MINOR** (novas funcionalidades) e **PATCH** (correcoes de bugs), sem quebra de compatibilidade. A versao adequada e **3.1.0**.
+Dois bugs nos modais mobile (confirmados como issues conhecidas do Radix/shadcn):
+
+1. **Scroll do body vaza** -- o `DialogContent` e o `SheetContent` estao como irmaos do Overlay, nao como filhos. O `react-remove-scroll` do Radix nao consegue conter o scroll corretamente.
+2. **Modal fecha ao scrollar** -- touch que comeca dentro do modal e termina no backdrop dispara `onPointerDownOutside`, fechando o modal involuntariamente.
 
 ## Arquivos a alterar
 
-### 1. `src/lib/version.ts`
+### 1. `src/components/ui/dialog.tsx`
 
-- `APP_VERSION`: de `'3.0.0'` para `'3.1.0'`
-- `APP_BUILD_DATE`: de `'2026-02-26'` para `'2026-03-02'`
+**DialogOverlay**: adicionar `overflow-y-auto` e layout de grid para centralizar o Content quando ele e filho do Overlay.
 
-### 2. `CHANGELOG.md`
+**DialogContent**: 
+- Mover `<DialogPrimitive.Content>` para **dentro** de `<DialogOverlay>` (filho, nao irmao)
+- Remover posicionamento `fixed left-[50%] top-[50%] translate-x/y` (nao precisa mais, o Overlay faz o layout)
+- Usar `relative w-full max-w-lg mx-auto my-auto` no lugar
+- Adicionar `onPointerDownOutside={(e) => e.preventDefault()}` e `onInteractOutside={(e) => e.preventDefault()}`
 
-Adicionar nova secao `[3.1.0] - 2026-03-02` acima da `[3.0.0]`, com o seguinte conteudo:
+O botao de fechar (X) continua funcionando normalmente.
+
+### 2. `src/components/ui/sheet.tsx`
+
+**SheetContent**:
+- Adicionar `overscroll-behavior: contain` via classe Tailwind (`overscroll-contain`) para evitar scroll vazando
+- Adicionar `onPointerDownOutside={(e) => e.preventDefault()}` e `onInteractOutside={(e) => e.preventDefault()}`
+
+O Sheet usa slide-in (nao centralizado), entao a estrutura Overlay/Content como irmaos e aceitavel -- basta adicionar o `overscroll-contain` e proteger contra dismiss acidental.
+
+### Nenhuma alteracao nos consumidores
+
+Os componentes `EditViagemMobileModal`, `EditViagemModal`, `ReportarCombustivelModal`, `EditarLocalizacaoModal` e todos os demais continuam funcionando sem mudanca -- o fix e na camada base do shadcn.
+
+## Detalhe tecnico
 
 ```text
-## [3.1.0] - 2026-03-02
+ANTES (dialog.tsx):
+  Portal
+  +-- Overlay (fixed, z-50)
+  +-- Content (fixed, z-50, translate centered)  <-- irmao
 
-### Adicionado
-- Edicao de PAX Ida no modal de edicao do CCO Desktop (EditViagemModal)
-- Campo de Observacao editavel no modal de edicao do CCO Desktop
-- Componente ObservacaoUnificada para edicao inline de observacoes no mobile
-- Gravacao do campo `iniciado_por` ao iniciar viagens (auditoria)
-
-### Corrigido
-- Coluna "Iniciado por" nas tabelas de viagens agora exibe nome real (fallback para `criado_por`)
-- Divergencia de status entre supervisores: hook Staff sincronizado com logica do CCO
-- Hook Staff agora grava `h_retorno` corretamente (nao sobrescreve `h_chegada`)
-- Reducao de latencia do throttle de realtime (3s/5s) para propagacao mais rapida de status
+DEPOIS (dialog.tsx):
+  Portal
+  +-- Overlay (fixed, z-50, overflow-y-auto, grid)
+      +-- Content (relative, mx-auto, my-auto)   <-- filho
 ```
+
+Para o Sheet, a estrutura nao muda -- apenas adiciona overscroll-contain e preventDefault nos eventos de dismiss.
 
