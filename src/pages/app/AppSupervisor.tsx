@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useViagens } from '@/hooks/useViagens';
+import { APP_VERSION, APP_NAME } from '@/lib/version';
 import { useMissoes } from '@/hooks/useMissoes';
 import { useMotoristas, useVeiculos } from '@/hooks/useCadastros';
 import { useLocalizadorMotoristas } from '@/hooks/useLocalizadorMotoristas';
@@ -631,6 +632,12 @@ export default function AppSupervisor() {
                     <LogOut className="h-4 w-4 mr-2" />
                     Sair
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <div className="text-center py-1">
+                    <span className="text-[10px] text-muted-foreground/50">
+                      {APP_NAME} · V{APP_VERSION}
+                    </span>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
