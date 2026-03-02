@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 import { Viagem } from '@/lib/types/viagem';
 import { calcularTempoViagem, formatarMinutos } from '@/lib/utils/calculadores';
 import { toast } from 'sonner';
@@ -27,14 +28,15 @@ interface EditViagemModalProps {
 export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemModalProps) {
   const { getAgoraSync } = useServerTime();
   const [form, setForm] = useState({
+    qtd_pax: viagem.qtd_pax || 0,
     h_chegada: viagem.h_chegada || '',
     h_retorno: viagem.h_retorno || '',
     qtd_pax_retorno: viagem.qtd_pax_retorno || 0,
-    encerrado: viagem.encerrado
+    encerrado: viagem.encerrado,
+    observacao: viagem.observacao || ''
   });
 
   const handleSave = () => {
-    // Validations
     if (form.h_chegada && form.h_chegada < viagem.h_pickup) {
       toast.error('Horário de chegada deve ser após o pickup');
       return;
@@ -47,10 +49,12 @@ export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemM
 
     const updated: Viagem = {
       ...viagem,
+      qtd_pax: form.qtd_pax,
       h_chegada: form.h_chegada || null,
       h_retorno: form.h_retorno || null,
       qtd_pax_retorno: form.qtd_pax_retorno,
       encerrado: form.encerrado,
+      observacao: form.observacao || null,
       data_atualizacao: getAgoraSync().toISOString()
     };
 
@@ -105,19 +109,23 @@ export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemM
                 {viagem.ponto_embarque || 'Não informado'}
               </p>
             </div>
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">PAX Ida</span>
-              <p className="text-sm font-medium flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" />
-                {viagem.qtd_pax}
-              </p>
-            </div>
           </div>
 
           <Separator />
 
           {/* Editable Fields */}
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="qtd_pax">PAX Ida</Label>
+              <Input
+                id="qtd_pax"
+                type="number"
+                min="0"
+                value={form.qtd_pax}
+                onChange={(e) => setForm({ ...form, qtd_pax: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="h_chegada">Horário de Chegada</Label>
               <Input
@@ -146,6 +154,17 @@ export function EditViagemModal({ viagem, isOpen, onClose, onSave }: EditViagemM
                 min="0"
                 value={form.qtd_pax_retorno}
                 onChange={(e) => setForm({ ...form, qtd_pax_retorno: parseInt(e.target.value) || 0 })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="observacao">Observação</Label>
+              <Textarea
+                id="observacao"
+                placeholder="Observações sobre a viagem..."
+                value={form.observacao}
+                onChange={(e) => setForm({ ...form, observacao: e.target.value })}
+                className="min-h-[60px]"
               />
             </div>
 
