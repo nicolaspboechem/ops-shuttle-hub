@@ -88,8 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserData = async (userId: string) => {
     try {
       const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', userId).single(),
-        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+        supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).limit(1).maybeSingle(),
         supabase.from('user_permissions').select('permission').eq('user_id', userId),
         supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
       ]);
@@ -121,7 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('motoristas')
           .select('id')
           .eq('user_id', userId)
-          .single();
+          .limit(1)
+          .maybeSingle();
         if (motoristaData) {
           setMotoristaId(motoristaData.id);
         }
