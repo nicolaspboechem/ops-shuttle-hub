@@ -316,10 +316,11 @@ export default function AppOperador() {
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
-      // If only 1 type enabled, open its form directly
+      // If only 1 type enabled and it's not shuttle, open form directly
+      // For shuttle, always show action modal (rápido vs completo choice)
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
-        if (tipo === 'shuttle') { setShuttleMode('rapido'); setShowShuttleForm(true); }
+        if (tipo === 'shuttle') { setShowActionModal(true); }
         else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowViagemForm(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
       } else {
