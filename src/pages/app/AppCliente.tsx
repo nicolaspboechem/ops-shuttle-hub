@@ -50,7 +50,7 @@ export default function AppCliente() {
 
     supabase
       .from('eventos')
-      .select('nome_planilha, habilitar_localizador, visivel_publico, tipos_viagem_habilitados, horario_virada_dia')
+      .select('nome_planilha, habilitar_localizador, visivel_publico, tipos_viagem_habilitados, horario_virada_dia, status')
       .eq('id', eventoId)
       .maybeSingle()
       .then(({ data }) => {
