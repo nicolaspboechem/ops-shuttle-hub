@@ -110,15 +110,26 @@ export default function Home() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [eventosRes, viagensRes, motoristasRes, veiculosRes] = await Promise.all([
-      supabase.from('eventos').select('id', { count: 'exact' }).eq('status', 'ativo'),
-      supabase.from('viagens').select('id', { count: 'exact' }).gte('data_criacao', today.toISOString()),
-      supabase.from('motorista_presenca').select('id', { count: 'exact' }).eq('data', format(today, 'yyyy-MM-dd')).not('checkin_at', 'is', null).is('checkout_at', null),
-      supabase.from('veiculos').select('id', { count: 'exact' }).eq('status', 'liberado'),
+    // First, get active event IDs
+    const eventosRes = await supabase.from('eventos').select('id').eq('status', 'ativo');
+    const activeIds = (eventosRes.data || []).map(e => e.id);
+    const activeCount = activeIds.length;
+
+    if (activeCount === 0) {
+      setStats({ eventosAtivos: 0, viagensHoje: 0, motoristasOnline: 0, veiculosLiberados: 0 });
+      setLoading(false);
+      return;
+    }
+
+    // Filter all queries by active event IDs only
+    const [viagensRes, motoristasRes, veiculosRes] = await Promise.all([
+      supabase.from('viagens').select('id', { count: 'exact' }).in('evento_id', activeIds).gte('data_criacao', today.toISOString()),
+      supabase.from('motorista_presenca').select('id', { count: 'exact' }).in('evento_id', activeIds).eq('data', format(today, 'yyyy-MM-dd')).not('checkin_at', 'is', null).is('checkout_at', null),
+      supabase.from('veiculos').select('id', { count: 'exact' }).in('evento_id', activeIds).eq('status', 'liberado'),
     ]);
 
     setStats({
-      eventosAtivos: eventosRes.count || 0,
+      eventosAtivos: activeCount,
       viagensHoje: viagensRes.count || 0,
       motoristasOnline: motoristasRes.count || 0,
       veiculosLiberados: veiculosRes.count || 0,
