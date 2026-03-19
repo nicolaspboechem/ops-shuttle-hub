@@ -52,7 +52,6 @@ export default function ViagensFinalizadas() {
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
-    transfer: viagensFinalizadas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagensFinalizadas.filter(v => v.origem_missao_id).length,
   }), [viagensFinalizadas]);

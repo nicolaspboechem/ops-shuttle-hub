@@ -125,12 +125,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     try {
       // Derive legacy fields for compatibility
       const habilitarMissoes = tiposViagem.includes('missao');
-      const temTransfer = tiposViagem.includes('transfer');
       const temShuttle = tiposViagem.includes('shuttle');
-      let tipoOperacao = 'transfer';
-      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
-      else if (temShuttle) tipoOperacao = 'shuttle';
-      else if (temTransfer) tipoOperacao = 'transfer';
+      const tipoOperacao = temShuttle ? 'shuttle' : 'shuttle';
 
       const { error } = await supabase.from('eventos').insert({
         nome_planilha: nome,
@@ -237,7 +233,6 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
               <div className="space-y-2">
                 {[
                   { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" />, desc: 'Tarefas designadas pelo CCO. Motorista aceita, inicia e conclui.', border: 'purple' },
-                  { value: 'transfer', label: 'Transfer Executivo', icon: <Car className="h-4 w-4 text-amber-600" />, desc: 'Viagens privativas ponto a ponto. Ideal para VIPs e convidados.', border: 'amber' },
                   { value: 'shuttle', label: 'Shuttle (Circular)', icon: <Bus className="h-4 w-4 text-emerald-600" />, desc: 'Rotas fixas com grade de horários. Ideal para alto volume.', border: 'emerald' },
                 ].map(tipo => {
                   const checked = tiposViagem.includes(tipo.value);

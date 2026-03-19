@@ -119,7 +119,6 @@ function FiltroTipoPills({ tipos, filtroAtivo, onChange }: {
 
   const labels: Record<string, string> = {
     shuttle: 'Shuttle',
-    transfer: 'Transfer',
     missao: 'Missão',
   };
 
@@ -167,10 +166,10 @@ export default function AppOperador() {
   // Modals
   const [showActionModal, setShowActionModal] = useState(false);
   const [showShuttleForm, setShowShuttleForm] = useState(false);
-  const [showViagemForm, setShowViagemForm] = useState(false);
+  const [showViagemForm, setShowViagemForm] = useState(false); // kept for mission-linked trips
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
-  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('shuttle');
   const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
@@ -321,8 +320,8 @@ export default function AppOperador() {
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
         if (tipo === 'shuttle') { setShowActionModal(true); }
-        else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowViagemForm(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
+        else setShowActionModal(true);
       } else {
         setShowActionModal(true);
       }
@@ -342,9 +341,6 @@ export default function AppOperador() {
     } else if (tipo === 'shuttle_completo') {
       setShuttleMode('completo');
       setShowShuttleForm(true);
-    } else {
-      setPreselectedTipo(tipo);
-      setShowViagemForm(true);
     }
   };
 

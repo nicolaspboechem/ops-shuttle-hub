@@ -136,12 +136,8 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
     try {
       // Derive legacy fields
       const habilitarMissoes = tiposViagem.includes('missao');
-      const temTransfer = tiposViagem.includes('transfer');
       const temShuttle = tiposViagem.includes('shuttle');
-      let tipoOperacao = 'transfer';
-      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
-      else if (temShuttle) tipoOperacao = 'shuttle';
-      else if (temTransfer) tipoOperacao = 'transfer';
+      const tipoOperacao = temShuttle ? 'shuttle' : 'shuttle';
 
       const updateData: Record<string, any> = {
         nome_planilha: nome,
@@ -248,7 +244,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
               <div className="space-y-2">
                 {[
                   { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" /> },
-                  { value: 'transfer', label: 'Transfer', icon: <Car className="h-4 w-4 text-amber-600" /> },
                   { value: 'shuttle', label: 'Shuttle', icon: <Bus className="h-4 w-4 text-emerald-600" /> },
                 ].map(tipo => {
                   const checked = tiposViagem.includes(tipo.value);
@@ -469,7 +464,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
                     <Label className="font-medium text-green-900">Visível no Painel Público</Label>
                     <p className="text-xs text-green-700/80 mt-1">
                       Exibe rotas Shuttle para passageiros em /painel.
-                      Não afeta operações Transfer.
                     </p>
                   </div>
                 </div>

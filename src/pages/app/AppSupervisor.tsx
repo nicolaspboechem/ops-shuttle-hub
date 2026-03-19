@@ -129,7 +129,6 @@ function FiltroTipoPills({ tipos, filtroAtivo, onChange }: {
 
   const labels: Record<string, string> = {
     shuttle: 'Shuttle',
-    transfer: 'Transfer',
     missao: 'Missão',
   };
 
@@ -191,7 +190,7 @@ export default function AppSupervisor() {
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showAlertasModal, setShowAlertasModal] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
-  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('shuttle');
   const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   // Dia operacional
@@ -341,8 +340,8 @@ export default function AppSupervisor() {
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
         if (tipo === 'shuttle') { setShowActionModal(true); }
-        else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowNovaViagem(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
+        else setShowActionModal(true);
       } else {
         setShowActionModal(true);
       }
@@ -362,9 +361,6 @@ export default function AppSupervisor() {
     } else if (tipo === 'shuttle_completo') {
       setShuttleMode('completo');
       setShowShuttleForm(true);
-    } else {
-      setPreselectedTipo(tipo);
-      setShowNovaViagem(true);
     }
   };
 

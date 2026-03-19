@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Bus, Car, ChevronRight, Pencil, MoreVertical, Eye, EyeOff, Archive, Trash2, Power } from 'lucide-react';
+import { Calendar, Bus, ChevronRight, Pencil, MoreVertical, Eye, EyeOff, Archive, Trash2, Power } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,8 +36,6 @@ interface EventoGroupCardProps {
 }
 
 interface ViagemStats {
-  transfer: number;
-  shuttle: number;
   total: number;
   totalPax: number;
 }
@@ -65,10 +63,8 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
           .eq('evento_id', evento.id);
 
         if (!error && data) {
-          const transfer = data.filter(v => v.tipo_operacao === 'transfer').length;
-          const shuttle = data.filter(v => v.tipo_operacao === 'shuttle').length;
           const totalPax = data.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
-          statsMap[evento.id] = { transfer, shuttle, total: data.length, totalPax };
+          statsMap[evento.id] = { total: data.length, totalPax };
         }
       }
       
@@ -80,15 +76,13 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
   const aggregatedStats = useMemo(() => {
     return selectedEventIds.reduce(
       (acc, id) => {
-        const s = stats[id] || { transfer: 0, shuttle: 0, total: 0, totalPax: 0 };
+        const s = stats[id] || { total: 0, totalPax: 0 };
         return {
-          transfer: acc.transfer + s.transfer,
-          shuttle: acc.shuttle + s.shuttle,
           total: acc.total + s.total,
           totalPax: acc.totalPax + s.totalPax,
         };
       },
-      { transfer: 0, shuttle: 0, total: 0, totalPax: 0 }
+      { total: 0, totalPax: 0 }
     );
   }, [selectedEventIds, stats]);
 
@@ -301,22 +295,6 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
           </div>
 
           <div className="p-5 space-y-4">
-            {/* Badges de operação */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {aggregatedStats.transfer > 0 && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1.5 py-1 px-2.5">
-                  <Car className="w-3.5 h-3.5" />
-                  {aggregatedStats.transfer} Transfer
-                </Badge>
-              )}
-              {aggregatedStats.shuttle > 0 && (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1.5 py-1 px-2.5">
-                  <Bus className="w-3.5 h-3.5" />
-                  {aggregatedStats.shuttle} Shuttle
-                </Badge>
-              )}
-            </div>
-
             {/* Stats Grid */}
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 rounded-lg bg-muted/50">
