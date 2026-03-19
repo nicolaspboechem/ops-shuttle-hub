@@ -37,6 +37,7 @@ import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBottomNav';
 import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
 import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
+import { MotoristaHomeTab } from '@/components/app/MotoristaHomeTab';
 import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { VersionBadge } from '@/components/ui/version-badge';
 import { Button } from '@/components/ui/button';
