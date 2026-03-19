@@ -93,18 +93,20 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
       const pontoEmbarqueData = activePontos.find(p => p.nome === pontoEmbarque);
       const pontoDesembarqueData = activePontos.find(p => p.nome === pontoDesembarque);
 
+      const isRapido = mode === 'rapido';
+
       const { error } = await supabase.from('viagens').insert({
         evento_id: eventoId,
         tipo_operacao: 'shuttle',
         motorista: 'Shuttle',
         coordenador: nomeViagem.trim() || null,
-        status: 'em_andamento',
+        status: isRapido ? 'em_andamento' : 'agendado',
         encerrado: false,
         qtd_pax: Number(qtdPax),
         observacao: observacao.trim() || null,
         criado_por: userId,
-        h_inicio_real: agora,
-        h_pickup: horaAtual,
+        h_inicio_real: isRapido ? agora : null,
+        h_pickup: isRapido ? horaAtual : null,
         veiculo_id: veiculoId || null,
         ponto_embarque: pontoEmbarque || null,
         ponto_desembarque: pontoDesembarque || null,
