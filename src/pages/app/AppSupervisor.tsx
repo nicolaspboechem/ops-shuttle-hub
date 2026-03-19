@@ -340,8 +340,8 @@ export default function AppSupervisor() {
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
         if (tipo === 'shuttle') { setShowActionModal(true); }
-        else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowNovaViagem(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
+        else setShowActionModal(true);
       } else {
         setShowActionModal(true);
       }
