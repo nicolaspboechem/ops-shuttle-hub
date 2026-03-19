@@ -215,6 +215,13 @@ export default function AppSupervisor() {
     }
   }, [evento?.horario_virada_dia, getAgoraSync]);
 
+  // Redirect away from localizador tab if disabled
+  useEffect(() => {
+    if (activeTab === 'localizador' && evento?.habilitar_localizador === false) {
+      setActiveTab('frota');
+    }
+  }, [activeTab, evento?.habilitar_localizador]);
+
   // Buscar viagens com filtro de data
   const viagensOptions = useMemo(() => {
     const opts: any = {};
