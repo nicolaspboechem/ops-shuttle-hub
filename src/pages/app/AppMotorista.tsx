@@ -67,7 +67,7 @@ export default function AppMotorista() {
   const { getAgoraSync, loading: loadingServerTime } = useServerTime();
   
   const [operando, setOperando] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
+  const [activeTab, setActiveTab] = useState<MotoristaTabId>('home');
   const [showHelp, setShowHelp] = useState(false);
   
   
