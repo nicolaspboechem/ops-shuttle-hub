@@ -411,7 +411,7 @@ export default function Usuarios() {
     }
   };
 
-  const getUserLoginDisplay = (user: UserWithPermissions) => {
+  const getUserLoginDisplay = (user: UserData) => {
     if (user.login_type === 'phone' && user.telefone) return formatPhoneDisplay(user.telefone);
     return user.email || '-';
   };
