@@ -52,8 +52,8 @@ export default function Configuracoes() {
   // Carregar dados do evento
   useEffect(() => {
     if (evento) {
-      setPainelPublicoHabilitado(evento.visivel_publico ?? true);
-      setPainelLocalizadorHabilitado((evento as any).habilitar_localizador ?? true);
+      setPainelPublicoHabilitado(evento.visivel_publico === true);
+      setPainelLocalizadorHabilitado((evento as any).habilitar_localizador === true);
       setAlertaAmarelo((evento as any).alerta_limiar_amarelo ?? 15);
       setAlertaVermelho((evento as any).alerta_limiar_vermelho ?? 25);
     }
