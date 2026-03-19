@@ -87,6 +87,15 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
     );
   }, [selectedEventIds, stats]);
 
+  const diasEvento = useMemo(() => {
+    if (primaryEvento.data_inicio && primaryEvento.data_fim) {
+      const start = new Date(primaryEvento.data_inicio + 'T12:00:00');
+      const end = new Date(primaryEvento.data_fim + 'T12:00:00');
+      return differenceInCalendarDays(end, start) + 1;
+    }
+    return eventos.length;
+  }, [primaryEvento.data_inicio, primaryEvento.data_fim, eventos.length]);
+
   const getDateRange = () => {
     if (primaryEvento.data_inicio && primaryEvento.data_fim) {
       const start = new Date(primaryEvento.data_inicio + 'T12:00:00');
