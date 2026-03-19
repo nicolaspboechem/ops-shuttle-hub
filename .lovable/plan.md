@@ -1,87 +1,57 @@
 
-Objetivo: corrigir de forma definitiva a visibilidade do Localizador no app Cliente, app Supervisor e painel CCO, eliminando divergência entre telas e evitando que novos eventos nasçam com o Localizador ligado sem intenção.
 
-O que encontrei
-- No app Cliente, a aba só aparece se `evento.habilitar_localizador` vier verdadeiro.
-- O problema é que o evento do print (`MOTO GP - 26`, id `c76c5640-6f6c-4553-8fbe-b385cc552c3e`) está hoje no banco com `habilitar_localizador = true`, então a UI cliente está obedecendo o dado salvo.
-- A causa raiz não é só renderização: há inconsistência de configuração.
-  1. `CreateEventoWizard.tsx` não grava `habilitar_localizador` ao criar evento.
-  2. O banco define `habilitar_localizador BOOLEAN DEFAULT true`.
-  3. `EditEventoModal.tsx` também não expõe/salva esse campo.
-  4. `Configuracoes.tsx` ainda usa fallback `?? true`, reforçando o comportamento permissivo.
-  5. Supervisor já foi endurecido com `=== true`, mas Cliente ainda usa checagem truthy simples.
+## Auditoria de Performance e Custos — Supabase
 
-Plano de correção definitiva
+### Estado Atual
 
-1. Centralizar a regra de visibilidade
-- Criar uma única função/helper para módulos do evento, por exemplo:
-  - `localizadorHabilitado = evento.habilitar_localizador === true`
-  - `painelPublicoHabilitado = evento.visivel_publico === true`
-- Usar essa regra única em:
-  - `src/pages/app/AppCliente.tsx`
-  - `src/pages/app/AppSupervisor.tsx`
-  - `src/pages/PainelLocalizador.tsx`
-  - hooks/listagens públicas relacionadas
+O sistema já está **bem otimizado**. Aqui está o resumo:
 
-2. Corrigir o app Cliente
-- Trocar a lógica atual de `availableTabs` para checagem estrita `=== true`.
-- Adicionar guarda de navegação igual ao Supervisor:
-  - se `activeTab === 'localizador'` e o módulo estiver desligado, redirecionar para `dashboard`.
-- Resultado: mesmo acesso manual/estado antigo não mantém a aba aberta.
+#### O que já está correto
+- **Throttle global** (`refetchThrottle.ts`): 3s padrão, 5s em burst — impede cascata de refetches
+- **Realtime filtrado por `evento_id`** em quase todos os hooks (viagens, presença, missões, alertas, veículos)
+- **Cache por sessão** no `useViagensAuditoria` — abas históricas não fazem polling nem realtime
+- **Paginação automática** (blocos de 1000) para datasets grandes
+- **`useViagensPorMotorista`** filtra por `motorista_id` no Realtime — evita refetch cruzado
+- **Canais consolidados** em `Motoristas.tsx` e `Home.tsx` — múltiplas tabelas num só canal
+- **`useMotoristasDashboard`** aceita `missoesExternas` para evitar queries duplicadas
+- **`select` minimalista** em queries de contagem (ex: `select('motorista_id')` em presença)
 
-3. Corrigir a origem do problema nos formulários
-- `src/components/eventos/CreateEventoWizard.tsx`
-  - adicionar toggle explícito de Localizador
-  - persistir `habilitar_localizador` no insert
-- `src/components/eventos/EditEventoModal.tsx`
-  - adicionar toggle explícito de Localizador
-  - persistir `habilitar_localizador` no update
-- Isso evita depender só da tela de Configurações para um módulo tão crítico.
+#### Problemas encontrados (3 itens)
 
-4. Ajustar Configurações para comportamento explícito
-- `src/pages/Configuracoes.tsx`
-  - parar de usar `?? true` para Localizador
-  - carregar com `=== true`
-  - melhorar o texto do switch para deixar claro o alcance:
-    - “Exibir aba Localizador no app Cliente/Supervisor e no painel /localizador”
-- Assim o usuário entende exatamente o que será ocultado.
+1. **`useNotifications` — throttle de 10s + polling de 120s**
+   - O throttle local é de 10s (deveria ser 3s como os demais hooks)
+   - Polling fallback de 120s pode ser reduzido para 60s
+   - Falta listener de `visibilitychange` para sync imediato ao voltar ao app
 
-5. Ajustar o padrão de novos eventos
-- Criar migration para mudar o default do banco:
-  - `habilitar_localizador default false`
-- Opcionalmente normalizar registros `NULL` para `false`.
-- Não desativar automaticamente eventos já marcados como `true`, para não causar regressão operacional sem intenção.
+2. **`LogsPanel` — sem throttle, sem filtro de evento**
+   - O listener Realtime em `viagem_logs` não tem throttle nem filtro por evento
+   - Cada INSERT em qualquer evento dispara `fetchLogs()` com query pesada (JOIN + filtro client-side)
+   - Deveria filtrar server-side pelo `evento_id` da viagem (não é possível direto no Realtime para FKs, mas pode usar throttle)
 
-6. Revisar superfícies do CCO
-- Garantir que o `/localizador` só liste eventos com `habilitar_localizador = true`.
-- Se alguém abrir `/localizador/:eventoId` manualmente para um evento desabilitado, mostrar estado bloqueado.
-- Revisar textos de suporte/ajuda que ainda associam Localizador a outras flags.
+3. **`useLocalizadorMotoristas` — query extra ao evento**
+   - Faz uma query separada ao `eventos` para pegar `horario_virada_dia`, quando esse dado geralmente já está disponível no contexto do evento
 
-Arquivos principais envolvidos
-- `src/pages/app/AppCliente.tsx`
-- `src/pages/app/AppSupervisor.tsx`
-- `src/pages/PainelLocalizador.tsx`
-- `src/pages/Configuracoes.tsx`
-- `src/components/eventos/CreateEventoWizard.tsx`
-- `src/components/eventos/EditEventoModal.tsx`
-- `src/hooks/useEventosLocalizador.ts`
-- `supabase/migrations/...`
+### Plano de Otimização
 
-Risco e impacto
-- Baixo risco de quebra visual: é ajuste de regra de visibilidade.
-- Médio risco funcional: mudar default do banco afeta criação de novos eventos, então precisa ser intencional.
-- Alto impacto positivo: elimina o comportamento “ligado por padrão” e impede divergência entre Cliente, Supervisor e CCO.
+#### 1. Otimizar `useNotifications` (throttle 10s → 3s, polling 120s → 60s, visibilitychange)
+- Arquivo: `src/hooks/useNotifications.tsx`
+- Reduzir throttle de `10000` para `3000` (linhas 391, 399)
+- Reduzir polling de `120000` para `60000` (linha 422)
+- Adicionar listener `visibilitychange` que força fetch imediato ao voltar à aba
 
-Validação que vou executar na implementação
-- Evento com Localizador desligado:
-  - não mostra aba no Cliente desktop/mobile
-  - não mostra aba no Supervisor
-  - não aparece na lista do `/localizador`
-  - acesso direto ao `/localizador/:eventoId` bloqueado
-- Evento com Localizador ligado:
-  - continua aparecendo normalmente em todos os pontos
-- Novo evento:
-  - nasce com Localizador no estado definido no formulário e não por default oculto/implícito do banco
+#### 2. Otimizar `LogsPanel` (adicionar throttle)
+- Arquivo: `src/components/operacao/LogsPanel.tsx`
+- Importar `createThrottledRefetch` e `clearThrottleKey`
+- Aplicar throttle de 3s no callback do Realtime
+- Sem filtro possível no Realtime para `viagem_logs` (FK indireto), mas o throttle elimina refetches desnecessários
 
-Causa real do “por que isso continuou?”
-- Porque o dado salvo do evento ainda está `true`, e o sistema hoje espalha essa configuração entre criação, edição, configuração e renderização, sem uma fonte única de verdade. A correção definitiva é centralizar a regra e gravar o campo explicitamente em todos os fluxos relevantes.
+#### 3. Nenhuma mudança de banco necessária
+- Servidor já está em São Paulo
+- Timezone já está correto
+- Não há queries redundantes significativas além dos 2 itens acima
+
+### Impacto Estimado
+- **Notificações**: latência percebida cai de ~10s para ~3s
+- **LogsPanel**: queries reduzidas de N/segundo (burst) para 1 a cada 3s
+- **Custo Supabase**: redução marginal — o sistema já é eficiente
+
