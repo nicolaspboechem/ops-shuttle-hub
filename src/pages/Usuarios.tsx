@@ -528,144 +528,79 @@ export default function Usuarios() {
 
         <div className="grid gap-4">
           {filteredUsers.map((user) => {
-            const isExpanded = expandedUsers.has(user.id);
-            const activePermissions = user.permissions.length;
             const isCurrentUser = user.user_id === currentUser?.id;
             
             return (
               <Card key={user.id}>
-                <Collapsible open={isExpanded} onOpenChange={() => toggleExpanded(user.id)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          {user.role === 'admin' ? (
-                            <ShieldCheck className="w-5 h-5 text-primary" />
-                          ) : (
-                            <Shield className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            {user.full_name || getUserLoginDisplay(user)}
-                            {getUserTypeBadge(user.user_type)}
-                            {isCurrentUser && (
-                              <Badge variant="outline" className="text-xs">Você</Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-1">
-                            {user.login_type === 'phone' ? (
-                              <>
-                                <Phone className="w-3 h-3" />
-                                {formatPhoneDisplay(user.telefone || '')}
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="w-3 h-3" />
-                                {user.email}
-                              </>
-                            )}
-                          </CardDescription>
-                        </div>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        {user.role === 'admin' ? (
+                          <ShieldCheck className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Shield className="w-5 h-5 text-muted-foreground" />
+                        )}
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {user.role !== 'admin' && (
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                {activePermissions} permissões
-                              </span>
-                              <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
-                            </Button>
-                          </CollapsibleTrigger>
-                        )}
-
-                        {user.role === 'admin' && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mr-2">
-                            <ShieldCheck className="w-4 h-4 text-primary" />
-                            <span>Acesso completo</span>
-                          </div>
-                        )}
-
-                        {isAdmin && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditModal(user)}>
-                                <Pencil className="w-4 h-4 mr-2" />
-                                Editar
-                              </DropdownMenuItem>
-                              {!isCurrentUser && (
-                                <>
-                                  <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
-                                    <KeyRound className="w-4 h-4 mr-2" />
-                                    Resetar Senha
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => toggleAdminRole(user)}
-                                    disabled={updating === `admin-${user.user_id}`}
-                                  >
-                                    <Crown className="w-4 h-4 mr-2" />
-                                    {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
-                                    {updating === `admin-${user.user_id}` && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => openDeleteModal(user)}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {user.full_name || getUserLoginDisplay(user)}
+                          {getUserTypeBadge(user.user_type)}
+                          {isCurrentUser && (
+                            <Badge variant="outline" className="text-xs">Você</Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-1">
+                          {user.login_type === 'phone' ? (
+                            <>
+                              <Phone className="w-3 h-3" />
+                              {formatPhoneDisplay(user.telefone || '')}
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3 h-3" />
+                              {user.email}
+                            </>
+                          )}
+                        </CardDescription>
                       </div>
                     </div>
-                  </CardHeader>
-                  
-                  {user.role !== 'admin' && (
-                    <CollapsibleContent>
-                      <CardContent className="pt-0">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {(Object.keys(PERMISSION_LABELS) as AppPermission[]).map((permission) => {
-                            const hasPermission = user.permissions.includes(permission);
-                            const isUpdatingThis = updating === `${user.user_id}-${permission}`;
-                            return (
-                              <div key={permission} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
-                                <div className="flex-1 mr-4">
-                                  <Label className="text-sm font-medium">{PERMISSION_LABELS[permission].label}</Label>
-                                  <p className="text-xs text-muted-foreground">{PERMISSION_LABELS[permission].description}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {isUpdatingThis ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : hasPermission ? (
-                                    <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">Ativo</Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="text-xs">Inativo</Badge>
-                                  )}
-                                  <Switch
-                                    checked={hasPermission}
-                                    onCheckedChange={() => togglePermission(user.user_id, permission, hasPermission)}
-                                    disabled={!isAdmin || isUpdatingThis}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  )}
-                </Collapsible>
+                    
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditModal(user)}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            {!isCurrentUser && (
+                              <>
+                                <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
+                                  <KeyRound className="w-4 h-4 mr-2" />
+                                  Resetar Senha
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => openDeleteModal(user)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             );
           })}
