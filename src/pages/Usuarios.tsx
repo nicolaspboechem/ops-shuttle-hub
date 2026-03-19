@@ -518,13 +518,6 @@ export default function Usuarios() {
           />
         </div>
 
-        {!isAdmin && (
-          <div className="bg-muted/50 border border-border rounded-lg p-4 mb-6">
-            <p className="text-sm text-muted-foreground">
-              Você está visualizando como usuário comum. Apenas administradores podem alterar permissões.
-            </p>
-          </div>
-        )}
 
         <div className="grid gap-4">
           {filteredUsers.map((user) => {

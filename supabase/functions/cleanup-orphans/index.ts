@@ -124,16 +124,6 @@ serve(async (req) => {
       }
     }
 
-    // 5. Find and delete orphan user_permissions
-    const { data: allPerms } = await supabaseAdmin.from('user_permissions').select('id, user_id');
-    if (allPerms) {
-      const orphanPerms = allPerms.filter(p => !allAuthUserIds.has(p.user_id));
-      for (const orphan of orphanPerms) {
-        const { error } = await supabaseAdmin.from('user_permissions').delete().eq('id', orphan.id);
-        if (!error) results.orphan_user_permissions_deleted++;
-        else results.errors.push(`Failed to delete user_permission ${orphan.id}: ${error.message}`);
-      }
-    }
 
     // 6. Find auth users without profiles and create profiles
     const profileUserIds = new Set((allProfiles || []).map(p => p.user_id));

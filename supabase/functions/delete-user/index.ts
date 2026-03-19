@@ -164,10 +164,6 @@ serve(async (req) => {
           .delete()
           .eq('user_id', targetUserId);
 
-        await supabaseAdmin
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', targetUserId);
 
         // 5. Remove profile
         await supabaseAdmin
