@@ -282,33 +282,39 @@ export default function Usuarios() {
     setUpdating(editingUser.id);
 
     try {
+      // Determine the correct login_type based on role
+      const newLoginType = editUserType === 'motorista' ? 'phone' : 'email';
+
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           full_name: editFullName,
           email: editEmail,
           user_type: editUserType,
+          login_type: newLoginType,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingUser.id);
 
       if (profileError) throw profileError;
 
-      if (editUserType === 'admin' && editingUser.role !== 'admin') {
-        await supabase.from('user_roles').update({ role: 'admin' }).eq('user_id', editingUser.user_id);
-      }
-      
-      if (editUserType !== 'admin' && editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
-        await supabase.from('user_roles').update({ role: 'user' }).eq('user_id', editingUser.user_id);
+      // Map user type to the correct app_role enum value
+      const dbRole = editUserType === 'admin' ? 'admin' : editUserType;
+
+      // Don't let admin demote themselves
+      if (editingUser.user_id === currentUser?.id && editingUser.role === 'admin' && editUserType !== 'admin') {
+        toast.error('Você não pode remover seu próprio acesso de admin');
+        setUpdating(null);
+        return;
       }
 
-      let newRole: 'admin' | 'user' = editingUser.role;
-      if (editUserType === 'admin') newRole = 'admin';
-      else if (editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) newRole = 'user';
+      await supabase.from('user_roles').update({ role: dbRole }).eq('user_id', editingUser.user_id);
+
+      const newRoleState: 'admin' | 'user' = editUserType === 'admin' ? 'admin' : 'user';
 
       setUsers(prev => prev.map(u => {
         if (u.id !== editingUser.id) return u;
-        return { ...u, full_name: editFullName, email: editEmail, user_type: editUserType, role: newRole };
+        return { ...u, full_name: editFullName, email: editEmail, user_type: editUserType, login_type: newLoginType, role: newRoleState };
       }));
 
       toast.success('Usuário atualizado com sucesso!');
@@ -944,7 +950,13 @@ export default function Usuarios() {
                 >
                   {Object.entries(USER_TYPE_CONFIG).map(([type, config]) => {
                     const Icon = config.icon;
-                    const disabled = type === 'admin' && editingUser?.user_id === currentUser?.id;
+                    const isSelf = editingUser?.user_id === currentUser?.id;
+                    // Can't demote yourself from admin
+                    const disabled = isSelf && editingUser?.role === 'admin' && type !== 'admin';
+                    // Motorista requires phone login; others require email login
+                    const isMotoristaWithoutPhone = type === 'motorista' && !editingUser?.telefone;
+                    const isEmailRoleWithoutEmail = type !== 'motorista' && !editingUser?.email;
+                    const loginMismatch = isMotoristaWithoutPhone || isEmailRoleWithoutEmail;
                     return (
                       <div key={type}>
                         <RadioGroupItem value={type} id={`edit-type-${type}`} className="peer sr-only" disabled={disabled} />
@@ -958,11 +970,16 @@ export default function Usuarios() {
                           <Icon className="mb-1 h-4 w-4" />
                           <span className="text-xs font-medium">{config.label}</span>
                         </Label>
+                        {loginMismatch && editUserType === type && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            {isMotoristaWithoutPhone ? 'Usuário não possui telefone cadastrado' : 'Usuário não possui email cadastrado'}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
                 </RadioGroup>
-                {editingUser?.user_id === currentUser?.id && editUserType === 'admin' && (
+                {editingUser?.user_id === currentUser?.id && editingUser?.role === 'admin' && (
                   <p className="text-xs text-muted-foreground">Você não pode alterar seu próprio tipo de admin</p>
                 )}
               </div>
