@@ -48,7 +48,6 @@ export default function ViagensAtivas() {
   const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
 
   const contadores = useMemo(() => ({
-    transfer: viagensAtivas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
     shuttle: viagensAtivas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
     missao: viagensAtivas.filter(v => v.origem_missao_id).length,
   }), [viagensAtivas]);

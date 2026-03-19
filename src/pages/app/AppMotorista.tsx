@@ -299,7 +299,7 @@ export default function AppMotorista() {
             motorista: motoristaData.nome, // NOT NULL - trigger sobrescreve via FK
             ponto_embarque: missao.ponto_embarque,
             ponto_desembarque: missao.ponto_desembarque,
-            tipo_operacao: 'transfer',
+            tipo_operacao: 'shuttle',
             h_pickup: horaPickup,
             qtd_pax: missao.qtd_pax || 0,
             status: 'em_andamento',

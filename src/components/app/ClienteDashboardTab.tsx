@@ -62,7 +62,6 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
   const contadoresOperacao = useMemo(() => {
     const ativas = todasViagens.filter(v => v.status !== 'encerrado' && v.status !== 'cancelado');
     return {
-      transfer: ativas.filter(v => v.tipo_operacao === 'transfer' && !v.origem_missao_id).length,
       shuttle: ativas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
       missao: ativas.filter(v => !!v.origem_missao_id).length,
     };

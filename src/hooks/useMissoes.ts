@@ -366,7 +366,7 @@ export function useMissoes(eventoId: string | undefined) {
         ponto_desembarque: missao.ponto_desembarque,
         ponto_embarque_id: missao.ponto_embarque_id,
         ponto_desembarque_id: missao.ponto_desembarque_id,
-        tipo_operacao: 'transfer',
+        tipo_operacao: 'shuttle',
         status: 'em_andamento',
         h_inicio_real: now,
         encerrado: false,
