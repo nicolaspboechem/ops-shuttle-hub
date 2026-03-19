@@ -215,12 +215,14 @@ export default function AppSupervisor() {
     }
   }, [evento?.horario_virada_dia, getAgoraSync]);
 
+  const habilitarLocalizador = evento?.habilitar_localizador === true;
+
   // Redirect away from localizador tab if disabled
   useEffect(() => {
-    if (activeTab === 'localizador' && evento?.habilitar_localizador === false) {
+    if (activeTab === 'localizador' && !habilitarLocalizador) {
       setActiveTab('frota');
     }
-  }, [activeTab, evento?.habilitar_localizador]);
+  }, [activeTab, habilitarLocalizador]);
 
   // Buscar viagens com filtro de data
   const viagensOptions = useMemo(() => {
@@ -549,7 +551,7 @@ export default function AppSupervisor() {
       </div>
 
       {/* Tab: Localizador */}
-      {evento?.habilitar_localizador !== false && (
+      {habilitarLocalizador && (
         <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
           <MemoizedLocalizadorTab eventoId={eventoId!} />
         </div>
@@ -684,7 +686,7 @@ export default function AppSupervisor() {
       </div>
 
       {/* Bottom Navigation */}
-      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} habilitarLocalizador={evento?.habilitar_localizador !== false} />
+      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} habilitarLocalizador={habilitarLocalizador} />
 
       {/* Action Type Modal */}
       <NewActionModal

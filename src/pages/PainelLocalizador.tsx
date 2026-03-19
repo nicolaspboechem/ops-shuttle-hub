@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation, Home, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
-import { useEventosMissoes } from '@/hooks/useEventosMissoes';
+import { useEventosLocalizador } from '@/hooks/useEventosLocalizador';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
@@ -29,7 +29,7 @@ export default function PainelLocalizador() {
   const { offset, getAgoraSync } = useServerTime();
   const [currentTime, setCurrentTime] = useState(() => getAgoraSync());
   
-  const { eventos, loading: loadingEventos } = useEventosMissoes();
+  const { eventos, loading: loadingEventos } = useEventosLocalizador();
   
   const { 
     motoristasPorLocalizacao, 
@@ -45,17 +45,20 @@ export default function PainelLocalizador() {
     }
   }, [paramEventoId]);
 
-  // Fetch event name and horario_virada_dia
+  const [localizadorDesabilitado, setLocalizadorDesabilitado] = useState(false);
+
+  // Fetch event name, horario_virada_dia and habilitar_localizador
   useEffect(() => {
     if (!selectedEvento) return;
     
     supabase
       .from('eventos')
-      .select('nome_planilha, horario_virada_dia')
+      .select('nome_planilha, horario_virada_dia, habilitar_localizador')
       .eq('id', selectedEvento)
       .single()
       .then(({ data }) => {
         setEventoNome(data?.nome_planilha || '');
+        setLocalizadorDesabilitado(data?.habilitar_localizador !== true);
         if (data?.horario_virada_dia) {
           setHorarioVirada(data.horario_virada_dia.substring(0, 5)); // "HH:mm"
         }
@@ -336,6 +339,46 @@ export default function PainelLocalizador() {
             />
           )}
         </main>
+      </div>
+    );
+  }
+
+  // Show disabled message if localizador is not enabled for this event
+  if (localizadorDesabilitado) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
+        <header className="bg-[#100014] px-6 py-4">
+          <div className="flex items-center gap-4">
+            {eventos.length > 1 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                className="mr-2 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            )}
+            <img src={logoAS} alt="AS Brasil" className="h-10" />
+            <div className="flex items-center gap-3">
+              <MapPin className="w-6 h-6 text-[#3F5AEC]" />
+              <div>
+                <h1 className="text-xl font-bold text-white">LOCALIZADOR DE FROTA</h1>
+                {eventoNome && <p className="text-sm text-white/70">{eventoNome}</p>}
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center py-16">
+            <MapPin className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Localizador desabilitado</h2>
+            <p className="text-muted-foreground">
+              O módulo de localização não está habilitado para este evento.
+              <br />Ative nas Configurações do evento no CCO.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
