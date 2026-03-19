@@ -179,10 +179,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetState();
   };
 
-  const hasPermission = (permission: AppPermission): boolean => {
-    if (isAdmin) return true;
-    return permissions.includes(permission);
-  };
 
   const getEventRole = (eventoId: string): EventRole | null => {
     if (isAdmin) return 'supervisor'; // Admin has full access, acts as supervisor
