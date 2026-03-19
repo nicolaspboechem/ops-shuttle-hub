@@ -3,7 +3,6 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
-type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
 
 interface UserProfile {
   id: string;
