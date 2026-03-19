@@ -19,6 +19,7 @@ interface ClienteDashboardTabProps {
   eventoId: string;
   tiposViagem?: string[] | null;
   horarioVirada?: string;
+  eventoStatus?: string | null;
 }
 
 interface VeiculoFrota {
