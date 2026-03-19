@@ -21,9 +21,7 @@ import { maskPhone, formatPhoneDisplay, isValidPhone } from '@/lib/utils/formatP
 type UserType = 'motorista' | 'operador' | 'admin' | 'supervisor' | 'cliente';
 type LoginType = 'email' | 'phone';
 
-type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
-
-interface UserWithPermissions {
+interface UserData {
   id: string;
   user_id: string;
   email: string | null;
@@ -32,15 +30,7 @@ interface UserWithPermissions {
   full_name: string | null;
   user_type: UserType | null;
   role: 'admin' | 'user';
-  permissions: AppPermission[];
 }
-
-const PERMISSION_LABELS: Record<AppPermission, { label: string; description: string }> = {
-  view_trips: { label: 'Ver viagens', description: 'Visualizar lista de viagens ativas e finalizadas' },
-  edit_trips: { label: 'Editar viagens', description: 'Modificar dados de viagens existentes' },
-  manage_drivers_vehicles: { label: 'Gerenciar motoristas/veículos', description: 'Adicionar, editar e remover motoristas e veículos' },
-  export_data: { label: 'Exportar dados', description: 'Baixar relatórios em Excel' },
-};
 
 const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
   admin: { label: 'Admin', icon: Crown, color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
