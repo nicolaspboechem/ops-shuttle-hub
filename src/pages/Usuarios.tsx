@@ -41,10 +41,10 @@ const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementTyp
 
 export default function Usuarios() {
   const { isAdmin, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<UserWithPermissions[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   
