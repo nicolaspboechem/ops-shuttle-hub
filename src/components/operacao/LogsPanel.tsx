@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ViagemLog } from '@/lib/types/viagem';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Play, MapPin, RotateCcw, CheckCircle, XCircle, User } from 'lucide-react';
+import { createThrottledRefetch, clearThrottleKey } from '@/lib/utils/refetchThrottle';
 
 interface LogsPanelProps {
   eventoId: string;
@@ -32,26 +33,9 @@ interface LogComViagem extends ViagemLog {
 export function LogsPanel({ eventoId }: LogsPanelProps) {
   const [logs, setLogs] = useState<LogComViagem[]>([]);
   const [loading, setLoading] = useState(true);
+  const throttleKey = `logs-panel-${eventoId}`;
 
-  useEffect(() => {
-    fetchLogs();
-    
-    // Realtime subscription
-    const channel = supabase
-      .channel('viagem-logs-changes')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'viagem_logs' },
-        () => fetchLogs()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [eventoId]);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     const { data } = await supabase
       .from('viagem_logs')
       .select(`
@@ -62,14 +46,34 @@ export function LogsPanel({ eventoId }: LogsPanelProps) {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    // Filtrar por evento
     const filtered = (data || []).filter((log: any) => 
       log.viagem?.evento_id === eventoId
     );
 
     setLogs(filtered as any[]);
     setLoading(false);
-  };
+  }, [eventoId]);
+
+  useEffect(() => {
+    fetchLogs();
+    
+    const throttledFetch = createThrottledRefetch(throttleKey, fetchLogs, 3000);
+
+    const channel = supabase
+      .channel(`viagem-logs-${eventoId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'viagem_logs' },
+        () => throttledFetch()
+      )
+      .subscribe();
+
+    return () => {
+      clearThrottleKey(throttleKey);
+      supabase.removeChannel(channel);
+    };
+  }, [eventoId, fetchLogs, throttleKey]);
+
 
   if (loading) {
     return <div className="p-4 text-center text-muted-foreground">Carregando...</div>;
