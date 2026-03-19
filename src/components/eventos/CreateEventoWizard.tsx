@@ -47,6 +47,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   
   // Step 4 - Configurations
   const [visivelPublico, setVisivelPublico] = useState(true);
+  const [habilitarLocalizador, setHabilitarLocalizador] = useState(false);
   
   // Step 5 - Description
   const [descricao, setDescricao] = useState('');
