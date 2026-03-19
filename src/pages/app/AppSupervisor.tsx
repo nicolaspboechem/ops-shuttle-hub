@@ -551,7 +551,7 @@ export default function AppSupervisor() {
       </div>
 
       {/* Tab: Localizador */}
-      {evento?.habilitar_localizador !== false && (
+      {habilitarLocalizador && (
         <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
           <MemoizedLocalizadorTab eventoId={eventoId!} />
         </div>
