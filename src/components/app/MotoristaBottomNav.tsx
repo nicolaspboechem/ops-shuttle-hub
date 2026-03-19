@@ -1,7 +1,7 @@
 import { Home, Car, ClipboardList, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type MotoristaTabId = 'inicio' | 'veiculo' | 'historico' | 'mais';
+export type MotoristaTabId = 'home' | 'inicio' | 'veiculo' | 'historico' | 'mais';
 
 interface NavTab {
   id: MotoristaTabId;
@@ -10,7 +10,8 @@ interface NavTab {
 }
 
 const tabs: NavTab[] = [
-  { id: 'inicio', label: 'Início', icon: Home },
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'inicio', label: 'Missões', icon: ClipboardList },
   { id: 'veiculo', label: 'Veículo', icon: Car },
   { id: 'historico', label: 'Histórico', icon: ClipboardList },
   { id: 'mais', label: 'Mais', icon: MoreHorizontal },

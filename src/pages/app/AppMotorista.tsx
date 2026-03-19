@@ -463,6 +463,15 @@ export default function AppMotorista() {
   // Render tab content
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'home':
+        return (
+          <MotoristaHomeTab
+            motoristaData={motoristaData}
+            viagens={viagens}
+            presenca={presenca}
+            eventoNome={evento?.nome_planilha}
+          />
+        );
       case 'inicio':
         return (
           <div className="space-y-4">

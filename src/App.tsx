@@ -117,14 +117,23 @@ function ConditionalNotifications({ children }: { children: ReactNode }) {
   return <NotificationsProvider>{children}</NotificationsProvider>;
 }
 
+// Inactivity logout wrapper — must be inside Router context
+function InactivityGuard({ children }: { children: ReactNode }) {
+  const { useInactivityLogout } = require('@/hooks/useInactivityLogout');
+  useInactivityLogout();
+  return <>{children}</>;
+}
+
 // Layout wrapper that provides AuthProvider + Notifications
 function AuthLayout() {
   return (
     <AuthProvider>
       <ConditionalNotifications>
-        <Suspense fallback={<PageLoader />}>
-          <Outlet />
-        </Suspense>
+        <InactivityWrapper>
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
+        </InactivityWrapper>
       </ConditionalNotifications>
     </AuthProvider>
   );
