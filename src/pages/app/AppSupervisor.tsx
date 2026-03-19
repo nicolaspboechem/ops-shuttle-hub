@@ -190,7 +190,7 @@ export default function AppSupervisor() {
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showAlertasModal, setShowAlertasModal] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
-  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('shuttle');
   const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   // Dia operacional
