@@ -46,6 +46,7 @@ export default function Home() {
     soundEnabled,
     setSoundEnabled,
     markAsRead,
+    markAsUnread,
     deleteNotification,
     refresh: refreshNotifications,
   } = useNotifications();
