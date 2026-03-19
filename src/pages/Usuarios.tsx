@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Shield, ShieldCheck, Loader2, UserPlus, Eye, EyeOff, ChevronDown, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, Binoculars, Filter } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, Shield, ShieldCheck, Loader2, UserPlus, Eye, EyeOff, Search, MoreVertical, Pencil, Trash2, Crown, Car, Headset, Phone, Mail, Copy, Check, KeyRound, UserCog, Binoculars, Filter } from 'lucide-react';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,9 +20,7 @@ import { maskPhone, formatPhoneDisplay, isValidPhone } from '@/lib/utils/formatP
 type UserType = 'motorista' | 'operador' | 'admin' | 'supervisor' | 'cliente';
 type LoginType = 'email' | 'phone';
 
-type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
-
-interface UserWithPermissions {
+interface UserData {
   id: string;
   user_id: string;
   email: string | null;
@@ -32,15 +29,7 @@ interface UserWithPermissions {
   full_name: string | null;
   user_type: UserType | null;
   role: 'admin' | 'user';
-  permissions: AppPermission[];
 }
-
-const PERMISSION_LABELS: Record<AppPermission, { label: string; description: string }> = {
-  view_trips: { label: 'Ver viagens', description: 'Visualizar lista de viagens ativas e finalizadas' },
-  edit_trips: { label: 'Editar viagens', description: 'Modificar dados de viagens existentes' },
-  manage_drivers_vehicles: { label: 'Gerenciar motoristas/veículos', description: 'Adicionar, editar e remover motoristas e veículos' },
-  export_data: { label: 'Exportar dados', description: 'Baixar relatórios em Excel' },
-};
 
 const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
   admin: { label: 'Admin', icon: Crown, color: 'text-amber-600', bgColor: 'bg-amber-100 dark:bg-amber-900/30' },
@@ -52,10 +41,9 @@ const USER_TYPE_CONFIG: Record<UserType, { label: string; icon: React.ElementTyp
 
 export default function Usuarios() {
   const { isAdmin, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<UserWithPermissions[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   
@@ -77,19 +65,19 @@ export default function Usuarios() {
 
   // Modal de editar usuário
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserWithPermissions | null>(null);
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [editFullName, setEditFullName] = useState('');
   const [editUserType, setEditUserType] = useState<UserType>('operador');
   const [editEmail, setEditEmail] = useState('');
 
   // Modal de deletar usuário
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingUser, setDeletingUser] = useState<UserWithPermissions | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Modal de reset de senha
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
-  const [resetPasswordUser, setResetPasswordUser] = useState<UserWithPermissions | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -134,19 +122,16 @@ export default function Usuarios() {
 
   const fetchUsers = async () => {
     try {
-      const [profilesRes, rolesRes, permRes] = await Promise.all([
+      const [profilesRes, rolesRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('user_roles').select('*'),
-        supabase.from('user_permissions').select('*'),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
       if (rolesRes.error) throw rolesRes.error;
-      if (permRes.error) throw permRes.error;
 
-      const usersData: UserWithPermissions[] = (profilesRes.data || []).map(profile => {
+      const usersData: UserData[] = (profilesRes.data || []).map(profile => {
         const role = rolesRes.data?.find(r => r.user_id === profile.user_id);
-        const userPerms = permRes.data?.filter(p => p.user_id === profile.user_id) || [];
         
         return {
           id: profile.id,
@@ -157,7 +142,6 @@ export default function Usuarios() {
           full_name: profile.full_name,
           user_type: ((profile as any).user_type as UserType) || 'operador',
           role: (role?.role as 'admin' | 'user') || 'user',
-          permissions: userPerms.map(p => p.permission as AppPermission),
         };
       });
 
@@ -361,7 +345,7 @@ export default function Usuarios() {
     }
   };
 
-  const toggleAdminRole = async (user: UserWithPermissions) => {
+  const toggleAdminRole = async (user: UserData) => {
     if (!isAdmin || user.user_id === currentUser?.id) return;
 
     setUpdating(`admin-${user.user_id}`);
@@ -379,49 +363,7 @@ export default function Usuarios() {
     }
   };
 
-  const togglePermission = async (userId: string, permission: AppPermission, currentlyHas: boolean) => {
-    if (!isAdmin) return;
-
-    setUpdating(`${userId}-${permission}`);
-    try {
-      if (currentlyHas) {
-        const { error } = await supabase.from('user_permissions').delete().eq('user_id', userId).eq('permission', permission);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('user_permissions').insert({
-          user_id: userId,
-          permission,
-          granted_by: currentUser?.id,
-        });
-        if (error) throw error;
-      }
-
-      setUsers(prev => prev.map(u => {
-        if (u.user_id !== userId) return u;
-        return {
-          ...u,
-          permissions: currentlyHas
-            ? u.permissions.filter(p => p !== permission)
-            : [...u.permissions, permission],
-        };
-      }));
-      toast.success(currentlyHas ? 'Permissão removida' : 'Permissão concedida');
-    } catch (error) {
-      toast.error('Erro ao atualizar permissão');
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const toggleExpanded = (userId: string) => {
-    setExpandedUsers(prev => {
-      const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
-      return next;
-    });
-  };
-
-  const openEditModal = (user: UserWithPermissions) => {
+  const openEditModal = (user: UserData) => {
     setEditingUser(user);
     setEditFullName(user.full_name || '');
     setEditEmail(user.email || '');
@@ -429,12 +371,12 @@ export default function Usuarios() {
     setShowEditModal(true);
   };
 
-  const openDeleteModal = (user: UserWithPermissions) => {
+  const openDeleteModal = (user: UserData) => {
     setDeletingUser(user);
     setShowDeleteModal(true);
   };
 
-  const openResetPasswordModal = (user: UserWithPermissions) => {
+  const openResetPasswordModal = (user: UserData) => {
     setResetPasswordUser(user);
     setResetPassword('');
     setResetConfirmPassword('');
@@ -472,7 +414,7 @@ export default function Usuarios() {
     }
   };
 
-  const getUserLoginDisplay = (user: UserWithPermissions) => {
+  const getUserLoginDisplay = (user: UserData) => {
     if (user.login_type === 'phone' && user.telefone) return formatPhoneDisplay(user.telefone);
     return user.email || '-';
   };
@@ -576,154 +518,82 @@ export default function Usuarios() {
           />
         </div>
 
-        {!isAdmin && (
-          <div className="bg-muted/50 border border-border rounded-lg p-4 mb-6">
-            <p className="text-sm text-muted-foreground">
-              Você está visualizando como usuário comum. Apenas administradores podem alterar permissões.
-            </p>
-          </div>
-        )}
 
         <div className="grid gap-4">
           {filteredUsers.map((user) => {
-            const isExpanded = expandedUsers.has(user.id);
-            const activePermissions = user.permissions.length;
             const isCurrentUser = user.user_id === currentUser?.id;
             
             return (
               <Card key={user.id}>
-                <Collapsible open={isExpanded} onOpenChange={() => toggleExpanded(user.id)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          {user.role === 'admin' ? (
-                            <ShieldCheck className="w-5 h-5 text-primary" />
-                          ) : (
-                            <Shield className="w-5 h-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            {user.full_name || getUserLoginDisplay(user)}
-                            {getUserTypeBadge(user.user_type)}
-                            {isCurrentUser && (
-                              <Badge variant="outline" className="text-xs">Você</Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-1">
-                            {user.login_type === 'phone' ? (
-                              <>
-                                <Phone className="w-3 h-3" />
-                                {formatPhoneDisplay(user.telefone || '')}
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="w-3 h-3" />
-                                {user.email}
-                              </>
-                            )}
-                          </CardDescription>
-                        </div>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        {user.role === 'admin' ? (
+                          <ShieldCheck className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Shield className="w-5 h-5 text-muted-foreground" />
+                        )}
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {user.role !== 'admin' && (
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2">
-                              <span className="text-sm text-muted-foreground">
-                                {activePermissions} permissões
-                              </span>
-                              <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
-                            </Button>
-                          </CollapsibleTrigger>
-                        )}
-
-                        {user.role === 'admin' && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mr-2">
-                            <ShieldCheck className="w-4 h-4 text-primary" />
-                            <span>Acesso completo</span>
-                          </div>
-                        )}
-
-                        {isAdmin && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditModal(user)}>
-                                <Pencil className="w-4 h-4 mr-2" />
-                                Editar
-                              </DropdownMenuItem>
-                              {!isCurrentUser && (
-                                <>
-                                  <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
-                                    <KeyRound className="w-4 h-4 mr-2" />
-                                    Resetar Senha
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => toggleAdminRole(user)}
-                                    disabled={updating === `admin-${user.user_id}`}
-                                  >
-                                    <Crown className="w-4 h-4 mr-2" />
-                                    {user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
-                                    {updating === `admin-${user.user_id}` && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => openDeleteModal(user)}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {user.full_name || getUserLoginDisplay(user)}
+                          {getUserTypeBadge(user.user_type)}
+                          {isCurrentUser && (
+                            <Badge variant="outline" className="text-xs">Você</Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-1">
+                          {user.login_type === 'phone' ? (
+                            <>
+                              <Phone className="w-3 h-3" />
+                              {formatPhoneDisplay(user.telefone || '')}
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3 h-3" />
+                              {user.email}
+                            </>
+                          )}
+                        </CardDescription>
                       </div>
                     </div>
-                  </CardHeader>
-                  
-                  {user.role !== 'admin' && (
-                    <CollapsibleContent>
-                      <CardContent className="pt-0">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {(Object.keys(PERMISSION_LABELS) as AppPermission[]).map((permission) => {
-                            const hasPermission = user.permissions.includes(permission);
-                            const isUpdatingThis = updating === `${user.user_id}-${permission}`;
-                            return (
-                              <div key={permission} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
-                                <div className="flex-1 mr-4">
-                                  <Label className="text-sm font-medium">{PERMISSION_LABELS[permission].label}</Label>
-                                  <p className="text-xs text-muted-foreground">{PERMISSION_LABELS[permission].description}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {isUpdatingThis ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : hasPermission ? (
-                                    <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">Ativo</Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="text-xs">Inativo</Badge>
-                                  )}
-                                  <Switch
-                                    checked={hasPermission}
-                                    onCheckedChange={() => togglePermission(user.user_id, permission, hasPermission)}
-                                    disabled={!isAdmin || isUpdatingThis}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  )}
-                </Collapsible>
+                    
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditModal(user)}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            {!isCurrentUser && (
+                              <>
+                                <DropdownMenuItem onClick={() => openResetPasswordModal(user)}>
+                                  <KeyRound className="w-4 h-4 mr-2" />
+                                  Resetar Senha
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => openDeleteModal(user)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             );
           })}

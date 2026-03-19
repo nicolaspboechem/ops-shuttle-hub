@@ -268,28 +268,6 @@ serve(async (req) => {
       role: role,
     }, { onConflict: 'user_id' });
 
-    // Definir permissões baseadas no tipo de usuário
-    const permissionsToGrant: string[] = [];
-    
-    if (user_type === 'admin') {
-      // Admin tem acesso total via role
-    } else if (user_type === 'supervisor') {
-      permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
-    } else if (user_type === 'operador') {
-      permissionsToGrant.push('view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data');
-    } else if (user_type === 'motorista') {
-      permissionsToGrant.push('view_trips');
-    }
-
-    if (permissionsToGrant.length > 0) {
-      const permissionInserts = permissionsToGrant.map(p => ({
-        user_id: newUserId,
-        permission: p,
-        granted_by: callerUser.id,
-      }));
-      
-      await supabaseAdmin.from('user_permissions').insert(permissionInserts);
-    }
 
     // Se evento_id fornecido, vincular usuário ao evento
     if (evento_id) {

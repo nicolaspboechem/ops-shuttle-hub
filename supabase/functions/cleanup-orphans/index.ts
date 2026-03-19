@@ -50,7 +50,7 @@ serve(async (req) => {
       orphan_profiles_deleted: 0,
       orphan_evento_usuarios_deleted: 0,
       orphan_user_roles_deleted: 0,
-      orphan_user_permissions_deleted: 0,
+      
       orphan_auth_users_deleted: 0,
       profiles_created_for_auth_users: 0,
       errors: [] as string[],
@@ -91,7 +91,7 @@ serve(async (req) => {
         // Delete related records
         await supabaseAdmin.from('evento_usuarios').delete().eq('user_id', orphan.user_id);
         await supabaseAdmin.from('user_roles').delete().eq('user_id', orphan.user_id);
-        await supabaseAdmin.from('user_permissions').delete().eq('user_id', orphan.user_id);
+        
         
         const { error } = await supabaseAdmin.from('profiles').delete().eq('user_id', orphan.user_id);
         if (error) {
@@ -124,16 +124,6 @@ serve(async (req) => {
       }
     }
 
-    // 5. Find and delete orphan user_permissions
-    const { data: allPerms } = await supabaseAdmin.from('user_permissions').select('id, user_id');
-    if (allPerms) {
-      const orphanPerms = allPerms.filter(p => !allAuthUserIds.has(p.user_id));
-      for (const orphan of orphanPerms) {
-        const { error } = await supabaseAdmin.from('user_permissions').delete().eq('id', orphan.id);
-        if (!error) results.orphan_user_permissions_deleted++;
-        else results.errors.push(`Failed to delete user_permission ${orphan.id}: ${error.message}`);
-      }
-    }
 
     // 6. Find auth users without profiles and create profiles
     const profileUserIds = new Set((allProfiles || []).map(p => p.user_id));

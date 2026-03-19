@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppPermission = 'view_trips' | 'edit_trips' | 'manage_drivers_vehicles' | 'export_data';
 type EventRole = 'motorista' | 'operador' | 'supervisor' | 'cliente';
 
 interface UserProfile {
@@ -23,14 +22,12 @@ interface AuthContextType {
   session: Session | null;
   profile: UserProfile | null;
   isAdmin: boolean;
-  permissions: AppPermission[];
   eventRoles: EventRoleMapping[];
   loading: boolean;
   motoristaId: string | null;
   signIn: (identifier: string, password: string, type?: 'email' | 'phone') => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  hasPermission: (permission: AppPermission) => boolean;
   getEventRole: (eventoId: string) => EventRole | null;
   hasEventAccess: (eventoId: string, allowedRoles: EventRole[]) => boolean;
 }
@@ -42,7 +39,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [permissions, setPermissions] = useState<AppPermission[]>([]);
   const [eventRoles, setEventRoles] = useState<EventRoleMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [motoristaId, setMotoristaId] = useState<string | null>(null);
@@ -79,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetState = () => {
     setProfile(null);
     setIsAdmin(false);
-    setPermissions([]);
     setEventRoles([]);
     setMotoristaId(null);
     setLoading(false);
@@ -87,10 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
+      const [profileRes, roleRes, eventRolesRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
         supabase.from('user_roles').select('role').eq('user_id', userId).limit(1).maybeSingle(),
-        supabase.from('user_permissions').select('permission').eq('user_id', userId),
         supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
       ]);
 
@@ -100,12 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userIsAdmin = roleRes.data?.role === 'admin';
       setIsAdmin(userIsAdmin);
-
-      if (userIsAdmin) {
-        setPermissions(['view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data']);
-      } else if (permRes.data) {
-        setPermissions(permRes.data.map(p => p.permission as AppPermission));
-      }
 
       if (eventRolesRes.data) {
         setEventRoles(eventRolesRes.data.map(er => ({
@@ -190,10 +178,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetState();
   };
 
-  const hasPermission = (permission: AppPermission): boolean => {
-    if (isAdmin) return true;
-    return permissions.includes(permission);
-  };
 
   const getEventRole = (eventoId: string): EventRole | null => {
     if (isAdmin) return 'supervisor'; // Admin has full access, acts as supervisor
@@ -214,14 +198,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       isAdmin,
-      permissions,
       eventRoles,
       loading,
       motoristaId,
       signIn,
       signUp,
       signOut,
-      hasPermission,
       getEventRole,
       hasEventAccess,
     }}>
