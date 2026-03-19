@@ -269,18 +269,25 @@ export function ViagemCardOperador({ viagem, onUpdate, onTripStarted, operacoes 
             </Badge>
           </div>
 
-          {/* Motorista e Veículo */}
-          <div className="flex items-center gap-2 mb-2">
-            <Bus className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{viagem.motorista}</span>
-            {viagem.veiculo?.nome ? (
-              <span className="text-muted-foreground">
-                • <span className="font-medium text-foreground">{viagem.veiculo.nome}</span>
-                {viagem.placa && <span className="text-xs ml-1">({viagem.placa})</span>}
-              </span>
-            ) : viagem.placa ? (
-              <span className="text-muted-foreground">• {viagem.placa}</span>
-            ) : null}
+          {/* Veículo - identificação principal */}
+          <div className="bg-primary/10 rounded-lg px-3 py-2 mb-2">
+            <div className="flex items-center gap-2">
+              <Bus className="h-5 w-5 text-primary shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-base text-foreground block truncate">
+                  {viagem.veiculo?.nome || viagem.placa || 'Sem veículo'}
+                </span>
+                {viagem.veiculo?.nome && viagem.placa && (
+                  <span className="text-xs text-muted-foreground font-mono">{viagem.placa}</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Motorista */}
+          <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>Motorista: <strong className="text-foreground">{viagem.motorista}</strong></span>
           </div>
 
           {/* Ponto de Embarque e Desembarque */}
