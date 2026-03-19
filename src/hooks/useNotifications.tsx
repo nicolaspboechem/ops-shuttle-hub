@@ -165,7 +165,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .from('viagem_logs')
         .select(`
           id, acao, created_at,
-          viagem:viagens!viagem_id(motorista, placa, evento_id, evento:eventos!evento_id(nome_planilha))
+          viagem:viagens!viagem_id(motorista, placa, tipo_operacao, evento_id, evento:eventos!evento_id(nome_planilha))
         `)
         .order('created_at', { ascending: false })
         .limit(20),
