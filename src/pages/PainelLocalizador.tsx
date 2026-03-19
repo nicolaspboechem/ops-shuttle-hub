@@ -45,17 +45,20 @@ export default function PainelLocalizador() {
     }
   }, [paramEventoId]);
 
-  // Fetch event name and horario_virada_dia
+  const [localizadorDesabilitado, setLocalizadorDesabilitado] = useState(false);
+
+  // Fetch event name, horario_virada_dia and habilitar_localizador
   useEffect(() => {
     if (!selectedEvento) return;
     
     supabase
       .from('eventos')
-      .select('nome_planilha, horario_virada_dia')
+      .select('nome_planilha, horario_virada_dia, habilitar_localizador')
       .eq('id', selectedEvento)
       .single()
       .then(({ data }) => {
         setEventoNome(data?.nome_planilha || '');
+        setLocalizadorDesabilitado(data?.habilitar_localizador !== true);
         if (data?.horario_virada_dia) {
           setHorarioVirada(data.horario_virada_dia.substring(0, 5)); // "HH:mm"
         }
