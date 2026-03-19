@@ -166,7 +166,7 @@ export default function AppOperador() {
   // Modals
   const [showActionModal, setShowActionModal] = useState(false);
   const [showShuttleForm, setShowShuttleForm] = useState(false);
-  const [showViagemForm, setShowViagemForm] = useState(false);
+  const [showViagemForm, setShowViagemForm] = useState(false); // kept for mission-linked trips
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
