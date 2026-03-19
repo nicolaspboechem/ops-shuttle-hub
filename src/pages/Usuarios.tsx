@@ -70,8 +70,7 @@ export default function Usuarios() {
   const [editEmail, setEditEmail] = useState('');
 
   // Modal de deletar usuário
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingUser, setDeletingUser] = useState<UserWithPermissions | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Modal de reset de senha
