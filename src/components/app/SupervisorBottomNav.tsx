@@ -21,13 +21,16 @@ const tabs: NavTab[] = [
 interface SupervisorBottomNavProps {
   activeTab: SupervisorTabId;
   onTabChange: (tab: SupervisorTabId) => void;
+  habilitarLocalizador?: boolean;
 }
 
-export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottomNavProps) {
+export function SupervisorBottomNav({ activeTab, onTabChange, habilitarLocalizador = true }: SupervisorBottomNavProps) {
+  const filteredTabs = habilitarLocalizador ? tabs : tabs.filter(t => t.id !== 'localizador');
+  
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-primary safe-area-bottom">
       <div className="flex items-center justify-around h-16">
-        {tabs.map((tab) => {
+        {filteredTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
           

@@ -166,6 +166,7 @@ interface Evento {
   data_inicio?: string | null;
   data_fim?: string | null;
   horario_virada_dia?: string | null;
+  habilitar_localizador?: boolean | null;
   tipos_viagem_habilitados?: string[] | null;
 }
 
@@ -213,6 +214,13 @@ export default function AppSupervisor() {
       setDataOperacional(getDataOperacional(getAgoraSync(), evento.horario_virada_dia));
     }
   }, [evento?.horario_virada_dia, getAgoraSync]);
+
+  // Redirect away from localizador tab if disabled
+  useEffect(() => {
+    if (activeTab === 'localizador' && evento?.habilitar_localizador === false) {
+      setActiveTab('frota');
+    }
+  }, [activeTab, evento?.habilitar_localizador]);
 
   // Buscar viagens com filtro de data
   const viagensOptions = useMemo(() => {
@@ -327,7 +335,7 @@ export default function AppSupervisor() {
   const fetchEvento = async () => {
     const { data } = await supabase
       .from('eventos')
-      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia, tipos_viagem_habilitados')
+      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia, habilitar_localizador, tipos_viagem_habilitados')
       .eq('id', eventoId)
       .single();
     
@@ -541,9 +549,11 @@ export default function AppSupervisor() {
       </div>
 
       {/* Tab: Localizador */}
-      <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
-        <MemoizedLocalizadorTab eventoId={eventoId!} />
-      </div>
+      {evento?.habilitar_localizador !== false && (
+        <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
+          <MemoizedLocalizadorTab eventoId={eventoId!} />
+        </div>
+      )}
 
       {/* Tab: Histórico */}
       <div className={activeTab === 'historico' ? 'block' : 'hidden'}>
@@ -674,7 +684,7 @@ export default function AppSupervisor() {
       </div>
 
       {/* Bottom Navigation */}
-      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} habilitarLocalizador={evento?.habilitar_localizador !== false} />
 
       {/* Action Type Modal */}
       <NewActionModal
