@@ -151,6 +151,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
         imagem_logo: imagemLogo,
         habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
+        habilitar_localizador: habilitarLocalizador,
         
         horario_inicio_evento: horarioInicio,
         horario_fim_evento: horarioFim,
