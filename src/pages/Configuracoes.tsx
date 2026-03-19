@@ -46,8 +46,8 @@ export default function Configuracoes() {
 
   // URLs dos painéis
   const baseUrl = window.location.origin;
-  const urlPainelPublico = `${baseUrl}/painel?evento=${eventoId}`;
-  const urlPainelLocalizador = `${baseUrl}/localizador?evento=${eventoId}`;
+  const urlPainelPublico = `${baseUrl}/painel/${eventoId}`;
+  const urlPainelLocalizador = `${baseUrl}/localizador/${eventoId}`;
 
   // Carregar dados do evento
   useEffect(() => {
