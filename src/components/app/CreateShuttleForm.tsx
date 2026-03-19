@@ -134,9 +134,11 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
         <DrawerHeader className="pb-2">
           <DrawerTitle className="flex items-center gap-2 justify-center">
             <Bus className="h-5 w-5 text-primary" />
-            Nova Viagem Shuttle
+            {mode === 'rapido' ? 'Shuttle Rápido' : 'Shuttle Completo'}
           </DrawerTitle>
-          <DrawerDescription>Registre a ida do shuttle</DrawerDescription>
+          <DrawerDescription>
+            {mode === 'rapido' ? 'Registre ida e volta direto' : 'Crie o shuttle com ciclo completo de etapas'}
+          </DrawerDescription>
         </DrawerHeader>
 
         <div className="px-6 pb-8 pt-2 space-y-4 overflow-y-auto">
