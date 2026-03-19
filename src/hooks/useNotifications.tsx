@@ -26,6 +26,7 @@ interface NotificationsContextType {
   soundEnabled: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   markAsRead: (id: string) => void;
+  markAsUnread: (id: string) => void;
   markAllAsRead: () => void;
   deleteNotification: (id: string) => void;
   clearAll: () => void;
@@ -76,7 +77,7 @@ interface VistoriaLogResult {
   } | null;
 }
 
-    interface AlertaFrotaResult {
+interface AlertaFrotaResult {
   id: string;
   tipo: string;
   nivel_combustivel: string | null;
@@ -86,6 +87,12 @@ interface VistoriaLogResult {
   veiculo: { placa: string; nome: string | null } | null;
   motorista: { nome: string } | null;
   evento: { nome_planilha: string } | null;
+}
+
+interface NotificacaoUsuarioRow {
+  notification_key: string;
+  lida: boolean;
+  ocultada: boolean;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -103,22 +110,6 @@ const actionConfig: Record<string, { label: string; icon: ReactNode; color: stri
   alerta_combustivel: { label: 'Combustível Baixo', icon: <Fuel className="h-4 w-4" />, color: 'bg-red-600' },
 };
 
-// Helper to load Set from localStorage
-function loadSetFromStorage(key: string): Set<string> {
-  try {
-    const saved = localStorage.getItem(key);
-    if (saved) return new Set(JSON.parse(saved));
-  } catch { /* ignore */ }
-  return new Set();
-}
-
-// Helper to save Set to localStorage
-function saveSetToStorage(key: string, set: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify([...set]));
-  } catch { /* ignore */ }
-}
-
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,12 +120,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   
   const { playNotificationSound } = useNotificationSound();
   const isInitialLoad = useRef(true);
+  const userIdRef = useRef<string | null>(null);
   
-  // Persist read and deleted IDs in localStorage
-  const readIdsRef = useRef<Set<string>>(loadSetFromStorage('notification-read-ids'));
-  const deletedIdsRef = useRef<Set<string>>(loadSetFromStorage('notification-deleted-ids'));
+  // In-memory cache of DB state to avoid re-fetching on every notification build
+  const dbStateRef = useRef<Map<string, { lida: boolean; ocultada: boolean }>>(new Map());
   
-  // Use ref for soundEnabled to avoid recreating fetchNotifications
   const soundEnabledRef = useRef(soundEnabled);
   soundEnabledRef.current = soundEnabled;
   
@@ -146,7 +136,30 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('notification-sound-enabled', String(enabled));
   }, []);
 
+  // Fetch user's notification states from DB
+  const fetchDbState = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    userIdRef.current = user.id;
+
+    const { data } = await supabase
+      .from('notificacao_usuario')
+      .select('notification_key, lida, ocultada')
+      .eq('user_id', user.id);
+
+    const map = new Map<string, { lida: boolean; ocultada: boolean }>();
+    ((data || []) as unknown as NotificacaoUsuarioRow[]).forEach(row => {
+      map.set(row.notification_key, { lida: row.lida, ocultada: row.ocultada });
+    });
+    dbStateRef.current = map;
+  }, []);
+
   const fetchNotifications = useCallback(async () => {
+    // Ensure we have DB state loaded
+    if (dbStateRef.current.size === 0 && userIdRef.current === null) {
+      await fetchDbState();
+    }
+
     const [viagemLogsRes, presencaLogsRes, vistoriaLogsRes, alertasFrotaRes] = await Promise.all([
       supabase
         .from('viagem_logs')
@@ -195,7 +208,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     const newNotifications: Notification[] = [];
 
-    // Filter out shuttle trips from notifications
     viagemLogs.filter(log => log.viagem?.motorista !== 'Shuttle').forEach((log) => {
       const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
       const motoristaNome = log.viagem?.motorista || 'Motorista';
@@ -256,7 +268,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       });
     });
 
-    // Alertas de combustível
     alertasFrota.forEach((alerta) => {
       const config = actionConfig.alerta_combustivel;
       const nomeVeiculo = alerta.veiculo?.nome || alerta.veiculo?.placa || 'Veículo';
@@ -280,15 +291,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     
-    // Filter out deleted notifications (persisted)
-    const filteredNotifications = newNotifications.filter(n => !deletedIdsRef.current.has(n.id));
-    const finalNotifications = filteredNotifications.slice(0, 50);
+    // Filter out hidden notifications and apply read state from DB
+    const dbState = dbStateRef.current;
+    const filteredNotifications = newNotifications
+      .filter(n => {
+        const state = dbState.get(n.id);
+        return !state?.ocultada;
+      })
+      .slice(0, 50);
     
-    // Apply persisted read state
     setNotifications(prev => {
-      const mergedNotifications = finalNotifications.map(n => ({
+      const mergedNotifications = filteredNotifications.map(n => ({
         ...n,
-        read: readIdsRef.current.has(n.id),
+        read: dbState.get(n.id)?.lida || false,
       }));
       
       // Play sound for new notifications (only after initial load)
@@ -305,52 +320,68 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     setLoading(false);
     isInitialLoad.current = false;
-  }, []); // No dependencies - uses refs for everything mutable
+  }, [fetchDbState]);
+
+  // Upsert a notification state in DB
+  const upsertState = useCallback(async (notificationKey: string, updates: { lida?: boolean; ocultada?: boolean }) => {
+    const userId = userIdRef.current;
+    if (!userId) return;
+
+    // Update local cache immediately
+    const current = dbStateRef.current.get(notificationKey) || { lida: false, ocultada: false };
+    dbStateRef.current.set(notificationKey, { ...current, ...updates });
+
+    await supabase
+      .from('notificacao_usuario')
+      .upsert({
+        user_id: userId,
+        notification_key: notificationKey,
+        lida: updates.lida ?? current.lida,
+        ocultada: updates.ocultada ?? current.ocultada,
+      }, { onConflict: 'user_id,notification_key' });
+  }, []);
 
   const markAsRead = useCallback((id: string) => {
-    readIdsRef.current.add(id);
-    saveSetToStorage('notification-read-ids', readIdsRef.current);
+    upsertState(id, { lida: true });
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  }, []);
+  }, [upsertState]);
+
+  const markAsUnread = useCallback((id: string) => {
+    upsertState(id, { lida: false });
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
+  }, [upsertState]);
 
   const markAllAsRead = useCallback(() => {
     setNotifications(prev => {
-      prev.forEach(n => readIdsRef.current.add(n.id));
-      saveSetToStorage('notification-read-ids', readIdsRef.current);
+      prev.forEach(n => upsertState(n.id, { lida: true }));
       return prev.map(n => ({ ...n, read: true }));
     });
-  }, []);
+  }, [upsertState]);
 
   const deleteNotification = useCallback((id: string) => {
-    deletedIdsRef.current.add(id);
-    saveSetToStorage('notification-deleted-ids', deletedIdsRef.current);
+    upsertState(id, { ocultada: true });
     setNotifications(prev => prev.filter(n => n.id !== id));
-  }, []);
+  }, [upsertState]);
 
   const clearAll = useCallback(() => {
     setNotifications(prev => {
-      prev.forEach(n => deletedIdsRef.current.add(n.id));
-      saveSetToStorage('notification-deleted-ids', deletedIdsRef.current);
+      prev.forEach(n => upsertState(n.id, { ocultada: true }));
       return [];
     });
-  }, []);
+  }, [upsertState]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Get active eventoId from notifications or URL - filter realtime by event
   const activeEventoId = useRef<string | null>(null);
   
-  // Extract eventoId from URL path (e.g., /evento/{id}/...)
   useEffect(() => {
     const match = window.location.pathname.match(/\/evento\/([0-9a-f-]{36})\//i);
     activeEventoId.current = match ? match[1] : null;
   });
 
   useEffect(() => {
-    fetchNotifications();
+    fetchDbState().then(() => fetchNotifications());
 
-    // THROTTLE: Prevent fetchNotifications from firing more than once per 10 seconds
-    // Notifications are informational, not operational - higher throttle is fine
     let lastFetch = Date.now();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
     const throttledFetch = () => {
@@ -368,19 +399,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Build channel with event-filtered subscriptions when possible
     const evtId = activeEventoId.current;
     const channel = supabase.channel(`notifications-${evtId || 'all'}`);
 
     if (evtId) {
-      // FILTERED: Only listen to changes for the active event (~90% reduction)
       channel
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca', filter: `evento_id=eq.${evtId}` }, throttledFetch)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'veiculo_vistoria_historico', filter: `evento_id=eq.${evtId}` }, throttledFetch)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_frota', filter: `evento_id=eq.${evtId}` }, throttledFetch);
     } else {
-      // Fallback: no event context, listen to all (admin Home page)
       channel
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'viagem_logs' }, throttledFetch)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'motorista_presenca' }, throttledFetch)
@@ -390,7 +418,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     channel.subscribe();
 
-    // Polling fallback every 2 minutes
     const pollInterval = setInterval(() => fetchNotifications(), 120000);
 
     return () => {
@@ -398,7 +425,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, fetchDbState]);
 
   return (
     <NotificationsContext.Provider value={{
@@ -408,6 +435,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       soundEnabled,
       setSoundEnabled,
       markAsRead,
+      markAsUnread,
       markAllAsRead,
       deleteNotification,
       clearAll,
