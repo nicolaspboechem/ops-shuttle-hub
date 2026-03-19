@@ -83,10 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      const [profileRes, roleRes, permRes, eventRolesRes] = await Promise.all([
+      const [profileRes, roleRes, eventRolesRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
         supabase.from('user_roles').select('role').eq('user_id', userId).limit(1).maybeSingle(),
-        supabase.from('user_permissions').select('permission').eq('user_id', userId),
         supabase.from('evento_usuarios').select('evento_id, role').eq('user_id', userId),
       ]);
 
@@ -96,12 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userIsAdmin = roleRes.data?.role === 'admin';
       setIsAdmin(userIsAdmin);
-
-      if (userIsAdmin) {
-        setPermissions(['view_trips', 'edit_trips', 'manage_drivers_vehicles', 'export_data']);
-      } else if (permRes.data) {
-        setPermissions(permRes.data.map(p => p.permission as AppPermission));
-      }
 
       if (eventRolesRes.data) {
         setEventRoles(eventRolesRes.data.map(er => ({
