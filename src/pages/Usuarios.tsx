@@ -76,6 +76,7 @@ export default function Usuarios() {
   const [deleting, setDeleting] = useState(false);
 
   // Modal de reset de senha
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserData | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
