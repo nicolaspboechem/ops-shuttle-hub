@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [permissions, setPermissions] = useState<AppPermission[]>([]);
   const [eventRoles, setEventRoles] = useState<EventRoleMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [motoristaId, setMotoristaId] = useState<string | null>(null);
