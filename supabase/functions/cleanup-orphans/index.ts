@@ -50,7 +50,7 @@ serve(async (req) => {
       orphan_profiles_deleted: 0,
       orphan_evento_usuarios_deleted: 0,
       orphan_user_roles_deleted: 0,
-      orphan_user_permissions_deleted: 0,
+      
       orphan_auth_users_deleted: 0,
       profiles_created_for_auth_users: 0,
       errors: [] as string[],
