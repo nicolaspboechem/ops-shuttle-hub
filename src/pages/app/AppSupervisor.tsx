@@ -695,6 +695,7 @@ export default function AppSupervisor() {
         eventoId={eventoId!}
         veiculos={veiculos}
         pontos={pontos}
+        mode={shuttleMode}
         onCreated={() => {
           refetchViagens();
           setActiveTab('viagens');

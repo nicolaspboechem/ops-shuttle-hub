@@ -633,6 +633,7 @@ export default function AppOperador() {
         eventoId={eventoId!}
         veiculos={veiculos}
         pontos={pontos}
+        mode={shuttleMode}
         onCreated={() => {
           refetchViagens();
           setActiveTab('viagens');
