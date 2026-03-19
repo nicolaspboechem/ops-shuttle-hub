@@ -743,30 +743,6 @@ export type Database = {
           },
         ]
       }
-      user_permissions: {
-        Row: {
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          permission: Database["public"]["Enums"]["app_permission"]
-          user_id: string
-        }
-        Insert: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          permission: Database["public"]["Enums"]["app_permission"]
-          user_id: string
-        }
-        Update: {
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          permission?: Database["public"]["Enums"]["app_permission"]
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1271,21 +1247,9 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
-      has_permission: {
-        Args: {
-          _permission: Database["public"]["Enums"]["app_permission"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_permission:
-        | "view_trips"
-        | "edit_trips"
-        | "manage_drivers_vehicles"
-        | "export_data"
       app_role:
         | "admin"
         | "user"
@@ -1420,12 +1384,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_permission: [
-        "view_trips",
-        "edit_trips",
-        "manage_drivers_vehicles",
-        "export_data",
-      ],
       app_role: [
         "admin",
         "user",
