@@ -328,7 +328,7 @@ export default function AppSupervisor() {
   const fetchEvento = async () => {
     const { data } = await supabase
       .from('eventos')
-      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia, tipos_viagem_habilitados')
+      .select('nome_planilha, data_inicio, data_fim, horario_virada_dia, habilitar_localizador, tipos_viagem_habilitados')
       .eq('id', eventoId)
       .single();
     
