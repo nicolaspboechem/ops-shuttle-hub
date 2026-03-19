@@ -368,7 +368,7 @@ export default function Usuarios() {
     setShowEditModal(true);
   };
 
-  const openDeleteModal = (user: UserWithPermissions) => {
+  const openDeleteModal = (user: UserData) => {
     setDeletingUser(user);
     setShowDeleteModal(true);
   };
