@@ -295,22 +295,6 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
           </div>
 
           <div className="p-5 space-y-4">
-            {/* Badges de operação */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {aggregatedStats.transfer > 0 && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1.5 py-1 px-2.5">
-                  <Car className="w-3.5 h-3.5" />
-                  {aggregatedStats.transfer} Transfer
-                </Badge>
-              )}
-              {aggregatedStats.shuttle > 0 && (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 gap-1.5 py-1 px-2.5">
-                  <Bus className="w-3.5 h-3.5" />
-                  {aggregatedStats.shuttle} Shuttle
-                </Badge>
-              )}
-            </div>
-
             {/* Stats Grid */}
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center p-3 rounded-lg bg-muted/50">

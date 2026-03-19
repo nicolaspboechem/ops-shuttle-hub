@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Calendar, RefreshCw, Bus, Car, ChevronRight } from 'lucide-react';
+import { Calendar, RefreshCw, Bus, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Evento } from '@/lib/types/viagem';
@@ -10,28 +10,18 @@ interface EventoCardProps {
   evento: Evento;
 }
 
-interface ContagemViagens {
-  transfer: number;
-  shuttle: number;
-  total: number;
-}
-
 export function EventoCard({ evento }: EventoCardProps) {
   const navigate = useNavigate();
-  const [contagem, setContagem] = useState<ContagemViagens>({ transfer: 0, shuttle: 0, total: 0 });
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     async function fetchContagem() {
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from('viagens')
-        .select('tipo_operacao')
+        .select('id', { count: 'exact', head: true })
         .eq('evento_id', evento.id);
 
-      if (!error && data) {
-        const transfer = data.filter(v => v.tipo_operacao === 'transfer').length;
-        const shuttle = data.filter(v => v.tipo_operacao === 'shuttle').length;
-        setContagem({ transfer, shuttle, total: data.length });
-      }
+      if (!error) setTotal(count || 0);
     }
     fetchContagem();
   }, [evento.id]);
@@ -54,8 +44,6 @@ export function EventoCard({ evento }: EventoCardProps) {
     });
   };
 
-  const hasBothTypes = contagem.transfer > 0 && contagem.shuttle > 0;
-
   return (
     <Card 
       className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
@@ -64,32 +52,6 @@ export function EventoCard({ evento }: EventoCardProps) {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
-            {/* Badges de tipo de operação */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {(contagem.transfer > 0 || contagem.total === 0) && (
-                <div className="flex items-center gap-1.5">
-                  <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    <Car className="w-4 h-4" />
-                  </div>
-                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                    Transfer
-                    {contagem.transfer > 0 && <span className="ml-1 opacity-75">({contagem.transfer})</span>}
-                  </Badge>
-                </div>
-              )}
-              {contagem.shuttle > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <Bus className="w-4 h-4" />
-                  </div>
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                    Shuttle
-                    <span className="ml-1 opacity-75">({contagem.shuttle})</span>
-                  </Badge>
-                </div>
-              )}
-            </div>
-            
             <h3 className="font-semibold text-lg text-foreground truncate">
               {evento.nome_planilha}
             </h3>
@@ -101,7 +63,6 @@ export function EventoCard({ evento }: EventoCardProps) {
         </div>
 
         <div className="space-y-3 text-sm">
-          {/* Período do evento */}
           {evento.data_inicio && evento.data_fim && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Calendar className="w-4 h-4 flex-shrink-0" />
@@ -120,10 +81,9 @@ export function EventoCard({ evento }: EventoCardProps) {
             <span>Última sync: {formatDate(evento.data_ultima_sync)}</span>
           </div>
 
-          {/* Contador total de viagens */}
           <div className="flex items-center gap-2 text-muted-foreground">
             <Bus className="w-4 h-4 flex-shrink-0" />
-            <span>{contagem.total} viagens</span>
+            <span>{total} viagens</span>
           </div>
         </div>
       </CardContent>
