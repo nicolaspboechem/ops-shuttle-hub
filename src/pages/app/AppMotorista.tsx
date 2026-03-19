@@ -381,13 +381,14 @@ export default function AppMotorista() {
             .eq('id', viagemId);
         }
 
-        // Verificar se motorista tem outras viagens ativas (usar motorista_id)
+        // Verificar se motorista tem outras viagens ativas (excluir a que acabou de encerrar)
         const { data: outrasViagens } = await supabase
           .from('viagens')
           .select('id')
           .eq('motorista_id', motoristaData.id)
           .eq('evento_id', eventoId)
-          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
+          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno'])
+          .neq('id', viagemId || '');
 
         if (!outrasViagens || outrasViagens.length === 0) {
           await supabase
