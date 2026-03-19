@@ -74,25 +74,6 @@ export function LogsPanel({ eventoId }: LogsPanelProps) {
     };
   }, [eventoId, fetchLogs, throttleKey]);
 
-  const fetchLogs = async () => {
-    const { data } = await supabase
-      .from('viagem_logs')
-      .select(`
-        *,
-        viagem:viagens!viagem_id(motorista, placa, evento_id),
-        profile:profiles!user_id(full_name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    // Filtrar por evento
-    const filtered = (data || []).filter((log: any) => 
-      log.viagem?.evento_id === eventoId
-    );
-
-    setLogs(filtered as any[]);
-    setLoading(false);
-  };
 
   if (loading) {
     return <div className="p-4 text-center text-muted-foreground">Carregando...</div>;
