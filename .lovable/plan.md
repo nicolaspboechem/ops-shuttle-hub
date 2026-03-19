@@ -1,63 +1,107 @@
 
 
-# Plan: Motorista Home Tab + 3 Bug Fixes
+# Plan: Remove Transfer + Restructure NewActionModal
 
-## 1. New "Home" tab for Motorista app
+## Summary
 
-Add a new tab to `MotoristaBottomNav` and render a personal dashboard in `AppMotorista`:
+Remove all Transfer references from the entire codebase (frontend, filters, event config, mission creation). Restructure the "Nova Operacao" modal to show 3 top-level buttons (Missao, Shuttle, Deslocamento) where Missao and Shuttle expand into sub-options.
 
-**New component: `src/components/app/MotoristaHomeTab.tsx`**
-- Total completed trips (count from `viagens` where `motorista_id` matches and `status = 'encerrado'`)
-- Km driven (sum of `km_final - km_inicial` from completed trips' vehicles, or display "N/A" if unavailable)
-- Today's metrics: trips completed today, current status, hours since check-in
-- Notifications section: reuse the same `notificacao_usuario` DB-backed read/unread/hide logic from the admin Home page, filtered to the motorista's user
+## Database
 
-**Changes:**
-- `MotoristaBottomNav.tsx`: Add 'home' tab before 'inicio', rename 'inicio' to 'Missoes' (missions tab)
-- `AppMotorista.tsx`: Add 'home' case in `renderTabContent()` rendering `MotoristaHomeTab`
-- Notifications: query `useNotifications` hook (already user-scoped) and render a simplified notification list with mark-as-read/unread/delete actions
-
-## 2. Bug Fix: Supervisor cannot end missions
-
-**Root cause:** RLS policy `motoristas_update_admin` only allows admins to UPDATE the `motoristas` table. When a supervisor calls `concluirMissao`, it calls `syncMotoristaAoEncerrarMissao` which updates `motoristas.status` — this silently fails for non-admin users.
-
-**Fix:** Add a new RLS policy on `motoristas` allowing authenticated users with event access to update specific operational fields.
+**Migration:** Change existing `tipo_operacao = 'transfer'` rows to `'shuttle'` so no data is lost. Remove 'transfer' from event config arrays. No schema changes needed (the column is varchar, not enum).
 
 ```sql
-CREATE POLICY "motoristas_update_event_member"
-  ON public.motoristas
-  FOR UPDATE
-  TO authenticated
-  USING (has_event_access(auth.uid(), evento_id))
-  WITH CHECK (has_event_access(auth.uid(), evento_id));
+-- Convert all existing transfer viagens to shuttle
+UPDATE viagens SET tipo_operacao = 'shuttle' WHERE tipo_operacao = 'transfer';
+
+-- Remove 'transfer' from tipos_viagem_habilitados arrays
+UPDATE eventos 
+SET tipos_viagem_habilitados = array_remove(tipos_viagem_habilitados, 'transfer')
+WHERE 'transfer' = ANY(tipos_viagem_habilitados);
+
+-- Update legacy tipo_operacao field  
+UPDATE eventos SET tipo_operacao = 'shuttle' WHERE tipo_operacao = 'transfer';
 ```
 
-This also fixes the motorista's own updates (status, location) since the motorista is a member of the event via `evento_usuarios`.
+## Frontend Changes
 
-## 3. Bug Fix: Deslocamento mission doesn't finalize in motorista app
+### 1. NewActionModal — Restructure to hierarchical menu
 
-**Root cause:** Same as Bug #2 — the motorista app's `handleMissaoAction('finalizar')` tries to update `motoristas.status` to 'disponivel' and `ultima_localizacao`, but the RLS blocks non-admin updates. The migration in Bug #2 fixes this.
+Replace flat button list with 3 top-level groups:
+1. **Missao** (purple) — clicking shows sub-options: Instantanea / Agendada
+2. **Shuttle** (emerald) — clicking shows sub-options: Rapido / Completo
+3. **Deslocamento** (teal) — direct action, no sub-menu
 
-**Additional issue:** After examining the code, the finalization flow in `AppMotorista` queries for remaining active viagens BEFORE updating the current one to 'encerrado'. This means the query finds the viagem being finalized as still active, so it never sets the motorista to 'disponivel'.
+Each group expands inline (accordion-style) when clicked.
 
-**Fix in `AppMotorista.tsx`:** Move the "check for other active viagens" query AFTER the viagem update, and exclude the current `viagemId` from the query.
+**ActionType:** Remove `'transfer'` from the type. Keep: `'missao' | 'missao_agendada' | 'deslocamento' | 'shuttle_rapido' | 'shuttle_completo'`
 
-## 4. Session timeout (30min inactivity → logout)
+### 2. Remove Transfer from event creation/editing
 
-**New hook: `src/hooks/useInactivityLogout.ts`**
-- Track last user interaction (touch, click, keypress, scroll)
-- Every 60 seconds, check if `Date.now() - lastActivity > 30 * 60 * 1000`
-- If inactive, call `signOut()` and navigate to `/auth`
-- Mount in `AuthLayout` (App.tsx) so it applies globally to all authenticated routes
+**Files:** `CreateEventoWizard.tsx`, `EditEventoModal.tsx`
+- Remove 'transfer' option from `tiposViagem` checkbox list
+- Simplify legacy `tipo_operacao` derivation (no more transfer case)
 
-## Files to create/modify
+### 3. Remove Transfer from OperationTabs filter
 
-| File | Action |
-|---|---|
-| `supabase/migrations/...` | Add `motoristas_update_event_member` policy |
-| `src/components/app/MotoristaHomeTab.tsx` | Create — dashboard + notifications |
-| `src/components/app/MotoristaBottomNav.tsx` | Add 'home' tab |
-| `src/pages/app/AppMotorista.tsx` | Add home tab rendering, fix finalization query order |
-| `src/hooks/useInactivityLogout.ts` | Create — 30min timeout hook |
-| `src/App.tsx` | Mount inactivity hook in AuthLayout |
+**File:** `OperationTabs.tsx`
+- Remove `'transfer'` from `TipoOperacaoFiltro` type and `SPECIFIC_TYPES`
+- Remove transfer tab trigger
+- Keep only: `'todos' | 'shuttle' | 'missao'`
+
+### 4. Remove Transfer from contadores everywhere
+
+**Files (all have the same pattern):**
+- `Dashboard.tsx`, `DashboardMobile.tsx`, `ViagensAtivas.tsx`, `ViagensFinalizadas.tsx`
+- `Auditoria.tsx`, `MotoristasAuditoria.tsx`, `VeiculosAuditoria.tsx`
+- `ClienteDashboardTab.tsx`
+
+Remove `transfer:` counter line. Adjust total calculations.
+
+### 5. Remove Transfer components
+
+**Delete:** `src/components/transfer/TransferTable.tsx`, `src/components/transfer/TransferMetrics.tsx`
+
+### 6. Simplify EventoTabs
+
+**File:** `EventoTabs.tsx`
+- Remove `viagensTransfer` prop, transfer tab, TransferTable/Metrics imports
+- Only show shuttle metrics/table (no tabs needed since only one type)
+
+### 7. Remove ExportButton transfer prop
+
+**File:** `ExportButton.tsx` — Remove `viagensTransfer` prop, only export shuttle data
+
+### 8. Fix EventoCard / EventoGroupCard
+
+Remove transfer counting/badges.
+
+### 9. Fix mission viagem creation (tipo_operacao)
+
+**Files:** `useMissoes.ts` (line 369), `AppMotorista.tsx` (line 302)
+- Change `tipo_operacao: 'transfer'` to `tipo_operacao: 'shuttle'` when creating viagens from missions
+
+### 10. Remove CreateViagemForm usage from Operador/Supervisor apps
+
+**Files:** `AppOperador.tsx`, `AppSupervisor.tsx`
+- Remove `showViagemForm` state, `CreateViagemForm` import, and the transfer branch in `handleTabChange`/`handleActionSelect`
+- The `CreateViagemForm` component itself can stay (used for mission-linked trips) or be cleaned up
+
+### 11. Remove transfer label from Operador/Supervisor
+
+**Files:** `AppOperador.tsx`, `AppSupervisor.tsx`
+- Remove `'transfer': 'Transfer'` from labels map
+
+### 12. Tutorial text cleanup
+
+**File:** `useTutorial.ts` — Remove "Transfer" from description text
+
+## Files affected (~20 files)
+
+| Action | Files |
+|--------|-------|
+| Migration | 1 new SQL migration |
+| Delete | `TransferTable.tsx`, `TransferMetrics.tsx` |
+| Major edit | `NewActionModal.tsx`, `OperationTabs.tsx`, `EventoTabs.tsx`, `ExportButton.tsx` |
+| Minor edit | `AppOperador.tsx`, `AppSupervisor.tsx`, `Dashboard.tsx`, `DashboardMobile.tsx`, `ViagensAtivas.tsx`, `ViagensFinalizadas.tsx`, `Auditoria.tsx`, `MotoristasAuditoria.tsx`, `VeiculosAuditoria.tsx`, `ClienteDashboardTab.tsx`, `EventoCard.tsx`, `EventoGroupCard.tsx`, `CreateEventoWizard.tsx`, `EditEventoModal.tsx`, `useMissoes.ts`, `AppMotorista.tsx`, `useTutorial.ts` |
 
