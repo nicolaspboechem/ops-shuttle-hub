@@ -410,21 +410,19 @@ export default function Home() {
                             })}
                           </span>
                           <TooltipProvider>
-                            {!notification.read && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-green-500"
-                                    onClick={() => markAsRead(notification.id)}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Marcar como lido</TooltipContent>
-                              </Tooltip>
-                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={`h-8 w-8 text-muted-foreground ${notification.read ? 'hover:text-blue-500' : 'hover:text-green-500'}`}
+                                  onClick={() => notification.read ? markAsUnread(notification.id) : markAsRead(notification.id)}
+                                >
+                                  {notification.read ? <Bell className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{notification.read ? 'Marcar como não lido' : 'Marcar como lido'}</TooltipContent>
+                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
