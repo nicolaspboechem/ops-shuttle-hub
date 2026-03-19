@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
-import { Calendar, Bus, Car, ChevronRight, Pencil, MoreVertical, Eye, EyeOff, Archive, Trash2, Power } from 'lucide-react';
+import { Calendar, Bus, ChevronRight, Pencil, MoreVertical, Eye, EyeOff, Archive, Trash2, Power } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
