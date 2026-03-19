@@ -385,10 +385,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     let lastFetch = Date.now();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    const THROTTLE_MS = 3000;
     const throttledFetch = () => {
       const now = Date.now();
       const elapsed = now - lastFetch;
-      if (elapsed >= 10000) {
+      if (elapsed >= THROTTLE_MS) {
         lastFetch = now;
         fetchNotifications();
       } else if (!throttleTimer) {
@@ -396,7 +397,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           throttleTimer = null;
           lastFetch = Date.now();
           fetchNotifications();
-        }, 10000 - elapsed);
+        }, THROTTLE_MS - elapsed);
       }
     };
 
@@ -419,12 +420,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     channel.subscribe();
 
-    const pollInterval = setInterval(() => fetchNotifications(), 120000);
+    const pollInterval = setInterval(() => fetchNotifications(), 60000);
+
+    // Sync imediato ao voltar à aba (Chrome suspende WebSocket em background)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        lastFetch = 0; // força próximo throttledFetch a executar imediato
+        throttledFetch();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       if (throttleTimer) clearTimeout(throttleTimer);
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchNotifications, fetchDbState]);
 
