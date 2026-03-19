@@ -5,9 +5,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Target, ArrowRightLeft, Bus, Route } from 'lucide-react';
+import { Target, ArrowRightLeft, Bus, Route, Zap, ListChecks } from 'lucide-react';
 
-export type ActionType = 'missao' | 'deslocamento' | 'transfer' | 'shuttle';
+export type ActionType = 'missao' | 'deslocamento' | 'transfer' | 'shuttle_rapido' | 'shuttle_completo';
 
 interface NewActionModalProps {
   open: boolean;
@@ -19,7 +19,7 @@ interface NewActionModalProps {
   hideShuttle?: boolean;
 }
 
-const actionItems: { tipo: ActionType; label: string; icon: React.ElementType; tipoEvento: string; borderClass: string; hoverClass: string; iconClass: string }[] = [
+const actionItems: { tipo: ActionType; label: string; sublabel?: string; icon: React.ElementType; tipoEvento: string; borderClass: string; hoverClass: string; iconClass: string }[] = [
   {
     tipo: 'missao',
     label: 'Missão',
@@ -33,7 +33,7 @@ const actionItems: { tipo: ActionType; label: string; icon: React.ElementType; t
     tipo: 'deslocamento',
     label: 'Deslocamento',
     icon: Route,
-    tipoEvento: 'missao', // deslocamento depende de missão estar habilitada
+    tipoEvento: 'missao',
     borderClass: 'border-teal-200 dark:border-teal-800',
     hoverClass: 'hover:bg-teal-50 hover:border-teal-400 dark:hover:bg-teal-950',
     iconClass: 'text-teal-600 dark:text-teal-400',
@@ -48,13 +48,24 @@ const actionItems: { tipo: ActionType; label: string; icon: React.ElementType; t
     iconClass: 'text-primary',
   },
   {
-    tipo: 'shuttle',
-    label: 'Shuttle',
-    icon: Bus,
+    tipo: 'shuttle_rapido',
+    label: 'Shuttle Rápido',
+    sublabel: 'Ida e volta direto',
+    icon: Zap,
     tipoEvento: 'shuttle',
-    borderClass: '',
-    hoverClass: '',
-    iconClass: 'text-primary',
+    borderClass: 'border-amber-200 dark:border-amber-800',
+    hoverClass: 'hover:bg-amber-50 hover:border-amber-400 dark:hover:bg-amber-950',
+    iconClass: 'text-amber-600 dark:text-amber-400',
+  },
+  {
+    tipo: 'shuttle_completo',
+    label: 'Shuttle Completo',
+    sublabel: 'Ciclo completo com etapas',
+    icon: ListChecks,
+    tipoEvento: 'shuttle',
+    borderClass: 'border-blue-200 dark:border-blue-800',
+    hoverClass: 'hover:bg-blue-50 hover:border-blue-400 dark:hover:bg-blue-950',
+    iconClass: 'text-blue-600 dark:text-blue-400',
   },
 ];
 
@@ -70,7 +81,7 @@ export function NewActionModal({ open, onOpenChange, onSelect, tiposHabilitados,
       return tiposHabilitados.includes(item.tipoEvento);
     }
     // Fallback: compatibilidade com hideShuttle
-    if (hideShuttle && item.tipo === 'shuttle') return false;
+    if (hideShuttle && item.tipoEvento === 'shuttle') return false;
     return true;
   });
 
@@ -87,11 +98,16 @@ export function NewActionModal({ open, onOpenChange, onSelect, tiposHabilitados,
               <Button
                 key={item.tipo}
                 variant="outline"
-                className={`h-14 justify-start gap-3 text-base ${item.borderClass} ${item.hoverClass}`}
+                className={`h-auto min-h-[3.5rem] justify-start gap-3 text-base px-4 py-3 ${item.borderClass} ${item.hoverClass}`}
                 onClick={() => handleSelect(item.tipo)}
               >
-                <Icon className={`h-5 w-5 ${item.iconClass}`} />
-                <span>{item.label}</span>
+                <Icon className={`h-5 w-5 shrink-0 ${item.iconClass}`} />
+                <div className="text-left">
+                  <span className="block">{item.label}</span>
+                  {item.sublabel && (
+                    <span className="block text-xs font-normal text-muted-foreground">{item.sublabel}</span>
+                  )}
+                </div>
               </Button>
             );
           })}

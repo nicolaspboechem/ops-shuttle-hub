@@ -308,7 +308,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
             onClick={handleSave}
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-            Iniciar Shuttle
+            {mode === 'rapido' ? 'Iniciar Shuttle' : 'Agendar Shuttle'}
           </Button>
         </div>
       </DrawerContent>
