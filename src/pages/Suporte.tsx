@@ -110,57 +110,6 @@ export default function Suporte() {
 
           {/* Tab: Tipos de Operação */}
           <TabsContent value="operacoes" className="space-y-6">
-            {/* Transfer */}
-            <Card className="border-amber-200">
-              <CardHeader className="bg-amber-50/50 rounded-t-lg">
-                <CardTitle className="flex items-center gap-3 text-amber-900">
-                  <Car className="w-6 h-6 text-amber-600" />
-                  Transfer Executivo
-                </CardTitle>
-                <CardDescription className="text-amber-700">
-                  Transporte privativo ponto a ponto
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Viagens individuais para VIPs, diretores e convidados especiais.
-                  O cliente define o horário e o motorista é designado diretamente para a viagem.
-                </p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Quem inicia a viagem?</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <ChevronRight className="w-4 h-4" />
-                      <span>Motorista ou Operador criam e iniciam</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Quem define o horário?</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <ChevronRight className="w-4 h-4" />
-                      <span>Cliente/Passageiro</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não precisa de Check-in
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não aparece no Painel Público
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não aparece no Localizador
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Shuttle */}
             <Card className="border-green-200">
               <CardHeader className="bg-green-50/50 rounded-t-lg">
