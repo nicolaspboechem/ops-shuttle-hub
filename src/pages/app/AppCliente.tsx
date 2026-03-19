@@ -85,7 +85,7 @@ export default function AppCliente() {
     
     switch (activeTab) {
       case 'dashboard':
-        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} eventoStatus={evento?.status} />;
       case 'localizador':
         return <ClienteLocalizadorTab key={refreshKey} eventoId={eventoId} />;
       case 'painel':
