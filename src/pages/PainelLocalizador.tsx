@@ -343,6 +343,46 @@ export default function PainelLocalizador() {
     );
   }
 
+  // Show disabled message if localizador is not enabled for this event
+  if (localizadorDesabilitado) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
+        <header className="bg-[#100014] px-6 py-4">
+          <div className="flex items-center gap-4">
+            {eventos.length > 1 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                className="mr-2 text-white hover:bg-white/10"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            )}
+            <img src={logoAS} alt="AS Brasil" className="h-10" />
+            <div className="flex items-center gap-3">
+              <MapPin className="w-6 h-6 text-[#3F5AEC]" />
+              <div>
+                <h1 className="text-xl font-bold text-white">LOCALIZADOR DE FROTA</h1>
+                {eventoNome && <p className="text-sm text-white/70">{eventoNome}</p>}
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center py-16">
+            <MapPin className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Localizador desabilitado</h2>
+            <p className="text-muted-foreground">
+              O módulo de localização não está habilitado para este evento.
+              <br />Ative nas Configurações do evento no CCO.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // KANBAN VIEW
   if (loading) {
     return (
