@@ -267,7 +267,6 @@ export default function Suporte() {
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Quem inicia</td>
                         <td className="text-center py-3 px-4 text-xs">Motorista/Operador</td>
-                        <td className="text-center py-3 px-4 text-xs">Motorista/Operador</td>
                         <td className="text-center py-3 px-4 text-xs">CCO → Motorista</td>
                       </tr>
                       <tr>
