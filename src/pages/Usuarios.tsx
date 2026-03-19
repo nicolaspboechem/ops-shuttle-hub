@@ -373,7 +373,7 @@ export default function Usuarios() {
     setShowDeleteModal(true);
   };
 
-  const openResetPasswordModal = (user: UserWithPermissions) => {
+  const openResetPasswordModal = (user: UserData) => {
     setResetPasswordUser(user);
     setResetPassword('');
     setResetConfirmPassword('');
