@@ -475,6 +475,24 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
                 />
               </div>
             </div>
+
+            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Car className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-blue-900">Localizador de Frota</Label>
+                    <p className="text-xs text-blue-700/80 mt-1">
+                      Exibe aba Localizador no app Cliente/Supervisor e no painel /localizador
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={habilitarLocalizador}
+                  onCheckedChange={setHabilitarLocalizador}
+                />
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 
