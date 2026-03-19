@@ -236,12 +236,6 @@ export default function Suporte() {
                         <th className="text-left py-3 px-4">Característica</th>
                         <th className="text-center py-3 px-4">
                           <span className="flex items-center justify-center gap-2">
-                            <Car className="w-4 h-4 text-amber-600" />
-                            Transfer
-                          </span>
-                        </th>
-                        <th className="text-center py-3 px-4">
-                          <span className="flex items-center justify-center gap-2">
                             <Bus className="w-4 h-4 text-green-600" />
                             Shuttle
                           </span>
