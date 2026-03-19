@@ -45,6 +45,8 @@ interface CreateShuttleFormProps {
   onCreated?: () => void;
   veiculos?: Veiculo[];
   pontos?: PontoEmbarque[];
+  /** 'rapido' = cria em_andamento (ida+volta direto), 'completo' = cria agendado (ciclo completo) */
+  mode?: 'rapido' | 'completo';
 }
 
 export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, veiculos = [], pontos = [] }: CreateShuttleFormProps) {
