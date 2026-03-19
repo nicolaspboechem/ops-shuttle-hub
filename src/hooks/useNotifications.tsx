@@ -41,6 +41,7 @@ interface ViagemLogResult {
   viagem: {
     motorista: string;
     placa: string | null;
+    tipo_operacao: string;
     evento_id: string | null;
     evento: {
       nome_planilha: string;
