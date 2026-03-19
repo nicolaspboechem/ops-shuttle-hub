@@ -161,7 +161,7 @@ export default function AppOperador() {
   const [activeTab, setActiveTab] = useState<OperadorTabId>('viagens');
   const [viagemParaEncerrar, setViagemParaEncerrar] = useState<Viagem | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<string | null>(null);
-  const [apenasMinhas, setApenasMinhas] = useState(true);
+  const [apenasMinhas, setApenasMinhas] = useState(false);
   
   // Modals
   const [showActionModal, setShowActionModal] = useState(false);
