@@ -89,7 +89,7 @@ export function CreateViagemForm({
       setPontoEmbarque('');
       setPontoDesembarque('');
       setQtdPax('');
-      setTipoOperacao(defaultTipoOperacao || 'transfer');
+      setTipoOperacao(defaultTipoOperacao || 'shuttle');
       setObservacao('');
     }
   }, [open]);

@@ -382,12 +382,12 @@ export default function Suporte() {
 
                   <AccordionItem value="item-3">
                     <AccordionTrigger>
-                      Qual a diferença entre Transfer e Missão?
+                      Qual a diferença entre Shuttle e Missão?
                     </AccordionTrigger>
                     <AccordionContent>
                       <p className="text-muted-foreground mb-2">
-                        <strong>Transfer:</strong> Viagem agendada onde motorista ou operador criam e 
-                        iniciam a viagem. O cliente define o horário. Não requer check-in.
+                        <strong>Shuttle:</strong> Transporte circular em rotas pré-definidas com frequência 
+                        regular. Aparece no Painel Público e pode ser acompanhado pelos passageiros.
                       </p>
                       <p className="text-muted-foreground">
                         <strong>Missão:</strong> Tarefa designada pelo CCO em tempo real. O motorista 

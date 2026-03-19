@@ -110,7 +110,6 @@ export function VeiculoAuditoriaDiaModal({
 
   const getTipoOperacaoBadge = (tipo: string) => {
     const configs: Record<string, { label: string; className: string }> = {
-      transfer: { label: 'Transfer', className: 'bg-amber-500/10 text-amber-600' },
       shuttle: { label: 'Shuttle', className: 'bg-emerald-500/10 text-emerald-600' },
       missao: { label: 'Missão', className: 'bg-purple-500/10 text-purple-600' },
     };

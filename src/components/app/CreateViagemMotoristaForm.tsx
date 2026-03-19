@@ -88,7 +88,7 @@ export function CreateViagemMotoristaForm({
       setPontoEmbarque('');
       setPontoDesembarque('');
       setQtdPax('');
-      setTipoOperacao('transfer');
+      setTipoOperacao('shuttle');
       setObservacao('');
     }
   }, [open]);
