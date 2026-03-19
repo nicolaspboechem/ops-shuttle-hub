@@ -342,7 +342,7 @@ export default function Usuarios() {
     }
   };
 
-  const toggleAdminRole = async (user: UserWithPermissions) => {
+  const toggleAdminRole = async (user: UserData) => {
     if (!isAdmin || user.user_id === currentUser?.id) return;
 
     setUpdating(`admin-${user.user_id}`);
@@ -360,49 +360,7 @@ export default function Usuarios() {
     }
   };
 
-  const togglePermission = async (userId: string, permission: AppPermission, currentlyHas: boolean) => {
-    if (!isAdmin) return;
-
-    setUpdating(`${userId}-${permission}`);
-    try {
-      if (currentlyHas) {
-        const { error } = await supabase.from('user_permissions').delete().eq('user_id', userId).eq('permission', permission);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('user_permissions').insert({
-          user_id: userId,
-          permission,
-          granted_by: currentUser?.id,
-        });
-        if (error) throw error;
-      }
-
-      setUsers(prev => prev.map(u => {
-        if (u.user_id !== userId) return u;
-        return {
-          ...u,
-          permissions: currentlyHas
-            ? u.permissions.filter(p => p !== permission)
-            : [...u.permissions, permission],
-        };
-      }));
-      toast.success(currentlyHas ? 'Permissão removida' : 'Permissão concedida');
-    } catch (error) {
-      toast.error('Erro ao atualizar permissão');
-    } finally {
-      setUpdating(null);
-    }
-  };
-
-  const toggleExpanded = (userId: string) => {
-    setExpandedUsers(prev => {
-      const next = new Set(prev);
-      next.has(userId) ? next.delete(userId) : next.add(userId);
-      return next;
-    });
-  };
-
-  const openEditModal = (user: UserWithPermissions) => {
+  const openEditModal = (user: UserData) => {
     setEditingUser(user);
     setEditFullName(user.full_name || '');
     setEditEmail(user.email || '');
