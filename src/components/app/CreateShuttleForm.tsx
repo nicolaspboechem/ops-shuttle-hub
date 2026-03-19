@@ -116,7 +116,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
 
       if (error) throw error;
 
-      toast.success('Shuttle iniciado!');
+      toast.success(mode === 'rapido' ? 'Shuttle iniciado!' : 'Shuttle agendado!');
       resetForm();
       onOpenChange(false);
       onCreated?.();
