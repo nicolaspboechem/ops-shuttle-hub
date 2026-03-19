@@ -119,7 +119,6 @@ function FiltroTipoPills({ tipos, filtroAtivo, onChange }: {
 
   const labels: Record<string, string> = {
     shuttle: 'Shuttle',
-    transfer: 'Transfer',
     missao: 'Missão',
   };
 
