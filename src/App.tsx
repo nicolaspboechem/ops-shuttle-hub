@@ -117,10 +117,30 @@ function ConditionalNotifications({ children }: { children: ReactNode }) {
   return <NotificationsProvider>{children}</NotificationsProvider>;
 }
 
-// Inactivity logout wrapper — must be inside Router context
-function InactivityGuard({ children }: { children: ReactNode }) {
-  const { useInactivityLogout } = require('@/hooks/useInactivityLogout');
-  useInactivityLogout();
+// Inactivity logout — 30min timeout
+function InactivityWrapper({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+    const update = () => { lastActivityRef.current = Date.now(); };
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'] as const;
+    events.forEach(e => window.addEventListener(e, update, { passive: true }));
+    const interval = setInterval(async () => {
+      if (Date.now() - lastActivityRef.current > 30 * 60 * 1000) {
+        const { supabase } = await import('@/integrations/supabase/client');
+        await supabase.auth.signOut();
+        navigate('/auth', { replace: true });
+      }
+    }, 60000);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, update));
+      clearInterval(interval);
+    };
+  }, [user, navigate]);
+
   return <>{children}</>;
 }
 
