@@ -677,7 +677,7 @@ export default function AppSupervisor() {
       </div>
 
       {/* Bottom Navigation */}
-      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <SupervisorBottomNav activeTab={activeTab} onTabChange={handleTabChange} habilitarLocalizador={evento?.habilitar_localizador !== false} />
 
       {/* Action Type Modal */}
       <NewActionModal
