@@ -119,19 +119,16 @@ export default function Usuarios() {
 
   const fetchUsers = async () => {
     try {
-      const [profilesRes, rolesRes, permRes] = await Promise.all([
+      const [profilesRes, rolesRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('user_roles').select('*'),
-        supabase.from('user_permissions').select('*'),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
       if (rolesRes.error) throw rolesRes.error;
-      if (permRes.error) throw permRes.error;
 
-      const usersData: UserWithPermissions[] = (profilesRes.data || []).map(profile => {
+      const usersData: UserData[] = (profilesRes.data || []).map(profile => {
         const role = rolesRes.data?.find(r => r.user_id === profile.user_id);
-        const userPerms = permRes.data?.filter(p => p.user_id === profile.user_id) || [];
         
         return {
           id: profile.id,
@@ -142,7 +139,6 @@ export default function Usuarios() {
           full_name: profile.full_name,
           user_type: ((profile as any).user_type as UserType) || 'operador',
           role: (role?.role as 'admin' | 'user') || 'user',
-          permissions: userPerms.map(p => p.permission as AppPermission),
         };
       });
 
