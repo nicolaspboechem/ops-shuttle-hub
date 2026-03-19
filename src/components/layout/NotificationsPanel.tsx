@@ -31,6 +31,7 @@ export function NotificationsPanel() {
     notifications,
     unreadCount,
     markAsRead,
+    markAsUnread,
     markAllAsRead,
     deleteNotification,
     clearAll,
@@ -212,21 +213,19 @@ export function NotificationsPanel() {
                             </p>
                           </div>
                           <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!notification.read && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-100"
-                                    onClick={() => markAsRead(notification.id)}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="left">Marcar como lida</TooltipContent>
-                              </Tooltip>
-                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={`h-7 w-7 ${notification.read ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-100' : 'text-green-600 hover:text-green-700 hover:bg-green-100'}`}
+                                  onClick={() => notification.read ? markAsUnread(notification.id) : markAsRead(notification.id)}
+                                >
+                                  {notification.read ? <Bell className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">{notification.read ? 'Marcar como não lida' : 'Marcar como lida'}</TooltipContent>
+                            </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button

@@ -500,6 +500,36 @@ export type Database = {
           },
         ]
       }
+      notificacao_usuario: {
+        Row: {
+          created_at: string
+          id: string
+          lida: boolean
+          notification_key: string
+          ocultada: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          notification_key: string
+          ocultada?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lida?: boolean
+          notification_key?: string
+          ocultada?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ponto_motoristas: {
         Row: {
           created_at: string | null
