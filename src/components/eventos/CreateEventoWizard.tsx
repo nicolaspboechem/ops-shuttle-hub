@@ -233,7 +233,6 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
               <div className="space-y-2">
                 {[
                   { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" />, desc: 'Tarefas designadas pelo CCO. Motorista aceita, inicia e conclui.', border: 'purple' },
-                  { value: 'transfer', label: 'Transfer Executivo', icon: <Car className="h-4 w-4 text-amber-600" />, desc: 'Viagens privativas ponto a ponto. Ideal para VIPs e convidados.', border: 'amber' },
                   { value: 'shuttle', label: 'Shuttle (Circular)', icon: <Bus className="h-4 w-4 text-emerald-600" />, desc: 'Rotas fixas com grade de horários. Ideal para alto volume.', border: 'emerald' },
                 ].map(tipo => {
                   const checked = tiposViagem.includes(tipo.value);

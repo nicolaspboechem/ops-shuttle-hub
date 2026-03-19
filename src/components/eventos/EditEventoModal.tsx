@@ -464,7 +464,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
                     <Label className="font-medium text-green-900">Visível no Painel Público</Label>
                     <p className="text-xs text-green-700/80 mt-1">
                       Exibe rotas Shuttle para passageiros em /painel.
-                      Não afeta operações Transfer.
                     </p>
                   </div>
                 </div>
