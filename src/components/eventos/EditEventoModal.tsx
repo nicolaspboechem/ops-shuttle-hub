@@ -136,12 +136,8 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
     try {
       // Derive legacy fields
       const habilitarMissoes = tiposViagem.includes('missao');
-      const temTransfer = tiposViagem.includes('transfer');
       const temShuttle = tiposViagem.includes('shuttle');
-      let tipoOperacao = 'transfer';
-      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
-      else if (temShuttle) tipoOperacao = 'shuttle';
-      else if (temTransfer) tipoOperacao = 'transfer';
+      const tipoOperacao = temShuttle ? 'shuttle' : 'shuttle';
 
       const updateData: Record<string, any> = {
         nome_planilha: nome,
