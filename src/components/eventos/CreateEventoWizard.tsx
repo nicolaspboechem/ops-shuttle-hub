@@ -66,7 +66,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setImagemBanner(null);
     setImagemLogo(null);
     setVisivelPublico(true);
-    setVisivelPublico(true);
+    setHabilitarLocalizador(false);
   };
 
   const handleImageUpload = async (
