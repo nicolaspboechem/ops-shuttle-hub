@@ -274,7 +274,7 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada, even
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Consolidado do Dia
+            {isEventoAtivo ? 'Consolidado do Dia' : 'Consolidado Geral'}
           </h3>
         </div>
 
