@@ -282,33 +282,39 @@ export default function Usuarios() {
     setUpdating(editingUser.id);
 
     try {
+      // Determine the correct login_type based on role
+      const newLoginType = editUserType === 'motorista' ? 'phone' : 'email';
+
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           full_name: editFullName,
           email: editEmail,
           user_type: editUserType,
+          login_type: newLoginType,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingUser.id);
 
       if (profileError) throw profileError;
 
-      if (editUserType === 'admin' && editingUser.role !== 'admin') {
-        await supabase.from('user_roles').update({ role: 'admin' }).eq('user_id', editingUser.user_id);
-      }
-      
-      if (editUserType !== 'admin' && editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) {
-        await supabase.from('user_roles').update({ role: 'user' }).eq('user_id', editingUser.user_id);
+      // Map user type to the correct app_role enum value
+      const dbRole = editUserType === 'admin' ? 'admin' : editUserType;
+
+      // Don't let admin demote themselves
+      if (editingUser.user_id === currentUser?.id && editingUser.role === 'admin' && editUserType !== 'admin') {
+        toast.error('Você não pode remover seu próprio acesso de admin');
+        setUpdating(null);
+        return;
       }
 
-      let newRole: 'admin' | 'user' = editingUser.role;
-      if (editUserType === 'admin') newRole = 'admin';
-      else if (editingUser.role === 'admin' && editingUser.user_id !== currentUser?.id) newRole = 'user';
+      await supabase.from('user_roles').update({ role: dbRole }).eq('user_id', editingUser.user_id);
+
+      const newRoleState: 'admin' | 'user' = editUserType === 'admin' ? 'admin' : 'user';
 
       setUsers(prev => prev.map(u => {
         if (u.id !== editingUser.id) return u;
-        return { ...u, full_name: editFullName, email: editEmail, user_type: editUserType, role: newRole };
+        return { ...u, full_name: editFullName, email: editEmail, user_type: editUserType, login_type: newLoginType, role: newRoleState };
       }));
 
       toast.success('Usuário atualizado com sucesso!');
