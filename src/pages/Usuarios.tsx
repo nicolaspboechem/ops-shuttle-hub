@@ -64,12 +64,14 @@ export default function Usuarios() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Modal de editar usuário
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [editFullName, setEditFullName] = useState('');
   const [editUserType, setEditUserType] = useState<UserType>('operador');
   const [editEmail, setEditEmail] = useState('');
 
   // Modal de deletar usuário
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUser, setDeletingUser] = useState<UserData | null>(null);
   const [deleting, setDeleting] = useState(false);
 
