@@ -950,7 +950,13 @@ export default function Usuarios() {
                 >
                   {Object.entries(USER_TYPE_CONFIG).map(([type, config]) => {
                     const Icon = config.icon;
-                    const disabled = type === 'admin' && editingUser?.user_id === currentUser?.id;
+                    const isSelf = editingUser?.user_id === currentUser?.id;
+                    // Can't demote yourself from admin
+                    const disabled = isSelf && editingUser?.role === 'admin' && type !== 'admin';
+                    // Motorista requires phone login; others require email login
+                    const isMotoristaWithoutPhone = type === 'motorista' && !editingUser?.telefone;
+                    const isEmailRoleWithoutEmail = type !== 'motorista' && !editingUser?.email;
+                    const loginMismatch = isMotoristaWithoutPhone || isEmailRoleWithoutEmail;
                     return (
                       <div key={type}>
                         <RadioGroupItem value={type} id={`edit-type-${type}`} className="peer sr-only" disabled={disabled} />
@@ -964,11 +970,16 @@ export default function Usuarios() {
                           <Icon className="mb-1 h-4 w-4" />
                           <span className="text-xs font-medium">{config.label}</span>
                         </Label>
+                        {loginMismatch && editUserType === type && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            {isMotoristaWithoutPhone ? 'Usuário não possui telefone cadastrado' : 'Usuário não possui email cadastrado'}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
                 </RadioGroup>
-                {editingUser?.user_id === currentUser?.id && editUserType === 'admin' && (
+                {editingUser?.user_id === currentUser?.id && editingUser?.role === 'admin' && (
                   <p className="text-xs text-muted-foreground">Você não pode alterar seu próprio tipo de admin</p>
                 )}
               </div>
