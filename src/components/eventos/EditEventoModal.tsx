@@ -244,7 +244,6 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
               <div className="space-y-2">
                 {[
                   { value: 'missao', label: 'Missão', icon: <Target className="h-4 w-4 text-purple-600" /> },
-                  { value: 'transfer', label: 'Transfer', icon: <Car className="h-4 w-4 text-amber-600" /> },
                   { value: 'shuttle', label: 'Shuttle', icon: <Bus className="h-4 w-4 text-emerald-600" /> },
                 ].map(tipo => {
                   const checked = tiposViagem.includes(tipo.value);
