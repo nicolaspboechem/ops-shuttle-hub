@@ -29,7 +29,7 @@ export default function PainelLocalizador() {
   const { offset, getAgoraSync } = useServerTime();
   const [currentTime, setCurrentTime] = useState(() => getAgoraSync());
   
-  const { eventos, loading: loadingEventos } = useEventosMissoes();
+  const { eventos, loading: loadingEventos } = useEventosLocalizador();
   
   const { 
     motoristasPorLocalizacao, 
