@@ -36,8 +36,6 @@ interface EventoGroupCardProps {
 }
 
 interface ViagemStats {
-  transfer: number;
-  shuttle: number;
   total: number;
   totalPax: number;
 }
