@@ -47,6 +47,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
   
   // Step 4 - Configurations
   const [visivelPublico, setVisivelPublico] = useState(true);
+  const [habilitarLocalizador, setHabilitarLocalizador] = useState(false);
   
   // Step 5 - Description
   const [descricao, setDescricao] = useState('');
@@ -65,7 +66,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     setImagemBanner(null);
     setImagemLogo(null);
     setVisivelPublico(true);
-    setVisivelPublico(true);
+    setHabilitarLocalizador(false);
   };
 
   const handleImageUpload = async (
@@ -143,6 +144,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         imagem_logo: imagemLogo,
         habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
+        habilitar_localizador: habilitarLocalizador,
         status: 'ativo',
         total_viagens: 0,
       } as any);
@@ -498,6 +500,24 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 />
               </div>
             </div>
+
+            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Car className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-blue-900">Localizador de Frota</Label>
+                    <p className="text-xs text-blue-700/80 mt-1">
+                      Exibe aba Localizador no app Cliente/Supervisor e no painel /localizador
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={habilitarLocalizador}
+                  onCheckedChange={setHabilitarLocalizador}
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -559,6 +579,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                 <span className="text-muted-foreground">Painel Público:</span>
                 <Badge variant={visivelPublico ? 'default' : 'secondary'}>
                   {visivelPublico ? 'Visível' : 'Oculto'}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Localizador:</span>
+                <Badge variant={habilitarLocalizador ? 'default' : 'secondary'}>
+                  {habilitarLocalizador ? 'Ativo' : 'Desativado'}
                 </Badge>
               </div>
               

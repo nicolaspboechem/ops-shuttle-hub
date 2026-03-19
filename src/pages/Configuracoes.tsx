@@ -52,8 +52,8 @@ export default function Configuracoes() {
   // Carregar dados do evento
   useEffect(() => {
     if (evento) {
-      setPainelPublicoHabilitado(evento.visivel_publico ?? true);
-      setPainelLocalizadorHabilitado((evento as any).habilitar_localizador ?? true);
+      setPainelPublicoHabilitado(evento.visivel_publico === true);
+      setPainelLocalizadorHabilitado((evento as any).habilitar_localizador === true);
       setAlertaAmarelo((evento as any).alerta_limiar_amarelo ?? 15);
       setAlertaVermelho((evento as any).alerta_limiar_vermelho ?? 25);
     }
@@ -297,7 +297,7 @@ export default function Configuracoes() {
                 <MapPin className="w-5 h-5 text-primary" />
                 <div>
                   <CardTitle className="text-base">Painel Localizador (Frota)</CardTitle>
-                  <CardDescription>Exibe localização em tempo real dos motoristas para monitores/TVs</CardDescription>
+                  <CardDescription>Exibe aba Localizador no app Cliente/Supervisor e no painel /localizador</CardDescription>
                 </div>
               </div>
               <Switch

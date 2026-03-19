@@ -60,7 +60,8 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Configurations
-  const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico ?? true);
+  const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico === true);
+  const [habilitarLocalizador, setHabilitarLocalizador] = useState((evento as any).habilitar_localizador === true);
 
   useEffect(() => {
     // Parse dates from evento if they exist
@@ -150,6 +151,7 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
         imagem_logo: imagemLogo,
         habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
+        habilitar_localizador: habilitarLocalizador,
         
         horario_inicio_evento: horarioInicio,
         horario_fim_evento: horarioFim,
@@ -470,6 +472,24 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
                 <Switch
                   checked={visivelPublico}
                   onCheckedChange={setVisivelPublico}
+                />
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3">
+                  <Car className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <Label className="font-medium text-blue-900">Localizador de Frota</Label>
+                    <p className="text-xs text-blue-700/80 mt-1">
+                      Exibe aba Localizador no app Cliente/Supervisor e no painel /localizador
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={habilitarLocalizador}
+                  onCheckedChange={setHabilitarLocalizador}
                 />
               </div>
             </div>

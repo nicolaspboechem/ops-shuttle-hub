@@ -61,8 +61,8 @@ export default function AppCliente() {
 
   const availableTabs = useMemo(() => {
     const tabs: ClienteTabId[] = ['dashboard'];
-    if (evento?.habilitar_localizador) tabs.push('localizador');
-    if (evento?.visivel_publico) tabs.push('painel');
+    if (evento?.habilitar_localizador === true) tabs.push('localizador');
+    if (evento?.visivel_publico === true) tabs.push('painel');
     return tabs;
   }, [evento]);
 
