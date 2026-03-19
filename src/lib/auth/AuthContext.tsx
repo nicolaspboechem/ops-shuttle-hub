@@ -23,14 +23,12 @@ interface AuthContextType {
   session: Session | null;
   profile: UserProfile | null;
   isAdmin: boolean;
-  permissions: AppPermission[];
   eventRoles: EventRoleMapping[];
   loading: boolean;
   motoristaId: string | null;
   signIn: (identifier: string, password: string, type?: 'email' | 'phone') => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  hasPermission: (permission: AppPermission) => boolean;
   getEventRole: (eventoId: string) => EventRole | null;
   hasEventAccess: (eventoId: string, allowedRoles: EventRole[]) => boolean;
 }
