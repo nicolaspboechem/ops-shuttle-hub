@@ -318,7 +318,7 @@ export default function AppOperador() {
       // If only 1 type enabled, open its form directly
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
-        if (tipo === 'shuttle') setShowShuttleForm(true);
+        if (tipo === 'shuttle') { setShuttleMode('rapido'); setShowShuttleForm(true); }
         else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowViagemForm(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
       } else {
@@ -334,7 +334,11 @@ export default function AppOperador() {
       setShowMissaoInstantanea(true);
     } else if (tipo === 'deslocamento') {
       setShowMissaoDeslocamento(true);
-    } else if (tipo === 'shuttle') {
+    } else if (tipo === 'shuttle_rapido') {
+      setShuttleMode('rapido');
+      setShowShuttleForm(true);
+    } else if (tipo === 'shuttle_completo') {
+      setShuttleMode('completo');
       setShowShuttleForm(true);
     } else {
       setPreselectedTipo(tipo);
