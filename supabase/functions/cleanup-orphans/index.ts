@@ -91,7 +91,7 @@ serve(async (req) => {
         // Delete related records
         await supabaseAdmin.from('evento_usuarios').delete().eq('user_id', orphan.user_id);
         await supabaseAdmin.from('user_roles').delete().eq('user_id', orphan.user_id);
-        await supabaseAdmin.from('user_permissions').delete().eq('user_id', orphan.user_id);
+        
         
         const { error } = await supabaseAdmin.from('profiles').delete().eq('user_id', orphan.user_id);
         if (error) {
