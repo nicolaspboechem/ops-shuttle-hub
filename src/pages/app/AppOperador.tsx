@@ -169,7 +169,7 @@ export default function AppOperador() {
   const [showViagemForm, setShowViagemForm] = useState(false); // kept for mission-linked trips
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
-  const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [preselectedTipo, setPreselectedTipo] = useState<string>('shuttle');
   const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
