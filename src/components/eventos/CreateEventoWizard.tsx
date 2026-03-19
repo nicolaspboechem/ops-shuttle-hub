@@ -144,6 +144,7 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
         imagem_logo: imagemLogo,
         habilitar_missoes: habilitarMissoes,
         visivel_publico: visivelPublico,
+        habilitar_localizador: habilitarLocalizador,
         status: 'ativo',
         total_viagens: 0,
       } as any);
