@@ -581,6 +581,12 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
                   {visivelPublico ? 'Visível' : 'Oculto'}
                 </Badge>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Localizador:</span>
+                <Badge variant={habilitarLocalizador ? 'default' : 'secondary'}>
+                  {habilitarLocalizador ? 'Ativo' : 'Desativado'}
+                </Badge>
+              </div>
               
               {descricao && (
                 <div className="pt-2 border-t">
