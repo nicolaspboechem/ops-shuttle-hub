@@ -252,7 +252,6 @@ export default function Suporte() {
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Check-in/Vistoria</td>
                         <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
-                        <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
                         <td className="text-center py-3 px-4"><CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" /></td>
                       </tr>
                       <tr className="border-b">
