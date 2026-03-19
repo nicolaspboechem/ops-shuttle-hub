@@ -21,6 +21,7 @@ interface EventoConfig {
   visivel_publico: boolean | null;
   tipos_viagem_habilitados: string[] | null;
   horario_virada_dia: string | null;
+  status: string | null;
 }
 
 export default function AppCliente() {
