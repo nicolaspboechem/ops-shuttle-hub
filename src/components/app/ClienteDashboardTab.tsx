@@ -33,14 +33,16 @@ interface VeiculoFrota {
 }
 
 
-export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: ClienteDashboardTabProps) {
+export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada, eventoStatus }: ClienteDashboardTabProps) {
   const { getAgoraSync } = useServerTime();
   const horarioViradaFinal = horarioVirada || '04:00';
+  const isEventoAtivo = eventoStatus === 'ativo';
 
-  // Filtrar viagens pelo dia operacional atual
+  // Filtrar viagens pelo dia operacional atual (only for active events)
   const dataOperacional = useMemo(() => {
+    if (!isEventoAtivo) return undefined;
     return getDataOperacional(getAgoraSync(), horarioViradaFinal);
-  }, [getAgoraSync, horarioViradaFinal]);
+  }, [getAgoraSync, horarioViradaFinal, isEventoAtivo]);
 
   const viagensOptions = useMemo(() => ({
     dataOperacional,
