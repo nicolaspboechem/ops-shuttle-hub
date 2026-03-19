@@ -45,9 +45,11 @@ interface CreateShuttleFormProps {
   onCreated?: () => void;
   veiculos?: Veiculo[];
   pontos?: PontoEmbarque[];
+  /** 'rapido' = cria em_andamento (ida+volta direto), 'completo' = cria agendado (ciclo completo) */
+  mode?: 'rapido' | 'completo';
 }
 
-export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, veiculos = [], pontos = [] }: CreateShuttleFormProps) {
+export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, veiculos = [], pontos = [], mode = 'rapido' }: CreateShuttleFormProps) {
   const { userId } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
 
@@ -91,18 +93,20 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
       const pontoEmbarqueData = activePontos.find(p => p.nome === pontoEmbarque);
       const pontoDesembarqueData = activePontos.find(p => p.nome === pontoDesembarque);
 
+      const isRapido = mode === 'rapido';
+
       const { error } = await supabase.from('viagens').insert({
         evento_id: eventoId,
         tipo_operacao: 'shuttle',
         motorista: 'Shuttle',
         coordenador: nomeViagem.trim() || null,
-        status: 'em_andamento',
+        status: isRapido ? 'em_andamento' : 'agendado',
         encerrado: false,
         qtd_pax: Number(qtdPax),
         observacao: observacao.trim() || null,
         criado_por: userId,
-        h_inicio_real: agora,
-        h_pickup: horaAtual,
+        h_inicio_real: isRapido ? agora : null,
+        h_pickup: isRapido ? horaAtual : null,
         veiculo_id: veiculoId || null,
         ponto_embarque: pontoEmbarque || null,
         ponto_desembarque: pontoDesembarque || null,
@@ -112,7 +116,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
 
       if (error) throw error;
 
-      toast.success('Shuttle iniciado!');
+      toast.success(mode === 'rapido' ? 'Shuttle iniciado!' : 'Shuttle agendado!');
       resetForm();
       onOpenChange(false);
       onCreated?.();
@@ -130,9 +134,11 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
         <DrawerHeader className="pb-2">
           <DrawerTitle className="flex items-center gap-2 justify-center">
             <Bus className="h-5 w-5 text-primary" />
-            Nova Viagem Shuttle
+            {mode === 'rapido' ? 'Shuttle Rápido' : 'Shuttle Completo'}
           </DrawerTitle>
-          <DrawerDescription>Registre a ida do shuttle</DrawerDescription>
+          <DrawerDescription>
+            {mode === 'rapido' ? 'Registre ida e volta direto' : 'Crie o shuttle com ciclo completo de etapas'}
+          </DrawerDescription>
         </DrawerHeader>
 
         <div className="px-6 pb-8 pt-2 space-y-4 overflow-y-auto">
@@ -302,7 +308,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
             onClick={handleSave}
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-            Iniciar Shuttle
+            {mode === 'rapido' ? 'Iniciar Shuttle' : 'Agendar Shuttle'}
           </Button>
         </div>
       </DrawerContent>

@@ -171,6 +171,7 @@ export default function AppOperador() {
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
     getDataOperacional(getAgoraSync(), '04:00')
@@ -315,10 +316,11 @@ export default function AppOperador() {
 
   const handleTabChange = (tab: OperadorTabId) => {
     if (tab === 'nova') {
-      // If only 1 type enabled, open its form directly
+      // If only 1 type enabled and it's not shuttle, open form directly
+      // For shuttle, always show action modal (rápido vs completo choice)
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
-        if (tipo === 'shuttle') setShowShuttleForm(true);
+        if (tipo === 'shuttle') { setShowActionModal(true); }
         else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowViagemForm(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
       } else {
@@ -334,7 +336,11 @@ export default function AppOperador() {
       setShowMissaoInstantanea(true);
     } else if (tipo === 'deslocamento') {
       setShowMissaoDeslocamento(true);
-    } else if (tipo === 'shuttle') {
+    } else if (tipo === 'shuttle_rapido') {
+      setShuttleMode('rapido');
+      setShowShuttleForm(true);
+    } else if (tipo === 'shuttle_completo') {
+      setShuttleMode('completo');
       setShowShuttleForm(true);
     } else {
       setPreselectedTipo(tipo);
@@ -442,13 +448,32 @@ export default function AppOperador() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Em andamento ({sortedAtivas.length})
               </h2>
-              {ativasVisiveis.map(viagem => (
-                <ViagemCardOperador
-                  key={viagem.id}
-                  viagem={viagem}
-                  onUpdate={refetchViagens}
-                />
-              ))}
+              {ativasVisiveis.map(viagem => {
+                // Shuttle rápido: criado como em_andamento sem iniciado_por (auto-started)
+                const isShuttleRapido = viagem.tipo_operacao === 'shuttle'
+                  && !viagem.iniciado_por
+                  && !viagem.h_chegada
+                  && viagem.status === 'em_andamento';
+                
+                if (isShuttleRapido) {
+                  return (
+                    <ShuttleCardOperador
+                      key={viagem.id}
+                      viagem={viagem}
+                      getName={getName}
+                      onEncerrar={setViagemParaEncerrar}
+                    />
+                  );
+                }
+                
+                return (
+                  <ViagemCardOperador
+                    key={viagem.id}
+                    viagem={viagem}
+                    onUpdate={refetchViagens}
+                  />
+                );
+              })}
               <LoadMoreFooter
                 total={totalAtivas}
                 visible={ativasVisiveis.length}
@@ -609,6 +634,7 @@ export default function AppOperador() {
         eventoId={eventoId!}
         veiculos={veiculos}
         pontos={pontos}
+        mode={shuttleMode}
         onCreated={() => {
           refetchViagens();
           setActiveTab('viagens');

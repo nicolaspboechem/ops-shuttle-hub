@@ -192,6 +192,7 @@ export default function AppSupervisor() {
   const [showAlertasModal, setShowAlertasModal] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   // Dia operacional
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
@@ -339,7 +340,7 @@ export default function AppSupervisor() {
     if (tab === 'nova') {
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
-        if (tipo === 'shuttle') setShowShuttleForm(true);
+        if (tipo === 'shuttle') { setShowActionModal(true); }
         else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowNovaViagem(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
       } else {
@@ -355,7 +356,11 @@ export default function AppSupervisor() {
       setShowMissaoInstantanea(true);
     } else if (tipo === 'deslocamento') {
       setShowMissaoDeslocamento(true);
-    } else if (tipo === 'shuttle') {
+    } else if (tipo === 'shuttle_rapido') {
+      setShuttleMode('rapido');
+      setShowShuttleForm(true);
+    } else if (tipo === 'shuttle_completo') {
+      setShuttleMode('completo');
       setShowShuttleForm(true);
     } else {
       setPreselectedTipo(tipo);
@@ -459,13 +464,31 @@ export default function AppSupervisor() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Em andamento ({sortedAtivas.length})
               </h2>
-              {ativasVisiveis.map(viagem => (
-                <ViagemCardOperador
-                  key={viagem.id}
-                  viagem={viagem}
-                  onUpdate={refetchViagens}
-                />
-              ))}
+              {ativasVisiveis.map(viagem => {
+                const isShuttleRapido = viagem.tipo_operacao === 'shuttle'
+                  && !viagem.iniciado_por
+                  && !viagem.h_chegada
+                  && viagem.status === 'em_andamento';
+                
+                if (isShuttleRapido) {
+                  return (
+                    <ShuttleCardOperador
+                      key={viagem.id}
+                      viagem={viagem}
+                      getName={getName}
+                      onEncerrar={setViagemParaEncerrar}
+                    />
+                  );
+                }
+                
+                return (
+                  <ViagemCardOperador
+                    key={viagem.id}
+                    viagem={viagem}
+                    onUpdate={refetchViagens}
+                  />
+                );
+              })}
               <LoadMoreFooter
                 total={totalAtivas}
                 visible={ativasVisiveis.length}
@@ -672,6 +695,7 @@ export default function AppSupervisor() {
         eventoId={eventoId!}
         veiculos={veiculos}
         pontos={pontos}
+        mode={shuttleMode}
         onCreated={() => {
           refetchViagens();
           setActiveTab('viagens');
