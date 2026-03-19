@@ -341,9 +341,6 @@ export default function AppOperador() {
     } else if (tipo === 'shuttle_completo') {
       setShuttleMode('completo');
       setShowShuttleForm(true);
-    } else {
-      setPreselectedTipo(tipo);
-      setShowViagemForm(true);
     }
   };
 

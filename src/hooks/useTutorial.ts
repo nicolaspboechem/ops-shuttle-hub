@@ -262,7 +262,7 @@ export const adminEventoSteps: TutorialStep[] = [
   {
     id: 'configuracoes-evento',
     title: 'Configurações',
-    description: 'Personalize horário de virada do dia, alertas de atraso e módulos ativos (Missões, Shuttle, Transfer).',
+    description: 'Personalize horário de virada do dia, alertas de atraso e módulos ativos (Missões, Shuttle).',
     targetSelector: '[data-tutorial="configuracoes"]',
     position: 'right',
   },
