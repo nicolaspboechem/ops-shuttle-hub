@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { MapPin, RefreshCw, Search, ArrowLeft, Users, Navigation, Home, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLocalizadorMotoristas, MotoristaComVeiculo } from '@/hooks/useLocalizadorMotoristas';
-import { useEventosMissoes } from '@/hooks/useEventosMissoes';
+import { useEventosLocalizador } from '@/hooks/useEventosLocalizador';
 import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { LocalizadorColumn } from '@/components/localizador/LocalizadorColumn';
