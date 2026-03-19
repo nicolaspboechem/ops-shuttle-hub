@@ -76,15 +76,13 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
   const aggregatedStats = useMemo(() => {
     return selectedEventIds.reduce(
       (acc, id) => {
-        const s = stats[id] || { transfer: 0, shuttle: 0, total: 0, totalPax: 0 };
+        const s = stats[id] || { total: 0, totalPax: 0 };
         return {
-          transfer: acc.transfer + s.transfer,
-          shuttle: acc.shuttle + s.shuttle,
           total: acc.total + s.total,
           totalPax: acc.totalPax + s.totalPax,
         };
       },
-      { transfer: 0, shuttle: 0, total: 0, totalPax: 0 }
+      { total: 0, totalPax: 0 }
     );
   }, [selectedEventIds, stats]);
 
