@@ -1,5 +1,5 @@
 export type TipoVeiculo = 'Van' | 'Ônibus' | 'Sedan' | 'SUV' | 'Blindado';
-export type TipoOperacao = 'transfer' | 'shuttle' | 'missao';
+export type TipoOperacao = 'shuttle' | 'missao';
 export type StatusViagem = 'ok' | 'alerta' | 'critico';
 export type StatusEvento = 'ativo' | 'finalizado' | 'processando';
 export type StatusViagemOperacao = 'agendado' | 'em_andamento' | 'aguardando_retorno' | 'encerrado' | 'cancelado';

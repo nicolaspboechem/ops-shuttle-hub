@@ -68,7 +68,7 @@ const motoristaFAQ: FAQSection[] = [
       {
         id: 'checkin-nao-aparece',
         question: 'O botão de check-in não aparece',
-        answer: 'O check-in só está disponível quando o módulo de Missões está ativado no evento. Se não aparecer, o evento usa outro tipo de operação (Transfer ou Shuttle) que não exige check-in.',
+        answer: 'O check-in só está disponível quando o módulo de Missões está ativado no evento. Se não aparecer, o evento usa outro tipo de operação (Shuttle) que não exige check-in.',
         keywords: ['checkin', 'não aparece', 'botão', 'sumiu']
       },
       {

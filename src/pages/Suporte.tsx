@@ -110,57 +110,6 @@ export default function Suporte() {
 
           {/* Tab: Tipos de Operação */}
           <TabsContent value="operacoes" className="space-y-6">
-            {/* Transfer */}
-            <Card className="border-amber-200">
-              <CardHeader className="bg-amber-50/50 rounded-t-lg">
-                <CardTitle className="flex items-center gap-3 text-amber-900">
-                  <Car className="w-6 h-6 text-amber-600" />
-                  Transfer Executivo
-                </CardTitle>
-                <CardDescription className="text-amber-700">
-                  Transporte privativo ponto a ponto
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Viagens individuais para VIPs, diretores e convidados especiais.
-                  O cliente define o horário e o motorista é designado diretamente para a viagem.
-                </p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Quem inicia a viagem?</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <ChevronRight className="w-4 h-4" />
-                      <span>Motorista ou Operador criam e iniciam</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Quem define o horário?</h4>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <ChevronRight className="w-4 h-4" />
-                      <span>Cliente/Passageiro</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não precisa de Check-in
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não aparece no Painel Público
-                  </Badge>
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não aparece no Localizador
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Shuttle */}
             <Card className="border-green-200">
               <CardHeader className="bg-green-50/50 rounded-t-lg">
@@ -287,12 +236,6 @@ export default function Suporte() {
                         <th className="text-left py-3 px-4">Característica</th>
                         <th className="text-center py-3 px-4">
                           <span className="flex items-center justify-center gap-2">
-                            <Car className="w-4 h-4 text-amber-600" />
-                            Transfer
-                          </span>
-                        </th>
-                        <th className="text-center py-3 px-4">
-                          <span className="flex items-center justify-center gap-2">
                             <Bus className="w-4 h-4 text-green-600" />
                             Shuttle
                           </span>
@@ -309,30 +252,25 @@ export default function Suporte() {
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Check-in/Vistoria</td>
                         <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
-                        <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
                         <td className="text-center py-3 px-4"><CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" /></td>
                       </tr>
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Painel Público</td>
-                        <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
                         <td className="text-center py-3 px-4"><CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" /></td>
                         <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
                       </tr>
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Localizador</td>
                         <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
-                        <td className="text-center py-3 px-4"><XCircle className="w-4 h-4 text-red-500 mx-auto" /></td>
                         <td className="text-center py-3 px-4"><CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" /></td>
                       </tr>
                       <tr className="border-b">
                         <td className="py-3 px-4 font-medium">Quem inicia</td>
                         <td className="text-center py-3 px-4 text-xs">Motorista/Operador</td>
-                        <td className="text-center py-3 px-4 text-xs">Motorista/Operador</td>
                         <td className="text-center py-3 px-4 text-xs">CCO → Motorista</td>
                       </tr>
                       <tr>
                         <td className="py-3 px-4 font-medium">Horário</td>
-                        <td className="text-center py-3 px-4 text-xs">Cliente define</td>
                         <td className="text-center py-3 px-4 text-xs">Grade fixa</td>
                         <td className="text-center py-3 px-4 text-xs">CCO define</td>
                       </tr>
@@ -444,12 +382,12 @@ export default function Suporte() {
 
                   <AccordionItem value="item-3">
                     <AccordionTrigger>
-                      Qual a diferença entre Transfer e Missão?
+                      Qual a diferença entre Shuttle e Missão?
                     </AccordionTrigger>
                     <AccordionContent>
                       <p className="text-muted-foreground mb-2">
-                        <strong>Transfer:</strong> Viagem agendada onde motorista ou operador criam e 
-                        iniciam a viagem. O cliente define o horário. Não requer check-in.
+                        <strong>Shuttle:</strong> Transporte circular em rotas pré-definidas com frequência 
+                        regular. Aparece no Painel Público e pode ser acompanhado pelos passageiros.
                       </p>
                       <p className="text-muted-foreground">
                         <strong>Missão:</strong> Tarefa designada pelo CCO em tempo real. O motorista 

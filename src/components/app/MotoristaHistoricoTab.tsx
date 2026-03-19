@@ -126,7 +126,7 @@ export function MotoristaHistoricoTab({
     if (viagem.origem_missao_id) {
       return { label: 'Missão', icon: Target, className: 'bg-purple-500/10 text-purple-600 border-purple-500/20' };
     }
-    return { label: 'Transfer', icon: ArrowRightLeft, className: 'bg-primary/10 text-primary border-primary/20' };
+    return { label: 'Shuttle', icon: ArrowRightLeft, className: 'bg-primary/10 text-primary border-primary/20' };
   };
 
   return (

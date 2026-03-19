@@ -41,6 +41,7 @@ interface ViagemLogResult {
   viagem: {
     motorista: string;
     placa: string | null;
+    tipo_operacao: string;
     evento_id: string | null;
     evento: {
       nome_planilha: string;
@@ -165,7 +166,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .from('viagem_logs')
         .select(`
           id, acao, created_at,
-          viagem:viagens!viagem_id(motorista, placa, evento_id, evento:eventos!evento_id(nome_planilha))
+          viagem:viagens!viagem_id(motorista, placa, tipo_operacao, evento_id, evento:eventos!evento_id(nome_planilha))
         `)
         .order('created_at', { ascending: false })
         .limit(20),
@@ -208,7 +209,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     const newNotifications: Notification[] = [];
 
-    viagemLogs.filter(log => log.viagem?.motorista !== 'Shuttle').forEach((log) => {
+    viagemLogs.filter(log => log.viagem?.tipo_operacao !== 'shuttle').forEach((log) => {
       const config = actionConfig[log.acao] || { label: log.acao, icon: <Bell className="h-4 w-4" />, color: 'bg-gray-500' };
       const motoristaNome = log.viagem?.motorista || 'Motorista';
       const placaVeiculo = log.viagem?.placa || '';
