@@ -72,7 +72,7 @@ export function CreateViagemForm({
   const [pontoDesembarque, setPontoDesembarque] = useState('');
   const [pontoDesembarqueOpen, setPontoDesembarqueOpen] = useState(false);
   const [qtdPax, setQtdPax] = useState('');
-  const [tipoOperacao, setTipoOperacao] = useState('transfer');
+  const [tipoOperacao, setTipoOperacao] = useState('shuttle');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
   const submittingRef = useRef(false);
