@@ -60,7 +60,8 @@ export function EditEventoModal({ evento, onSuccess, trigger }: EditEventoModalP
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Configurations
-  const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico ?? true);
+  const [visivelPublico, setVisivelPublico] = useState(evento.visivel_publico === true);
+  const [habilitarLocalizador, setHabilitarLocalizador] = useState((evento as any).habilitar_localizador === true);
 
   useEffect(() => {
     // Parse dates from evento if they exist
