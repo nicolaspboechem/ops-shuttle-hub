@@ -316,7 +316,7 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
                 <p className="text-xs text-muted-foreground">Passageiros</p>
               </div>
               <div className="text-center p-3 rounded-lg bg-muted/50">
-                <p className="text-2xl font-bold text-foreground">{eventos.length}</p>
+                <p className="text-2xl font-bold text-foreground">{diasEvento}</p>
                 <p className="text-xs text-muted-foreground">Dias</p>
               </div>
             </div>
