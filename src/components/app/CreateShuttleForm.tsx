@@ -49,7 +49,7 @@ interface CreateShuttleFormProps {
   mode?: 'rapido' | 'completo';
 }
 
-export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, veiculos = [], pontos = [] }: CreateShuttleFormProps) {
+export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, veiculos = [], pontos = [], mode = 'rapido' }: CreateShuttleFormProps) {
   const { userId } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
 
