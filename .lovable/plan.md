@@ -1,71 +1,87 @@
 
+Objetivo: corrigir de forma definitiva a visibilidade do Localizador no app Cliente, app Supervisor e painel CCO, eliminando divergência entre telas e evitando que novos eventos nasçam com o Localizador ligado sem intenção.
 
-# Plano de Correção — Auditoria ops-shuttle-hub
+O que encontrei
+- No app Cliente, a aba só aparece se `evento.habilitar_localizador` vier verdadeiro.
+- O problema é que o evento do print (`MOTO GP - 26`, id `c76c5640-6f6c-4553-8fbe-b385cc552c3e`) está hoje no banco com `habilitar_localizador = true`, então a UI cliente está obedecendo o dado salvo.
+- A causa raiz não é só renderização: há inconsistência de configuração.
+  1. `CreateEventoWizard.tsx` não grava `habilitar_localizador` ao criar evento.
+  2. O banco define `habilitar_localizador BOOLEAN DEFAULT true`.
+  3. `EditEventoModal.tsx` também não expõe/salva esse campo.
+  4. `Configuracoes.tsx` ainda usa fallback `?? true`, reforçando o comportamento permissivo.
+  5. Supervisor já foi endurecido com `=== true`, mas Cliente ainda usa checagem truthy simples.
 
-## Resumo Executivo
+Plano de correção definitiva
 
-| Tipo | Alta | Media | Baixa | Total |
-|------|------|-------|-------|-------|
-| Codigo Morto | 3 | 2 | 1 | 6 |
-| Inconsistencia | 3 | 1 | 0 | 4 |
-| Sobreposicao | 0 | 2 | 0 | 2 |
-| Seguranca | 0 | 2 | 1 | 3 |
-| Bug | 1 | 0 | 0 | 1 |
-| **Total** | **7** | **7** | **2** | **16** |
+1. Centralizar a regra de visibilidade
+- Criar uma única função/helper para módulos do evento, por exemplo:
+  - `localizadorHabilitado = evento.habilitar_localizador === true`
+  - `painelPublicoHabilitado = evento.visivel_publico === true`
+- Usar essa regra única em:
+  - `src/pages/app/AppCliente.tsx`
+  - `src/pages/app/AppSupervisor.tsx`
+  - `src/pages/PainelLocalizador.tsx`
+  - hooks/listagens públicas relacionadas
 
----
+2. Corrigir o app Cliente
+- Trocar a lógica atual de `availableTabs` para checagem estrita `=== true`.
+- Adicionar guarda de navegação igual ao Supervisor:
+  - se `activeTab === 'localizador'` e o módulo estiver desligado, redirecionar para `dashboard`.
+- Resultado: mesmo acesso manual/estado antigo não mantém a aba aberta.
 
-## Tabela de Risco e Impacto por Ação
+3. Corrigir a origem do problema nos formulários
+- `src/components/eventos/CreateEventoWizard.tsx`
+  - adicionar toggle explícito de Localizador
+  - persistir `habilitar_localizador` no insert
+- `src/components/eventos/EditEventoModal.tsx`
+  - adicionar toggle explícito de Localizador
+  - persistir `habilitar_localizador` no update
+- Isso evita depender só da tela de Configurações para um módulo tão crítico.
 
-| # | Ação | Risco de Quebra | Impacto Operacional | Justificativa |
-|---|------|:-:|:-:|---|
-| **Batch 1 — Transfer cleanup** | | | | |
-| 1 | Remover `'transfer'` de `TipoOperacao` em `viagem.ts` | 🟡 Medio | 🔴 Alto | Se algum código ainda compara com `'transfer'`, TS vai acusar erro — bom. Mas se houver dados antigos no banco com esse valor, queries podem falhar silenciosamente |
-| 2 | Default `'shuttle'` em `CreateViagemForm.tsx` | 🟢 Baixo | 🔴 Alto | Corrige criação de viagens com tipo morto. Sem risco — apenas muda valor default |
-| 3 | Default `'shuttle'` em `CreateViagemMotoristaForm.tsx` | 🟢 Baixo | 🔴 Alto | Mesmo caso acima |
-| 4 | Fallback badge → `'Shuttle'` em `ViagensTable.tsx` | 🟢 Baixo | 🟡 Medio | Cosmético — evita label errado para tipos desconhecidos |
-| 5 | Fallback → `'Shuttle'` em `MotoristaHistoricoTab.tsx` | 🟢 Baixo | 🟡 Medio | Cosmético |
-| 6 | Remover contador transfer em `MotoristasAuditoria.tsx` | 🟢 Baixo | 🟡 Medio | Linha sempre retorna 0 — remover limpa a UI |
-| 7 | Remover contador transfer em `VeiculosAuditoria.tsx` | 🟢 Baixo | 🟡 Medio | Mesmo caso |
-| **Batch 2 — Badges e modais** | | | | |
-| 8 | Remover entry transfer em `PresencaDiaModal.tsx` | 🟢 Baixo | 🟢 Baixo | Apenas remove badge config não utilizado |
-| 9 | Remover entry transfer em `VeiculoAuditoriaDiaModal.tsx` | 🟢 Baixo | 🟢 Baixo | Mesmo caso |
-| **Batch 3 — Suporte/FAQ** | | | | |
-| 10 | Remover seções Transfer de `Suporte.tsx` | 🟢 Baixo | 🟡 Medio | Conteúdo informativo desatualizado confunde operadores |
-| 11 | Atualizar texto `faqData.ts` | 🟢 Baixo | 🟢 Baixo | Texto apenas |
-| **Batch 4 — Código morto** | | | | |
-| 12 | Deletar `auto-checkout/index.ts` | 🟢 Baixo | 🟢 Baixo | Nenhum frontend invoca. Confirmado por search. Mas precisa remover do deploy também |
-| 13 | Remover de `config.toml` | 🟢 Baixo | 🟢 Baixo | Acompanha item 12 |
-| **Batch 5 — Segurança** | | | | |
-| 14 | Migrar hardcoded keys para env vars em `client.ts` | 🟡 Medio | 🟡 Medio | Se `.env` não estiver configurado no deploy (Vercel), app quebra em produção. Precisa confirmar que `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` existem no ambiente de deploy |
-| **Batch 6 — Notificações** | | | | |
-| 15 | Trocar filtro `motorista !== 'Shuttle'` por `tipo_operacao` em `useNotifications.tsx` | 🟡 Medio | 🔴 Alto | Operadores podem começar a receber notificações de shuttle que antes eram silenciadas — pode gerar excesso de alertas. Testar volume antes |
+4. Ajustar Configurações para comportamento explícito
+- `src/pages/Configuracoes.tsx`
+  - parar de usar `?? true` para Localizador
+  - carregar com `=== true`
+  - melhorar o texto do switch para deixar claro o alcance:
+    - “Exibir aba Localizador no app Cliente/Supervisor e no painel /localizador”
+- Assim o usuário entende exatamente o que será ocultado.
 
-### Ações NÃO recomendadas agora
+5. Ajustar o padrão de novos eventos
+- Criar migration para mudar o default do banco:
+  - `habilitar_localizador default false`
+- Opcionalmente normalizar registros `NULL` para `false`.
+- Não desativar automaticamente eventos já marcados como `true`, para não causar regressão operacional sem intenção.
 
-| Ação | Risco de Quebra | Justificativa para adiar |
-|------|:-:|---|
-| Ativar `strictNullChecks` | 🔴 Alto | Centenas de erros de compilação. Requer refactor dedicado de 2-3 dias |
-| Restringir CORS nas Edge Functions | 🟡 Medio | Precisa mapear todos os domínios que consomem as APIs (preview, produção, mobile). Risco de bloquear acesso legítimo |
-| Refatorar `close-open-trips` | 🟡 Medio | Função monolítica mas funcional. Quebrar em partes menores tem risco de introduzir race conditions novas |
+6. Revisar superfícies do CCO
+- Garantir que o `/localizador` só liste eventos com `habilitar_localizador = true`.
+- Se alguém abrir `/localizador/:eventoId` manualmente para um evento desabilitado, mostrar estado bloqueado.
+- Revisar textos de suporte/ajuda que ainda associam Localizador a outras flags.
 
----
+Arquivos principais envolvidos
+- `src/pages/app/AppCliente.tsx`
+- `src/pages/app/AppSupervisor.tsx`
+- `src/pages/PainelLocalizador.tsx`
+- `src/pages/Configuracoes.tsx`
+- `src/components/eventos/CreateEventoWizard.tsx`
+- `src/components/eventos/EditEventoModal.tsx`
+- `src/hooks/useEventosLocalizador.ts`
+- `supabase/migrations/...`
 
-## Ordem de Execução Recomendada
+Risco e impacto
+- Baixo risco de quebra visual: é ajuste de regra de visibilidade.
+- Médio risco funcional: mudar default do banco afeta criação de novos eventos, então precisa ser intencional.
+- Alto impacto positivo: elimina o comportamento “ligado por padrão” e impede divergência entre Cliente, Supervisor e CCO.
 
-```text
-Batch 1 (Transfer cleanup)     → 7 arquivos, risco baixo, impacto alto
-  ↓
-Batch 2 (Badges)               → 2 arquivos, risco baixo
-  ↓
-Batch 3 (Suporte/FAQ)          → 2 arquivos, risco baixo
-  ↓
-Batch 4 (auto-checkout morto)  → 1 file + config, risco baixo
-  ↓
-Batch 5 (env vars)             → 1 arquivo, verificar deploy antes
-  ↓
-Batch 6 (notificações)         → 1 arquivo, testar volume antes
-```
+Validação que vou executar na implementação
+- Evento com Localizador desligado:
+  - não mostra aba no Cliente desktop/mobile
+  - não mostra aba no Supervisor
+  - não aparece na lista do `/localizador`
+  - acesso direto ao `/localizador/:eventoId` bloqueado
+- Evento com Localizador ligado:
+  - continua aparecendo normalmente em todos os pontos
+- Novo evento:
+  - nasce com Localizador no estado definido no formulário e não por default oculto/implícito do banco
 
-Batches 1-4 podem ser executados juntos com segurança. Batch 5 requer verificação do ambiente de deploy. Batch 6 requer validação de volume de notificações com o time operacional.
-
+Causa real do “por que isso continuou?”
+- Porque o dado salvo do evento ainda está `true`, e o sistema hoje espalha essa configuração entre criação, edição, configuração e renderização, sem uma fonte única de verdade. A correção definitiva é centralizar a regra e gravar o campo explicitamente em todos os fluxos relevantes.
