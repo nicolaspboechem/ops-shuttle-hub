@@ -63,10 +63,8 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
           .eq('evento_id', evento.id);
 
         if (!error && data) {
-          const transfer = data.filter(v => v.tipo_operacao === 'transfer').length;
-          const shuttle = data.filter(v => v.tipo_operacao === 'shuttle').length;
           const totalPax = data.reduce((acc, v) => acc + (v.qtd_pax || 0) + (v.qtd_pax_retorno || 0), 0);
-          statsMap[evento.id] = { transfer, shuttle, total: data.length, totalPax };
+          statsMap[evento.id] = { total: data.length, totalPax };
         }
       }
       
