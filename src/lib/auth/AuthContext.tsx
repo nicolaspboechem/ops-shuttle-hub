@@ -76,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetState = () => {
     setProfile(null);
     setIsAdmin(false);
-    setPermissions([]);
     setEventRoles([]);
     setMotoristaId(null);
     setLoading(false);
