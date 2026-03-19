@@ -31,6 +31,7 @@ export function NotificationsPanel() {
     notifications,
     unreadCount,
     markAsRead,
+    markAsUnread,
     markAllAsRead,
     deleteNotification,
     clearAll,
