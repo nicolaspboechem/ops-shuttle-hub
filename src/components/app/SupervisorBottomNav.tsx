@@ -21,6 +21,7 @@ const tabs: NavTab[] = [
 interface SupervisorBottomNavProps {
   activeTab: SupervisorTabId;
   onTabChange: (tab: SupervisorTabId) => void;
+  habilitarLocalizador?: boolean;
 }
 
 export function SupervisorBottomNav({ activeTab, onTabChange }: SupervisorBottomNavProps) {
