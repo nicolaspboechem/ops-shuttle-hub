@@ -1,9 +1,9 @@
-import { lazy, Suspense, ReactNode } from 'react';
+import { lazy, Suspense, ReactNode, useEffect, useRef } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useParams, useNavigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
 import { NotificationsProvider } from "@/hooks/useNotifications";
@@ -117,14 +117,43 @@ function ConditionalNotifications({ children }: { children: ReactNode }) {
   return <NotificationsProvider>{children}</NotificationsProvider>;
 }
 
+// Inactivity logout — 30min timeout
+function InactivityWrapper({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+    const update = () => { lastActivityRef.current = Date.now(); };
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'] as const;
+    events.forEach(e => window.addEventListener(e, update, { passive: true }));
+    const interval = setInterval(async () => {
+      if (Date.now() - lastActivityRef.current > 30 * 60 * 1000) {
+        const { supabase } = await import('@/integrations/supabase/client');
+        await supabase.auth.signOut();
+        navigate('/auth', { replace: true });
+      }
+    }, 60000);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, update));
+      clearInterval(interval);
+    };
+  }, [user, navigate]);
+
+  return <>{children}</>;
+}
+
 // Layout wrapper that provides AuthProvider + Notifications
 function AuthLayout() {
   return (
     <AuthProvider>
       <ConditionalNotifications>
-        <Suspense fallback={<PageLoader />}>
-          <Outlet />
-        </Suspense>
+        <InactivityWrapper>
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
+        </InactivityWrapper>
       </ConditionalNotifications>
     </AuthProvider>
   );

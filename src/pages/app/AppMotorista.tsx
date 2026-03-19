@@ -37,6 +37,7 @@ import { TutorialPopover } from '@/components/app/TutorialPopover';
 import { MotoristaBottomNav, MotoristaTabId } from '@/components/app/MotoristaBottomNav';
 import { MotoristaVeiculoTab } from '@/components/app/MotoristaVeiculoTab';
 import { MotoristaHistoricoTab } from '@/components/app/MotoristaHistoricoTab';
+import { MotoristaHomeTab } from '@/components/app/MotoristaHomeTab';
 import { HelpDrawer } from '@/components/app/HelpDrawer';
 import { VersionBadge } from '@/components/ui/version-badge';
 import { Button } from '@/components/ui/button';
@@ -66,7 +67,7 @@ export default function AppMotorista() {
   const { getAgoraSync, loading: loadingServerTime } = useServerTime();
   
   const [operando, setOperando] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<MotoristaTabId>('inicio');
+  const [activeTab, setActiveTab] = useState<MotoristaTabId>('home');
   const [showHelp, setShowHelp] = useState(false);
   
   
@@ -380,13 +381,14 @@ export default function AppMotorista() {
             .eq('id', viagemId);
         }
 
-        // Verificar se motorista tem outras viagens ativas (usar motorista_id)
+        // Verificar se motorista tem outras viagens ativas (excluir a que acabou de encerrar)
         const { data: outrasViagens } = await supabase
           .from('viagens')
           .select('id')
           .eq('motorista_id', motoristaData.id)
           .eq('evento_id', eventoId)
-          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno']);
+          .in('status', ['agendado', 'em_andamento', 'aguardando_retorno'])
+          .neq('id', viagemId || '');
 
         if (!outrasViagens || outrasViagens.length === 0) {
           await supabase
@@ -461,6 +463,15 @@ export default function AppMotorista() {
   // Render tab content
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'home':
+        return (
+          <MotoristaHomeTab
+            motoristaData={motoristaData}
+            viagens={viagens}
+            presenca={presenca}
+            eventoNome={evento?.nome_planilha}
+          />
+        );
       case 'inicio':
         return (
           <div className="space-y-4">
