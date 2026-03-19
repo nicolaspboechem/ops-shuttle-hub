@@ -271,7 +271,6 @@ export default function Suporte() {
                       </tr>
                       <tr>
                         <td className="py-3 px-4 font-medium">Horário</td>
-                        <td className="text-center py-3 px-4 text-xs">Cliente define</td>
                         <td className="text-center py-3 px-4 text-xs">Grade fixa</td>
                         <td className="text-center py-3 px-4 text-xs">CCO define</td>
                       </tr>
