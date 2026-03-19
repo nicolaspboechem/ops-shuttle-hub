@@ -542,9 +542,11 @@ export default function AppSupervisor() {
       </div>
 
       {/* Tab: Localizador */}
-      <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
-        <MemoizedLocalizadorTab eventoId={eventoId!} />
-      </div>
+      {evento?.habilitar_localizador !== false && (
+        <div className={activeTab === 'localizador' ? 'block' : 'hidden'}>
+          <MemoizedLocalizadorTab eventoId={eventoId!} />
+        </div>
+      )}
 
       {/* Tab: Histórico */}
       <div className={activeTab === 'historico' ? 'block' : 'hidden'}>
