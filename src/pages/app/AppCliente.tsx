@@ -21,6 +21,7 @@ interface EventoConfig {
   visivel_publico: boolean | null;
   tipos_viagem_habilitados: string[] | null;
   horario_virada_dia: string | null;
+  status: string | null;
 }
 
 export default function AppCliente() {
@@ -49,7 +50,7 @@ export default function AppCliente() {
 
     supabase
       .from('eventos')
-      .select('nome_planilha, habilitar_localizador, visivel_publico, tipos_viagem_habilitados, horario_virada_dia')
+      .select('nome_planilha, habilitar_localizador, visivel_publico, tipos_viagem_habilitados, horario_virada_dia, status')
       .eq('id', eventoId)
       .maybeSingle()
       .then(({ data }) => {
@@ -84,13 +85,13 @@ export default function AppCliente() {
     
     switch (activeTab) {
       case 'dashboard':
-        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} eventoStatus={evento?.status} />;
       case 'localizador':
         return <ClienteLocalizadorTab key={refreshKey} eventoId={eventoId} />;
       case 'painel':
         return <ClientePainelTab key={refreshKey} eventoId={eventoId} />;
       default:
-        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} />;
+        return <ClienteDashboardTab key={refreshKey} eventoId={eventoId} tiposViagem={evento?.tipos_viagem_habilitados} horarioVirada={evento?.horario_virada_dia || undefined} eventoStatus={evento?.status} />;
     }
   };
 

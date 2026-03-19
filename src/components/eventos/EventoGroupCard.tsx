@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
+import { differenceInCalendarDays } from 'date-fns';
 import { Calendar, Bus, ChevronRight, Pencil, MoreVertical, Eye, EyeOff, Archive, Trash2, Power } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -85,6 +86,15 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
       { total: 0, totalPax: 0 }
     );
   }, [selectedEventIds, stats]);
+
+  const diasEvento = useMemo(() => {
+    if (primaryEvento.data_inicio && primaryEvento.data_fim) {
+      const start = new Date(primaryEvento.data_inicio + 'T12:00:00');
+      const end = new Date(primaryEvento.data_fim + 'T12:00:00');
+      return differenceInCalendarDays(end, start) + 1;
+    }
+    return eventos.length;
+  }, [primaryEvento.data_inicio, primaryEvento.data_fim, eventos.length]);
 
   const getDateRange = () => {
     if (primaryEvento.data_inicio && primaryEvento.data_fim) {
@@ -306,7 +316,7 @@ export function EventoGroupCard({ groupName, eventos, onUpdate }: EventoGroupCar
                 <p className="text-xs text-muted-foreground">Passageiros</p>
               </div>
               <div className="text-center p-3 rounded-lg bg-muted/50">
-                <p className="text-2xl font-bold text-foreground">{eventos.length}</p>
+                <p className="text-2xl font-bold text-foreground">{diasEvento}</p>
                 <p className="text-xs text-muted-foreground">Dias</p>
               </div>
             </div>

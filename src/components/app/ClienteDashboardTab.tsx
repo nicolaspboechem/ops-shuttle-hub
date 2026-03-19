@@ -19,6 +19,7 @@ interface ClienteDashboardTabProps {
   eventoId: string;
   tiposViagem?: string[] | null;
   horarioVirada?: string;
+  eventoStatus?: string | null;
 }
 
 interface VeiculoFrota {
@@ -32,14 +33,16 @@ interface VeiculoFrota {
 }
 
 
-export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: ClienteDashboardTabProps) {
+export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada, eventoStatus }: ClienteDashboardTabProps) {
   const { getAgoraSync } = useServerTime();
   const horarioViradaFinal = horarioVirada || '04:00';
+  const isEventoAtivo = eventoStatus === 'ativo';
 
-  // Filtrar viagens pelo dia operacional atual
+  // Filtrar viagens pelo dia operacional atual (only for active events)
   const dataOperacional = useMemo(() => {
+    if (!isEventoAtivo) return undefined;
     return getDataOperacional(getAgoraSync(), horarioViradaFinal);
-  }, [getAgoraSync, horarioViradaFinal]);
+  }, [getAgoraSync, horarioViradaFinal, isEventoAtivo]);
 
   const viagensOptions = useMemo(() => ({
     dataOperacional,
@@ -271,7 +274,7 @@ export function ClienteDashboardTab({ eventoId, tiposViagem, horarioVirada }: Cl
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Consolidado do Dia
+            {isEventoAtivo ? 'Consolidado do Dia' : 'Consolidado Geral'}
           </h3>
         </div>
 
