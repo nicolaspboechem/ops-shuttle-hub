@@ -166,6 +166,7 @@ interface Evento {
   data_inicio?: string | null;
   data_fim?: string | null;
   horario_virada_dia?: string | null;
+  habilitar_localizador?: boolean | null;
   tipos_viagem_habilitados?: string[] | null;
 }
 
