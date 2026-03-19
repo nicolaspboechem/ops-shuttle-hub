@@ -339,7 +339,7 @@ export default function AppSupervisor() {
     if (tab === 'nova') {
       if (tiposHabilitados.length === 1) {
         const tipo = tiposHabilitados[0];
-        if (tipo === 'shuttle') setShowShuttleForm(true);
+        if (tipo === 'shuttle') { setShuttleMode('rapido'); setShowShuttleForm(true); }
         else if (tipo === 'transfer') { setPreselectedTipo('transfer'); setShowNovaViagem(true); }
         else if (tipo === 'missao') setShowMissaoInstantanea(true);
       } else {
@@ -355,7 +355,11 @@ export default function AppSupervisor() {
       setShowMissaoInstantanea(true);
     } else if (tipo === 'deslocamento') {
       setShowMissaoDeslocamento(true);
-    } else if (tipo === 'shuttle') {
+    } else if (tipo === 'shuttle_rapido') {
+      setShuttleMode('rapido');
+      setShowShuttleForm(true);
+    } else if (tipo === 'shuttle_completo') {
+      setShuttleMode('completo');
       setShowShuttleForm(true);
     } else {
       setPreselectedTipo(tipo);
