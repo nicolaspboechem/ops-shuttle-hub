@@ -171,6 +171,7 @@ export default function AppOperador() {
   const [showMissaoInstantanea, setShowMissaoInstantanea] = useState(false);
   const [showMissaoDeslocamento, setShowMissaoDeslocamento] = useState(false);
   const [preselectedTipo, setPreselectedTipo] = useState<string>('transfer');
+  const [shuttleMode, setShuttleMode] = useState<'rapido' | 'completo'>('rapido');
   
   const [dataOperacional, setDataOperacional] = useState<string>(() => 
     getDataOperacional(getAgoraSync(), '04:00')
