@@ -125,12 +125,8 @@ export function CreateEventoWizard({ onSuccess, trigger }: CreateEventoWizardPro
     try {
       // Derive legacy fields for compatibility
       const habilitarMissoes = tiposViagem.includes('missao');
-      const temTransfer = tiposViagem.includes('transfer');
       const temShuttle = tiposViagem.includes('shuttle');
-      let tipoOperacao = 'transfer';
-      if (temTransfer && temShuttle) tipoOperacao = 'transfer';
-      else if (temShuttle) tipoOperacao = 'shuttle';
-      else if (temTransfer) tipoOperacao = 'transfer';
+      const tipoOperacao = temShuttle ? 'shuttle' : 'shuttle';
 
       const { error } = await supabase.from('eventos').insert({
         nome_planilha: nome,
