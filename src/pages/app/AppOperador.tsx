@@ -447,13 +447,32 @@ export default function AppOperador() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 Em andamento ({sortedAtivas.length})
               </h2>
-              {ativasVisiveis.map(viagem => (
-                <ViagemCardOperador
-                  key={viagem.id}
-                  viagem={viagem}
-                  onUpdate={refetchViagens}
-                />
-              ))}
+              {ativasVisiveis.map(viagem => {
+                // Shuttle rápido: criado como em_andamento sem iniciado_por (auto-started)
+                const isShuttleRapido = viagem.tipo_operacao === 'shuttle'
+                  && !viagem.iniciado_por
+                  && !viagem.h_chegada
+                  && viagem.status === 'em_andamento';
+                
+                if (isShuttleRapido) {
+                  return (
+                    <ShuttleCardOperador
+                      key={viagem.id}
+                      viagem={viagem}
+                      getName={getName}
+                      onEncerrar={setViagemParaEncerrar}
+                    />
+                  );
+                }
+                
+                return (
+                  <ViagemCardOperador
+                    key={viagem.id}
+                    viagem={viagem}
+                    onUpdate={refetchViagens}
+                  />
+                );
+              })}
               <LoadMoreFooter
                 total={totalAtivas}
                 visible={ativasVisiveis.length}
