@@ -60,9 +60,8 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
               <TableHead className="w-20">Tipo</TableHead>
               <TableHead className="w-28">Situação</TableHead>
               <TableHead className="w-24">Status</TableHead>
-              <TableHead>Motorista</TableHead>
+              <TableHead>Viagem</TableHead>
               <TableHead>Veículo</TableHead>
-              <TableHead className="w-24">Placa</TableHead>
               <TableHead>Embarque</TableHead>
               <TableHead>Desembarque</TableHead>
               <TableHead className="w-20">Pickup</TableHead>
@@ -72,6 +71,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
               <TableHead className="w-16 text-center">PAX</TableHead>
               <TableHead className="w-20">Missão</TableHead>
               <TableHead>Iniciado por</TableHead>
+              <TableHead>Finalizado por</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
