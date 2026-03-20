@@ -22,7 +22,6 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
   const { userId } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
 
-  const [paxRetorno, setPaxRetorno] = useState('');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
 
