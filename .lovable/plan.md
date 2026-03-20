@@ -1,55 +1,42 @@
 
 
-## Diagnóstico: Tela branca e logout ao criar viagem
+## Plano: Converter formulários de viagem de Drawer para Sheet (sem arrastar para fechar) + scroll ao focar input
 
-### Causa raiz
+### Problema
+Os formulários de nova viagem usam `Drawer` (vaul), que permite fechar arrastando para baixo. Em mobile, ao interagir com inputs/teclado, o usuário acidentalmente fecha o formulário. Além disso, quando o teclado abre, o campo focado fica escondido.
 
-O `AuthContext` (linha 48-50) define `user = null` brevemente durante refresh de token do Supabase (`onAuthStateChange` dispara com sessão transitória). Como todas as páginas do app têm checagens agressivas de `!user`:
+### Mudanças
 
-- **AppOperador** (linha 347-355): `useEffect` navega para `/auth` + retorna `null` (tela branca)
-- **AppHome** (linha 25-29): `useEffect` navega para `/auth`
-- **AppCliente** (linha 106-107): retorna `<Navigate to="/auth">`
+**1. Converter todos os formulários de viagem de `Drawer` para `Sheet` (side="bottom")**
 
-Essas páginas **já estão dentro de `<ProtectedRoute>`** (App.tsx linhas 194, 197), que já cuida da proteção de autenticação. As checagens internas são **redundantes e nocivas**.
+Arquivos afetados:
+- `src/components/app/CreateViagemForm.tsx` — Drawer → Sheet
+- `src/components/app/CreateShuttleForm.tsx` — Drawer → Sheet
+- `src/components/app/CreateViagemMotoristaForm.tsx` — Drawer → Sheet
+- `src/components/app/ShuttleEncerrarModal.tsx` — Drawer → Sheet
+- `src/components/app/RetornoViagemForm.tsx` — já usa Sheet, manter
 
-**Quando o operador cria uma viagem:**
-1. INSERT no Supabase dispara Realtime → refetch de viagens
-2. A atividade no Supabase pode provocar token refresh
-3. `onAuthStateChange` seta `user = null` por um instante
-4. `useEffect(!user)` navega para `/auth` → **logout falso**
-5. `if (!user) return null` → **tela branca**
+Para cada um:
+- Trocar imports de `Drawer/DrawerContent/DrawerHeader/DrawerTitle` por `Sheet/SheetContent/SheetHeader/SheetTitle`
+- Usar `<SheetContent side="bottom" className="h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>` — bloqueia fechar tocando fora
+- Conteúdo do formulário dentro de `<div className="flex-1 overflow-y-auto overscroll-contain p-4">` — scroll interno, sem arrastar para fechar
+- Manter botão "Cancelar" explícito em todos (já existem) e adicionar botão X no header quando não houver
+- Remover `DrawerClose` (que fecha por arrastar) e usar `onOpenChange(false)` nos botões
 
-### Plano de correção
+**2. Scroll-into-view ao focar inputs**
 
-**1. Remover checagens redundantes de `!user` nas páginas do app**
-
-- **`src/pages/app/AppOperador.tsx`**: Remover o `useEffect` (linhas 347-351) e o `if (!user) return null` (linhas 353-355). O `ProtectedRoute` já garante que o user existe.
-
-- **`src/pages/app/AppHome.tsx`**: Remover `if (!user) navigate('/auth')` do `useEffect` (linhas 26-28). Usar `loading` do `useAuth` para guardar o fetch.
-
-- **`src/pages/app/AppCliente.tsx`**: Remover `if (!user) return <Navigate>` (linhas 106-107).
-
-- **`src/pages/app/AppEvento.tsx`**: Remover `if (!user) return <Navigate>` (linha 62) — já protegido por `ProtectedRoute`.
-
-**2. Proteger `AuthContext` contra flash de null durante token refresh**
-
-- No `onAuthStateChange`, só setar `user = null` se o evento for `SIGNED_OUT` (não durante `TOKEN_REFRESHED` ou outros eventos transitórios):
-
-```ts
-(event, session) => {
-  setSession(session);
-  setUser(session?.user ?? null);
-  
-  if (session?.user) {
-    setTimeout(() => fetchUserData(session.user.id), 0);
-  } else if (event === 'SIGNED_OUT') {
-    resetState();
-  }
-}
+Adicionar `onFocus` nos `<Input>` de texto/number dentro dos formulários para fazer `scrollIntoView`:
+```tsx
+onFocus={(e) => {
+  setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+}}
 ```
+O `setTimeout` de 300ms aguarda o teclado mobile abrir antes de fazer scroll.
+
+Aplicar isso como classe utilitária nos inputs dentro dos formulários convertidos, via wrapper ou diretamente nos inputs de digitação (não nos selects/combobox).
 
 ### Resultado esperado
-- Sem tela branca durante atualizações automáticas
-- Sem logout falso ao criar viagem ou durante token refresh
-- Proteção de auth mantida pelo `ProtectedRoute` centralizado
+- Formulários só fecham pelo botão Cancelar/X — impossível fechar arrastando
+- Ao focar um input, o campo rola para ficar visível acima do teclado
+- Scroll interno funciona normalmente para navegar pelo formulário
 
