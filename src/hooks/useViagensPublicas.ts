@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useServerTime } from '@/hooks/useServerTime';
+import { getDataOperacional } from '@/lib/utils/diaOperacional';
 
 export interface ViagemPublica {
   id: string;
@@ -14,14 +15,16 @@ export interface ViagemPublica {
   qtd_pax: number | null;
 }
 
-export function useViagensPublicas(eventoId: string | null) {
+export function useViagensPublicas(eventoId: string | null, horarioVirada?: string) {
   const [viagens, setViagens] = useState<ViagemPublica[]>([]);
   const [loading, setLoading] = useState(true);
   const { getAgoraSync } = useServerTime();
   
-  // Use ref to avoid dependency issues with getAgoraSync
   const getAgoraSyncRef = useRef(getAgoraSync);
   getAgoraSyncRef.current = getAgoraSync;
+
+  const horarioViradaRef = useRef(horarioVirada || '04:00');
+  horarioViradaRef.current = horarioVirada || '04:00';
 
   const fetchViagens = useCallback(async () => {
     if (!eventoId) {
@@ -32,11 +35,11 @@ export function useViagensPublicas(eventoId: string | null) {
 
     setLoading(true);
 
-    // Get today's date using synchronized server time
+    // Use operational day calculation instead of simple midnight
     const agora = getAgoraSyncRef.current();
-    const hoje = format(agora, 'yyyy-MM-dd');
-    const todayStart = `${hoje}T00:00:00`;
-    const todayEnd = `${hoje}T23:59:59`;
+    const dataOp = getDataOperacional(agora, horarioViradaRef.current);
+    const todayStart = `${dataOp}T00:00:00`;
+    const todayEnd = `${dataOp}T23:59:59`;
 
     const { data, error } = await supabase
       .from('viagens')
@@ -60,12 +63,11 @@ export function useViagensPublicas(eventoId: string | null) {
   useEffect(() => {
     fetchViagens();
 
-    // Realtime subscription with debounce
     if (eventoId) {
       let debounceTimer: ReturnType<typeof setTimeout> | null = null;
       const debouncedFetch = () => {
         if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => fetchViagens(), 2000); // 2s debounce
+        debounceTimer = setTimeout(() => fetchViagens(), 2000);
       };
 
       const channel = supabase
@@ -77,7 +79,6 @@ export function useViagensPublicas(eventoId: string | null) {
         )
         .subscribe();
 
-      // Refresh every 90 seconds (was 30s - too aggressive)
       const interval = setInterval(fetchViagens, 90000);
 
       return () => {

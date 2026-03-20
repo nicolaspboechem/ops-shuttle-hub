@@ -118,7 +118,6 @@ export default function Dashboard() {
     viagensAtivas.reduce((acc, v) => acc + (v.qtd_pax || 0), 0)
   , [viagensAtivas]);
 
-  const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas, motoristas: metricasMotoristas } = useCalculos(viagensFiltradas);
 
   // Set de motorista_ids com viagem ativa (para o hook de motoristas dashboard)
   const motoristasEmViagemSet = useMemo(() => {
