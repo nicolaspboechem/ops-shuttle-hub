@@ -375,6 +375,7 @@ export function CreateViagemMotoristaForm({
             type="number"
             value={qtdPax}
             onChange={e => setQtdPax(e.target.value)}
+            onFocus={scrollInputIntoView}
             placeholder="0"
             min="1"
             required
