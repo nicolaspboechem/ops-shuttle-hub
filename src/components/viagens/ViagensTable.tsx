@@ -39,8 +39,11 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
   const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
   
-  // Collect responsável IDs: preferir iniciado_por, fallback criado_por
-  const responsavelIds = useMemo(() => viagens.map(v => v.iniciado_por || v.criado_por), [viagens]);
+  // Collect responsável IDs: iniciado_por, finalizado_por, criado_por
+  const responsavelIds = useMemo(() => [
+    ...viagens.map(v => v.iniciado_por || v.criado_por),
+    ...viagens.map(v => v.finalizado_por),
+  ], [viagens]);
   const { getName } = useUserNames(responsavelIds);
 
   const getAlertaStatus = (viagemId: string) => {
