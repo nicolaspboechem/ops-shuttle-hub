@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/popover';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { toast } from 'sonner';
-import { Plus, Loader2, ChevronsUpDown, Check } from 'lucide-react';
+import { Plus, Loader2, ChevronsUpDown, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreateViagemFormProps {
