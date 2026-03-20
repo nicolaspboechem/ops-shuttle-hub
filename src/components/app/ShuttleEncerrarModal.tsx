@@ -39,7 +39,7 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
       const { error } = await supabase.from('viagens').update({
         status: 'encerrado',
         encerrado: true,
-        qtd_pax_retorno: paxRetorno ? Number(paxRetorno) : 0,
+        qtd_pax_retorno: 0,
         h_fim_real: agora,
         finalizado_por: userId,
         observacao: observacao || viagem.observacao,
