@@ -487,11 +487,9 @@ export function CreateViagemForm({
 
             {/* Botões */}
             <div className="flex gap-3 pt-4">
-              <DrawerClose asChild>
-                <Button type="button" variant="outline" className="flex-1">
-                  Cancelar
-                </Button>
-              </DrawerClose>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
               <Button type="submit" disabled={saving} className="flex-1">
                 {saving ? (
                   <>
@@ -504,8 +502,8 @@ export function CreateViagemForm({
               </Button>
             </div>
           </form>
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
       <CreateMotoristaWizard
         open={showQuickMotorista}

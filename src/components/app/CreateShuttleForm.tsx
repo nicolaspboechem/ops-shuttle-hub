@@ -320,7 +320,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
             {mode === 'rapido' ? 'Iniciar Shuttle' : 'Agendar Shuttle'}
           </Button>
         </div>
-      </DrawerContent>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }
