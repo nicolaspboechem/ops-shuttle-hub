@@ -39,8 +39,11 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
   const [editingViagem, setEditingViagem] = useState<Viagem | null>(null);
   const { visibleItems, hasMore, loadMore, total, pageSize, setPageSize } = usePaginatedList(viagens);
   
-  // Collect responsável IDs: preferir iniciado_por, fallback criado_por
-  const responsavelIds = useMemo(() => viagens.map(v => v.iniciado_por || v.criado_por), [viagens]);
+  // Collect responsável IDs: iniciado_por, finalizado_por, criado_por
+  const responsavelIds = useMemo(() => [
+    ...viagens.map(v => v.iniciado_por || v.criado_por),
+    ...viagens.map(v => v.finalizado_por),
+  ], [viagens]);
   const { getName } = useUserNames(responsavelIds);
 
   const getAlertaStatus = (viagemId: string) => {
@@ -57,9 +60,8 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
               <TableHead className="w-20">Tipo</TableHead>
               <TableHead className="w-28">Situação</TableHead>
               <TableHead className="w-24">Status</TableHead>
-              <TableHead>Motorista</TableHead>
+              <TableHead>Viagem</TableHead>
               <TableHead>Veículo</TableHead>
-              <TableHead className="w-24">Placa</TableHead>
               <TableHead>Embarque</TableHead>
               <TableHead>Desembarque</TableHead>
               <TableHead className="w-20">Pickup</TableHead>
@@ -69,6 +71,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
               <TableHead className="w-16 text-center">PAX</TableHead>
               <TableHead className="w-20">Missão</TableHead>
               <TableHead>Iniciado por</TableHead>
+              <TableHead>Finalizado por</TableHead>
               <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
@@ -96,7 +99,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                     <StatusBadge status={status} />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-foreground">{viagem.motorista}</div>
+                    <div className="font-medium text-foreground">{viagem.coordenador || viagem.motorista}</div>
                     {rota && (
                       <div className="text-[11px] text-muted-foreground truncate max-w-[180px]">{rota}</div>
                     )}
@@ -104,13 +107,13 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Bus className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{viagem.tipo_veiculo}</span>
+                      <div>
+                        <span className="text-sm font-medium">{viagem.veiculo?.nome || viagem.tipo_veiculo || '-'}</span>
+                        {viagem.placa && (
+                          <div><code className="text-[10px] bg-muted px-1 py-0.5 rounded">{viagem.placa}</code></div>
+                        )}
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                      {viagem.placa || '-'}
-                    </code>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
@@ -154,6 +157,11 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   <TableCell>
                     <span className="text-sm text-muted-foreground truncate max-w-[120px] block">
                       {getName(viagem.iniciado_por || viagem.criado_por)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground truncate max-w-[120px] block">
+                      {viagem.finalizado_por ? getName(viagem.finalizado_por) : '-'}
                     </span>
                   </TableCell>
                   <TableCell>

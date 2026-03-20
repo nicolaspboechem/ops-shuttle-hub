@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
 import { useServerTime } from '@/hooks/useServerTime';
+import { useUserNames } from '@/hooks/useUserNames';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -49,7 +50,21 @@ export default function ViagensFinalizadas() {
     if (tipos?.length) return tipos[0] as TipoOperacaoFiltro;
     return 'missao';
   });
-  const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
+  const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '', coordenador: 'todos' });
+
+  // Resolve coordinator names
+  const coordenadorIds = useMemo(() => {
+    const ids = new Set<string>();
+    viagens.forEach(v => {
+      if (v.iniciado_por) ids.add(v.iniciado_por);
+      if (v.finalizado_por) ids.add(v.finalizado_por);
+    });
+    return [...ids];
+  }, [viagens]);
+  const { getName: getCoordName, names: coordNames } = useUserNames(coordenadorIds);
+  const coordenadores = useMemo(() => {
+    return [...new Set(coordenadorIds.map(id => coordNames[id]).filter(Boolean))].sort();
+  }, [coordenadorIds, coordNames]);
 
   const contadores = useMemo(() => ({
     shuttle: viagensFinalizadas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
@@ -76,11 +91,16 @@ export default function ViagensFinalizadas() {
       if (filtros.motorista !== 'todos' && v.motorista !== filtros.motorista) return false;
       if (filtros.busca) {
         const busca = filtros.busca.toLowerCase();
-        return v.motorista.toLowerCase().includes(busca) || (v.placa?.toLowerCase().includes(busca) ?? false);
+        if (!(v.motorista.toLowerCase().includes(busca) || (v.placa?.toLowerCase().includes(busca) ?? false) || (v.coordenador?.toLowerCase().includes(busca) ?? false))) return false;
+      }
+      if (filtros.coordenador && filtros.coordenador !== 'todos') {
+        const iniciadoNome = v.iniciado_por ? getCoordName(v.iniciado_por) : '';
+        const finalizadoNome = v.finalizado_por ? getCoordName(v.finalizado_por) : '';
+        if (iniciadoNome !== filtros.coordenador && finalizadoNome !== filtros.coordenador) return false;
       }
       return true;
     });
-  }, [viagensFinalizadas, filtros, tipoOperacao]);
+  }, [viagensFinalizadas, filtros, tipoOperacao, getCoordName]);
 
   if (loading) {
     return (
@@ -112,7 +132,7 @@ export default function ViagensFinalizadas() {
           </div>
           <Badge variant="outline">{viagensFiltradas.length} resultados</Badge>
         </div>
-        <FilterBar filtros={filtros} onChange={setFiltros} motoristas={motoristas} />
+        <FilterBar filtros={filtros} onChange={setFiltros} motoristas={motoristas} coordenadores={coordenadores} />
         <ViagensTable viagens={viagensFiltradas} alertas={[]} onUpdate={updateViagem} />
       </div>
     </EventLayout>

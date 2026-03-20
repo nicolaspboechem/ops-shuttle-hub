@@ -15,6 +15,7 @@ export interface Filtros {
   motorista: string;
   busca: string;
   tipoOperacao?: string;
+  coordenador?: string;
 }
 
 interface FilterBarProps {
@@ -22,15 +23,17 @@ interface FilterBarProps {
   onChange: (filtros: Filtros) => void;
   motoristas: string[];
   showTipoOperacao?: boolean;
+  coordenadores?: string[];
 }
 
-export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false, coordenadores }: FilterBarProps) {
   const hasActiveFilters = 
     filtros.tipoVeiculo !== 'todos' || 
     filtros.status !== 'todos' || 
     filtros.motorista !== 'todos' ||
     filtros.busca !== '' ||
-    (showTipoOperacao && filtros.tipoOperacao !== 'todos');
+    (showTipoOperacao && filtros.tipoOperacao !== 'todos') ||
+    (filtros.coordenador && filtros.coordenador !== 'todos');
 
   const clearFilters = () => {
     onChange({
@@ -38,7 +41,8 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
       status: 'todos',
       motorista: 'todos',
       busca: '',
-      tipoOperacao: 'todos'
+      tipoOperacao: 'todos',
+      coordenador: 'todos'
     });
   };
 
@@ -106,6 +110,24 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
           ))}
         </SelectContent>
       </Select>
+
+      {/* Coordenador */}
+      {coordenadores && coordenadores.length > 0 && (
+        <Select
+          value={filtros.coordenador || 'todos'}
+          onValueChange={(value) => onChange({ ...filtros, coordenador: value })}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Coordenador" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos Coordenadores</SelectItem>
+            {coordenadores.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Clear Filters */}
       {hasActiveFilters && (
