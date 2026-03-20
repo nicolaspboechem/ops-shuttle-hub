@@ -103,9 +103,7 @@ export default function AppCliente() {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
+  // Auth guard removed — ProtectedRoute already handles authentication
 
   if (!eventoId || !isValidUUID(eventoId)) {
     return <Navigate to="/app" replace />;

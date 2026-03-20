@@ -59,7 +59,7 @@ export default function AppEvento() {
     );
   }
 
-  if (!user) return <Navigate to="/auth" replace />;
+  // Auth guard removed — ProtectedRoute already handles authentication
   if (!eventoId) return <Navigate to="/app" replace />;
 
   switch (resolvedRole) {
