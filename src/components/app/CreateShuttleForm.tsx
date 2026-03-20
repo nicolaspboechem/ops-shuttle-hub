@@ -154,6 +154,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
             <Input
               value={nomeViagem}
               onChange={e => setNomeViagem(e.target.value)}
+              onFocus={scrollInputIntoView}
               placeholder="Ex: Hotel → Evento"
               className="h-12 text-base"
             />
