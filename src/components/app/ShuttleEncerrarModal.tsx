@@ -26,7 +26,6 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
   const [saving, setSaving] = useState(false);
 
   const resetForm = () => {
-    setPaxRetorno('');
     setObservacao('');
   };
 
