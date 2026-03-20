@@ -115,13 +115,22 @@ export function useViagens(eventoId?: string, options?: UseViagensOptions) {
       .on('postgres_changes', channelConfig, throttledFetch)
       .subscribe();
 
-    // Polling fallback every 2 minutes
-    const interval = setInterval(() => fetchViagens(false), 120000);
+    // Polling fallback every 60 seconds
+    const interval = setInterval(() => fetchViagens(false), 60000);
+
+    // Refresh immediately when returning from background
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchViagens(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearThrottleKey(throttleKey);
       supabase.removeChannel(channel);
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchViagens]);
 
