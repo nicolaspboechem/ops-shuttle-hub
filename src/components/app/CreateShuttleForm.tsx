@@ -130,19 +130,24 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
   };
 
   return (
-    <Drawer open={open} onOpenChange={(val) => { if (!val) resetForm(); onOpenChange(val); }}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="pb-2">
-          <DrawerTitle className="flex items-center gap-2 justify-center">
-            <Bus className="h-5 w-5 text-primary" />
-            {mode === 'rapido' ? 'Shuttle Rápido' : 'Shuttle Completo'}
-          </DrawerTitle>
-          <DrawerDescription>
+    <Sheet open={open} onOpenChange={(val) => { if (!val) resetForm(); onOpenChange(val); }}>
+      <SheetContent side="bottom" className="h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>
+        <SheetHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2">
+              <Bus className="h-5 w-5 text-primary" />
+              {mode === 'rapido' ? 'Shuttle Rápido' : 'Shuttle Completo'}
+            </SheetTitle>
+            <Button type="button" variant="ghost" size="icon" onClick={() => { resetForm(); onOpenChange(false); }}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <SheetDescription>
             {mode === 'rapido' ? 'Registre ida e volta direto' : 'Crie o shuttle com ciclo completo de etapas'}
-          </DrawerDescription>
-        </DrawerHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="px-6 pb-8 pt-2 space-y-4 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-8 pt-2 space-y-4">
           {/* Nome da viagem */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Nome da viagem <span className="text-muted-foreground font-normal">(opcional)</span></Label>
