@@ -233,8 +233,17 @@ export function useViagensPorMotorista(eventoId?: string, motoristaId?: string) 
       )
       .subscribe();
 
+    // Refresh immediately when returning from background
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchViagens(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchViagens, eventoId, motoristaId]);
 
