@@ -420,11 +420,9 @@ export function CreateViagemMotoristaForm({
             Cancelar
           </Button>
         ) : (
-          <DrawerClose asChild>
-            <Button type="button" variant="outline" className="flex-1">
-              Cancelar
-            </Button>
-          </DrawerClose>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
         )}
         <Button type="submit" disabled={saving} className="flex-1">
           {saving ? (
