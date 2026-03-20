@@ -34,14 +34,18 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
     setSaving(true);
 
     try {
-      const agora = getAgoraSync().toISOString();
+      const now = getAgoraSync();
+      const agora = now.toISOString();
+      const horaChegada = now.toTimeString().slice(0, 8);
 
       const { error } = await supabase.from('viagens').update({
         status: 'encerrado',
         encerrado: true,
         qtd_pax_retorno: 0,
+        h_chegada: viagem.h_chegada || horaChegada,
         h_fim_real: agora,
         finalizado_por: userId,
+        atualizado_por: userId,
         observacao: observacao || viagem.observacao,
       }).eq('id', viagem.id);
 
