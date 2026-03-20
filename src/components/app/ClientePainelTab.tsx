@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRotasPublicas } from '@/hooks/useRotasPublicas';
 import { RotaCard } from '@/components/public/RotaCard';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Clock, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { rotaEstaAtiva } from '@/lib/utils/calcularProximasSaidas';
 
 interface ClientePainelTabProps {
   eventoId: string;
@@ -13,6 +14,11 @@ interface ClientePainelTabProps {
 export function ClientePainelTab({ eventoId }: ClientePainelTabProps) {
   const { rotas, loading, refetch } = useRotasPublicas(eventoId);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Filtra apenas rotas que ainda estão no horário de operação
+  const rotasAtivas = useMemo(() => {
+    return rotas.filter(rota => rotaEstaAtiva(rota.horario_fim));
+  }, [rotas]);
 
   const handleRefresh = () => {
     refetch();
@@ -46,9 +52,9 @@ export function ClientePainelTab({ eventoId }: ClientePainelTabProps) {
       </div>
 
       {/* Grid de rotas */}
-      {rotas.length > 0 ? (
+      {rotasAtivas.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rotas.map(rota => (
+          {rotasAtivas.map(rota => (
             <RotaCard 
               key={rota.id} 
               nome={rota.nome}
@@ -64,8 +70,8 @@ export function ClientePainelTab({ eventoId }: ClientePainelTabProps) {
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <Clock className="h-12 w-12 mx-auto mb-4 opacity-30" />
-          <p>Nenhuma rota shuttle configurada</p>
-          <p className="text-sm mt-1">Rotas de transporte aparecerão aqui quando disponíveis</p>
+          <p>Nenhuma rota shuttle em operação no momento</p>
+          <p className="text-sm mt-1">Rotas aparecerão aqui durante seus horários de funcionamento</p>
         </div>
       )}
     </div>
