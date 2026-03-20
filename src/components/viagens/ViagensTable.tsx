@@ -99,7 +99,7 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                     <StatusBadge status={status} />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium text-foreground">{viagem.motorista}</div>
+                    <div className="font-medium text-foreground">{viagem.coordenador || viagem.motorista}</div>
                     {rota && (
                       <div className="text-[11px] text-muted-foreground truncate max-w-[180px]">{rota}</div>
                     )}
@@ -107,13 +107,13 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Bus className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm">{viagem.tipo_veiculo}</span>
+                      <div>
+                        <span className="text-sm font-medium">{viagem.veiculo?.nome || viagem.tipo_veiculo || '-'}</span>
+                        {viagem.placa && (
+                          <div><code className="text-[10px] bg-muted px-1 py-0.5 rounded">{viagem.placa}</code></div>
+                        )}
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                      {viagem.placa || '-'}
-                    </code>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
