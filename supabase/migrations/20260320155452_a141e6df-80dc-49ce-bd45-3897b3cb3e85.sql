@@ -1,0 +1,1 @@
+DELETE FROM viagens WHERE id = 'b272724f-0e3d-4f96-89fd-64a2d0cf46c3';
