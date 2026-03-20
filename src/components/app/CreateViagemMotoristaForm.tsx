@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Bus, Car, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, Bus, Car, ChevronsUpDown, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreateViagemMotoristaFormProps {
