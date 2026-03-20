@@ -1,16 +1,14 @@
 
 
-## Correção: Operadores veem todas as viagens por padrão
-
-### Problema
-No `AppOperador.tsx`, linha 164, o estado `apenasMinhas` inicia como `true`, fazendo com que operadores vejam apenas as viagens que eles criaram/iniciaram. O correto é mostrar **todas as viagens** por padrão.
+## Remover campo PAX retorno do modal de Shuttle Rápido
 
 ### Mudança
 
-**Arquivo: `src/pages/app/AppOperador.tsx`**
+**Arquivo: `src/components/app/ShuttleEncerrarModal.tsx`**
 
-1. Linha 164: Alterar `useState(true)` para `useState(false)` — operadores agora veem todas as viagens ao abrir o app
-2. O toggle "Ver apenas minhas" já existe no menu dropdown (linha 589-592) e permanece como opção oculta no menu ⋮
+1. Remover o bloco de input "Passageiros de volta" (linhas 78-94) — o campo PAX retorno, label e texto auxiliar
+2. Remover o estado `paxRetorno` (linha 25) e sua referência no `resetForm` (linha 30)
+3. Na chamada de update (linha 44), setar `qtd_pax_retorno: 0` fixo em vez de usar a variável
 
-Apenas 1 caractere muda: `true` → `false`.
+O modal ficará apenas com o campo de observação e o botão de confirmar.
 
