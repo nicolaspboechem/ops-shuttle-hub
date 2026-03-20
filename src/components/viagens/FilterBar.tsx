@@ -15,6 +15,7 @@ export interface Filtros {
   motorista: string;
   busca: string;
   tipoOperacao?: string;
+  coordenador?: string;
 }
 
 interface FilterBarProps {
@@ -22,6 +23,7 @@ interface FilterBarProps {
   onChange: (filtros: Filtros) => void;
   motoristas: string[];
   showTipoOperacao?: boolean;
+  coordenadores?: string[];
 }
 
 export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false }: FilterBarProps) {
