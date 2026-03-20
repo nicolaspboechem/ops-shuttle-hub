@@ -22,12 +22,10 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
   const { userId } = useCurrentUser();
   const { getAgoraSync } = useServerTime();
 
-  const [paxRetorno, setPaxRetorno] = useState('');
   const [observacao, setObservacao] = useState('');
   const [saving, setSaving] = useState(false);
 
   const resetForm = () => {
-    setPaxRetorno('');
     setObservacao('');
   };
 
@@ -41,7 +39,7 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
       const { error } = await supabase.from('viagens').update({
         status: 'encerrado',
         encerrado: true,
-        qtd_pax_retorno: paxRetorno ? Number(paxRetorno) : 0,
+        qtd_pax_retorno: 0,
         h_fim_real: agora,
         finalizado_por: userId,
         observacao: observacao || viagem.observacao,
@@ -75,23 +73,6 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
         </DrawerHeader>
 
         <div className="px-6 pb-8 pt-2 space-y-5">
-          {/* PAX de volta */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Passageiros de volta</Label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              min="0"
-              value={paxRetorno}
-              onChange={e => setPaxRetorno(e.target.value)}
-              placeholder="0"
-              className="text-3xl text-center h-16 font-bold tracking-wider"
-              autoFocus
-            />
-            <p className="text-xs text-muted-foreground text-center">
-              Quantos passageiros voltaram nesta viagem?
-            </p>
-          </div>
 
           {/* Observação */}
           <div className="space-y-2">
