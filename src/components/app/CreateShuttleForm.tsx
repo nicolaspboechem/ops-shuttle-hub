@@ -289,6 +289,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
               min="1"
               value={qtdPax}
               onChange={e => setQtdPax(e.target.value)}
+              onFocus={scrollInputIntoView}
               placeholder="0"
               className="text-3xl text-center h-16 font-bold tracking-wider"
               autoFocus
