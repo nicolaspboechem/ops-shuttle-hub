@@ -160,6 +160,11 @@ export function ViagensTable({ viagens, alertas, onUpdate }: ViagensTableProps) 
                     </span>
                   </TableCell>
                   <TableCell>
+                    <span className="text-sm text-muted-foreground truncate max-w-[120px] block">
+                      {viagem.finalizado_por ? getName(viagem.finalizado_por) : '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     <Button
                       variant="ghost"
                       size="icon"

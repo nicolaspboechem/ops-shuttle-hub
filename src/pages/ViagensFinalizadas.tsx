@@ -134,7 +134,7 @@ export default function ViagensFinalizadas() {
           </div>
           <Badge variant="outline">{viagensFiltradas.length} resultados</Badge>
         </div>
-        <FilterBar filtros={filtros} onChange={setFiltros} motoristas={motoristas} />
+        <FilterBar filtros={filtros} onChange={setFiltros} motoristas={motoristas} coordenadores={coordenadores} />
         <ViagensTable viagens={viagensFiltradas} alertas={[]} onUpdate={updateViagem} />
       </div>
     </EventLayout>
