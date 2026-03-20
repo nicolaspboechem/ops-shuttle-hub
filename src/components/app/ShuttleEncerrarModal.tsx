@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +8,9 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle, X } from 'lucide-react';
 import { Viagem } from '@/lib/types/viagem';
+import { scrollInputIntoView } from '@/lib/utils/scrollInputIntoView';
 
 interface ShuttleEncerrarModalProps {
   open: boolean;
@@ -66,24 +67,29 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
   const nomeViagem = viagem?.coordenador || 'Shuttle';
 
   return (
-    <Drawer open={open} onOpenChange={(val) => { if (!val) resetForm(); onOpenChange(val); }}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="pb-2">
-          <DrawerTitle className="flex items-center gap-2 justify-center">
-            <CheckCircle className="h-5 w-5 text-primary" />
-            Encerrar Viagem
-          </DrawerTitle>
-          <DrawerDescription className="truncate">{nomeViagem} • {viagem?.qtd_pax || 0} PAX ida</DrawerDescription>
-        </DrawerHeader>
+    <Sheet open={open} onOpenChange={(val) => { if (!val) resetForm(); onOpenChange(val); }}>
+      <SheetContent side="bottom" className="h-auto max-h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>
+        <SheetHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-primary" />
+              Encerrar Viagem
+            </SheetTitle>
+            <Button type="button" variant="ghost" size="icon" onClick={() => { resetForm(); onOpenChange(false); }}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <SheetDescription className="truncate">{nomeViagem} • {viagem?.qtd_pax || 0} PAX ida</SheetDescription>
+        </SheetHeader>
 
-        <div className="px-6 pb-8 pt-2 space-y-5">
-
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 pb-8 pt-2 space-y-5">
           {/* Observação */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Observação</Label>
             <Textarea
               value={observacao}
               onChange={e => setObservacao(e.target.value)}
+              onFocus={scrollInputIntoView}
               placeholder="Observação opcional..."
               className="min-h-[60px] text-sm"
             />
@@ -99,7 +105,7 @@ export function ShuttleEncerrarModal({ open, onOpenChange, viagem, onEncerrado }
             Confirmar Encerramento
           </Button>
         </div>
-      </DrawerContent>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }

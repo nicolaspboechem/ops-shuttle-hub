@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from '@/components/ui/drawer';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { scrollInputIntoView } from '@/lib/utils/scrollInputIntoView';
 import {
   Select,
   SelectContent,
@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/popover';
 import { CreateMotoristaWizard } from '@/components/motoristas/CreateMotoristaWizard';
 import { toast } from 'sonner';
-import { Plus, Loader2, ChevronsUpDown, Check } from 'lucide-react';
+import { Plus, Loader2, ChevronsUpDown, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreateViagemFormProps {
@@ -212,13 +212,18 @@ export function CreateViagemForm({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="border-b pb-4">
-            <DrawerTitle>Nova Viagem</DrawerTitle>
-          </DrawerHeader>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="bottom" className="h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>
+          <SheetHeader className="border-b pb-4">
+            <div className="flex items-center justify-between">
+              <SheetTitle>Nova Viagem</SheetTitle>
+              <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </SheetHeader>
 
-          <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
             {/* Motorista - Combobox with search */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -462,6 +467,7 @@ export function CreateViagemForm({
                 type="number"
                 value={qtdPax}
                 onChange={e => setQtdPax(e.target.value)}
+                onFocus={scrollInputIntoView}
                 placeholder="0"
                 min="0"
               />
@@ -473,6 +479,7 @@ export function CreateViagemForm({
               <Textarea
                 value={observacao}
                 onChange={e => setObservacao(e.target.value)}
+                onFocus={scrollInputIntoView}
                 placeholder="Informações adicionais..."
                 rows={2}
               />
@@ -480,11 +487,9 @@ export function CreateViagemForm({
 
             {/* Botões */}
             <div className="flex gap-3 pt-4">
-              <DrawerClose asChild>
-                <Button type="button" variant="outline" className="flex-1">
-                  Cancelar
-                </Button>
-              </DrawerClose>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
               <Button type="submit" disabled={saving} className="flex-1">
                 {saving ? (
                   <>
@@ -497,8 +502,8 @@ export function CreateViagemForm({
               </Button>
             </div>
           </form>
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
       <CreateMotoristaWizard
         open={showQuickMotorista}

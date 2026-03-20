@@ -9,12 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from '@/components/ui/drawer';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { scrollInputIntoView } from '@/lib/utils/scrollInputIntoView';
 import {
   Select,
   SelectContent,
@@ -36,7 +36,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Loader2, Bus, Car, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, Bus, Car, ChevronsUpDown, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CreateViagemMotoristaFormProps {
@@ -375,6 +375,7 @@ export function CreateViagemMotoristaForm({
             type="number"
             value={qtdPax}
             onChange={e => setQtdPax(e.target.value)}
+            onFocus={scrollInputIntoView}
             placeholder="0"
             min="1"
             required
@@ -401,6 +402,7 @@ export function CreateViagemMotoristaForm({
         <Textarea
           value={observacao}
           onChange={e => setObservacao(e.target.value)}
+          onFocus={scrollInputIntoView}
           placeholder="Informações adicionais..."
           rows={2}
         />
@@ -418,11 +420,9 @@ export function CreateViagemMotoristaForm({
             Cancelar
           </Button>
         ) : (
-          <DrawerClose asChild>
-            <Button type="button" variant="outline" className="flex-1">
-              Cancelar
-            </Button>
-          </DrawerClose>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
         )}
         <Button type="submit" disabled={saving} className="flex-1">
           {saving ? (
@@ -450,15 +450,20 @@ export function CreateViagemMotoristaForm({
 
   // Senão, renderizar no Drawer
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="border-b pb-4">
-          <DrawerTitle>Nova Viagem</DrawerTitle>
-        </DrawerHeader>
-        <div className="p-4 overflow-y-auto">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>
+        <SheetHeader className="border-b pb-4">
+          <div className="flex items-center justify-between">
+            <SheetTitle>Nova Viagem</SheetTitle>
+            <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">
           {formContent}
         </div>
-      </DrawerContent>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }
