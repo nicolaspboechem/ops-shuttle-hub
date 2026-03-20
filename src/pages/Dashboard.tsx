@@ -111,12 +111,12 @@ export default function Dashboard() {
     return filtered;
   }, [viagens, tipoOperacao, rotaFiltro]);
 
-  // Total de PAX nas viagens ativas
-  const totalPaxAtivas = useMemo(() => {
-    return viagensFiltradas
-      .filter(v => v.status === 'em_andamento' || !v.h_retorno)
-      .reduce((acc, v) => acc + (v.qtd_pax || 0), 0);
-  }, [viagensFiltradas]);
+  const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas, motoristas: metricasMotoristas } = useCalculos(viagensFiltradas);
+
+  // Total de PAX nas viagens ativas (somente viagens realmente em andamento)
+  const totalPaxAtivas = useMemo(() =>
+    viagensAtivas.reduce((acc, v) => acc + (v.qtd_pax || 0), 0)
+  , [viagensAtivas]);
 
   const { kpis, metricasPorHora, viagensAtivas, viagensFinalizadas, motoristas: metricasMotoristas } = useCalculos(viagensFiltradas);
 
