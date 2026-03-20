@@ -48,7 +48,21 @@ export default function ViagensAtivas() {
   
   const tiposHabilitados = (evento as any)?.tipos_viagem_habilitados as string[] | null;
   const [tipoOperacao, setTipoOperacao] = useState<TipoOperacaoFiltro>('todos');
-  const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '' });
+  const [filtros, setFiltros] = useState<Filtros>({ tipoVeiculo: 'todos', status: 'todos', motorista: 'todos', busca: '', coordenador: 'todos' });
+
+  // Resolve coordinator names
+  const coordenadorIds = useMemo(() => {
+    const ids = new Set<string>();
+    viagens.forEach(v => {
+      if (v.iniciado_por) ids.add(v.iniciado_por);
+      if (v.finalizado_por) ids.add(v.finalizado_por);
+    });
+    return [...ids];
+  }, [viagens]);
+  const { getName: getCoordName, names: coordNames } = useUserNames(coordenadorIds);
+  const coordenadores = useMemo(() => {
+    return [...new Set(coordenadorIds.map(id => coordNames[id]).filter(Boolean))].sort();
+  }, [coordenadorIds, coordNames]);
 
   const contadores = useMemo(() => ({
     shuttle: viagensAtivas.filter(v => v.tipo_operacao === 'shuttle' && !v.origem_missao_id).length,
