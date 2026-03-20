@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +8,9 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle, X } from 'lucide-react';
 import { Viagem } from '@/lib/types/viagem';
+import { scrollInputIntoView } from '@/lib/utils/scrollInputIntoView';
 
 interface ShuttleEncerrarModalProps {
   open: boolean;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,8 +21,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useServerTime } from '@/hooks/useServerTime';
 import { toast } from 'sonner';
-import { Loader2, Bus, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, Bus, X, ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { scrollInputIntoView } from '@/lib/utils/scrollInputIntoView';
 
 interface Veiculo {
   id: string;
