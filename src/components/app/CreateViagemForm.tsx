@@ -479,6 +479,7 @@ export function CreateViagemForm({
               <Textarea
                 value={observacao}
                 onChange={e => setObservacao(e.target.value)}
+                onFocus={scrollInputIntoView}
                 placeholder="Informações adicionais..."
                 rows={2}
               />
