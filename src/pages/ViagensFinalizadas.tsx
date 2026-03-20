@@ -93,11 +93,16 @@ export default function ViagensFinalizadas() {
       if (filtros.motorista !== 'todos' && v.motorista !== filtros.motorista) return false;
       if (filtros.busca) {
         const busca = filtros.busca.toLowerCase();
-        return v.motorista.toLowerCase().includes(busca) || (v.placa?.toLowerCase().includes(busca) ?? false);
+        if (!(v.motorista.toLowerCase().includes(busca) || (v.placa?.toLowerCase().includes(busca) ?? false) || (v.coordenador?.toLowerCase().includes(busca) ?? false))) return false;
+      }
+      if (filtros.coordenador && filtros.coordenador !== 'todos') {
+        const iniciadoNome = v.iniciado_por ? getCoordName(v.iniciado_por) : '';
+        const finalizadoNome = v.finalizado_por ? getCoordName(v.finalizado_por) : '';
+        if (iniciadoNome !== filtros.coordenador && finalizadoNome !== filtros.coordenador) return false;
       }
       return true;
     });
-  }, [viagensFinalizadas, filtros, tipoOperacao]);
+  }, [viagensFinalizadas, filtros, tipoOperacao, getCoordName]);
 
   if (loading) {
     return (
