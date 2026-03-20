@@ -9,6 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { useViagens, useCalculos } from '@/hooks/useViagens';
 import { useEventos } from '@/hooks/useEventos';
 import { useServerTime } from '@/hooks/useServerTime';
+import { useUserNames } from '@/hooks/useUserNames';
+import { useEventos } from '@/hooks/useEventos';
+import { useServerTime } from '@/hooks/useServerTime';
 import { getDataOperacional } from '@/lib/utils/diaOperacional';
 import { Skeleton } from '@/components/ui/skeleton';
 
