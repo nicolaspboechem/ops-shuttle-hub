@@ -1,37 +1,33 @@
 
 
-## Plano: Filtro por coordenador + correção de exibição na tabela CCO
+## Plano: Corrigir PAX em Trânsito no Dashboard CCO + melhorias no Cliente
 
-### Problema 1: Falta filtro por coordenador (quem iniciou/finalizou)
-A FilterBar não tem filtro por coordenador/operador. O usuário precisa identificar qual operador iniciou e qual finalizou cada shuttle.
+### Problema principal
+No Dashboard CCO, o card "PAX em Trânsito" mostra 175 (consolidado) em vez de 3 (apenas viagens ativas). A causa: o filtro na linha 115-118 usa `!v.h_retorno`, que inclui TODOS os shuttles (que nunca têm retorno), em vez de filtrar apenas viagens realmente ativas.
 
-### Problema 2: Dados errados nas colunas da tabela
-- Coluna "Motorista" mostra `viagem.motorista` (ex: "Shuttle") — deveria mostrar o **nome da viagem** (`coordenador`) ou título da missão
-- Coluna "Veículo" mostra apenas `tipo_veiculo` (ex: "Van") — deveria mostrar o **apelido do veículo** (`veiculo.nome`) e a placa
+O Dashboard do Cliente (`ClienteDashboardTab`) já calcula corretamente usando `viagensAtivas`.
 
 ### Mudanças
 
-**1. `src/components/viagens/FilterBar.tsx`**
-- Adicionar campo `coordenador` ao tipo `Filtros`
-- Aceitar nova prop `coordenadores: string[]` com lista de nomes resolvidos
-- Renderizar Select de "Coordenador" (operador que iniciou/finalizou)
-- Atualizar `clearFilters` e `hasActiveFilters`
+**1. `src/pages/Dashboard.tsx` — Corrigir PAX em Trânsito**
+- Remover o `useMemo` customizado `totalPaxAtivas` (linhas 114-119)
+- Usar `viagensAtivas` (já calculado pelo `useCalculos`) para somar `qtd_pax`:
+  ```ts
+  const totalPaxAtivas = useMemo(() =>
+    viagensAtivas.reduce((acc, v) => acc + (v.qtd_pax || 0), 0)
+  , [viagensAtivas]);
+  ```
+- Isso alinha com a mesma lógica já usada no Cliente (linha 99-101)
 
-**2. `src/pages/ViagensAtivas.tsx` e `src/pages/ViagensFinalizadas.tsx`**
-- Extrair lista de `iniciado_por` e `finalizado_por` IDs únicos das viagens
-- Usar `useUserNames` para resolver nomes
-- Montar lista de coordenadores e passar para FilterBar
-- Adicionar filtro por coordenador na lógica de `viagensFiltradas`
-- Adicionar `coordenador: 'todos'` ao estado inicial de filtros
+**2. `src/components/app/ClienteDashboardTab.tsx` — Melhorias adicionais**
+- Filtrar rotas shuttle por horário ativo (usar `rotaEstaAtiva` como no painel público) no `ClientePainelTab`
+- Corrigir `useViagensPublicas` para usar `horario_virada_dia` do evento em vez de meia-noite simples
 
-**3. `src/components/viagens/ViagensTable.tsx`**
-- Coluna "Motorista" → renomear para **"Viagem"**: mostrar `coordenador` (nome da viagem) como texto principal; rota embaixo como subtítulo
-- Coluna "Veículo" → mostrar `veiculo.nome` (apelido) como principal e `placa` como subtítulo mono; manter ícone
-- Remover coluna "Placa" separada (já estará dentro de Veículo)
-- Adicionar coluna **"Finalizado por"** ao lado de "Iniciado por", resolvendo `finalizado_por` via `useUserNames`
-- Coletar `finalizado_por` IDs no `responsavelIds` para resolução de nomes
+**3. `src/hooks/useViagensPublicas.ts` — Corrigir dia operacional**
+- Importar e usar `getDataOperacional` com o `horario_virada_dia` do evento
+- Aceitar `horarioVirada` como parâmetro opcional
 
 ### Resultado
-- Operador consegue filtrar por quem iniciou/finalizou
-- Cada linha mostra claramente: nome da viagem, apelido+placa do veículo, quem iniciou e quem finalizou
+- CCO: "PAX em Trânsito" mostra apenas passageiros de viagens realmente ativas (3, não 175)
+- Cliente: rotas expiradas não aparecem no painel; dia operacional correto nas viagens públicas
 
