@@ -212,13 +212,18 @@ export function CreateViagemForm({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="border-b pb-4">
-            <DrawerTitle>Nova Viagem</DrawerTitle>
-          </DrawerHeader>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="bottom" className="h-[90vh] flex flex-col rounded-t-2xl" onPointerDownOutside={e => e.preventDefault()} onInteractOutside={e => e.preventDefault()}>
+          <SheetHeader className="border-b pb-4">
+            <div className="flex items-center justify-between">
+              <SheetTitle>Nova Viagem</SheetTitle>
+              <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </SheetHeader>
 
-          <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4">
             {/* Motorista - Combobox with search */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
