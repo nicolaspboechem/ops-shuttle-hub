@@ -111,6 +111,24 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
         </SelectContent>
       </Select>
 
+      {/* Coordenador */}
+      {coordenadores && coordenadores.length > 0 && (
+        <Select
+          value={filtros.coordenador || 'todos'}
+          onValueChange={(value) => onChange({ ...filtros, coordenador: value })}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Coordenador" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos Coordenadores</SelectItem>
+            {coordenadores.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
       {/* Clear Filters */}
       {hasActiveFilters && (
         <Button 
