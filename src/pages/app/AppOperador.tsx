@@ -344,15 +344,7 @@ export default function AppOperador() {
     }
   };
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-    }
-  }, [user, navigate]);
-
-  if (!user) {
-    return null;
-  }
+  // Auth guard removed — ProtectedRoute already handles authentication
 
   if (loading && !viagens.length) {
     return (

@@ -23,12 +23,10 @@ export default function AppHome() {
   const [userRole, setUserRole] = useState<'motorista' | 'operador' | 'supervisor' | 'cliente' | null>(null);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-      return;
+    if (user) {
+      fetchEventos();
     }
-    fetchEventos();
-  }, [user, navigate, isAdmin]);
+  }, [user, isAdmin]);
 
   const fetchEventos = async () => {
     if (!user) return;

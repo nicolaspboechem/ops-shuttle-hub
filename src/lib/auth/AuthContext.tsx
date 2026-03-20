@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setTimeout(() => {
             fetchUserData(session.user.id);
           }, 0);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           resetState();
         }
       }
