@@ -303,6 +303,7 @@ export function CreateShuttleForm({ open, onOpenChange, eventoId, onCreated, vei
             <Textarea
               value={observacao}
               onChange={e => setObservacao(e.target.value)}
+              onFocus={scrollInputIntoView}
               placeholder="Alguma informação extra..."
               rows={2}
               className="resize-none"
