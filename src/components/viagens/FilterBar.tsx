@@ -26,13 +26,14 @@ interface FilterBarProps {
   coordenadores?: string[];
 }
 
-export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false }: FilterBarProps) {
+export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = false, coordenadores }: FilterBarProps) {
   const hasActiveFilters = 
     filtros.tipoVeiculo !== 'todos' || 
     filtros.status !== 'todos' || 
     filtros.motorista !== 'todos' ||
     filtros.busca !== '' ||
-    (showTipoOperacao && filtros.tipoOperacao !== 'todos');
+    (showTipoOperacao && filtros.tipoOperacao !== 'todos') ||
+    (filtros.coordenador && filtros.coordenador !== 'todos');
 
   const clearFilters = () => {
     onChange({
@@ -40,7 +41,8 @@ export function FilterBar({ filtros, onChange, motoristas, showTipoOperacao = fa
       status: 'todos',
       motorista: 'todos',
       busca: '',
-      tipoOperacao: 'todos'
+      tipoOperacao: 'todos',
+      coordenador: 'todos'
     });
   };
 
